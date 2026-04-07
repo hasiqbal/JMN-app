@@ -12,7 +12,6 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  Platform,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius } from '@/constants/theme';
