@@ -7,6 +7,8 @@ import { Colors } from '@/constants/theme';
 import { useNightMode } from '@/hooks/useNightMode';
 import { fetchLiveStatus } from '@/services/liveService';
 
+const HIDDEN_TAB_OPTIONS = { href: null };
+
 function LiveDot() {
   const pulse = useRef(new Animated.Value(0.4)).current;
   useEffect(() => {
@@ -67,6 +69,8 @@ export default function TabLayout() {
     borderTopColor: nightMode ? '#1E2D47' : Colors.border,
   };
 
+  const hiddenRoutes = ['howto', 'events'] as const;
+
   return (
     <Tabs
       screenOptions={{
@@ -118,18 +122,9 @@ export default function TabLayout() {
           ),
         }}
       />
-      <Tabs.Screen
-        name="howto"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="events"
-        options={{
-          href: null,
-        }}
-      />
+      {hiddenRoutes.map((name) => (
+        <Tabs.Screen key={name} name={name} options={HIDDEN_TAB_OPTIONS} />
+      ))}
       <Tabs.Screen
         name="stream"
         options={{

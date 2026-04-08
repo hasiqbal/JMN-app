@@ -6,15 +6,9 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  Platform,
   ImageBackground,
-  Dimensions,
-  AppState,
 } from 'react-native';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
-
-import { GestureHandlerRootView, Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
 
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFonts } from 'expo-font';
@@ -39,8 +33,6 @@ import {
   KNOWN_JUMUAH_GROUPS,
 } from '@/constants/duasGroups';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
-import { SURAH_YASEEN, SURAH_WAQIAH } from '@/services/quranService';
-import { fetchSurahPages, MushafPage } from '@/services/quranApiService';
 import { useNightMode } from '@/hooks/useNightMode';
 import { fetchAdhkarForPrayerTime, fetchAdhkarGroupsForPrayerTime, AdhkarGroupMeta, AdhkarRow } from '@/services/contentService';
 import { KahfMushafPlaceholder, MulkMushafPlaceholder, SajdahMushafPlaceholder } from '@/components/MushafimageViewer';
@@ -48,23 +40,8 @@ import { StarField } from '@/components/adhkar/StarField';
 import { NightModeToggle } from '@/components/adhkar/NightModeToggle';
 import { PrayerTimeChipBar } from '@/components/adhkar/PrayerTimeChipBar';
 import { DbAdhkarScreen } from '@/components/adhkar/DbAdhkarScreen';
-
-
-
-
-// ── Night palette (inline — mirrors NIGHT_PALETTE from constants/nightPalette.ts) ────
-const NIGHT = {
-  bg:         '#06090F',   // Deep space navy
-  surface:    '#0C1220',   // Card surface
-  surfaceAlt: '#111C32',   // Elevated surface
-  border:     '#1B2E4A',   // Refined border
-  text:       '#EEF3FC',   // Bright moonlight white
-  textSub:    '#93B4D8',   // Clear blue-grey
-  textMuted:  '#5A7A9E',   // Readable muted
-  accent:     '#6AAEFF',   // Bright sky blue
-  primary:    '#4DCF88',   // Bright emerald green
-  chip:       '#0A1A35',   // Chip bg
-};
+import { NIGHT_PALETTE as NIGHT } from '@/components/quran_screen/shared';
+import { SurahKahfScreen, SurahWaqiahMushafScreen, SurahYaseenScreen } from '@/components/quran_screen';
 
 // StarField, NightModeToggle, PrayerTimeChipBar, DbAdhkarScreen — imported from components/adhkar/
 
@@ -221,7 +198,7 @@ export default function DuasScreen() {
 
     switch (fajrSelection) {
       case 'yaseen':
-        return <SurahYaseenApiScreen nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
+        return <SurahYaseenScreen nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
       case 'wird-al-latif':
         return <WirdAlLatifScreen nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
       case 'wird-abu-bakr':
@@ -239,7 +216,7 @@ export default function DuasScreen() {
       case 'sajdah-mushaf':
         return <SajdahMushafPlaceholder nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
       case 'kahf':
-        return <KahfReaderScreen nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
+        return <SurahKahfScreen nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
       case '__all-dhuhr__':
         return <DbAdhkarScreen prayerTime={'after-zuhr' as any} nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
       case '__all-jumuah__':
@@ -392,7 +369,7 @@ function DhuhrSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMod
         <View style={{ alignItems: 'center', padding: 32, gap: 10 }}>
           <MaterialIcons name="auto-awesome" size={36} color={N ? N.textMuted : Colors.textSubtle} style={{ opacity: 0.4 }} />
           <Text style={{ fontSize: 13, color: N ? N.textMuted : Colors.textSubtle, textAlign: 'center', lineHeight: 20 }}>
-            {'No adhkar groups found.\nAdd them via Cloud \u2192 Data \u2192 adhkar with prayer_time=\'after-dhuhr\'.'}
+            Adhkar coming soon.
           </Text>
         </View>
       ) : groups.map((grp, idx) => {
@@ -439,9 +416,7 @@ function DhuhrSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMod
 
       <View style={[fajrSelStyles.tip, N && { backgroundColor: N.surface, borderColor: N.border }]}>
         <MaterialIcons name="info-outline" size={14} color={N ? N.textMuted : Colors.textSubtle} />
-        <Text style={[fajrSelStyles.tipText, N && { color: N.textMuted }]}>
-          Add new groups via Cloud → Data → adhkar with prayer_time=&apos;after-zuhr&apos;. They appear here automatically.
-        </Text>
+        <Text style={[fajrSelStyles.tipText, N && { color: N.textMuted }]}>Adhkar coming soon.</Text>
       </View>
       <View style={{ height: 24 }} />
     </ScrollView>
@@ -485,7 +460,7 @@ function JumuahSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMo
         <View style={{ alignItems: 'center', padding: 32, gap: 10 }}>
           <MaterialIcons name="auto-awesome" size={36} color={N ? N.textMuted : Colors.textSubtle} style={{ opacity: 0.4 }} />
           <Text style={{ fontSize: 13, color: N ? N.textMuted : Colors.textSubtle, textAlign: 'center', lineHeight: 20 }}>
-            {'No adhkar groups found.\nAdd them via Cloud \u2192 Data \u2192 adhkar with prayer_time=\'after-jumuah\'.'}
+            Adhkar coming soon.
           </Text>
         </View>
       ) : groups.map((grp, idx) => {
@@ -532,9 +507,7 @@ function JumuahSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMo
 
       <View style={[fajrSelStyles.tip, N && { backgroundColor: N.surface, borderColor: N.border }]}>
         <MaterialIcons name="info-outline" size={14} color={N ? N.textMuted : Colors.textSubtle} />
-        <Text style={[fajrSelStyles.tipText, N && { color: N.textMuted }]}>
-          Add groups via Cloud → Data → adhkar with prayer_time=&apos;after-jumuah&apos; — they appear here automatically.
-        </Text>
+        <Text style={[fajrSelStyles.tipText, N && { color: N.textMuted }]}>Adhkar coming soon.</Text>
       </View>
       <View style={{ height: 24 }} />
     </ScrollView>
@@ -639,189 +612,17 @@ function AsrSelectionScreen({ nightMode, onSelect, onSelectGroup, onStartFlow }:
         <View style={{ alignItems: 'center', padding: 32, gap: 10 }}>
           <MaterialIcons name="auto-awesome" size={36} color={N ? N.textMuted : Colors.textSubtle} style={{ opacity: 0.4 }} />
           <Text style={{ fontSize: 13, color: N ? N.textMuted : Colors.textSubtle, textAlign: 'center', lineHeight: 20 }}>
-            No adhkar groups found.{"\n"}Add entries via Cloud → Data → adhkar with prayer_time=&apos;after_asr&apos;.
+            Adhkar coming soon.
           </Text>
         </View>
       ) : null}
 
       <View style={[fajrSelStyles.tip, N && { backgroundColor: N.surface, borderColor: N.border }]}>
         <MaterialIcons name="info-outline" size={14} color={N ? N.textMuted : Colors.textSubtle} />
-        <Text style={[fajrSelStyles.tipText, N && { color: N.textMuted }]}>
-          The time after Asr until Maghrib is greatly blessed. Add new groups via Cloud → Data → adhkar with prayer_time=&apos;after-asr&apos; — they appear here automatically.
-        </Text>
+        <Text style={[fajrSelStyles.tipText, N && { color: N.textMuted }]}>Adhkar coming soon.</Text>
       </View>
       <View style={{ height: 24 }} />
     </ScrollView>
-  );
-}
-
-// ── Surah Al-Waqiah Image-Based Mushaf Viewer (pages 534-537) ──────────────
-const WAQIAH_IMG_PAGE_NUMS = [534, 535, 536, 537];
-const WAQIAH_PAGE_AYAT_IMG: Record<number, [number, number]> = {
-  534: [1, 25], 535: [26, 56], 536: [57, 82], 537: [83, 96],
-};
-// 15-line Waqiah: add require() entries here once images are uploaded to assets/images/Quran 15 line indo-pak/
-const WAQIAH_15LINE_LOCAL: Partial<Record<number, any>> = {
-  534: require('@/assets/images/Quran 15 line indo-pak/Waqiah/534.jpg'),
-  535: require('@/assets/images/Quran 15 line indo-pak/Waqiah/535.jpg'),
-  536: require('@/assets/images/Quran 15 line indo-pak/Waqiah/536.jpg'),
-  537: require('@/assets/images/Quran 15 line indo-pak/Waqiah/537.jpg'),
-};
-const WAQIAH_16LINE_LOCAL: Partial<Record<number, any>> = {};
-function SurahWaqiahMushafScreen({ nightMode, onBack }: { nightMode: boolean; onBack: () => void }) {
-  const N = nightMode;
-  const [wqStyle, setWqStyle] = React.useState<'15line' | '16line'>('15line');
-  const [wqRefKey, setWqRefKey] = React.useState(0);
-  const [, setWqErr] = React.useState(false);
-  const [, setWqLoading] = React.useState(false);
-  const [wqShowTrans, setWqShowTrans] = React.useState(false);
-  const [wqIdx, setWqIdx] = React.useState(0);
-
-  // Re-render image when app returns from background
-  // 150ms delay gives Android time to restore its OpenGL context before we force the Image remount
-  React.useEffect(() => {
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') {
-        setTimeout(() => setWqRefKey(k => k + 1), 150);
-      }
-    });
-    return () => sub.remove();
-  }, []);
-
-  const wqTX = useSharedValue(0);
-  const wqSc = useSharedValue(1);
-  const wqSvSc = useSharedValue(1);
-  const wqAnimStyle = useAnimatedStyle(() => ({ transform: [{ translateX: wqTX.value }, { scale: wqSc.value }], flex: 1, width: '100%' }));
-  const BG = N ? '#0F0A00' : '#FFF8F4';
-  const HDR_BG = N ? '#1A1000' : '#FFF0E8';
-  const HDR_BORDER = N ? '#3A2000' : '#D4A080';
-  const ACCENT = N ? '#F97316' : '#E65100';
-  const META = N ? '#94A3B8' : '#6B7280';
-  const has16 = Object.keys(WAQIAH_16LINE_LOCAL).length > 0;
-  const pageNum = WAQIAH_IMG_PAGE_NUMS[wqIdx];
-  const range = WAQIAH_PAGE_AYAT_IMG[pageNum];
-  const pageVerses = range ? SURAH_WAQIAH.slice(range[0] - 1, range[1]) : [];
-
-  // Waqiah 15-line: local bundled assets only (upload images to populate WAQIAH_15LINE_LOCAL)
-  const wqLocalSrc = wqStyle === '15line' ? (WAQIAH_15LINE_LOCAL[pageNum] ?? null) : (WAQIAH_16LINE_LOCAL[pageNum] ?? null);
-
-  const src = wqLocalSrc;
-  const wqGoTo = (idx: number) => {
-    if (idx < 0 || idx >= WAQIAH_IMG_PAGE_NUMS.length) return;
-    setWqIdx(idx); setWqErr(false); setWqShowTrans(false); setWqRefKey(k => k + 1);
-    setWqLoading(false);
-    wqSc.value = withSpring(1, { damping: 20, stiffness: 300 }); wqSvSc.value = 1;
-  };
-  const wqGesture = Gesture.Simultaneous(
-    Gesture.Pan().activeOffsetX([-12, 12]).failOffsetY([-15, 15])
-      .onUpdate((e) => { if (wqSc.value <= 1.05) wqTX.value = e.translationX * 0.25; })
-      .onEnd((e) => {
-        wqTX.value = withSpring(0, { damping: 20, stiffness: 300 });
-        if (wqSc.value <= 1.05) {
-          if (e.translationX < -35 || e.velocityX < -400) runOnJS(wqGoTo)(wqIdx + 1);
-          else if (e.translationX > 35 || e.velocityX > 400) runOnJS(wqGoTo)(wqIdx - 1);
-        }
-      }).onFinalize(() => { wqTX.value = withSpring(0, { damping: 20, stiffness: 300 }); }),
-    Gesture.Race(
-      Gesture.Pinch().onUpdate((e) => { wqSc.value = Math.max(1, Math.min(wqSvSc.value * e.scale, 4)); })
-        .onEnd(() => { if (wqSc.value < 1.1) { wqSc.value = withSpring(1, { damping: 20, stiffness: 300 }); wqSvSc.value = 1; } else wqSvSc.value = wqSc.value; }),
-      Gesture.Tap().numberOfTaps(2).maxDuration(250).onEnd(() => { wqSc.value = withSpring(1, { damping: 20, stiffness: 300 }); wqSvSc.value = 1; })
-    )
-  );
-  return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: BG }}>
-      <View style={{ flex: 1, backgroundColor: BG }}>
-        <View style={[ysPdfSt.topBar, { backgroundColor: HDR_BG, borderBottomColor: HDR_BORDER, paddingVertical: 7 }]}>
-          <Text style={[ysPdfSt.surahNameAr, { color: ACCENT, fontSize: 18 }]}>{'\u0633\u064f\u0648\u0631\u064e\u0629\u064f \u0627\u0644\u0652\u0648\u064e\u0627\u0642\u0650\u0639\u064e\u0629'}</Text>
-          <View style={{ flex: 1 }} />
-          <TouchableOpacity style={[ysPdfSt.transBtn, { borderColor: ACCENT }, wqShowTrans && { backgroundColor: ACCENT, borderColor: ACCENT }]} onPress={() => setWqShowTrans(v => !v)} activeOpacity={0.8}>
-            <MaterialIcons name="translate" size={13} color={wqShowTrans ? '#fff' : ACCENT} />
-            <Text style={[ysPdfSt.transBtnText, { color: wqShowTrans ? '#fff' : ACCENT, fontSize: 11 }]}>Trans</Text>
-          </TouchableOpacity>
-          <View style={[ysPdfSt.toggleGroup, { backgroundColor: N ? '#2A1500' : '#F5E8DF', borderColor: N ? '#3A2000' : '#D4A080' }]}>
-            {(['15line', '16line'] as const).map(s => (
-              <TouchableOpacity key={s} style={[ysPdfSt.toggleBtn, wqStyle === s && { backgroundColor: ACCENT }]} onPress={() => { setWqStyle(s); setWqErr(false); setWqRefKey(k => k + 1); }} activeOpacity={0.8}>
-                <Text style={[ysPdfSt.toggleBtnText, { color: wqStyle === s ? '#fff' : META }]}>{s === '15line' ? '15L' : '16L'}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-        {wqStyle === '16line' && !has16 ? (
-          <View style={[ysPdfSt.noImagesBox, { backgroundColor: BG }]}>
-            <MaterialIcons name="upload-file" size={48} color={ACCENT} style={{ opacity: 0.5 }} />
-            <Text style={[ysPdfSt.noImagesTitle, { color: ACCENT }]}>16-Line Images Not Yet Uploaded</Text>
-            <Text style={[ysPdfSt.noImagesSub, { color: META }]}>Upload pages 534\u2013537 of the 16-line Indo-Pak Quran as image attachments in the chat.</Text>
-            <TouchableOpacity style={[ysPdfSt.noImagesBtn, { backgroundColor: ACCENT + '22', borderColor: ACCENT }]} onPress={() => setWqStyle('15line')} activeOpacity={0.8}>
-              <MaterialIcons name="menu-book" size={16} color={ACCENT} />
-              <Text style={[ysPdfSt.noImagesBtnText, { color: ACCENT }]}>Use 15-Line Instead</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <>
-            <GestureDetector gesture={wqGesture}>
-              <Reanimated.View style={wqAnimStyle}>
-                {src === null ? (
-                  <View style={[ysPdfSt.noImagesBox, { backgroundColor: BG }]}>
-                    <MaterialIcons name="upload-file" size={48} color={ACCENT} style={{ opacity: 0.5 }} />
-                    <Text style={[ysPdfSt.noImagesTitle, { color: ACCENT }]}>Images Not Yet Uploaded</Text>
-                    <Text style={[ysPdfSt.noImagesSub, { color: META }]}>{`Upload pages 534–537 of the 15-line\nIndo-Pak Mushaf as image attachments.`}</Text>
-                  </View>
-                ) : (
-                  <View style={{ flex: 1 }}>
-                    <Image key={`wq-${pageNum}-${wqStyle}-${wqRefKey}`} source={src} style={{ flex: 1, width: '100%' }} contentFit="contain" transition={0}
-                      onLoad={() => { setWqLoading(false); }}
-                      onError={() => { setWqErr(true); setWqLoading(false); }} />
-                  </View>
-                )}
-              </Reanimated.View>
-            </GestureDetector>
-            <View style={[ysPdfSt.navBarCompact, { backgroundColor: HDR_BG, borderTopColor: HDR_BORDER }]}>
-              <TouchableOpacity style={[ysPdfSt.navBtnCompact, wqIdx === 0 && { opacity: 0.3 }]} onPress={() => wqGoTo(wqIdx - 1)} disabled={wqIdx === 0} activeOpacity={0.8}>
-                <MaterialIcons name="chevron-left" size={26} color={ACCENT} />
-              </TouchableOpacity>
-              <View style={{ alignItems: 'center', gap: 4 }}>
-                <Text style={[ysPdfSt.pageNumCompact, { color: ACCENT }]}>Page {pageNum}</Text>
-                <Text style={{ fontSize: 10, color: META, fontWeight: '500' }}>{wqIdx + 1} / {WAQIAH_IMG_PAGE_NUMS.length}  \u00b7  {range ? `Ayat ${range[0]}\u2013${range[1]}` : ''}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                  {WAQIAH_IMG_PAGE_NUMS.map((_, i) => (
-                    <TouchableOpacity key={i} onPress={() => wqGoTo(i)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
-                      <View style={[ysPdfSt.dotSmall, { backgroundColor: i === wqIdx ? ACCENT : (N ? '#3A2000' : '#D4A080') }, i === wqIdx && { width: 16 }]} />
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-              <TouchableOpacity style={[ysPdfSt.navBtnCompact, wqIdx === WAQIAH_IMG_PAGE_NUMS.length - 1 && { opacity: 0.3 }]} onPress={() => wqGoTo(wqIdx + 1)} disabled={wqIdx === WAQIAH_IMG_PAGE_NUMS.length - 1} activeOpacity={0.8}>
-                <MaterialIcons name="chevron-right" size={26} color={ACCENT} />
-              </TouchableOpacity>
-            </View>
-            {wqShowTrans ? (
-              <View style={[ysPdfSt.transOverlay, { backgroundColor: N ? 'rgba(15,10,0,0.97)' : 'rgba(255,248,244,0.97)' }]}>
-                <View style={[ysPdfSt.transOverlayHeader, { borderBottomColor: HDR_BORDER }]}>
-                  <MaterialIcons name="menu-book" size={16} color={ACCENT} />
-                  <Text style={[ysPdfSt.transPanelTitle, { color: ACCENT, flex: 1 }]}>{range ? `Ayat ${range[0]}\u2013${range[1]}` : ''}  \u00b7  Translation</Text>
-                  <TouchableOpacity onPress={() => setWqShowTrans(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                    <MaterialIcons name="close" size={20} color={META} />
-                  </TouchableOpacity>
-                </View>
-                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
-                  {pageVerses.map((v: any) => (
-                    <View key={v.ayah} style={[ysPdfSt.transVerseRow, { borderBottomColor: HDR_BORDER }]}>
-                      <View style={[ysPdfSt.transVerseNum, { backgroundColor: ACCENT + '20' }]}>
-                        <Text style={[ysPdfSt.transVerseNumText, { color: ACCENT }]}>{v.ayah}</Text>
-                      </View>
-                      <View style={{ flex: 1, gap: 3 }}>
-                        <Text style={[ysPdfSt.transVerseTranslit, { color: META }]}>{v.transliteration}</Text>
-                        <Text style={[ysPdfSt.transVerseTrans, { color: N ? '#EEF3FC' : '#1F2937' }]}>{v.translation}</Text>
-                      </View>
-                    </View>
-                  ))}
-                </ScrollView>
-              </View>
-            ) : null}
-          </>
-        )}
-      </View>
-    </GestureHandlerRootView>
   );
 }
 
@@ -937,7 +738,7 @@ function PrayerTimeSelectionScreen({
         <View style={{ alignItems: 'center', padding: 32, gap: 10 }}>
           <MaterialIcons name="auto-awesome" size={36} color={N ? N.textMuted : Colors.textSubtle} style={{ opacity: 0.4 }} />
           <Text style={{ fontSize: 13, color: N ? N.textMuted : Colors.textSubtle, textAlign: 'center', lineHeight: 20 }}>
-            {`No adhkar groups found.\nAdd them via Cloud \u2192 Data \u2192 adhkar with prayer_time='${prayerTime}'.`}
+            Adhkar coming soon.
           </Text>
         </View>
       ) : groups.map((grp, idx) => {
@@ -976,9 +777,7 @@ function PrayerTimeSelectionScreen({
       })}
       <View style={[fajrSelStyles.tip, N && { backgroundColor: N.surface, borderColor: N.border }]}>
         <MaterialIcons name="info-outline" size={14} color={N ? N.textMuted : Colors.textSubtle} />
-        <Text style={[fajrSelStyles.tipText, N && { color: N.textMuted }]}>
-          {`Add groups via Cloud \u2192 Data \u2192 adhkar with prayer_time='${prayerTime}' — they appear here automatically.`}
-        </Text>
+        <Text style={[fajrSelStyles.tipText, N && { color: N.textMuted }]}>Adhkar coming soon.</Text>
       </View>
       <View style={{ height: 24 }} />
     </ScrollView>
@@ -1088,9 +887,7 @@ function FajrSelectionScreen({ nightMode, onSelect, onSelectGroup, onStartFlow }
 
       <View style={[fajrSelStyles.tip, N && { backgroundColor: N.surface, borderColor: N.border }]}>
         <MaterialIcons name="info-outline" size={14} color={N ? N.textMuted : Colors.textSubtle} />
-        <Text style={[fajrSelStyles.tipText, N && { color: N.textMuted }]}>
-          The time after Fajr is blessed. Add new wird groups via Cloud → Data → adhkar — they appear here automatically.
-        </Text>
+        <Text style={[fajrSelStyles.tipText, N && { color: N.textMuted }]}>Adhkar coming soon.</Text>
       </View>
       <View style={{ height: 24 }} />
     </ScrollView>
@@ -1153,714 +950,6 @@ const fajrSelStyles = StyleSheet.create({
 });
 
 // ── Surah Yaseen — Authentic Mushaf page layout with pinch-to-zoom ──────
-// ── Surah Al-Kahf Reader (Friday) ─────────────────────────────────────────
-function KahfReaderScreen({ nightMode, onBack }: { nightMode: boolean; onBack: () => void }) {
-  const N = nightMode ? NIGHT : null;
-  const color = '#1B8A5A';
-  const [pages, setPages] = React.useState<MushafPage[]>([]);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
-  const [currentPage, setCurrentPage] = React.useState(0);
-  const [showTrans, setShowTrans] = React.useState(false);
-  const scrollRef = React.useRef<ScrollView>(null);
-  const { width: SCREEN_WIDTH } = Dimensions.get('window');
-  const KAHF_FONT = 22;
-
-  React.useEffect(() => {
-    fetchSurahPages(18).then(data => {
-      if (data.length === 0) setError('Could not load Surah Al-Kahf. Please check your connection.');
-      else setPages(data);
-      setLoading(false);
-    });
-  }, []);
-
-  const goToPage = (p: number) => {
-    if (p < 0 || p >= pages.length) return;
-    setCurrentPage(p);
-    setShowTrans(false);
-    scrollRef.current?.scrollTo({ y: 0, animated: false });
-  };
-
-  const pageBg    = N ? '#081408' : '#F0FBF4';
-  const pageText  = N ? '#C8F0D0' : '#031508';
-  const pageBord  = N ? '#1A4A25' : '#5A9A6A';
-  const metaColor = N ? '#3A7A45' : '#2A6A35';
-  const topBarBg  = N ? '#040C06' : '#E8F5EC';
-  const page = pages[currentPage];
-
-  return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <View style={{ flex: 1, backgroundColor: N ? N.bg : '#E8F5EC' }}>
-        <View style={[yaseenMStyles.topBar, { backgroundColor: topBarBg, borderBottomColor: pageBord }]}>
-          <View style={yaseenMStyles.topLeft}>
-            <Text style={[yaseenMStyles.topSurahName, { color: metaColor }]}>سُورَةُ الْكَهْف</Text>
-            {page ? <Text style={[yaseenMStyles.topMeta, { color: metaColor }]}>{'Juz ' + page.juzNumber}</Text> : null}
-          </View>
-          <TouchableOpacity
-            style={[yaseenMStyles.transBtn, showTrans && { backgroundColor: color, borderColor: color }]}
-            onPress={() => setShowTrans(v => !v)}
-            activeOpacity={0.8}
-          >
-            <MaterialIcons name="translate" size={14} color={showTrans ? '#fff' : color} />
-            <Text style={[yaseenMStyles.transBtnText, { color: showTrans ? '#fff' : color }]}>Translation</Text>
-          </TouchableOpacity>
-        </View>
-
-        {loading ? (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontSize: 13, color: metaColor, marginTop: 16, textAlign: 'center' }}>Loading Surah Al-Kahf…</Text>
-          </View>
-        ) : error ? (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-            <MaterialIcons name="wifi-off" size={40} color={N ? N.textMuted : Colors.textSubtle} style={{ opacity: 0.35 }} />
-            <Text style={{ fontSize: 14, color: N ? N.textMuted : Colors.textSubtle, textAlign: 'center', lineHeight: 22, marginTop: 12 }}>{error}</Text>
-          </View>
-        ) : page ? (
-          <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
-            {currentPage === 0 ? (
-              <View style={[wirdStyles.infoBand, { marginHorizontal: 12, marginTop: 10, backgroundColor: color + '12', borderColor: color + '30' }]}>
-                <MaterialIcons name="star" size={16} color={color} />
-                <Text style={[wirdStyles.infoText, N && { color: N.textSub }]}>
-                  The Prophet ﷺ said: &quot;Whoever recites Surah Al-Kahf on Friday, a light will shine for him between the two Fridays.&quot; [Al-Hakim, Sahih]
-                </Text>
-              </View>
-            ) : null}
-            <View style={[yaseenMStyles.page, { backgroundColor: pageBg, borderColor: pageBord, width: SCREEN_WIDTH - 16, alignSelf: 'center' }]}>
-              <View style={[yaseenMStyles.pageInner, { borderColor: pageBord }]}>
-                <View style={[yaseenMStyles.pageHeader, { borderBottomColor: pageBord }]}>
-                  <Text style={[yaseenMStyles.pageHeaderLeft, { color: metaColor }]}>Surah Al-Kahf</Text>
-                  <Text style={[yaseenMStyles.pageHeaderRight, { color: metaColor }]}>{'Juz ' + page.juzNumber}</Text>
-                </View>
-                <View style={yaseenMStyles.linesContainer}>
-                  {page.lines.map((line, idx) => (
-                    <View key={line.lineNumber} style={[yaseenMStyles.lineRow, idx < page.lines.length - 1 && { borderBottomColor: pageBord + '40', borderBottomWidth: 0.75 }]}>
-                      <Text style={[
-                        yaseenMStyles.lineText,
-                        { color: pageText, fontSize: KAHF_FONT, lineHeight: Math.round(KAHF_FONT * 2.2) },
-                        line.isBismillah && yaseenMStyles.bismillahLine,
-                        line.isCentered && yaseenMStyles.centeredLine,
-                      ]}>{line.text}</Text>
-                    </View>
-                  ))}
-                </View>
-                <View style={[yaseenMStyles.pageFooter, { borderTopColor: pageBord }]}>
-                  <Text style={[yaseenMStyles.pageNum, { color: metaColor }]}>{page.pageNumber}</Text>
-                  <Text style={[yaseenMStyles.verseRangeText, { color: metaColor }]}>{'Ayat ' + page.verseRange[0] + '–' + page.verseRange[1]}</Text>
-                </View>
-              </View>
-            </View>
-            {showTrans ? (
-              <View style={[yaseenMStyles.transPanel, { backgroundColor: N ? N.surface : '#FFF', borderColor: N ? N.border : '#A0D4B0', width: SCREEN_WIDTH - 16, alignSelf: 'center' }]}>
-                <Text style={[yaseenMStyles.transPanelTitle, N && { color: N.textSub }]}>Translation — Ayat {page.verseRange[0]}–{page.verseRange[1]}</Text>
-                {page.verses.map(v => (
-                  <View key={v.numberInSurah} style={[yaseenMStyles.transVerseRow, N && { borderBottomColor: N.border }]}>
-                    <View style={[yaseenMStyles.transVerseNum, { backgroundColor: color + '20' }]}>
-                      <Text style={[yaseenMStyles.transVerseNumText, { color }]}>{v.numberInSurah}</Text>
-                    </View>
-                    <View style={{ flex: 1, gap: 3 }}>
-                      {v.transliteration ? <Text style={[yaseenMStyles.translit, N && { color: N.textSub }]}>{v.transliteration}</Text> : null}
-                      <Text style={[yaseenMStyles.transText, N && { color: N.text }]}>{v.translation}</Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            ) : null}
-            <View style={yaseenMStyles.navRow}>
-              <TouchableOpacity
-                style={[yaseenMStyles.navBtn, { borderColor: pageBord, backgroundColor: pageBg }, currentPage === 0 && { opacity: 0.35 }]}
-                onPress={() => goToPage(currentPage - 1)} disabled={currentPage === 0} activeOpacity={0.8}
-              >
-                <MaterialIcons name="chevron-left" size={22} color={metaColor} />
-                <Text style={[yaseenMStyles.navBtnText, { color: metaColor }]}>Prev</Text>
-              </TouchableOpacity>
-              <View style={yaseenMStyles.dotsRow}>
-                {pages.map((_, i) => (
-                  <TouchableOpacity key={i} onPress={() => goToPage(i)} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
-                    <View style={[yaseenMStyles.dot, { backgroundColor: pageBord + '50' }, i === currentPage && { backgroundColor: color, width: 18 }]} />
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <TouchableOpacity
-                style={[yaseenMStyles.navBtn, { borderColor: pageBord, backgroundColor: pageBg }, currentPage === pages.length - 1 && { opacity: 0.35 }]}
-                onPress={() => goToPage(currentPage + 1)} disabled={currentPage === pages.length - 1} activeOpacity={0.8}
-              >
-                <Text style={[yaseenMStyles.navBtnText, { color: metaColor }]}>Next</Text>
-                <MaterialIcons name="chevron-right" size={22} color={metaColor} />
-              </TouchableOpacity>
-            </View>
-            <Text style={[yaseenMStyles.caption, N && { color: N.textMuted }]}>
-              Page {currentPage + 1} of {pages.length}  ·  Surah Al-Kahf  ·  Juz 15–16
-            </Text>
-            <View style={{ height: 24 }} />
-          </ScrollView>
-        ) : null}
-      </View>
-    </GestureHandlerRootView>
-  );
-}
-
-// ── Surah Yaseen page → ayah ranges (for translation lookup) ────────────
-// Pages 440-445 of the Hafs Tajweed Mushaf contain Surah Yaseen ayat 1-83
-// Approximate distribution per page:
-const YASEEN_PAGE_AYAT: Record<number, [number, number]> = {
-  440: [1, 12],
-  441: [13, 22],
-  442: [23, 36],
-  443: [37, 50],
-  444: [51, 66],
-  445: [67, 83],
-};
-
-// ── Surah Yaseen — Image pages ──────────────────────────────────────────
-const YASEEN_PAGE_NUMS = [440, 441, 442, 443, 444, 445];
-
-
-// 15-line: bundled local assets — instant loading, no network needed
-const YASEEN_15LINE_LOCAL: Partial<Record<number, any>> = {
-  440: require('@/assets/images/Quran 15 line indo-pak/Yaseen/440.jpg'),
-  441: require('@/assets/images/Quran 15 line indo-pak/Yaseen/441.jpg'),
-  442: require('@/assets/images/Quran 15 line indo-pak/Yaseen/442.jpg'),
-  443: require('@/assets/images/Quran 15 line indo-pak/Yaseen/443.jpg'),
-  444: require('@/assets/images/Quran 15 line indo-pak/Yaseen/444.jpg'),
-  445: require('@/assets/images/Quran 15 line indo-pak/Yaseen/445.jpg'),
-};
-
-// 16-line: locally stored images (upload to assets/images/Quran 16 line indo-pak/)
-// Returns null if not yet available
-const YASEEN_16LINE_LOCAL: Partial<Record<number, any>> = {
-  // Add require() entries as images are uploaded, e.g.:
-  // 440: require('@/assets/images/Quran 16 line indo-pak/440.jpg'),
-};
-
-function yaseen16LineSource(pageNum: number): any | null {
-  return YASEEN_16LINE_LOCAL[pageNum] ?? null;
-}
-
-function SurahYaseenApiScreen({ nightMode, onBack }: { nightMode: boolean; onBack: () => void }) {
-  const N = nightMode;
-  const [style, setStyle] = React.useState<'15line' | '16line'>('15line');
-  const [refreshKey, setRefreshKey] = React.useState(0);
-  const [, setLoadError] = React.useState(false);
-  const [, setImageLoading] = React.useState(false);
-  const [showTrans, setShowTrans] = React.useState(false);
-  const [currentPageIdx, setCurrentPageIdx] = React.useState(0);
-
-  // Re-render image when app returns from background (expo-image drops bundled assets on Android resume)
-  // 150ms delay gives Android time to restore its OpenGL context before we force the Image remount
-  React.useEffect(() => {
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') {
-        setTimeout(() => setRefreshKey(k => k + 1), 150);
-      }
-    });
-    return () => sub.remove();
-  }, []);
-
-  const translateX = useSharedValue(0);
-  const scale = useSharedValue(1);
-  const savedScale = useSharedValue(1);
-
-  const imageAnimStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }, { scale: scale.value }],
-    flex: 1,
-    width: '100%',
-  }));
-
-  const BG         = N ? '#0A0F1A' : '#F5F0E8';
-  const HDR_BG     = N ? '#111827' : '#FAFAF8';
-  const HDR_BORDER = N ? '#1F2D45' : '#D4D4C8';
-  const ACCENT     = N ? '#34D399' : '#0D6E4A';
-  const META       = N ? '#94A3B8' : '#6B7280';
-
-  const has16LineImages = Object.keys(YASEEN_16LINE_LOCAL).length > 0;
-  const pageNum = YASEEN_PAGE_NUMS[currentPageIdx];
-  const range = YASEEN_PAGE_AYAT[pageNum];
-  const pageVerses = range ? SURAH_YASEEN.slice(range[0] - 1, range[1]) : [];
-
-  // Source: bundled local asset only — instant, zero network
-  const resolvedSrc = style === '15line'
-    ? (YASEEN_15LINE_LOCAL[pageNum] ?? null)
-    : (yaseen16LineSource(pageNum) ?? null);
-
-
-
-
-
-  const switchStyle = (s: '15line' | '16line') => {
-    setStyle(s);
-    setLoadError(false);
-    setRefreshKey(k => k + 1);
-  };
-
-  const goTo = (idx: number) => {
-    if (idx < 0 || idx >= YASEEN_PAGE_NUMS.length) return;
-    setCurrentPageIdx(idx);
-    setLoadError(false);
-    setShowTrans(false);
-    setRefreshKey(k => k + 1);
-    setImageLoading(false);
-    scale.value = withSpring(1, { damping: 20, stiffness: 300 });
-    savedScale.value = 1;
-  };
-
-  // Swipe gesture: left = next, right = prev (disabled when zoomed in)
-  const swipeGesture = Gesture.Pan()
-    .activeOffsetX([-12, 12])
-    .failOffsetY([-15, 15])
-    .onUpdate((event) => {
-      if (scale.value <= 1.05) {
-        translateX.value = event.translationX * 0.25;
-      }
-    })
-    .onEnd((event) => {
-      const isSwipeLeft  = event.translationX < -35 || event.velocityX < -400;
-      const isSwipeRight = event.translationX >  35 || event.velocityX >  400;
-      translateX.value = withSpring(0, { damping: 20, stiffness: 300 });
-      if (scale.value <= 1.05) {
-        if (isSwipeLeft) {
-          runOnJS(goTo)(currentPageIdx + 1);
-        } else if (isSwipeRight) {
-          runOnJS(goTo)(currentPageIdx - 1);
-        }
-      }
-    })
-    .onFinalize(() => {
-      translateX.value = withSpring(0, { damping: 20, stiffness: 300 });
-    });
-
-  // Pinch-to-zoom (max 4×, snaps back if < 1.1×)
-  const pinchGesture = Gesture.Pinch()
-    .onUpdate((e) => {
-      scale.value = Math.max(1, Math.min(savedScale.value * e.scale, 4));
-    })
-    .onEnd(() => {
-      if (scale.value < 1.1) {
-        scale.value = withSpring(1, { damping: 20, stiffness: 300 });
-        savedScale.value = 1;
-      } else {
-        savedScale.value = scale.value;
-      }
-    });
-
-  // Double-tap to reset zoom
-  const doubleTapGesture = Gesture.Tap()
-    .numberOfTaps(2)
-    .maxDuration(250)
-    .onEnd(() => {
-      scale.value = withSpring(1, { damping: 20, stiffness: 300 });
-      savedScale.value = 1;
-    });
-
-  const composedGesture = Gesture.Simultaneous(
-    swipeGesture,
-    Gesture.Race(pinchGesture, doubleTapGesture)
-  );
-
-  return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: BG }}>
-      <View style={{ flex: 1, backgroundColor: BG }}>
-        {/* Header — compact single line */}
-        <View style={[ysPdfSt.topBar, { backgroundColor: HDR_BG, borderBottomColor: HDR_BORDER, paddingVertical: 7 }]}>
-          <Text style={[ysPdfSt.surahNameAr, { color: ACCENT, fontSize: 18 }]}>سُورَةُ يٰسٓ</Text>
-          <View style={{ flex: 1 }} />
-          {/* Translation toggle */}
-          <TouchableOpacity
-            style={[ysPdfSt.transBtn, { borderColor: ACCENT }, showTrans && { backgroundColor: ACCENT, borderColor: ACCENT }]}
-            onPress={() => setShowTrans(v => !v)}
-            activeOpacity={0.8}
-          >
-            <MaterialIcons name="translate" size={13} color={showTrans ? '#fff' : ACCENT} />
-            <Text style={[ysPdfSt.transBtnText, { color: showTrans ? '#fff' : ACCENT, fontSize: 11 }]}>Trans</Text>
-          </TouchableOpacity>
-          {/* Style toggle */}
-          <View style={[ysPdfSt.toggleGroup, { backgroundColor: N ? '#1F2D45' : '#E8E8E0', borderColor: N ? '#2A3F5C' : '#C8C8B8' }]}>
-            <TouchableOpacity
-              style={[ysPdfSt.toggleBtn, style === '15line' && { backgroundColor: ACCENT }]}
-              onPress={() => switchStyle('15line')}
-              activeOpacity={0.8}
-            >
-              <Text style={[ysPdfSt.toggleBtnText, { color: style === '15line' ? '#fff' : META }]}>15L</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[ysPdfSt.toggleBtn, style === '16line' && { backgroundColor: ACCENT }]}
-              onPress={() => switchStyle('16line')}
-              activeOpacity={0.8}
-            >
-              <Text style={[ysPdfSt.toggleBtnText, { color: style === '16line' ? '#fff' : META }]}>16L</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* 16-line not yet available notice */}
-        {style === '16line' && !has16LineImages ? (
-          <View style={[ysPdfSt.noImagesBox, { backgroundColor: BG }]}>
-            <MaterialIcons name="upload-file" size={48} color={ACCENT} style={{ opacity: 0.5 }} />
-            <Text style={[ysPdfSt.noImagesTitle, { color: ACCENT }]}>16-Line Images Not Yet Uploaded</Text>
-            <Text style={[ysPdfSt.noImagesSub, { color: META }]}>
-              Upload pages 440–445 of the 16-line Indo-Pak Quran as image attachments in the chat.
-            </Text>
-            <TouchableOpacity
-              style={[ysPdfSt.noImagesBtn, { backgroundColor: ACCENT + '22', borderColor: ACCENT }]}
-              onPress={() => switchStyle('15line')}
-              activeOpacity={0.8}
-            >
-              <MaterialIcons name="menu-book" size={16} color={ACCENT} />
-              <Text style={[ysPdfSt.noImagesBtnText, { color: ACCENT }]}>Use 15-Line Instead</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <>
-            {/* Page image with swipe gesture — fills all remaining space */}
-            <GestureDetector gesture={composedGesture}>
-              <Reanimated.View style={imageAnimStyle}>
-                {resolvedSrc === null ? (
-                  <View style={[ysPdfSt.noImagesBox, { backgroundColor: BG }]}>
-                    <MaterialIcons name="upload-file" size={48} color={ACCENT} style={{ opacity: 0.5 }} />
-                    <Text style={[ysPdfSt.noImagesTitle, { color: ACCENT }]}>Image Not Available</Text>
-                    <Text style={[ysPdfSt.noImagesSub, { color: META }]}>{`Page ${pageNum} is not yet bundled.`}</Text>
-                  </View>
-                ) : (
-                  <View style={{ flex: 1 }}>
-                    <Image
-                      key={`img-${pageNum}-${style}-${refreshKey}`}
-                      source={resolvedSrc}
-                      style={{ flex: 1, width: '100%' }}
-                      contentFit="contain"
-                      transition={0}
-                      onLoad={() => { setImageLoading(false); }}
-                      onError={() => { setLoadError(true); setImageLoading(false); }}
-                    />
-                  </View>
-                )}
-              </Reanimated.View>
-            </GestureDetector>
-
-            {/* Navigation bar — compact, dots moved here */}
-            <View style={[ysPdfSt.navBarCompact, { backgroundColor: HDR_BG, borderTopColor: HDR_BORDER }]}>
-              <TouchableOpacity
-                style={[ysPdfSt.navBtnCompact, currentPageIdx === 0 && { opacity: 0.3 }]}
-                onPress={() => goTo(currentPageIdx - 1)}
-                disabled={currentPageIdx === 0}
-                activeOpacity={0.8}
-              >
-                <MaterialIcons name="chevron-left" size={26} color={ACCENT} />
-              </TouchableOpacity>
-
-              <View style={{ alignItems: 'center', gap: 4 }}>
-                <Text style={[ysPdfSt.pageNumCompact, { color: ACCENT }]}>Page {pageNum}</Text>
-                <Text style={{ fontSize: 10, color: META, fontWeight: '500' }}>
-                  {currentPageIdx + 1} / {YASEEN_PAGE_NUMS.length}  ·  Ayat {range ? `${range[0]}–${range[1]}` : ''}
-                </Text>
-                {/* Page dots — moved from image overlay to here */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                  {YASEEN_PAGE_NUMS.map((_, i) => (
-                    <TouchableOpacity key={i} onPress={() => goTo(i)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
-                      <View style={[
-                        ysPdfSt.dotSmall,
-                        { backgroundColor: i === currentPageIdx ? ACCENT : (N ? '#2A3F5C' : '#C8C8B8') },
-                        i === currentPageIdx && { width: 16 },
-                      ]} />
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              <TouchableOpacity
-                style={[ysPdfSt.navBtnCompact, currentPageIdx === YASEEN_PAGE_NUMS.length - 1 && { opacity: 0.3 }]}
-                onPress={() => goTo(currentPageIdx + 1)}
-                disabled={currentPageIdx === YASEEN_PAGE_NUMS.length - 1}
-                activeOpacity={0.8}
-              >
-                <MaterialIcons name="chevron-right" size={26} color={ACCENT} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Translation modal overlay */}
-            {showTrans ? (
-              <View style={[ysPdfSt.transOverlay, { backgroundColor: N ? 'rgba(10,15,26,0.97)' : 'rgba(250,250,248,0.97)' }]}>
-                <View style={[ysPdfSt.transOverlayHeader, { borderBottomColor: HDR_BORDER }]}>
-                  <MaterialIcons name="menu-book" size={16} color={ACCENT} />
-                  <Text style={[ysPdfSt.transPanelTitle, { color: ACCENT, flex: 1 }]}>Ayat {range ? `${range[0]}–${range[1]}` : ''} · Translation</Text>
-                  <TouchableOpacity onPress={() => setShowTrans(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                    <MaterialIcons name="close" size={20} color={META} />
-                  </TouchableOpacity>
-                </View>
-                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
-                  {pageVerses.map(v => (
-                    <View key={v.ayah} style={[ysPdfSt.transVerseRow, { borderBottomColor: HDR_BORDER }]}>
-                      <View style={[ysPdfSt.transVerseNum, { backgroundColor: ACCENT + '20' }]}>
-                        <Text style={[ysPdfSt.transVerseNumText, { color: ACCENT }]}>{v.ayah}</Text>
-                      </View>
-                      <View style={{ flex: 1, gap: 3 }}>
-                        <Text style={[ysPdfSt.transVerseTranslit, { color: META }]}>{v.transliteration}</Text>
-                        <Text style={[ysPdfSt.transVerseTrans, { color: N ? '#EEF3FC' : '#1F2937' }]}>{v.translation}</Text>
-                      </View>
-                    </View>
-                  ))}
-                </ScrollView>
-              </View>
-            ) : null}
-          </>
-        )}
-      </View>
-    </GestureHandlerRootView>
-  );
-}
-
-// ── Surah Yaseen PDF viewer styles ──────────────────────────────────────
-const ysPdfSt = StyleSheet.create({
-  topBar: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  surahNameAr: { fontSize: 22, fontWeight: '800' } as any,
-  surahMeta: { fontSize: 11, fontWeight: '500', marginTop: 2, letterSpacing: 0.2 },
-  badge: {
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 999, borderWidth: 1,
-  },
-  badgeText: { fontSize: 11, fontWeight: '700' },
-  pageCard: {
-    borderRadius: 3,
-    overflow: 'hidden',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 6,
-    position: 'relative',
-  },
-  pageNumPill: {
-    position: 'absolute',
-    bottom: 8,
-    alignSelf: 'center',
-    paddingHorizontal: 14, paddingVertical: 4,
-    borderRadius: 999, borderWidth: 1,
-  },
-  pageNumText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.4 },
-  footer: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, paddingTop: 16, borderTopWidth: 1, width: '100%',
-  },
-  footerText: { fontSize: 11, fontWeight: '500' },
-  pageErrorBox: {
-    alignItems: 'center', justifyContent: 'center',
-    borderRadius: 3, overflow: 'hidden',
-  },
-  // Translation button
-  transBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 11, paddingVertical: 7,
-    borderRadius: 999, borderWidth: 1.5, borderColor: '#0D6E4A',
-  },
-  transBtnText: { fontSize: 12, fontWeight: '700' },
-  // Translation panel
-  transPanel: {
-    marginTop: 16, borderRadius: 12,
-    borderWidth: 1, overflow: 'hidden',
-    width: '100%',
-  },
-  transPanelHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 14, paddingVertical: 12,
-  },
-  transPanelTitle: { flex: 1, fontSize: 14, fontWeight: '800', letterSpacing: 0.2 },
-  transPageSection: {
-    borderTopWidth: 1,
-  },
-  transPageLabel: {
-    paddingHorizontal: 14, paddingVertical: 8,
-  },
-  transPageLabelText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.4 },
-  transVerseRow: {
-    flexDirection: 'row', gap: 10, paddingHorizontal: 14, paddingVertical: 10,
-    borderBottomWidth: 1, alignItems: 'flex-start',
-  },
-  transVerseNum: {
-    width: 26, height: 26, borderRadius: 13,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2,
-  },
-  transVerseNumText: { fontSize: 11, fontWeight: '800' },
-  transVerseTranslit: { fontSize: 12, fontStyle: 'italic', lineHeight: 18 },
-  transVerseTrans: { fontSize: 13, lineHeight: 20, fontWeight: '400' },
-  // Compact nav bar
-  navBarCompact: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 8, paddingVertical: 6,
-    borderTopWidth: 1,
-  },
-  navBtnCompact: {
-    width: 44, height: 44, alignItems: 'center', justifyContent: 'center',
-  },
-  pageNumCompact: { fontSize: 14, fontWeight: '800', letterSpacing: 0.3 },
-  // Dot indicators overlay
-  dotsOverlay: {
-    position: 'absolute', top: 8, right: 8,
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: 'rgba(0,0,0,0.25)', borderRadius: 999,
-    paddingHorizontal: 8, paddingVertical: 5,
-  },
-  dotSmall: { width: 6, height: 6, borderRadius: 3 },
-  // Translation overlay (full-screen panel)
-  transOverlay: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    zIndex: 10,
-  },
-  transOverlayHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 14, paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  // Toggle bar
-  toggleBar: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 16, paddingVertical: 10,
-    borderBottomWidth: 1,
-  },
-  toggleLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0.3 },
-  toggleGroup: {
-    flexDirection: 'row',
-    borderRadius: 999, borderWidth: 1,
-    overflow: 'hidden', padding: 3, gap: 2,
-  },
-  toggleBtn: {
-    paddingHorizontal: 16, paddingVertical: 6,
-    borderRadius: 999,
-  },
-  toggleBtnText: { fontSize: 12, fontWeight: '700' },
-  // No images placeholder
-  noImagesBox: {
-    flex: 1, alignItems: 'center', justifyContent: 'center',
-    padding: 32, gap: 16,
-  },
-  noImagesTitle: { fontSize: 16, fontWeight: '800', textAlign: 'center' },
-  noImagesSub: {
-    fontSize: 13, lineHeight: 20, textAlign: 'center', fontWeight: '400',
-  },
-  noImagesBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 20, paddingVertical: 12,
-    borderRadius: 999, borderWidth: 1.5, marginTop: 8,
-  },
-  noImagesBtnText: { fontSize: 13, fontWeight: '700' },
-});
-
-const yaseenMStyles = StyleSheet.create({
-  topBar: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 10,
-    borderBottomWidth: 1.5,
-  },
-  topLeft: { gap: 1 },
-  topSurahName: { fontSize: 20, fontWeight: '800' } as any,
-  topMeta: { fontSize: 11, fontWeight: '600', letterSpacing: 0.3 },
-  transBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 11, paddingVertical: 7,
-    borderRadius: Radius.full, borderWidth: 1.5, borderColor: '#1B8A5A',
-  },
-  transBtnText: { fontSize: 12, fontWeight: '700' },
-  // ── Mushaf page ──
-  page: {
-    marginTop: 8,
-    borderRadius: 4,
-    borderWidth: 2,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.22, shadowRadius: 12, elevation: 8,
-    padding: 8,
-  },
-  pageInner: {
-    borderWidth: 1,
-    borderRadius: 2,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  pageHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingBottom: 7, marginBottom: 6,
-    borderBottomWidth: 1,
-  },
-  pageHeaderLeft: { fontSize: 11, fontWeight: '600', fontStyle: 'italic', letterSpacing: 0.2 },
-  pageHeaderRight: { fontSize: 11, fontWeight: '600', letterSpacing: 0.3 },
-  linesContainer: { gap: 0 },
-  lineRow: {
-    paddingVertical: 4,
-  },
-  lineText: {
-    // fontSize and lineHeight are applied inline from fontScale state
-    textAlign: 'right',
-    writingDirection: 'rtl',
-    fontFamily: Platform.select({ ios: undefined, android: undefined, default: undefined }),
-    letterSpacing: 0.3,
-    includeFontPadding: false,
-  } as any,
-  bismillahLine: {
-    textAlign: 'center',
-    fontWeight: '600',
-  },
-  centeredLine: {
-    textAlign: 'center',
-  },
-  pageFooter: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginTop: 8, paddingTop: 7,
-    borderTopWidth: 1,
-  },
-  pageNum: { fontSize: 13, fontWeight: '700', letterSpacing: 0.5 },
-  verseRangeText: { fontSize: 10, fontWeight: '500', letterSpacing: 0.3 },
-  // ── Translation panel ──
-  transPanel: {
-    marginTop: 12,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    padding: 14,
-    gap: 10,
-  },
-  transPanelTitle: {
-    fontSize: 12, fontWeight: '700', color: Colors.textSubtle,
-    letterSpacing: 0.4, marginBottom: 4,
-  },
-  transVerseRow: {
-    flexDirection: 'row', gap: 10, paddingBottom: 10,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
-    alignItems: 'flex-start',
-  },
-  transVerseNum: {
-    width: 26, height: 26, borderRadius: 13,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2,
-  },
-  transVerseNumText: { fontSize: 11, fontWeight: '800' },
-  translit: { fontSize: 12, fontStyle: 'italic', color: Colors.textSecondary, lineHeight: 19 },
-  transText: { fontSize: 13, color: Colors.textPrimary, lineHeight: 20 },
-  // ── Navigation ──
-  navRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, marginTop: 14,
-    maxWidth: 420, width: '100%', alignSelf: 'center',
-  },
-  navBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 16, paddingVertical: 9,
-    borderRadius: Radius.full, borderWidth: 1.5,
-  },
-  navBtnText: { fontSize: 13, fontWeight: '700' },
-  dotsRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  dot: { width: 7, height: 7, borderRadius: 4 },
-  caption: {
-    textAlign: 'center', fontSize: 10, fontWeight: '500',
-    color: Colors.textSubtle, letterSpacing: 0.3,
-    marginTop: 6,
-  },
-  // ── Loading state ──
-  loadingPage: {
-    width: 300, height: 200,
-    borderRadius: 4, borderWidth: 2,
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 10, elevation: 5,
-    shadowOffset: { width: 0, height: 4 },
-  },
-  loadingText: { fontSize: 28, textAlign: 'center' } as any,
-});
 
 const WIRD_SURAHS = [
   {
@@ -2739,28 +1828,7 @@ function AsrDoneScreen({ onExit, nightMode }: { onExit: () => void; nightMode: b
   const N = nightMode ? NIGHT : null;
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[flowStyles.doneContainer, N && { backgroundColor: N.bg }]}>
-      <View style={flowStyles.doneStarRow}>
-        {['#F9A825','#FFD54F','#F9A825'].map((c, i) => <MaterialIcons key={i} name="star" size={i === 1 ? 52 : 36} color={c} />)}
-      </View>
-      <Text style={[flowStyles.doneTitleArabic, N && { color: N.text }]}>مَاشَاءَ الله</Text>
       <Text style={[flowStyles.doneTitle, N && { color: N.text }]}>After Asr Adhkar Complete</Text>
-      <View style={[flowStyles.doneCard, N && { backgroundColor: N.surface, borderColor: N.border }]}>
-        <MaterialIcons name="menu-book" size={18} color="#E65100" />
-        <Text style={[flowStyles.doneReward, N && { color: N.text }]}>
-          The Prophet ﷺ said: &quot;Whoever recites Surah Al-Waqiah every night shall never be afflicted by poverty.&quot; You have completed your Asr recitation. May Allah grant you abundant and lawful provision.
-        </Text>
-      </View>
-      <View style={[flowStyles.doneCard, N && { backgroundColor: N.surface, borderColor: N.border }]}>
-        <MaterialIcons name="waves" size={18} color="#1565C0" />
-        <Text style={[flowStyles.doneReward, N && { color: N.text }]}>
-          Hizb ul Bahr — the blessed prayer of Imam al-Shadhili. Scholars have recited this for protection, sustenance, and safety in all affairs. May Allah protect you in all your affairs.
-        </Text>
-      </View>
-      <View style={[flowStyles.doneHadithBand, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}>
-        <Text style={[flowStyles.doneHadithText, N && { color: N.textSub }]}>
-          &quot;The best of deeds are those done consistently, even if they are few.&quot; — Bukhari 6464. You have kept this Sunnah today. May Allah accept it from you.
-        </Text>
-      </View>
       <TouchableOpacity style={[flowStyles.doneBtn, { backgroundColor: '#E65100' }]} onPress={onExit} activeOpacity={0.85}>
         <MaterialIcons name="wb-sunny" size={18} color="#fff" />
         <Text style={flowStyles.doneBtnText}>Back to Adhkar</Text>
@@ -2861,9 +1929,7 @@ function AdhkarFlowScreen({
         </View>
       ) : (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-          <Text style={{ color: N ? N.textMuted : Colors.textSubtle, textAlign: 'center' }}>
-            No adhkar groups found for After Fajr.{`\n`}Add them via Cloud → Data → adhkar.
-          </Text>
+          <Text style={{ color: N ? N.textMuted : Colors.textSubtle, textAlign: 'center' }}>Adhkar coming soon.</Text>
         </View>
       )}
     </View>
@@ -2907,36 +1973,7 @@ function AdhkarDoneScreen({ onExit, nightMode }: { onExit: () => void; nightMode
       showsVerticalScrollIndicator={false}
       contentContainerStyle={[flowStyles.doneContainer, N && { backgroundColor: N.bg }]}
     >
-      {/* Golden star cluster */}
-      <View style={flowStyles.doneStarRow}>
-        {['#F9A825','#FFD54F','#F9A825'].map((c, i) => (
-          <MaterialIcons key={i} name="star" size={i === 1 ? 52 : 36} color={c} />
-        ))}
-      </View>
-
-      <Text style={[flowStyles.doneTitleArabic, N && { color: N.text }]}>الحَمْدُ لِلَّه</Text>
       <Text style={[flowStyles.doneTitle, N && { color: N.text }]}>Morning Adhkar Complete</Text>
-
-      <View style={[flowStyles.doneCard, N && { backgroundColor: N.surface, borderColor: N.border }]}>
-        <MaterialIcons name="auto-awesome" size={18} color="#F9A825" />
-        <Text style={[flowStyles.doneReward, N && { color: N.text }]}>
-          The Prophet ﷺ said: &quot;Whoever says SubhanAllahi wa bihamdihi one hundred times in a day, his sins will be erased even if they are like the foam of the sea.&quot;{'  '}— Bukhari 6405
-        </Text>
-      </View>
-
-      <View style={[flowStyles.doneCard, N && { backgroundColor: N.surface, borderColor: N.border }]}>
-        <MaterialIcons name="shield" size={18} color="#1B8A5A" />
-        <Text style={[flowStyles.doneReward, N && { color: N.text }]}>
-          You have recited the morning protection. The Prophet ﷺ said nothing shall harm the one who says Bismillah every morning and evening. May Allah protect you this day and always.
-        </Text>
-      </View>
-
-      <View style={[flowStyles.doneHadithBand, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}>
-        <Text style={[flowStyles.doneHadithText, N && { color: N.textSub }]}>
-          Allahu Akbar — All sovereignty belongs to Allah this morning. Your adhkar has been recorded and your day begins in His remembrance.
-        </Text>
-      </View>
-
       <TouchableOpacity
         style={[flowStyles.doneBtn, N && { backgroundColor: N.primary }]}
         onPress={onExit}
@@ -2945,7 +1982,6 @@ function AdhkarDoneScreen({ onExit, nightMode }: { onExit: () => void; nightMode
         <MaterialIcons name="wb-twilight" size={18} color="#fff" />
         <Text style={flowStyles.doneBtnText}>Back to Adhkar</Text>
       </TouchableOpacity>
-
       <View style={{ height: 32 }} />
     </ScrollView>
   );
@@ -2993,30 +2029,13 @@ const flowStyles = StyleSheet.create({
     shadowOpacity: 0.2, shadowRadius: 5, elevation: 3,
   },
   nextBtnText: { fontSize: 14, fontWeight: '800', color: '#fff', flex: 1 },
-  // Done screen
-  doneContainer: { alignItems: 'center', padding: Spacing.lg, gap: Spacing.md },
-  doneStarRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: Spacing.lg, marginBottom: 4 },
-  doneTitleArabic: { fontSize: 28, fontWeight: '700', color: Colors.textPrimary, textAlign: 'center' } as any,
+  doneContainer: { alignItems: 'center', justifyContent: 'center', padding: Spacing.lg, gap: Spacing.md, flexGrow: 1 },
   doneTitle: { fontSize: 20, fontWeight: '800', color: Colors.textPrimary, textAlign: 'center', letterSpacing: 0.2 },
-  doneCard: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    backgroundColor: Colors.surface, borderRadius: Radius.lg,
-    borderWidth: 1, borderColor: Colors.border,
-    padding: Spacing.md, width: '100%',
-  },
-  doneReward: { flex: 1, fontSize: 13, lineHeight: 21, color: Colors.textPrimary, fontWeight: '400' },
-  doneHadithBand: {
-    backgroundColor: Colors.primarySoft, borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.border,
-    padding: Spacing.md, width: '100%',
-    alignItems: 'center',
-  },
-  doneHadithText: { fontSize: 13, lineHeight: 20, color: Colors.textSecondary, textAlign: 'center', fontStyle: 'italic' },
   doneBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center',
     backgroundColor: Colors.primary,
     borderRadius: Radius.full, paddingHorizontal: 28, paddingVertical: 14,
-    width: '100%', marginTop: 4,
+    width: '100%', maxWidth: 320,
     shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
