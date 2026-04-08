@@ -61,6 +61,14 @@ function resolveFuzzySurahSelection(normalizedInput: string): AdhkarSelection | 
     return 'mulk-mushaf';
   }
 
+  if (/(luqman|luqmaan|luqmon)/.test(compactInput)) {
+    return 'luqman-mushaf';
+  }
+
+  if (/(imran|alimran|alimraan|aliimran)/.test(compactInput)) {
+    return 'imran-mushaf';
+  }
+
   return undefined;
 }
 
@@ -80,6 +88,9 @@ export const BEFORE_FAJR_GROUP_TO_SELECTION: Record<string, AdhkarSelection> = {
 
 // Click routing for After Fajr cards: DB group name -> app selection key
 export const FAJR_GROUP_TO_SELECTION: Record<string, AdhkarSelection> = {
+  'Dua after Surah Yaseen': 'yaseen-dua',
+  'Dua after Yaseen': 'yaseen-dua',
+  'Dua Yaseen': 'yaseen-dua',
   'Surah Yaseen': 'yaseen',
   'Surah 36': 'yaseen',
   'Surah 36 - Ya Seen': 'yaseen',
@@ -206,6 +217,16 @@ export const ISHA_GROUP_TO_SELECTION: Record<string, AdhkarSelection> = {
   'Mulk': 'mulk-mushaf',
   'Al Mulk': 'mulk-mushaf',
   'Al-Mulk': 'mulk-mushaf',
+  'Surah Luqman': 'luqman-mushaf',
+  'Surah Al-Luqman': 'luqman-mushaf',
+  'Surah Al Luqman': 'luqman-mushaf',
+  'Luqman': 'luqman-mushaf',
+  'Surah Ali Imran': 'imran-mushaf',
+  "Surah Ali 'Imran": 'imran-mushaf',
+  'Surah Aal Imran': 'imran-mushaf',
+  'Surah Al Imran': 'imran-mushaf',
+  'Surah Al-Imran': 'imran-mushaf',
+  'Imran': 'imran-mushaf',
 };
 
 // Optional card visuals for known After Fajr groups

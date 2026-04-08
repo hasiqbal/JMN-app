@@ -16,7 +16,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius } from '@/constants/theme';
 import { NIGHT_PALETTE } from '@/constants/nightPalette';
-import { fetchAdhkarForPrayerTime, AdhkarRow } from '@/services/contentService';
+import { fetchAdhkarForPrayerTime, AdhkarRow, resolveAdhkarUrduTranslation } from '@/services/contentService';
 import {
   ASR_GROUP_TO_SELECTION,
   BEFORE_FAJR_GROUP_TO_SELECTION,
@@ -43,7 +43,7 @@ const PRAYER_TIME_META: Record<string, { title: string; icon: string; accent: st
   'after-asr':     { title: 'After Asr Adhkar',       icon: 'wb-cloudy',   accent: '#E65100' },
   'after-maghrib': { title: 'Evening Adhkar',          icon: 'bedtime',     accent: '#6A1B9A' },
   'after-isha':    { title: 'After Isha Adhkar',       icon: 'nightlight',  accent: '#1565C0' },
-  'before-fajr':   { title: 'Before Fajr Adhkar',     icon: 'nights-stay', accent: '#3949AB' },
+  'before-fajr':   { title: 'Before Fajr & Tahajjud Adhkar', icon: 'nights-stay', accent: '#3949AB' },
   // Group-filtered overrides
   'Surah Al-Waqiah':         { title: 'Surah Al-Waqiah',           icon: 'menu-book',   accent: '#E65100' },
   'Hizb ul Bahr':            { title: 'Hizb ul Bahr',              icon: 'waves',       accent: '#1565C0' },
@@ -75,9 +75,10 @@ function resolveSpecialSelectionForDbGroup(
   prayerTime: AdhkarRow['prayer_time'],
   groupName: string
 ): AdhkarSelection | undefined {
-  const routeMapByPrayerTime: Partial<Record<AdhkarRow['prayer_time'], Record<string, AdhkarSelection>>> = {
+  const routeMapByPrayerTime: Partial<Record<string, Record<string, AdhkarSelection>>> = {
     'before-fajr': BEFORE_FAJR_GROUP_TO_SELECTION,
     'after-fajr': FAJR_GROUP_TO_SELECTION,
+    'after-dhuhr': DHUHR_GROUP_TO_SELECTION,
     'after-zuhr': DHUHR_GROUP_TO_SELECTION,
     'after-jumuah': JUMUAH_GROUP_TO_SELECTION,
     'after-asr': ASR_GROUP_TO_SELECTION,
@@ -99,10 +100,13 @@ function resolveSpecialSelectionForDbGroup(
     .trim();
 
   if (/(surah\s*18|kahf|kaaf|khf|kafh|kahaf|khaf|الكهف)/.test(normalized)) return 'kahf-mushaf';
+  if (/(dua|dua\s+after|supplication)/.test(normalized) && /(surah\s*36|yaseen|yasin|ya\s*seen|يس)/.test(normalized)) return 'yaseen-dua';
   if (/(surah\s*36|yaseen|yasin|ya\s*seen|يس)/.test(normalized)) return 'yaseen';
   if (/(surah\s*56|waqiah|waqia|waqea|waqeah|الواقعة)/.test(normalized)) return 'waqiah';
   if (/(surah\s*32|sajdah|sajda|sajadah|السجدة)/.test(normalized)) return 'sajdah-mushaf';
   if (/(surah\s*67|mulk|الملك)/.test(normalized)) return 'mulk-mushaf';
+  if (/(surah\s*31|luqman|luqmaan|لقمان)/.test(normalized)) return 'luqman-mushaf';
+  if (/(ali?\s*imran|aal\s*imran|al\s*imran|عمران)/.test(normalized)) return 'imran-mushaf';
 
   return undefined;
 }
@@ -125,6 +129,9 @@ function resolveSpecialSelectionForDbEntry(
   if (/(surah\s*18|kahf|kaaf|khf|kafh|kahaf|khaf|الكهف)/.test(searchable) || /(k+a*h+f|k+h+f)/.test(compact)) {
     return 'kahf-mushaf';
   }
+  if (/(dua|dua\s+after|supplication)/.test(searchable) && /(surah\s*36|yaseen|yasin|ya\s*seen|يس)/.test(searchable)) {
+    return 'yaseen-dua';
+  }
   if (/(surah\s*36|yaseen|yasin|ya\s*seen|يس)/.test(searchable)) {
     return 'yaseen';
   }
@@ -136,6 +143,12 @@ function resolveSpecialSelectionForDbEntry(
   }
   if (/(surah\s*67|mulk|الملك)/.test(searchable)) {
     return 'mulk-mushaf';
+  }
+  if (/(surah\s*31|luqman|luqmaan|لقمان)/.test(searchable)) {
+    return 'luqman-mushaf';
+  }
+  if (/(ali?\s*imran|aal\s*imran|al\s*imran|عمران)/.test(searchable)) {
+    return 'imran-mushaf';
   }
 
   return resolveSpecialSelectionForDbGroup(prayerTime, item.group_name ?? '');
@@ -156,6 +169,7 @@ export function DbAdhkarScreen({
   const [loading, setLoading] = React.useState(true);
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] = React.useState<Record<string, boolean>>({});
+  const [urduById, setUrduById] = React.useState<Record<string, boolean>>({});
 
   React.useEffect(() => {
     setLoading(true);
@@ -166,8 +180,8 @@ export function DbAdhkarScreen({
       const groups: Record<string, boolean> = {};
       filtered.forEach(r => { if (r.group_name) groups[r.group_name] = true; });
       setExpandedGroups(groups);
-      // Auto-expand single item so content shows immediately
-      if (filtered.length === 1) setExpandedId(filtered[0].id);
+      // Keep cards collapsed by default; user can tap to expand.
+      setExpandedId(null);
       setLoading(false);
     });
   }, [prayerTime, groupFilter]);
@@ -218,7 +232,6 @@ export function DbAdhkarScreen({
   const toggleGroup = (name: string) =>
     setExpandedGroups(prev => ({ ...prev, [name]: !prev[name] }));
 
-  const singleItem = adhkar.length === 1;
   const showFlat = !!groupFilter || sortedGroups.length <= 1;
   const flatItems = showFlat
     ? [...ungrouped, ...sortedGroups.flatMap(([, { items }]) => items)]
@@ -226,9 +239,13 @@ export function DbAdhkarScreen({
 
   // ── Item renderer ─────────────────────────────────────────────────────
   const renderItem = (item: AdhkarRow) => {
-    const isOpen = singleItem || expandedId === item.id;
+    const isOpen = expandedId === item.id;
     const arabicFontSize   = useEnhancedFont ? 26 : 24;
     const arabicLineHeight = useEnhancedFont ? 58 : 52;
+    const urduTranslation = resolveAdhkarUrduTranslation(item);
+    const hasUrduTranslation = urduTranslation.length > 0;
+    const showUrdu = !!urduById[item.id] && hasUrduTranslation;
+    const selectedTranslation = showUrdu ? urduTranslation : item.translation;
 
     const arabicParas = useEnhancedFont
       ? item.arabic.split('\n').map(l => l.trim()).filter(Boolean)
@@ -259,11 +276,9 @@ export function DbAdhkarScreen({
             return;
           }
 
-          if (!singleItem) {
-            setExpandedId(isOpen ? null : item.id);
-          }
+          setExpandedId(isOpen ? null : item.id);
         }}
-        activeOpacity={singleItem ? 1 : 0.85}
+        activeOpacity={0.85}
       >
         {/* ── Header row ── */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -281,13 +296,11 @@ export function DbAdhkarScreen({
               <Text style={[styles.badgeText, { color: accent }]}>×{item.count}</Text>
             </View>
           ) : null}
-          {!singleItem ? (
-            <MaterialIcons
-              name={isOpen ? 'expand-less' : 'expand-more'}
-              size={20}
-              color={N ? N.textMuted : Colors.textSubtle}
-            />
-          ) : null}
+          <MaterialIcons
+            name={isOpen ? 'expand-less' : 'expand-more'}
+            size={20}
+            color={N ? N.textMuted : Colors.textSubtle}
+          />
         </View>
 
         {/* ── Expanded body ── */}
@@ -311,10 +324,31 @@ export function DbAdhkarScreen({
                         {translitParas[pi]}
                       </Text>
                     ) : null}
-                    {transParas[pi] ? (
+                    {pi === 0 ? (
+                      <View style={styles.translationToggleRow}>
+                        <TouchableOpacity
+                          style={[
+                            styles.translationToggleBtn,
+                            { borderColor: accent + '88' },
+                            showUrdu && { backgroundColor: accent + '22', borderColor: accent },
+                            !hasUrduTranslation && { opacity: 0.55 },
+                          ]}
+                          onPress={() => {
+                            if (!hasUrduTranslation) return;
+                            setUrduById(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+                          }}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={[styles.translationToggleText, { color: accent }]}>
+                            {hasUrduTranslation ? 'Urdu' : 'Urdu (N/A)'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : null}
+                    {(showUrdu ? (pi === 0 && selectedTranslation) : transParas[pi]) ? (
                       <View style={[styles.paraTransBox, { borderLeftColor: accent }, N && { backgroundColor: accent + '12' }]}>
-                        <Text style={[styles.translation, { fontSize: 14, lineHeight: 22 }, N && { color: N.text }]}>
-                          {transParas[pi]}
+                        <Text style={[styles.translation, { fontSize: 14, lineHeight: 22 }, N && { color: N.text }, showUrdu && styles.translationUrdu]}>
+                          {showUrdu ? selectedTranslation : transParas[pi]}
                         </Text>
                       </View>
                     ) : null}
@@ -355,9 +389,28 @@ export function DbAdhkarScreen({
                 {item.transliteration ? (
                   <Text style={[styles.translit, { marginBottom: 8 }, N && { color: N.textSub }]}>{item.transliteration}</Text>
                 ) : null}
-                {item.translation ? (
-                  <Text style={[styles.translation, { marginBottom: item.reference ? 10 : 0 }, N && { color: N.text }]}>
-                    {item.translation}
+                <View style={styles.translationToggleRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.translationToggleBtn,
+                      { borderColor: accent + '88' },
+                      showUrdu && { backgroundColor: accent + '22', borderColor: accent },
+                      !hasUrduTranslation && { opacity: 0.55 },
+                    ]}
+                    onPress={() => {
+                      if (!hasUrduTranslation) return;
+                      setUrduById(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.translationToggleText, { color: accent }]}>
+                      {hasUrduTranslation ? 'Urdu' : 'Urdu (N/A)'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                {selectedTranslation ? (
+                  <Text style={[styles.translation, { marginBottom: item.reference ? 10 : 0 }, N && { color: N.text }, showUrdu && styles.translationUrdu]}>
+                    {selectedTranslation}
                   </Text>
                 ) : null}
                 {item.reference ? (
@@ -551,6 +604,15 @@ const styles = StyleSheet.create({
   // Transliteration / Translation
   translit:    { fontSize: 13, fontStyle: 'italic', color: Colors.textSecondary, lineHeight: 21 },
   translation: { fontSize: 14, color: Colors.textPrimary, lineHeight: 22 },
+  translationUrdu: { writingDirection: 'rtl', textAlign: 'right', fontFamily: 'UrduNastaliq', fontSize: 22, lineHeight: 40 } as any,
+  translationToggleRow: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 8 },
+  translationToggleBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+  },
+  translationToggleText: { fontSize: 11, fontWeight: '700' },
 
   // Reference rows
   refRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },

@@ -37,6 +37,9 @@ export interface AdhkarRow {
   arabic: string;
   transliteration: string | null;
   translation: string | null;
+  translation_urdu?: string | null;
+  urdu_translation?: string | null;
+  translation_ur?: string | null;
   reference: string | null;
   count: string | null;
   display_order: number;
@@ -51,6 +54,17 @@ export interface AdhkarRow {
   content_key?: string | null;                    // New: e.g., 'surah-36' for local Quran
   card_icon?: string | null;                      // New: card display icon
   card_badge?: string | null;                     // New: card badge text
+}
+
+// Resolve Urdu translation from supported portal column variants.
+// Keep this centralized so all entry renderers stay consistent by default.
+export function resolveAdhkarUrduTranslation(row: AdhkarRow): string {
+  return (
+    row.translation_urdu ??
+    row.urdu_translation ??
+    row.translation_ur ??
+    ''
+  ).trim();
 }
 
 export interface AnnouncementRow {

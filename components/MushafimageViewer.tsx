@@ -1,7 +1,7 @@
 /**
- * Generic local-image Mushaf viewer shared by Al-Kahf, Al-Mulk, As-Sajdah.
+ * Generic local-image Mushaf viewer shared by Al-Kahf, Al-Mulk, Luqman, Imran, As-Sajdah.
  * Images are bundled via require() once uploaded to:
- *   assets/images/Quran 15 line indo-pak/{Kahf|Mulk|Sajdah}/
+ *   assets/images/Quran 15 line indo-pak/{Kahf|Mulk|Luqman|Imran|Sajdah}/
  */
 import React from 'react';
 import { View, Text, TouchableOpacity, AppState, StyleSheet, ScrollView } from 'react-native';
@@ -9,10 +9,19 @@ import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { GestureHandlerRootView, Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
+import {
+  IMRAN_PAGE_AYAT,
+  KAHF_PAGE_AYAT,
+  LUQMAN_PAGE_AYAT,
+  MULK_PAGE_AYAT,
+  SAJDAH_PAGE_AYAT,
+} from '@/constants/mushafPageAyat';
 
 // ── Page lists & local asset maps ─────────────────────────────────────────
 export const KAHF_PAGE_NUMS   = [293,294,295,296,297,298,299,300,301,302,303,304];
 export const MULK_PAGE_NUMS   = [562,563,564];
+export const LUQMAN_PAGE_NUMS = [411,412,413,414];
+export const IMRAN_PAGE_NUMS  = [75,76];
 export const SAJDAH_PAGE_NUMS = [415,416,417];
 
 export const KAHF_15LINE_LOCAL:   Partial<Record<number,any>> = {
@@ -29,19 +38,26 @@ export const KAHF_15LINE_LOCAL:   Partial<Record<number,any>> = {
   303: require('@/assets/images/Quran 15 line indo-pak/Kahf/303.jpg'),
   304: require('@/assets/images/Quran 15 line indo-pak/Kahf/304.jpg')
 };
-export const MULK_15LINE_LOCAL:   Partial<Record<number,any>> = {};
+export const MULK_15LINE_LOCAL:   Partial<Record<number,any>> = {
+  562: require('@/assets/images/Quran 15 line indo-pak/Mulk/562.jpg'),
+  563: require('@/assets/images/Quran 15 line indo-pak/Mulk/563.jpg'),
+  564: require('@/assets/images/Quran 15 line indo-pak/Mulk/564.jpg'),
+};
+export const LUQMAN_15LINE_LOCAL: Partial<Record<number,any>> = {
+  411: require('@/assets/images/Quran 15 line indo-pak/Luqman/411.jpg'),
+  412: require('@/assets/images/Quran 15 line indo-pak/Luqman/412.jpg'),
+  413: require('@/assets/images/Quran 15 line indo-pak/Luqman/413.jpg'),
+  414: require('@/assets/images/Quran 15 line indo-pak/Luqman/414.jpg'),
+};
+export const IMRAN_15LINE_LOCAL: Partial<Record<number,any>> = {
+  75: require('@/assets/images/Quran 15 line indo-pak/Imran/75.jpg'),
+  76: require('@/assets/images/Quran 15 line indo-pak/Imran/76.jpg'),
+};
 export const SAJDAH_15LINE_LOCAL: Partial<Record<number,any>> = {
   415: require('@/assets/images/Quran 15 line indo-pak/Sajdah/415.jpg'),
   416: require('@/assets/images/Quran 15 line indo-pak/Sajdah/416.jpg'),
   417: require('@/assets/images/Quran 15 line indo-pak/Sajdah/417.jpg'),
 };
-
-export const KAHF_PAGE_AYAT:   Record<number,[number,number]> = {
-  293:[1,8],294:[9,16],295:[17,24],296:[25,32],297:[33,41],298:[42,50],
-  299:[51,59],300:[60,69],301:[70,78],302:[79,88],303:[89,98],304:[99,110], 
-};
-export const MULK_PAGE_AYAT:   Record<number,[number,number]> = { 562:[1,12],563:[13,22],564:[23,30] };
-export const SAJDAH_PAGE_AYAT: Record<number,[number,number]> = { 415:[1,12],416:[13,22],417:[23,30] };
 
 // ── Translation type ──────────────────────────────────────────────────────
 export interface VerseTranslation { verse: number; text: string; }
@@ -286,6 +302,29 @@ export function MulkMushafPlaceholder({ nightMode, onBack }: { nightMode: boolea
     accentDay="#3730A3" accentNight="#818CF8"
     bgNight="#0A0F1A" hdrBgNight="#111827" hdrBorNight="#1F2D45"
     bgDay="#F5F0FF" hdrBgDay="#EEF0FF" hdrBorDay="#C4B5FD"
+  />;
+}
+
+export function LuqmanMushafPlaceholder({ nightMode, onBack }: { nightMode: boolean; onBack: () => void }) {
+  return <MushafImageViewer
+    nightMode={nightMode} pageNums={LUQMAN_PAGE_NUMS} localPages={LUQMAN_15LINE_LOCAL} ayatMap={LUQMAN_PAGE_AYAT}
+    nameAr={'سُورَةُ لُقْمَان'}
+    nameEn="Surah Luqman" juz="Juz 21 · 34 verses"
+    accentDay="#B8860B" accentNight="#F9C74F"
+    bgNight="#171106" hdrBgNight="#211606" hdrBorNight="#4A3510"
+    bgDay="#FFF8EA" hdrBgDay="#FFF3D6" hdrBorDay="#D8BF7A"
+  />;
+}
+
+export function ImranMushafPlaceholder({ nightMode, onBack }: { nightMode: boolean; onBack: () => void }) {
+  return <MushafImageViewer
+    nightMode={nightMode} pageNums={IMRAN_PAGE_NUMS} localPages={IMRAN_15LINE_LOCAL} ayatMap={IMRAN_PAGE_AYAT}
+    nameAr={'سُورَةُ آلِ عِمْرَان'}
+    nameEn="Surah Ali 'Imran"
+    juz="Juz 3 · excerpt"
+    accentDay="#0F766E" accentNight="#5EEAD4"
+    bgNight="#061615" hdrBgNight="#08201E" hdrBorNight="#134E4A"
+    bgDay="#F0FDFA" hdrBgDay="#E6FFFA" hdrBorDay="#99F6E4"
   />;
 }
 
