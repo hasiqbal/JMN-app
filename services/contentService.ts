@@ -37,6 +37,7 @@ export interface AdhkarRow {
   arabic: string;
   transliteration: string | null;
   translation: string | null;
+  translation_urdu?: string | null;
   reference: string | null;
   count: string | null;
   display_order: number;

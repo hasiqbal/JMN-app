@@ -82,7 +82,7 @@ export interface PrayerTimeEntry {
 }
 
 export const PRAYER_TIMES: PrayerTimeEntry[] = [
-  { id: 'before-fajr',   label: 'Before Fajr',   arabicLabel: 'قَبْلَ الفَجْر',   icon: 'nights-stay',  color: '#3949AB', accentBg: '#3949AB15' },
+  { id: 'before-fajr',   label: 'Before Fajr & Tahajjud',   arabicLabel: 'قَبْلَ الفَجْر',   icon: 'nights-stay',  color: '#3949AB', accentBg: '#3949AB15' },
   { id: 'after-fajr',    label: 'After Fajr',    arabicLabel: 'بَعْدَ الفَجْر',   icon: 'wb-twilight',  color: '#1B8A5A', accentBg: '#1B8A5A15' },
   { id: 'after-zuhr',    label: 'After Dhuhr',   arabicLabel: 'بَعْدَ الظُّهْر',  icon: 'wb-sunny',     color: '#0A5C9E', accentBg: '#0A5C9E15' },
   { id: 'after-jumuah',  label: "After Jumu'ah", arabicLabel: 'بَعْدَ الجُمُعَة', icon: 'star',         color: '#B8860B', accentBg: '#B8860B15' },
