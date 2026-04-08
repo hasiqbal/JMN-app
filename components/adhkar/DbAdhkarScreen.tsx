@@ -16,7 +16,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius } from '@/constants/theme';
 import { NIGHT_PALETTE } from '@/constants/nightPalette';
-import { fetchAdhkarForPrayerTime, AdhkarRow } from '@/services/contentService';
+import { fetchAdhkarForPrayerTime, AdhkarRow, resolveAdhkarUrduTranslation } from '@/services/contentService';
 import {
   ASR_GROUP_TO_SELECTION,
   BEFORE_FAJR_GROUP_TO_SELECTION,
@@ -100,6 +100,7 @@ function resolveSpecialSelectionForDbGroup(
     .trim();
 
   if (/(surah\s*18|kahf|kaaf|khf|kafh|kahaf|khaf|الكهف)/.test(normalized)) return 'kahf-mushaf';
+  if (/(dua|dua\s+after|supplication)/.test(normalized) && /(surah\s*36|yaseen|yasin|ya\s*seen|يس)/.test(normalized)) return 'yaseen-dua';
   if (/(surah\s*36|yaseen|yasin|ya\s*seen|يس)/.test(normalized)) return 'yaseen';
   if (/(surah\s*56|waqiah|waqia|waqea|waqeah|الواقعة)/.test(normalized)) return 'waqiah';
   if (/(surah\s*32|sajdah|sajda|sajadah|السجدة)/.test(normalized)) return 'sajdah-mushaf';
@@ -127,6 +128,9 @@ function resolveSpecialSelectionForDbEntry(
 
   if (/(surah\s*18|kahf|kaaf|khf|kafh|kahaf|khaf|الكهف)/.test(searchable) || /(k+a*h+f|k+h+f)/.test(compact)) {
     return 'kahf-mushaf';
+  }
+  if (/(dua|dua\s+after|supplication)/.test(searchable) && /(surah\s*36|yaseen|yasin|ya\s*seen|يس)/.test(searchable)) {
+    return 'yaseen-dua';
   }
   if (/(surah\s*36|yaseen|yasin|ya\s*seen|يس)/.test(searchable)) {
     return 'yaseen';
@@ -166,15 +170,6 @@ export function DbAdhkarScreen({
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] = React.useState<Record<string, boolean>>({});
   const [urduById, setUrduById] = React.useState<Record<string, boolean>>({});
-
-  const getUrduTranslation = React.useCallback((item: AdhkarRow): string => {
-    const candidate =
-      item.translation_urdu ??
-      ((item as any).urdu_translation as string | null | undefined) ??
-      ((item as any).translation_ur as string | null | undefined) ??
-      '';
-    return candidate.trim();
-  }, []);
 
   React.useEffect(() => {
     setLoading(true);
@@ -247,7 +242,7 @@ export function DbAdhkarScreen({
     const isOpen = expandedId === item.id;
     const arabicFontSize   = useEnhancedFont ? 26 : 24;
     const arabicLineHeight = useEnhancedFont ? 58 : 52;
-    const urduTranslation = getUrduTranslation(item);
+    const urduTranslation = resolveAdhkarUrduTranslation(item);
     const hasUrduTranslation = urduTranslation.length > 0;
     const showUrdu = !!urduById[item.id] && hasUrduTranslation;
     const selectedTranslation = showUrdu ? urduTranslation : item.translation;

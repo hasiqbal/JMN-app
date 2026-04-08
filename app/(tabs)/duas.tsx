@@ -35,7 +35,7 @@ import {
 } from '@/constants/duasGroups';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { useNightMode } from '@/hooks/useNightMode';
-import { fetchAdhkarForPrayerTime, fetchAdhkarGroupsForPrayerTime, AdhkarGroupMeta, AdhkarRow } from '@/services/contentService';
+import { fetchAdhkarForPrayerTime, fetchAdhkarGroupsForPrayerTime, AdhkarGroupMeta, AdhkarRow, resolveAdhkarUrduTranslation } from '@/services/contentService';
 import { ImranMushafPlaceholder, LuqmanMushafPlaceholder, MulkMushafPlaceholder, SajdahMushafPlaceholder } from '@/components/MushafimageViewer';
 import { StarField } from '@/components/adhkar/StarField';
 import { NightModeToggle } from '@/components/adhkar/NightModeToggle';
@@ -75,6 +75,9 @@ function resolveSelectionFromGroupMeta(
 
   if (/(surah\s*18|kahf|kaaf|khf|kafh|kahaf|khaf|الكهف)/.test(normalized) || /(k+a*h+f|k+h+f)/.test(compact)) {
     return 'kahf-mushaf';
+  }
+  if (/(dua|dua\s+after|supplication)/.test(normalized) && /(surah\s*36|yaseen|yasin|ya\s*seen|يس)/.test(normalized)) {
+    return 'yaseen-dua';
   }
   if (/(surah\s*36|yaseen|yasin|ya\s*seen|يس)/.test(normalized)) {
     return 'yaseen';
@@ -319,7 +322,15 @@ export default function DuasScreen() {
       case 'yaseen':
         return <SurahYaseenScreen nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
       case 'wird-al-latif':
-        return <WirdAlLatifScreen nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
+        return (
+          <DbAdhkarScreen
+            prayerTime="after-fajr"
+            groupFilter="Wird al-Latif"
+            nightMode={nightMode}
+            onBack={() => setFajrSelection(null)}
+            onOpenSpecialGroup={setFajrSelection}
+          />
+        );
       case 'wird-abu-bakr':
         return <WirdAbuBakrFullScreen nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
       case 'yaseen-dua':
@@ -1768,7 +1779,7 @@ const WIRD_SURAHS = [
   },
 ];
 
-function WirdAlLatifScreen({ nightMode, onBack }: { nightMode: boolean; onBack: () => void }) {
+export function WirdAlLatifScreen({ nightMode, onBack }: { nightMode: boolean; onBack: () => void }) {
   const N = nightMode ? NIGHT : null;
   const [rows, setRows] = React.useState<AdhkarRow[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -1776,15 +1787,6 @@ function WirdAlLatifScreen({ nightMode, onBack }: { nightMode: boolean; onBack: 
   const [urduById, setUrduById] = React.useState<Record<string, boolean>>({});
   const scrollRef = React.useRef<ScrollView>(null);
   const cardYRefs = React.useRef<Record<string, number>>({});
-
-  const getUrduTranslation = React.useCallback((item: AdhkarRow): string => {
-    const candidate =
-      ((item as any).translation_urdu as string | null | undefined) ??
-      ((item as any).urdu_translation as string | null | undefined) ??
-      ((item as any).translation_ur as string | null | undefined) ??
-      '';
-    return candidate.trim();
-  }, []);
 
   React.useEffect(() => {
     fetchAdhkarForPrayerTime('after-fajr').then(all => {
@@ -1862,7 +1864,7 @@ function WirdAlLatifScreen({ nightMode, onBack }: { nightMode: boolean; onBack: 
         ) : rows.map((item) => {
           const isOpen = expandedId === item.id;
           const itemColor = accent;
-          const urduTranslation = getUrduTranslation(item);
+          const urduTranslation = resolveAdhkarUrduTranslation(item);
           const hasUrduTranslation = urduTranslation.length > 0;
           const showUrdu = !!urduById[item.id] && hasUrduTranslation;
           const selectedTranslation = showUrdu ? urduTranslation : item.translation;

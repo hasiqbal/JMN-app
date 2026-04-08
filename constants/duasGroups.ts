@@ -88,6 +88,9 @@ export const BEFORE_FAJR_GROUP_TO_SELECTION: Record<string, AdhkarSelection> = {
 
 // Click routing for After Fajr cards: DB group name -> app selection key
 export const FAJR_GROUP_TO_SELECTION: Record<string, AdhkarSelection> = {
+  'Dua after Surah Yaseen': 'yaseen-dua',
+  'Dua after Yaseen': 'yaseen-dua',
+  'Dua Yaseen': 'yaseen-dua',
   'Surah Yaseen': 'yaseen',
   'Surah 36': 'yaseen',
   'Surah 36 - Ya Seen': 'yaseen',
