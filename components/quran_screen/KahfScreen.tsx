@@ -1,258 +1,284 @@
 import React from 'react';
-import { Dimensions, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { AppState, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Reanimated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
-
-import { Colors, Radius } from '@/constants/theme';
 import { fetchSurahPages, MushafPage } from '@/services/quranApiService';
+import { ysPdfSt } from './shared';
 
-import { NIGHT_PALETTE as NIGHT } from './shared';
+const KAHF_PAGE_NUMS = [293, 294, 295, 296, 297, 298, 299, 300, 301, 302, 303, 304];
+
+const KAHF_15LINE_LOCAL: Partial<Record<number, any>> = {
+  293: require('@/assets/images/Quran 15 line indo-pak/Kahf/293.jpg'),
+  294: require('@/assets/images/Quran 15 line indo-pak/Kahf/294.jpg'),
+  295: require('@/assets/images/Quran 15 line indo-pak/Kahf/295.jpg'),
+  296: require('@/assets/images/Quran 15 line indo-pak/Kahf/296.jpg'),
+  297: require('@/assets/images/Quran 15 line indo-pak/Kahf/297.jpg'),
+  298: require('@/assets/images/Quran 15 line indo-pak/Kahf/298.jpg'),
+  299: require('@/assets/images/Quran 15 line indo-pak/Kahf/299.jpg'),
+  300: require('@/assets/images/Quran 15 line indo-pak/Kahf/300.jpg'),
+  301: require('@/assets/images/Quran 15 line indo-pak/Kahf/301.jpg'),
+  302: require('@/assets/images/Quran 15 line indo-pak/Kahf/302.jpg'),
+  303: require('@/assets/images/Quran 15 line indo-pak/Kahf/303.jpg'),
+  304: require('@/assets/images/Quran 15 line indo-pak/Kahf/304.jpg'),
+};
+
+const KAHF_16LINE_LOCAL: Partial<Record<number, any>> = {};
 
 function SurahKahfScreen({ nightMode, onBack }: { nightMode: boolean; onBack: () => void }) {
-  const N = nightMode ? NIGHT : null;
-  const color = '#1B8A5A';
-  const [pages, setPages] = React.useState<MushafPage[]>([]);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
-  const [currentPage, setCurrentPage] = React.useState(0);
+  const N = nightMode;
+  const [style, setStyle] = React.useState<'15line' | '16line'>('15line');
+  const [refreshKey, setRefreshKey] = React.useState(0);
+  const [, setLoadError] = React.useState(false);
+  const [, setImageLoading] = React.useState(false);
   const [showTrans, setShowTrans] = React.useState(false);
-  const scrollRef = React.useRef<ScrollView>(null);
-  const { width: SCREEN_WIDTH } = Dimensions.get('window');
-  const KAHF_FONT = 22;
+  const [currentPageIdx, setCurrentPageIdx] = React.useState(0);
+  const [kahfPages, setKahfPages] = React.useState<MushafPage[]>([]);
 
   React.useEffect(() => {
-    fetchSurahPages(18).then(data => {
-      if (data.length === 0) setError('Could not load Surah Al-Kahf. Please check your connection.');
-      else setPages(data);
-      setLoading(false);
+    fetchSurahPages(18).then((data) => {
+      setKahfPages(data);
     });
   }, []);
 
-  const goToPage = (p: number) => {
-    if (p < 0 || p >= pages.length) return;
-    setCurrentPage(p);
-    setShowTrans(false);
-    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  React.useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        setTimeout(() => setRefreshKey((value) => value + 1), 150);
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
+  const translateX = useSharedValue(0);
+  const scale = useSharedValue(1);
+  const savedScale = useSharedValue(1);
+
+  const imageAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }, { scale: scale.value }],
+    flex: 1,
+    width: '100%',
+  }));
+
+  const BG = N ? '#081408' : '#F0FBF4';
+  const HDR_BG = N ? '#040C06' : '#E8F5EC';
+  const HDR_BORDER = N ? '#1A4A25' : '#5A9A6A';
+  const ACCENT = N ? '#4ADE80' : '#1B8A5A';
+  const META = N ? '#94A3B8' : '#6B7280';
+
+  const has16LineImages = Object.keys(KAHF_16LINE_LOCAL).length > 0;
+  const pageNum = KAHF_PAGE_NUMS[currentPageIdx];
+  const pageData = kahfPages.find((page) => page.pageNumber === pageNum);
+  const range = pageData?.verseRange;
+  const pageVerses = pageData?.verses ?? [];
+
+  const resolvedSrc = style === '15line'
+    ? (KAHF_15LINE_LOCAL[pageNum] ?? null)
+    : (KAHF_16LINE_LOCAL[pageNum] ?? null);
+
+  const switchStyle = (nextStyle: '15line' | '16line') => {
+    setStyle(nextStyle);
+    setLoadError(false);
+    setRefreshKey((value) => value + 1);
   };
 
-  const pageBg = N ? '#081408' : '#F0FBF4';
-  const pageText = N ? '#C8F0D0' : '#031508';
-  const pageBord = N ? '#1A4A25' : '#5A9A6A';
-  const metaColor = N ? '#3A7A45' : '#2A6A35';
-  const topBarBg = N ? '#040C06' : '#E8F5EC';
-  const page = pages[currentPage];
+  const goTo = (idx: number) => {
+    if (idx < 0 || idx >= KAHF_PAGE_NUMS.length) return;
+    setCurrentPageIdx(idx);
+    setLoadError(false);
+    setShowTrans(false);
+    setRefreshKey((value) => value + 1);
+    setImageLoading(false);
+    scale.value = withSpring(1, { damping: 20, stiffness: 300 });
+    savedScale.value = 1;
+  };
+
+  const swipeGesture = Gesture.Pan()
+    .activeOffsetX([-12, 12])
+    .failOffsetY([-15, 15])
+    .onUpdate((event) => {
+      if (scale.value <= 1.05) {
+        translateX.value = event.translationX * 0.25;
+      }
+    })
+    .onEnd((event) => {
+      const isSwipeLeft = event.translationX < -35 || event.velocityX < -400;
+      const isSwipeRight = event.translationX > 35 || event.velocityX > 400;
+      translateX.value = withSpring(0, { damping: 20, stiffness: 300 });
+      if (scale.value <= 1.05) {
+        if (isSwipeLeft) {
+          runOnJS(goTo)(currentPageIdx + 1);
+        } else if (isSwipeRight) {
+          runOnJS(goTo)(currentPageIdx - 1);
+        }
+      }
+    })
+    .onFinalize(() => {
+      translateX.value = withSpring(0, { damping: 20, stiffness: 300 });
+    });
+
+  const pinchGesture = Gesture.Pinch()
+    .onUpdate((event) => {
+      scale.value = Math.max(1, Math.min(savedScale.value * event.scale, 4));
+    })
+    .onEnd(() => {
+      if (scale.value < 1.1) {
+        scale.value = withSpring(1, { damping: 20, stiffness: 300 });
+        savedScale.value = 1;
+      } else {
+        savedScale.value = scale.value;
+      }
+    });
+
+  const doubleTapGesture = Gesture.Tap()
+    .numberOfTaps(2)
+    .maxDuration(250)
+    .onEnd(() => {
+      scale.value = withSpring(1, { damping: 20, stiffness: 300 });
+      savedScale.value = 1;
+    });
+
+  const composedGesture = Gesture.Simultaneous(
+    swipeGesture,
+    Gesture.Race(pinchGesture, doubleTapGesture)
+  );
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <View style={{ flex: 1, backgroundColor: N ? N.bg : '#E8F5EC' }}>
-        <View style={[kahfStyles.topBar, { backgroundColor: topBarBg, borderBottomColor: pageBord }]}>
-          <View style={kahfStyles.topLeft}>
-            <Text style={[kahfStyles.topSurahName, { color: metaColor }]}>سُورَةُ الْكَهْف</Text>
-            {page ? <Text style={[kahfStyles.topMeta, { color: metaColor }]}>{'Juz ' + page.juzNumber}</Text> : null}
-          </View>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: BG }}>
+      <View style={{ flex: 1, backgroundColor: BG }}>
+        <View style={[ysPdfSt.topBar, { backgroundColor: HDR_BG, borderBottomColor: HDR_BORDER, paddingVertical: 7 }]}>
+          <Text style={[ysPdfSt.surahNameAr, { color: ACCENT, fontSize: 18 }]}>سُورَةُ الْكَهْف</Text>
+          <View style={{ flex: 1 }} />
           <TouchableOpacity
-            style={[kahfStyles.transBtn, showTrans && { backgroundColor: color, borderColor: color }]}
-            onPress={() => setShowTrans(v => !v)}
+            style={[ysPdfSt.transBtn, { borderColor: ACCENT }, showTrans && { backgroundColor: ACCENT, borderColor: ACCENT }]}
+            onPress={() => setShowTrans((value) => !value)}
             activeOpacity={0.8}
           >
-            <MaterialIcons name="translate" size={14} color={showTrans ? '#fff' : color} />
-            <Text style={[kahfStyles.transBtnText, { color: showTrans ? '#fff' : color }]}>Translation</Text>
+            <MaterialIcons name="translate" size={13} color={showTrans ? '#fff' : ACCENT} />
+            <Text style={[ysPdfSt.transBtnText, { color: showTrans ? '#fff' : ACCENT, fontSize: 11 }]}>Trans</Text>
           </TouchableOpacity>
+          <View style={[ysPdfSt.toggleGroup, { backgroundColor: N ? '#112618' : '#DBF1E3', borderColor: N ? '#1A4A25' : '#8BC89E' }]}>
+            <TouchableOpacity
+              style={[ysPdfSt.toggleBtn, style === '15line' && { backgroundColor: ACCENT }]}
+              onPress={() => switchStyle('15line')}
+              activeOpacity={0.8}
+            >
+              <Text style={[ysPdfSt.toggleBtnText, { color: style === '15line' ? '#fff' : META }]}>15L</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[ysPdfSt.toggleBtn, style === '16line' && { backgroundColor: ACCENT }]}
+              onPress={() => switchStyle('16line')}
+              activeOpacity={0.8}
+            >
+              <Text style={[ysPdfSt.toggleBtnText, { color: style === '16line' ? '#fff' : META }]}>16L</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {loading ? (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontSize: 13, color: metaColor, marginTop: 16, textAlign: 'center' }}>Loading Surah Al-Kahf...</Text>
+        {style === '16line' && !has16LineImages ? (
+          <View style={[ysPdfSt.noImagesBox, { backgroundColor: BG }]}>
+            <MaterialIcons name="upload-file" size={48} color={ACCENT} style={{ opacity: 0.5 }} />
+            <Text style={[ysPdfSt.noImagesTitle, { color: ACCENT }]}>16-Line Images Not Yet Uploaded</Text>
+            <Text style={[ysPdfSt.noImagesSub, { color: META }]}>Upload pages 293-304 of the 16-line Indo-Pak Quran as image attachments in the chat.</Text>
+            <TouchableOpacity
+              style={[ysPdfSt.noImagesBtn, { backgroundColor: ACCENT + '22', borderColor: ACCENT }]}
+              onPress={() => switchStyle('15line')}
+              activeOpacity={0.8}
+            >
+              <MaterialIcons name="menu-book" size={16} color={ACCENT} />
+              <Text style={[ysPdfSt.noImagesBtnText, { color: ACCENT }]}>Use 15-Line Instead</Text>
+            </TouchableOpacity>
           </View>
-        ) : error ? (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-            <MaterialIcons name="wifi-off" size={40} color={N ? N.textMuted : Colors.textSubtle} style={{ opacity: 0.35 }} />
-            <Text style={{ fontSize: 14, color: N ? N.textMuted : Colors.textSubtle, textAlign: 'center', lineHeight: 22, marginTop: 12 }}>{error}</Text>
-          </View>
-        ) : page ? (
-          <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
-            <View style={[kahfStyles.page, { backgroundColor: pageBg, borderColor: pageBord, width: SCREEN_WIDTH - 16, alignSelf: 'center' }]}>
-              <View style={[kahfStyles.pageInner, { borderColor: pageBord }]}>
-                <View style={[kahfStyles.pageHeader, { borderBottomColor: pageBord }]}>
-                  <Text style={[kahfStyles.pageHeaderLeft, { color: metaColor }]}>Surah Al-Kahf</Text>
-                  <Text style={[kahfStyles.pageHeaderRight, { color: metaColor }]}>{'Juz ' + page.juzNumber}</Text>
-                </View>
-                <View style={kahfStyles.linesContainer}>
-                  {page.lines.map((line, idx) => (
-                    <View key={line.lineNumber} style={[kahfStyles.lineRow, idx < page.lines.length - 1 && { borderBottomColor: pageBord + '40', borderBottomWidth: 0.75 }]}>
-                      <Text
-                        style={[
-                          kahfStyles.lineText,
-                          { color: pageText, fontSize: KAHF_FONT, lineHeight: Math.round(KAHF_FONT * 2.2) },
-                          line.isBismillah && kahfStyles.bismillahLine,
-                          line.isCentered && kahfStyles.centeredLine,
-                        ]}
-                      >
-                        {line.text}
-                      </Text>
-                    </View>
+        ) : (
+          <>
+            <GestureDetector gesture={composedGesture}>
+              <Reanimated.View style={imageAnimStyle}>
+                {resolvedSrc === null ? (
+                  <View style={[ysPdfSt.noImagesBox, { backgroundColor: BG }]}>
+                    <MaterialIcons name="upload-file" size={48} color={ACCENT} style={{ opacity: 0.5 }} />
+                    <Text style={[ysPdfSt.noImagesTitle, { color: ACCENT }]}>Image Not Available</Text>
+                    <Text style={[ysPdfSt.noImagesSub, { color: META }]}>{`Page ${pageNum} is not yet bundled.`}</Text>
+                  </View>
+                ) : (
+                  <View style={{ flex: 1 }}>
+                    <Image
+                      key={`kahf-${pageNum}-${style}-${refreshKey}`}
+                      source={resolvedSrc}
+                      style={{ flex: 1, width: '100%' }}
+                      contentFit="contain"
+                      transition={0}
+                      onLoad={() => { setImageLoading(false); }}
+                      onError={() => { setLoadError(true); setImageLoading(false); }}
+                    />
+                  </View>
+                )}
+              </Reanimated.View>
+            </GestureDetector>
+
+            <View style={[ysPdfSt.navBarCompact, { backgroundColor: HDR_BG, borderTopColor: HDR_BORDER }]}>
+              <TouchableOpacity
+                style={[ysPdfSt.navBtnCompact, currentPageIdx === 0 && { opacity: 0.3 }]}
+                onPress={() => goTo(currentPageIdx - 1)}
+                disabled={currentPageIdx === 0}
+                activeOpacity={0.8}
+              >
+                <MaterialIcons name="chevron-left" size={26} color={ACCENT} />
+              </TouchableOpacity>
+
+              <View style={{ alignItems: 'center', gap: 4 }}>
+                <Text style={[ysPdfSt.pageNumCompact, { color: ACCENT }]}>Page {pageNum}</Text>
+                <Text style={{ fontSize: 10, color: META, fontWeight: '500' }}>
+                  {currentPageIdx + 1} / {KAHF_PAGE_NUMS.length}  ·  {range ? `Ayat ${range[0]}-${range[1]}` : ''}
+                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  {KAHF_PAGE_NUMS.map((_, index) => (
+                    <TouchableOpacity key={index} onPress={() => goTo(index)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
+                      <View style={[ysPdfSt.dotSmall, { backgroundColor: index === currentPageIdx ? ACCENT : (N ? '#1A4A25' : '#8BC89E') }, index === currentPageIdx && { width: 16 }]} />
+                    </TouchableOpacity>
                   ))}
                 </View>
-                <View style={[kahfStyles.pageFooter, { borderTopColor: pageBord }]}>
-                  <Text style={[kahfStyles.pageNum, { color: metaColor }]}>{page.pageNumber}</Text>
-                  <Text style={[kahfStyles.verseRangeText, { color: metaColor }]}>{'Ayat ' + page.verseRange[0] + '–' + page.verseRange[1]}</Text>
-                </View>
               </View>
+
+              <TouchableOpacity
+                style={[ysPdfSt.navBtnCompact, currentPageIdx === KAHF_PAGE_NUMS.length - 1 && { opacity: 0.3 }]}
+                onPress={() => goTo(currentPageIdx + 1)}
+                disabled={currentPageIdx === KAHF_PAGE_NUMS.length - 1}
+                activeOpacity={0.8}
+              >
+                <MaterialIcons name="chevron-right" size={26} color={ACCENT} />
+              </TouchableOpacity>
             </View>
+
             {showTrans ? (
-              <View style={[kahfStyles.transPanel, { backgroundColor: N ? N.surface : '#FFF', borderColor: N ? N.border : '#A0D4B0', width: SCREEN_WIDTH - 16, alignSelf: 'center' }]}>
-                <Text style={[kahfStyles.transPanelTitle, N && { color: N.textSub }]}>Translation - Ayat {page.verseRange[0]}-{page.verseRange[1]}</Text>
-                {page.verses.map(v => (
-                  <View key={v.numberInSurah} style={[kahfStyles.transVerseRow, N && { borderBottomColor: N.border }]}>
-                    <View style={[kahfStyles.transVerseNum, { backgroundColor: color + '20' }]}>
-                      <Text style={[kahfStyles.transVerseNumText, { color }]}>{v.numberInSurah}</Text>
+              <View style={[ysPdfSt.transOverlay, { backgroundColor: N ? 'rgba(8,20,8,0.97)' : 'rgba(240,251,244,0.97)' }]}>
+                <View style={[ysPdfSt.transOverlayHeader, { borderBottomColor: HDR_BORDER }]}>
+                  <MaterialIcons name="menu-book" size={16} color={ACCENT} />
+                  <Text style={[ysPdfSt.transPanelTitle, { color: ACCENT, flex: 1 }]}>{range ? `Ayat ${range[0]}-${range[1]}` : ''}  ·  Translation</Text>
+                  <TouchableOpacity onPress={() => setShowTrans(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                    <MaterialIcons name="close" size={20} color={META} />
+                  </TouchableOpacity>
+                </View>
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
+                  {pageVerses.map((verse) => (
+                    <View key={verse.numberInSurah} style={[ysPdfSt.transVerseRow, { borderBottomColor: HDR_BORDER }]}>
+                      <View style={[ysPdfSt.transVerseNum, { backgroundColor: ACCENT + '20' }]}>
+                        <Text style={[ysPdfSt.transVerseNumText, { color: ACCENT }]}>{verse.numberInSurah}</Text>
+                      </View>
+                      <View style={{ flex: 1, gap: 3 }}>
+                        {verse.transliteration ? <Text style={[ysPdfSt.transVerseTranslit, { color: META }]}>{verse.transliteration}</Text> : null}
+                        <Text style={[ysPdfSt.transVerseTrans, { color: N ? '#EEF3FC' : '#1F2937' }]}>{verse.translation}</Text>
+                      </View>
                     </View>
-                    <View style={{ flex: 1, gap: 3 }}>
-                      {v.transliteration ? <Text style={[kahfStyles.translit, N && { color: N.textSub }]}>{v.transliteration}</Text> : null}
-                      <Text style={[kahfStyles.transText, N && { color: N.text }]}>{v.translation}</Text>
-                    </View>
-                  </View>
-                ))}
+                  ))}
+                </ScrollView>
               </View>
             ) : null}
-            <View style={kahfStyles.navRow}>
-              <TouchableOpacity
-                style={[kahfStyles.navBtn, { borderColor: pageBord, backgroundColor: pageBg }, currentPage === 0 && { opacity: 0.35 }]}
-                onPress={() => goToPage(currentPage - 1)}
-                disabled={currentPage === 0}
-                activeOpacity={0.8}
-              >
-                <MaterialIcons name="chevron-left" size={22} color={metaColor} />
-                <Text style={[kahfStyles.navBtnText, { color: metaColor }]}>Prev</Text>
-              </TouchableOpacity>
-              <View style={kahfStyles.dotsRow}>
-                {pages.map((_, i) => (
-                  <TouchableOpacity key={i} onPress={() => goToPage(i)} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
-                    <View style={[kahfStyles.dot, { backgroundColor: pageBord + '50' }, i === currentPage && { backgroundColor: color, width: 18 }]} />
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <TouchableOpacity
-                style={[kahfStyles.navBtn, { borderColor: pageBord, backgroundColor: pageBg }, currentPage === pages.length - 1 && { opacity: 0.35 }]}
-                onPress={() => goToPage(currentPage + 1)}
-                disabled={currentPage === pages.length - 1}
-                activeOpacity={0.8}
-              >
-                <Text style={[kahfStyles.navBtnText, { color: metaColor }]}>Next</Text>
-                <MaterialIcons name="chevron-right" size={22} color={metaColor} />
-              </TouchableOpacity>
-            </View>
-            <Text style={[kahfStyles.caption, N && { color: N.textMuted }]}>Page {currentPage + 1} of {pages.length}  ·  Surah Al-Kahf  ·  Juz 15-16</Text>
-            <View style={{ height: 24 }} />
-          </ScrollView>
-        ) : null}
+          </>
+        )}
       </View>
     </GestureHandlerRootView>
   );
 }
-
-const kahfStyles = StyleSheet.create({
-  topBar: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 10,
-    borderBottomWidth: 1.5,
-  },
-  topLeft: { gap: 1 },
-  topSurahName: { fontSize: 20, fontWeight: '800' } as any,
-  topMeta: { fontSize: 11, fontWeight: '600', letterSpacing: 0.3 },
-  transBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 11, paddingVertical: 7,
-    borderRadius: Radius.full, borderWidth: 1.5, borderColor: '#1B8A5A',
-  },
-  transBtnText: { fontSize: 12, fontWeight: '700' },
-  page: {
-    marginTop: 8,
-    borderRadius: 4,
-    borderWidth: 2,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.22, shadowRadius: 12, elevation: 8,
-    padding: 8,
-  },
-  pageInner: {
-    borderWidth: 1,
-    borderRadius: 2,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  pageHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingBottom: 7, marginBottom: 6,
-    borderBottomWidth: 1,
-  },
-  pageHeaderLeft: { fontSize: 11, fontWeight: '600', fontStyle: 'italic', letterSpacing: 0.2 },
-  pageHeaderRight: { fontSize: 11, fontWeight: '600', letterSpacing: 0.3 },
-  linesContainer: { gap: 0 },
-  lineRow: {
-    paddingVertical: 4,
-  },
-  lineText: {
-    textAlign: 'right',
-    writingDirection: 'rtl',
-    fontFamily: Platform.select({ ios: undefined, android: undefined, default: undefined }),
-    letterSpacing: 0.3,
-    includeFontPadding: false,
-  } as any,
-  bismillahLine: {
-    textAlign: 'center',
-    fontWeight: '600',
-  },
-  centeredLine: {
-    textAlign: 'center',
-  },
-  pageFooter: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginTop: 8, paddingTop: 7,
-    borderTopWidth: 1,
-  },
-  pageNum: { fontSize: 13, fontWeight: '700', letterSpacing: 0.5 },
-  verseRangeText: { fontSize: 10, fontWeight: '500', letterSpacing: 0.3 },
-  transPanel: {
-    marginTop: 12,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    padding: 14,
-    gap: 10,
-  },
-  transPanelTitle: {
-    fontSize: 12, fontWeight: '700', color: Colors.textSubtle,
-    letterSpacing: 0.4, marginBottom: 4,
-  },
-  transVerseRow: {
-    flexDirection: 'row', gap: 10, paddingBottom: 10,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
-    alignItems: 'flex-start',
-  },
-  transVerseNum: {
-    width: 26, height: 26, borderRadius: 13,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2,
-  },
-  transVerseNumText: { fontSize: 11, fontWeight: '800' },
-  translit: { fontSize: 12, fontStyle: 'italic', color: Colors.textSecondary, lineHeight: 19 },
-  transText: { fontSize: 13, color: Colors.textPrimary, lineHeight: 20 },
-  navRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, marginTop: 14,
-    maxWidth: 420, width: '100%', alignSelf: 'center',
-  },
-  navBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 16, paddingVertical: 9,
-    borderRadius: Radius.full, borderWidth: 1.5,
-  },
-  navBtnText: { fontSize: 13, fontWeight: '700' },
-  dotsRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  dot: { width: 7, height: 7, borderRadius: 4 },
-  caption: {
-    textAlign: 'center', fontSize: 10, fontWeight: '500',
-    color: Colors.textSubtle, letterSpacing: 0.3,
-    marginTop: 6,
-  },
-});
 
 export default SurahKahfScreen;

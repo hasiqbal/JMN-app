@@ -17,6 +17,17 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius } from '@/constants/theme';
 import { NIGHT_PALETTE } from '@/constants/nightPalette';
 import { fetchAdhkarForPrayerTime, AdhkarRow } from '@/services/contentService';
+import {
+  ASR_GROUP_TO_SELECTION,
+  BEFORE_FAJR_GROUP_TO_SELECTION,
+  DHUHR_GROUP_TO_SELECTION,
+  FAJR_GROUP_TO_SELECTION,
+  ISHA_GROUP_TO_SELECTION,
+  JUMUAH_GROUP_TO_SELECTION,
+  MAGHRIB_GROUP_TO_SELECTION,
+  resolveGroupSelection,
+} from '@/constants/duasGroups';
+import { AdhkarSelection } from '@/types/duasTypes';
 
 // ── Groups that use enhanced Indo-Pak paragraph formatting ───────────────
 const ENHANCED_ARABIC_GROUPS = new Set([
@@ -57,6 +68,77 @@ interface Props {
   onBack?: () => void;
   groupFilter?: string;
   titleOverride?: string;
+  onOpenSpecialGroup?: (selection: AdhkarSelection) => void;
+}
+
+function resolveSpecialSelectionForDbGroup(
+  prayerTime: AdhkarRow['prayer_time'],
+  groupName: string
+): AdhkarSelection | undefined {
+  const routeMapByPrayerTime: Partial<Record<AdhkarRow['prayer_time'], Record<string, AdhkarSelection>>> = {
+    'before-fajr': BEFORE_FAJR_GROUP_TO_SELECTION,
+    'after-fajr': FAJR_GROUP_TO_SELECTION,
+    'after-zuhr': DHUHR_GROUP_TO_SELECTION,
+    'after-jumuah': JUMUAH_GROUP_TO_SELECTION,
+    'after-asr': ASR_GROUP_TO_SELECTION,
+    'after-maghrib': MAGHRIB_GROUP_TO_SELECTION,
+    'after-isha': ISHA_GROUP_TO_SELECTION,
+  };
+
+  const routeMap = routeMapByPrayerTime[prayerTime];
+  if (routeMap) {
+    const mapped = resolveGroupSelection(routeMap, groupName);
+    if (mapped) return mapped;
+  }
+
+  const normalized = groupName
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\u0600-\u06ff]+/g, ' ')
+    .trim();
+
+  if (/(surah\s*18|kahf|kaaf|khf|kafh|kahaf|khaf|الكهف)/.test(normalized)) return 'kahf-mushaf';
+  if (/(surah\s*36|yaseen|yasin|ya\s*seen|يس)/.test(normalized)) return 'yaseen';
+  if (/(surah\s*56|waqiah|waqia|waqea|waqeah|الواقعة)/.test(normalized)) return 'waqiah';
+  if (/(surah\s*32|sajdah|sajda|sajadah|السجدة)/.test(normalized)) return 'sajdah-mushaf';
+  if (/(surah\s*67|mulk|الملك)/.test(normalized)) return 'mulk-mushaf';
+
+  return undefined;
+}
+
+function resolveSpecialSelectionForDbEntry(
+  prayerTime: AdhkarRow['prayer_time'],
+  item: Pick<AdhkarRow, 'title' | 'arabic_title' | 'group_name' | 'reference'>
+): AdhkarSelection | undefined {
+  const searchable = [item.title, item.arabic_title, item.group_name, item.reference]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\u0600-\u06ff]+/g, ' ')
+    .trim();
+
+  const compact = searchable.replace(/\s+/g, '');
+
+  if (/(surah\s*18|kahf|kaaf|khf|kafh|kahaf|khaf|الكهف)/.test(searchable) || /(k+a*h+f|k+h+f)/.test(compact)) {
+    return 'kahf-mushaf';
+  }
+  if (/(surah\s*36|yaseen|yasin|ya\s*seen|يس)/.test(searchable)) {
+    return 'yaseen';
+  }
+  if (/(surah\s*56|waqiah|waqia|waqea|waqeah|الواقعة)/.test(searchable)) {
+    return 'waqiah';
+  }
+  if (/(surah\s*32|sajdah|sajda|sajadah|السجدة)/.test(searchable)) {
+    return 'sajdah-mushaf';
+  }
+  if (/(surah\s*67|mulk|الملك)/.test(searchable)) {
+    return 'mulk-mushaf';
+  }
+
+  return resolveSpecialSelectionForDbGroup(prayerTime, item.group_name ?? '');
 }
 
 export function DbAdhkarScreen({
@@ -65,6 +147,7 @@ export function DbAdhkarScreen({
   onBack,
   groupFilter,
   titleOverride,
+  onOpenSpecialGroup,
 }: Props) {
   const N = nightMode ? NIGHT_PALETTE : null;
   const useEnhancedFont = !!(groupFilter && ENHANCED_ARABIC_GROUPS.has(groupFilter));
@@ -166,7 +249,20 @@ export function DbAdhkarScreen({
           isOpen && { borderColor: accent },
           useEnhancedFont && isOpen && styles.itemCardEnhanced,
         ]}
-        onPress={() => { if (!singleItem) setExpandedId(isOpen ? null : item.id); }}
+        onPress={() => {
+          const specialSelection = onOpenSpecialGroup
+            ? resolveSpecialSelectionForDbEntry(prayerTime, item)
+            : undefined;
+
+          if (specialSelection && onOpenSpecialGroup) {
+            onOpenSpecialGroup(specialSelection);
+            return;
+          }
+
+          if (!singleItem) {
+            setExpandedId(isOpen ? null : item.id);
+          }
+        }}
         activeOpacity={singleItem ? 1 : 0.85}
       >
         {/* ── Header row ── */}

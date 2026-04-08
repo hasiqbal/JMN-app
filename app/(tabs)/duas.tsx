@@ -31,19 +31,66 @@ import {
   KNOWN_DHUHR_GROUPS,
   KNOWN_FAJR_GROUPS,
   KNOWN_JUMUAH_GROUPS,
+  resolveGroupSelection,
 } from '@/constants/duasGroups';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { useNightMode } from '@/hooks/useNightMode';
 import { fetchAdhkarForPrayerTime, fetchAdhkarGroupsForPrayerTime, AdhkarGroupMeta, AdhkarRow } from '@/services/contentService';
-import { KahfMushafPlaceholder, MulkMushafPlaceholder, SajdahMushafPlaceholder } from '@/components/MushafimageViewer';
+import { MulkMushafPlaceholder, SajdahMushafPlaceholder } from '@/components/MushafimageViewer';
 import { StarField } from '@/components/adhkar/StarField';
 import { NightModeToggle } from '@/components/adhkar/NightModeToggle';
 import { PrayerTimeChipBar } from '@/components/adhkar/PrayerTimeChipBar';
 import { DbAdhkarScreen } from '@/components/adhkar/DbAdhkarScreen';
 import { NIGHT_PALETTE as NIGHT } from '@/components/quran_screen/shared';
-import { SurahKahfScreen, SurahWaqiahMushafScreen, SurahYaseenScreen } from '@/components/quran_screen';
+import { SurahKahfScreen, SurahSajdahScreen, SurahWaqiahMushafScreen, SurahYaseenScreen } from '@/components/quran_screen';
 
 // StarField, NightModeToggle, PrayerTimeChipBar, DbAdhkarScreen — imported from components/adhkar/
+
+function resolveSelectionFromGroupMeta(
+  group: Pick<AdhkarGroupMeta, 'group_name' | 'arabic_title' | 'card_subtitle' | 'description' | 'content_key' | 'content_type'>,
+  routeMap: Record<string, AdhkarSelection>
+): AdhkarSelection | undefined {
+  const routedSelection = resolveGroupSelection(routeMap, group.group_name);
+  if (routedSelection) return routedSelection;
+
+  const contentKey = (group.content_key ?? '').toLowerCase().trim();
+  const searchableText = [
+    group.group_name,
+    group.arabic_title,
+    group.card_subtitle,
+    group.description,
+    group.content_key,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  const matchingText = `${contentKey} ${searchableText}`;
+  const normalized = matchingText
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\u0600-\u06ff]+/g, ' ')
+    .trim();
+  const compact = normalized.replace(/\s+/g, '');
+
+  if (/(surah\s*18|kahf|kaaf|khf|kafh|kahaf|khaf|الكهف)/.test(normalized) || /(k+a*h+f|k+h+f)/.test(compact)) {
+    return 'kahf-mushaf';
+  }
+  if (/(surah\s*36|yaseen|yasin|ya\s*seen|يس)/.test(normalized)) {
+    return 'yaseen';
+  }
+  if (/(surah\s*56|waqiah|waqia|waqea|waqeah|الواقعة)/.test(normalized)) {
+    return 'waqiah';
+  }
+  if (/(surah\s*32|sajdah|sajda|sajadah|السجدة)/.test(normalized)) {
+    return 'sajdah-mushaf';
+  }
+  if (/(surah\s*67|mulk|الملك)/.test(normalized)) {
+    return 'mulk-mushaf';
+  }
+
+  return undefined;
+}
 
 export default function DuasScreen() {
   const insets = useSafeAreaInsets();
@@ -91,7 +138,6 @@ export default function DuasScreen() {
   // Scheherazade New — Indo/Pak Quranic Naskh with full harakat support
   // Using Google Fonts CDN TTF which works natively in Expo
   useFonts({
-    'ScheherazadeNew': 'https://fonts.gstatic.com/s/scheherazadenew/v15/4UaZrFhTvxVnHDvUkUiHg8jAIcBBR9h5GnGcvhapCNlNMt5Znd81E_2UVFSz7n-j.ttf',
     'IndoPakNastaleeq': 'https://static-cdn.tarteel.ai/qul/fonts/nastaleeq/Hanafi/normal-v4.2.2/with-waqf-lazmi/font.ttf',
     'MarwanIndoPak': 'https://static-cdn.tarteel.ai/qul/fonts/nastaleeq/Hanafi/normal-v4.2.2/with-waqf-lazmi/font.ttf',
   });
@@ -99,6 +145,22 @@ export default function DuasScreen() {
   const [adhkarFlowStep, setAdhkarFlowStep] = useState<1|2|3|4>(1);
   const [asrFlowActive, setAsrFlowActive]   = useState(false);
   const [asrFlowStep, setAsrFlowStep]       = useState<1|2|3|4>(1);
+
+  const debugLog = (...parts: any[]) => {
+    if (__DEV__) {
+      console.log('[duas]', ...parts);
+    }
+  };
+
+  React.useEffect(() => {
+    debugLog('state', {
+      selectedPrayerTime,
+      fajrSelection,
+      viewingGroup,
+      adhkarFlowActive,
+      asrFlowActive,
+    });
+  }, [selectedPrayerTime, fajrSelection, viewingGroup, adhkarFlowActive, asrFlowActive]);
 
   // Reset all sub-screens when the tab is tapped / re-focused
   useFocusEffect(
@@ -143,6 +205,43 @@ export default function DuasScreen() {
     setAsrFlowStep(1);
   };
 
+  const openGroupOrSpecial = (groupName: string, prayerTime: PrayerTimeId) => {
+    const routeMapByPrayerTime: Partial<Record<PrayerTimeId, Record<string, AdhkarSelection>>> = {
+      'before-fajr': BEFORE_FAJR_GROUP_TO_SELECTION,
+      'after-fajr': FAJR_GROUP_TO_SELECTION,
+      'after-zuhr': DHUHR_GROUP_TO_SELECTION,
+      'after-jumuah': JUMUAH_GROUP_TO_SELECTION,
+      'after-asr': ASR_GROUP_TO_SELECTION,
+      'after-maghrib': MAGHRIB_GROUP_TO_SELECTION,
+      'after-isha': ISHA_GROUP_TO_SELECTION,
+    };
+
+    const routeMap = routeMapByPrayerTime[prayerTime] ?? {};
+    const mapped = resolveSelectionFromGroupMeta(
+      {
+        group_name: groupName,
+        arabic_title: null,
+        card_subtitle: null,
+        description: null,
+        content_key: null,
+        content_type: null,
+      },
+      routeMap
+    );
+
+    if (mapped) {
+      debugLog('openGroupOrSpecial -> special', { groupName, prayerTime, mapped });
+      setViewingGroup(null);
+      setAdhkarFlowActive(false);
+      setAsrFlowActive(false);
+      setFajrSelection(mapped);
+      return;
+    }
+
+    debugLog('openGroupOrSpecial -> db-group', { groupName, prayerTime });
+    setViewingGroup({ groupName, prayerTime });
+  };
+
   const N = nightMode ? NIGHT : null;
 
   const renderPrayerTimePicker = () => (
@@ -155,8 +254,14 @@ export default function DuasScreen() {
       <PrayerTimeContent
         prayerTime={selectedPrayerTime}
         nightMode={nightMode}
-        onSelectSpecial={setFajrSelection}
-        onSelectGroup={(groupName, prayerTime) => setViewingGroup({ groupName, prayerTime })}
+        onSelectSpecial={(selection) => {
+          debugLog('onSelectSpecial', { selection, selectedPrayerTime });
+          setViewingGroup(null);
+          setAdhkarFlowActive(false);
+          setAsrFlowActive(false);
+          setFajrSelection(selection);
+        }}
+        onSelectGroup={openGroupOrSpecial}
         onStartFlow={selectedPrayerTime === 'after-fajr' ? startAdhkarFlow : selectedPrayerTime === 'after-asr' ? startAsrFlow : undefined}
       />
     </View>
@@ -185,17 +290,6 @@ export default function DuasScreen() {
       );
     }
 
-    if (viewingGroup !== null) {
-      return (
-        <DbAdhkarScreen
-          prayerTime={viewingGroup.prayerTime as any}
-          groupFilter={viewingGroup.groupName}
-          nightMode={nightMode}
-          onBack={() => setViewingGroup(null)}
-        />
-      );
-    }
-
     switch (fajrSelection) {
       case 'yaseen':
         return <SurahYaseenScreen nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
@@ -210,24 +304,38 @@ export default function DuasScreen() {
       case 'hizb-bahr':
         return <DbAdhkarScreen prayerTime="after-asr" groupFilter="Hizb ul Bahr" nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
       case 'kahf-mushaf':
-        return <KahfMushafPlaceholder nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
+        return <SurahKahfScreen nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
       case 'mulk-mushaf':
         return <MulkMushafPlaceholder nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
       case 'sajdah-mushaf':
-        return <SajdahMushafPlaceholder nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
+        return <SurahSajdahScreen nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
       case 'kahf':
         return <SurahKahfScreen nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
       case '__all-dhuhr__':
-        return <DbAdhkarScreen prayerTime={'after-zuhr' as any} nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
+        return <DbAdhkarScreen prayerTime={'after-zuhr' as any} nightMode={nightMode} onBack={() => setFajrSelection(null)} onOpenSpecialGroup={setFajrSelection} />;
       case '__all-jumuah__':
-        return <DbAdhkarScreen prayerTime="after-jumuah" nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
+        return <DbAdhkarScreen prayerTime="after-jumuah" nightMode={nightMode} onBack={() => setFajrSelection(null)} onOpenSpecialGroup={setFajrSelection} />;
       case 'morning-adhkar':
-        return <DbAdhkarScreen prayerTime="after-fajr" nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
+        return <DbAdhkarScreen prayerTime="after-fajr" nightMode={nightMode} onBack={() => setFajrSelection(null)} onOpenSpecialGroup={setFajrSelection} />;
       case 'waqiah-dua':
         return <DuaWaqiahScreen nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
       default:
-        return renderPrayerTimePicker();
+        break;
     }
+
+    if (viewingGroup !== null) {
+      return (
+        <DbAdhkarScreen
+          prayerTime={viewingGroup.prayerTime as any}
+          groupFilter={viewingGroup.groupName}
+          nightMode={nightMode}
+          onBack={() => setViewingGroup(null)}
+          onOpenSpecialGroup={setFajrSelection}
+        />
+      );
+    }
+
+    return renderPrayerTimePicker();
   };
 
   // Unique warm parchment background for day; deep navy for night
@@ -386,7 +494,7 @@ function DhuhrSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMod
             key={grp.group_name}
             style={[fajrSelStyles.card, N && { backgroundColor: N.surface, borderColor: N.border }]}
             onPress={() => {
-              const knownKey = DHUHR_GROUP_TO_SELECTION[grp.group_name];
+              const knownKey = resolveSelectionFromGroupMeta(grp, DHUHR_GROUP_TO_SELECTION);
               if (knownKey) {
                 onSelect(knownKey);
               } else {
@@ -477,10 +585,58 @@ function JumuahSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMo
             key={grp.group_name}
             style={[fajrSelStyles.card, N && { backgroundColor: N.surface, borderColor: N.border }]}
             onPress={() => {
-              const knownKey = JUMUAH_GROUP_TO_SELECTION[grp.group_name];
+              const groupNameNormalized = (grp.group_name ?? '')
+                .toLowerCase()
+                .normalize('NFKD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9\u0600-\u06ff]+/g, ' ')
+                .trim();
+
+              // Keep Friday "Quran" as a group-first navigation.
+              // Special screens (Kahf/Yaseen/Sajdah) should open from entry tap inside the group.
+              if (/^(quran|qur an|القران|القرآن)$/.test(groupNameNormalized)) {
+                if (__DEV__) {
+                  console.log('[duas][jumuah-press] quran-group', { groupName: grp.group_name });
+                }
+                onSelectGroup(grp.group_name);
+                return;
+              }
+
+              const jumuahSearchText = [
+                grp.group_name,
+                grp.arabic_title,
+                grp.card_subtitle,
+                grp.description,
+                grp.content_key,
+              ]
+                .filter(Boolean)
+                .join(' ')
+                .toLowerCase()
+                .normalize('NFKD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9\u0600-\u06ff]+/g, ' ')
+                .trim();
+              const jumuahCompact = jumuahSearchText.replace(/\s+/g, '');
+
+              // Final safety net for portal naming drift in Jumu'ah groups.
+              if (/(kahf|kaaf|khf|kafh|kahaf|khaf|الكهف|surah\s*18)/.test(jumuahSearchText) || /(k+a*h+f|k+h+f)/.test(jumuahCompact)) {
+                if (__DEV__) {
+                  console.log('[duas][jumuah-press] kahf-fallback', { groupName: grp.group_name, jumuahSearchText, jumuahCompact });
+                }
+                onSelect('kahf-mushaf');
+                return;
+              }
+
+              const knownKey = resolveSelectionFromGroupMeta(grp, JUMUAH_GROUP_TO_SELECTION);
               if (knownKey) {
+                if (__DEV__) {
+                  console.log('[duas][jumuah-press] mapped', { groupName: grp.group_name, knownKey });
+                }
                 onSelect(knownKey);
               } else {
+                if (__DEV__) {
+                  console.log('[duas][jumuah-press] db-group', { groupName: grp.group_name });
+                }
                 onSelectGroup(grp.group_name);
               }
             }}
@@ -580,7 +736,7 @@ function AsrSelectionScreen({ nightMode, onSelect, onSelectGroup, onStartFlow }:
             key={grp.group_name}
             style={[fajrSelStyles.card, N && { backgroundColor: N.surface, borderColor: N.border }]}
             onPress={() => {
-              const knownKey = ASR_GROUP_TO_SELECTION[grp.group_name];
+              const knownKey = resolveSelectionFromGroupMeta(grp, ASR_GROUP_TO_SELECTION);
               if (knownKey) {
                 onSelect(knownKey);
               } else {
@@ -690,7 +846,7 @@ function AfterIshaScreen({ nightMode, onSelectGroup }: { nightMode: boolean; onS
   );
   
   const handleIshaSelect = (s: AdhkarSelection) => {
-    const mapped = ISHA_GROUP_TO_SELECTION[s as string];
+    const mapped = resolveGroupSelection(ISHA_GROUP_TO_SELECTION, s as string);
     if (mapped) { 
       setSel(mapped); 
       return; 
@@ -855,7 +1011,7 @@ function FajrSelectionScreen({ nightMode, onSelect, onSelectGroup, onStartFlow }
             key={grp.group_name}
             style={[fajrSelStyles.card, N && { backgroundColor: N.surface, borderColor: N.border }]}
             onPress={() => {
-              const knownKey = FAJR_GROUP_TO_SELECTION[grp.group_name];
+              const knownKey = resolveSelectionFromGroupMeta(grp, FAJR_GROUP_TO_SELECTION);
               if (knownKey) {
                 onSelect(knownKey);
               } else {
