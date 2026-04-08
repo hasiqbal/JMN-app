@@ -107,7 +107,7 @@ export default function EventsScreen() {
   // Initial load
   useEffect(() => {
     loadAnnouncements(true);
-  }, []);
+  }, [loadAnnouncements]);
 
   // Poll every 60 seconds when announcements tab is active
   useEffect(() => {
@@ -121,7 +121,7 @@ export default function EventsScreen() {
     if (activeTab === 'announcements') {
       loadAnnouncements();
     }
-  }, [activeTab]);
+  }, [activeTab, loadAnnouncements]);
 
   const N = nightMode ? NIGHT : null;
 
@@ -136,7 +136,7 @@ export default function EventsScreen() {
             contentFit="contain"
           />
           <View style={{ flex: 1 }}>
-            <Text style={[styles.headerMasjidName, N && { color: '#69C995' }]}>Jami' Masjid Noorani</Text>
+            <Text style={[styles.headerMasjidName, N && { color: '#69C995' }]}>Jami&apos; Masjid Noorani</Text>
             <Text style={[styles.headerTitle, N && { color: N.text }]}>Events & Announcements</Text>
           </View>
         </View>

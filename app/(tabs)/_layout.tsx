@@ -18,7 +18,7 @@ function LiveDot() {
     );
     loop.start();
     return () => loop.stop();
-  }, []);
+  }, [pulse]);
   return (
     <Animated.View style={[dotStyles.dot, { opacity: pulse }]} />
   );
