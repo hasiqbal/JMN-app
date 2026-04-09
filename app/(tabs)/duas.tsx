@@ -7,6 +7,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   ImageBackground,
+  Animated,
+  Easing,
 } from 'react-native';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 
@@ -43,6 +45,8 @@ import { PrayerTimeChipBar } from '@/components/adhkar/PrayerTimeChipBar';
 import { DbAdhkarScreen } from '@/components/adhkar/DbAdhkarScreen';
 import { NIGHT_PALETTE as NIGHT } from '@/components/quran_screen/shared';
 import { SurahKahfScreen, SurahSajdahScreen, SurahWaqiahMushafScreen, SurahYaseenScreen } from '@/components/quran_screen';
+import { PRAYER_MOODS } from '@/constants/prayerMoods';
+import { getPrayerTimesForDate, PrayerTimesData } from '@/services/prayerService';
 
 // StarField, NightModeToggle, PrayerTimeChipBar, DbAdhkarScreen — imported from components/adhkar/
 
@@ -101,10 +105,33 @@ function resolveSelectionFromGroupMeta(
   return undefined;
 }
 
+function resolvePrayerTimeByClock(data: PrayerTimesData, now: Date = new Date()): PrayerTimeId {
+  const fajr = data.prayers.find((p) => p.name === 'Fajr')?.timeDate;
+  const dhuhr = data.prayers.find((p) => p.name === 'Dhuhr')?.timeDate;
+  const asr = data.prayers.find((p) => p.name === 'Asr')?.timeDate;
+  const maghrib = data.prayers.find((p) => p.name === 'Maghrib')?.timeDate;
+  const isha = data.prayers.find((p) => p.name === 'Isha')?.timeDate;
+
+  if (!fajr || !dhuhr || !asr || !maghrib || !isha) {
+    return 'after-fajr';
+  }
+
+  if (now < fajr) return 'before-fajr';
+  if (now < dhuhr) return 'after-fajr';
+  if (now < asr) {
+    if (now.getDay() === 5) return 'after-jumuah';
+    return 'after-zuhr';
+  }
+  if (now < maghrib) return 'after-asr';
+  if (now < isha) return 'after-maghrib';
+  return 'after-isha';
+}
+
 export default function DuasScreen() {
   const insets = useSafeAreaInsets();
   const { nightMode, toggleManual } = useNightMode();
   const [selectedPrayerTime, setSelectedPrayerTime] = useState<PrayerTimeId>('after-fajr');
+  const [autoPrayerSyncEnabled, setAutoPrayerSyncEnabled] = useState(true);
   const [fajrSelection, setFajrSelection] = useState<AdhkarSelection>(null);
   const [viewingGroup, setViewingGroup] = useState<{ groupName: string; prayerTime: PrayerTimeId } | null>(null);
   // Maps pageNum → resolved source: local file URI (instant) or CDN URL (fallback)
@@ -114,9 +141,40 @@ export default function DuasScreen() {
   // Pre-select prayer time + optional group from navigation param (e.g. from For You Today cards)
   const { prayerTime: prayerTimeParam, group: groupParam } = useLocalSearchParams<{ prayerTime?: string; group?: string }>();
   const lastAppliedParam = React.useRef<string | undefined>(undefined);
+  const autoPrayerSyncRef = React.useRef(autoPrayerSyncEnabled);
+
+  React.useEffect(() => {
+    autoPrayerSyncRef.current = autoPrayerSyncEnabled;
+  }, [autoPrayerSyncEnabled]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const syncPrayerTimeFromClock = async () => {
+      if (!autoPrayerSyncRef.current) return;
+
+      const data = await getPrayerTimesForDate();
+      if (!data || cancelled) return;
+
+      const next = resolvePrayerTimeByClock(data, new Date());
+      setSelectedPrayerTime((prev) => (prev === next ? prev : next));
+    };
+
+    void syncPrayerTimeFromClock();
+    const timer = setInterval(() => {
+      void syncPrayerTimeFromClock();
+    }, 60000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
+
   React.useEffect(() => {
     if (prayerTimeParam && prayerTimeParam !== lastAppliedParam.current) {
       lastAppliedParam.current = prayerTimeParam;
+      setAutoPrayerSyncEnabled(false);
       // Normalise legacy 'after-dhuhr' param to 'after-zuhr'
       const normParam = prayerTimeParam === 'after-dhuhr' ? 'after-zuhr' : prayerTimeParam;
       if (PRAYER_TIMES.some(pt => pt.id === normParam)) {
@@ -271,12 +329,39 @@ export default function DuasScreen() {
   };
 
   const N = nightMode ? NIGHT : null;
+  const [activeMood, setActiveMood] = useState(PRAYER_MOODS[selectedPrayerTime]);
+  const [incomingMood, setIncomingMood] = useState<(typeof PRAYER_MOODS)[PrayerTimeId] | null>(null);
+  const moodOverlayOpacity = React.useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    const nextMood = PRAYER_MOODS[selectedPrayerTime];
+    if (nextMood === activeMood) return;
+
+    setIncomingMood(nextMood);
+    moodOverlayOpacity.setValue(0);
+    Animated.timing(moodOverlayOpacity, {
+      toValue: 1,
+      duration: 420,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (!finished) return;
+      setActiveMood(nextMood);
+      setIncomingMood(null);
+      moodOverlayOpacity.setValue(0);
+    });
+  }, [selectedPrayerTime, activeMood, moodOverlayOpacity]);
 
   const renderPrayerTimePicker = () => (
     <View style={{ flex: 1 }}>
       <PrayerTimeChipBar
         selected={selectedPrayerTime}
-        onSelect={(t) => { setSelectedPrayerTime(t); setFajrSelection(null); setViewingGroup(null); }}
+        onSelect={(t) => {
+          setAutoPrayerSyncEnabled(false);
+          setSelectedPrayerTime(t);
+          setFajrSelection(null);
+          setViewingGroup(null);
+        }}
         nightMode={nightMode}
       />
       <PrayerTimeContent
@@ -378,24 +463,63 @@ export default function DuasScreen() {
     return renderPrayerTimePicker();
   };
 
-  // Unique warm parchment background for day; deep navy for night
-  const pageBg = N ? N.bg : '#F5EFE6';
+  // Preview fixed prayer mood while wiring visuals step-by-step.
+  const pageBg = activeMood.pageBg;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }, { backgroundColor: pageBg }]}>
+      {incomingMood ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.moodPageOverlay,
+            { backgroundColor: incomingMood.pageBg, opacity: moodOverlayOpacity },
+          ]}
+        />
+      ) : null}
       {/* Hero Header with masjid image — compact */}
       <ImageBackground
         source={require('@/assets/images/masjid-building.jpg')}
         style={[styles.heroHeader, { paddingTop: insets.top }]}
-        imageStyle={{ opacity: N ? 0.25 : 0.75 }}
+        imageStyle={{ opacity: activeMood.heroImageOpacity }}
       >
         <LinearGradient
-          colors={N
-            ? ['rgba(3,5,12,0.94)', 'rgba(6,9,18,0.90)', 'rgba(6,9,18,0.97)']
-            : ['rgba(180,80,10,0.55)', 'rgba(230,120,20,0.45)', 'rgba(245,180,60,0.55)']}
+          colors={activeMood.heroGradient}
           style={StyleSheet.absoluteFillObject}
         />
-        {N ? <StarField /> : null}
+        {activeMood.showClouds ? (
+          <View
+            pointerEvents="none"
+            style={[
+              styles.cloudLayer,
+              { backgroundColor: activeMood.cloudTint, opacity: activeMood.cloudOpacity },
+            ]}
+          />
+        ) : null}
+        {activeMood.showStars ? (
+          <View pointerEvents="none" style={{ opacity: activeMood.starOpacity }}>
+            <StarField />
+          </View>
+        ) : null}
+        {incomingMood ? (
+          <Animated.View pointerEvents="none" style={[styles.moodHeroOverlay, { opacity: moodOverlayOpacity }]}>
+            <LinearGradient colors={incomingMood.heroGradient} style={StyleSheet.absoluteFillObject} />
+            {incomingMood.showClouds ? (
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.cloudLayer,
+                  { backgroundColor: incomingMood.cloudTint, opacity: incomingMood.cloudOpacity },
+                ]}
+              />
+            ) : null}
+            {incomingMood.showStars ? (
+              <View pointerEvents="none" style={{ opacity: incomingMood.starOpacity }}>
+                <StarField />
+              </View>
+            ) : null}
+          </Animated.View>
+        ) : null}
         {/* Nav row */}
         <View style={styles.heroNav}>
           <View style={styles.headerTitleRow}>
@@ -2327,9 +2451,19 @@ const mainBackStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  moodPageOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
+  },
   heroHeader: {
     overflow: 'hidden',
     paddingBottom: 6,
+  },
+  moodHeroOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  cloudLayer: {
+    ...StyleSheet.absoluteFillObject,
   },
   heroNav: {
     flexDirection: 'row',

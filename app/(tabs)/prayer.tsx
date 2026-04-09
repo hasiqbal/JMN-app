@@ -10,12 +10,10 @@ import {
   ImageBackground,
   Animated,
 } from 'react-native';
-import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
-import { APP_CONFIG } from '@/constants/config';
 import {
   getPrayerTimesForDate,
   getPrayerTimesFromTimetable,
@@ -35,7 +33,7 @@ import { useNightMode } from '@/hooks/useNightMode';
 import { useLocalSearchParams } from 'expo-router';
 import type { NightModePref } from '@/contexts/NightModeContext';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // ── Monthly Calendar Types ────────────────────────────────────────────────
 interface MonthDay {
@@ -529,7 +527,7 @@ const PRAYER_COLORS: Record<string, string> = {
   Fajr: '#3949AB',
   Sunrise: '#FF8F00',
   Ishraq: '#FFB300',
-  Zawaal: '#00897B',
+  Zawaal: '#9A7A34',
   Dhuhr: '#1B8A5A',
   Asr: '#E65100',
   Maghrib: '#AD1457',
@@ -542,12 +540,25 @@ const PRAYER_GRADIENTS: Record<string, readonly [string, string, ...string[]]> =
   Fajr:    ['rgba(20,20,80,0.82)', 'rgba(40,40,120,0.75)'],
   Sunrise: ['rgba(180,80,0,0.78)', 'rgba(220,140,0,0.72)'],
   Ishraq:  ['rgba(200,100,0,0.75)', 'rgba(240,190,0,0.68)'],
-  Zawaal:  ['rgba(0,80,70,0.78)', 'rgba(0,140,120,0.72)'],
+  Zawaal:  ['rgba(112,95,62,0.80)', 'rgba(154,134,94,0.74)'],
   Dhuhr:   ['rgba(10,70,160,0.78)', 'rgba(20,130,220,0.72)'],
   Asr:     ['rgba(150,40,0,0.78)', 'rgba(220,90,30,0.72)'],
   Maghrib: ['rgba(80,10,120,0.80)', 'rgba(180,20,80,0.74)'],
   Isha:    ['rgba(8,14,50,0.85)', 'rgba(20,30,100,0.80)'],
   Jumuah:  ['rgba(100,60,0,0.82)', 'rgba(160,100,0,0.78)'],
+};
+
+// Dedicated gradients for active prayer cards (richer than single-color fills)
+const PRAYER_CARD_GRADIENTS: Record<string, readonly [string, string, ...string[]]> = {
+  Fajr: ['#283593', '#4F5EB7'],
+  Sunrise: ['#A34E00', '#D18A12'],
+  Ishraq: ['#B35A00', '#E6A216'],
+  Zawaal: ['#6E5E3E', '#98865E'],
+  Dhuhr: ['#0E6A46', '#249365'],
+  Asr: ['#A84411', '#D86A2D'],
+  Maghrib: ['#7A1B5A', '#B13D76'],
+  Isha: ['#1B2A6D', '#33459A'],
+  Jumuah: ['#7A5A14', '#AD8430'],
 };
 
 // Sky background images per prayer period
@@ -580,6 +591,41 @@ function getSkyPeriodLabel(prayer: string): string {
     case 'Jumuah':  return 'Friday · Jumuah Prayer';
     default:        return '';
   }
+}
+
+function getZawaalSkyVisual(progress: number, state: 'before' | 'active' | 'after') {
+  if (state === 'before') {
+    return {
+      colors: ['rgba(156,182,214,0.9)', 'rgba(214,227,242,0.92)'] as const,
+      label: 'Late Morning Sky',
+    };
+  }
+
+  if (state === 'after') {
+    return {
+      colors: ['rgba(201,182,132,0.9)', 'rgba(230,212,169,0.92)'] as const,
+      label: 'Midday Entered',
+    };
+  }
+
+  if (progress < 0.35) {
+    return {
+      colors: ['rgba(169,193,216,0.9)', 'rgba(219,231,243,0.92)'] as const,
+      label: 'Approaching Midday',
+    };
+  }
+
+  if (progress < 0.75) {
+    return {
+      colors: ['rgba(222,201,154,0.92)', 'rgba(242,226,188,0.95)'] as const,
+      label: 'Sun Near Zenith',
+    };
+  }
+
+  return {
+    colors: ['rgba(204,173,120,0.94)', 'rgba(229,204,154,0.96)'] as const,
+    label: 'Dhuhr Almost In',
+  };
 }
 
 // ── Night Mode ────────────────────────────────────────────────────────────
@@ -692,14 +738,15 @@ export default function PrayerScreen() {
   // ── Prayer alert state ──────────────────────────────────────────────────
   const JAMAAT_FLASH_MS = 60 * 1000;
   const flashAnim = useRef(new Animated.Value(1)).current;
+  const livePulseAnim = useRef(new Animated.Value(1)).current;
   const flashLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
-  // Detect active prayer (time has begun, next hasn't)
-  const prayable = data?.prayers.filter(p => !['Sunrise', 'Ishraq', 'Zawaal'].includes(p.name)) ?? [];
+  // Detect active timeline period (includes Sunrise, Ishraq, and Zawaal).
+  const prayerTimeline = data?.prayers ?? [];
   let activePrayer: PrayerTime | null = null;
-  for (let i = 0; i < prayable.length; i++) {
-    const cur = prayable[i];
-    const nxt = prayable[i + 1];
+  for (let i = 0; i < prayerTimeline.length; i++) {
+    const cur = prayerTimeline[i];
+    const nxt = prayerTimeline[i + 1];
     if (cur.timeDate <= now && (!nxt || nxt.timeDate > now)) { activePrayer = cur; break; }
   }
 
@@ -743,6 +790,38 @@ export default function PrayerScreen() {
     }
     return () => { flashLoopRef.current?.stop(); };
   }, [jamaatStarted, jamaatFlashOver]);
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(livePulseAnim, { toValue: 0.45, duration: 620, useNativeDriver: true }),
+        Animated.timing(livePulseAnim, { toValue: 1, duration: 620, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [livePulseAnim]);
+
+  const livePulseScale = livePulseAnim.interpolate({
+    inputRange: [0.45, 1],
+    outputRange: [0.96, 1],
+  });
+
+  const renderLiveBadge = (color: string = '#69F0AE') => (
+    <Animated.View
+      style={[
+        styles.liveBadge,
+        {
+          opacity: livePulseAnim,
+          transform: [{ scale: livePulseScale }],
+          borderColor: color + '55',
+        },
+      ]}
+    >
+      <View style={[styles.liveDotInner, { backgroundColor: color }]} />
+      <Text style={[styles.liveText, { color }]}>LIVE</Text>
+    </Animated.View>
+  );
 
   const loadTimes = useCallback(async () => {
     // Seed instantly from local timetable
@@ -792,12 +871,12 @@ export default function PrayerScreen() {
   };
 
   const isCurrentPrayer = (prayer: PrayerTime): boolean => {
-    if (!data || SPECIAL_PRAYERS.has(prayer.name)) return false;
-    const prayable = data.prayers.filter(p => !SPECIAL_PRAYERS.has(p.name));
-    const idx = prayable.findIndex(p => p.name === prayer.name);
+    if (!data) return false;
+    const timeline = data.prayers;
+    const idx = timeline.findIndex(p => p.name === prayer.name);
     if (idx < 0) return false;
-    const start = prayable[idx].timeDate;
-    const end = prayable[idx + 1]?.timeDate ?? new Date(start.getTime() + 3600000);
+    const start = timeline[idx].timeDate;
+    const end = timeline[idx + 1]?.timeDate ?? new Date(start.getTime() + 3600000);
     return now >= start && now < end;
   };
 
@@ -837,9 +916,41 @@ export default function PrayerScreen() {
     ? nextInfo.prayer.iqamah
     : null;
 
-  // Determine if countdown is to Athan or Iqamah (after athan, before iqamah)
-  const nextPrayerObj = data?.prayers.find(p => p.name === nextPrayerName);
-  const athanPassed = nextPrayerObj ? nextPrayerObj.timeDate <= now : false;
+  const forbiddenWindowMeta = React.useMemo(() => {
+    if (!forbiddenInfo || !data) return null;
+
+    const sunrise = data.prayers.find((p) => p.name === 'Sunrise')?.timeDate;
+    const ishraq = data.prayers.find((p) => p.name === 'Ishraq')?.timeDate;
+    const zawaal = data.prayers.find((p) => p.name === 'Zawaal')?.timeDate;
+    const dhuhr = data.prayers.find((p) => p.name === 'Dhuhr')?.timeDate;
+
+    let phase: 'Sunrise' | 'Zawaal' = 'Zawaal';
+    let start: Date | undefined;
+    let end: Date | undefined;
+    let hint = 'Prepare for Dhuhr and keep the tongue busy with dhikr.';
+
+    if (sunrise && ishraq && now >= sunrise && now < ishraq) {
+      phase = 'Sunrise';
+      start = sunrise;
+      end = ishraq;
+      hint = 'Use this pause for dhikr and istighfar until Ishraq begins.';
+    } else if (zawaal && dhuhr && now >= zawaal && now < dhuhr) {
+      phase = 'Zawaal';
+      start = zawaal;
+      end = dhuhr;
+      hint = 'Use this pause for dhikr and get ready for Dhuhr.';
+    }
+
+    const totalMs = start && end ? Math.max(1, end.getTime() - start.getTime()) : 1;
+    const elapsedMs = start ? Math.max(0, now.getTime() - start.getTime()) : 0;
+    const progress = Math.max(0, Math.min(1, elapsedMs / totalMs));
+
+    return {
+      phase,
+      hint,
+      progress,
+    };
+  }, [forbiddenInfo, data, now]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }, N && { backgroundColor: N.bg }]}>
@@ -857,57 +968,32 @@ export default function PrayerScreen() {
       ) : (
         /* ── Full today header ── */
         <View style={[styles.header, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}>
-          <View style={styles.headerRow1}>
-            <Image
-              source={require('@/assets/images/masjid-logo.png')}
-              style={styles.headerLogo}
-              contentFit="contain"
-            />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.headerMasjidName, N && { color: '#69C995' }]}>Jami' Masjid Noorani</Text>
-              <Text style={[styles.headerTitle, N && { color: N.text }]}>Prayer Times</Text>
-              <Text style={[styles.headerCity, N && { color: N.textSub }]}>{APP_CONFIG.masjidAddress}</Text>
-              <View style={styles.headerDateRow}>
-                <Text style={[styles.headerDateGreg, N && { color: N.text }]}>
-                  {now.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
-                </Text>
-                {data ? (
-                  <>
-                    <Text style={[styles.headerDateSep, N && { color: N.textMuted }]}>·</Text>
-                    <Text style={[styles.headerDateHijri, N && { color: N ? '#6BB89A' : Colors.primary }]}>
-                      {getHijriDayNum(data.hijriDate)} {getHijriMonthName(data.hijriDate)}
-                    </Text>
-                  </>
-                ) : null}
+          <View style={styles.headerRowCompact}>
+            <Text style={[styles.headerMasjidCompact, N && { color: N.text }]}>Jami' Masjid Noorani</Text>
+            <NightModeToggle modePref={modePref} onSelect={setModePref} />
+          </View>
+
+          <TouchableOpacity
+            onPress={() => setViewMode('month')}
+            activeOpacity={0.82}
+            style={[styles.headerMetaRow, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}
+          >
+            <View style={styles.headerMetaLeft}>
+              <MaterialIcons name="calendar-today" size={12} color={N ? '#9BC2EA' : Colors.textSubtle} />
+              <Text style={[styles.headerMetaDate, N && { color: N.text }]}>
+                {now.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
+                {data ? ` • ${getHijriDayNum(data.hijriDate)} ${getHijriMonthName(data.hijriDate)}` : ''}
+              </Text>
+            </View>
+            <View style={styles.headerMetaRight}>
+              <MaterialIcons name="place" size={12} color={N ? '#6BB89A' : Colors.primary} />
+              <Text style={[styles.headerMetaLocation, N && { color: N.textSub }]}>Halifax</Text>
+              <View style={[styles.headerMetaAction, N && { backgroundColor: '#2A4A7A', borderColor: '#456A9E' }]}>
+                <Text style={[styles.headerMetaActionText, N && { color: '#D7E8FF' }]}>Full times</Text>
+                <MaterialIcons name="chevron-right" size={14} color={N ? '#D7E8FF' : '#1E5BA8'} />
               </View>
             </View>
-            <NightModeToggle modePref={modePref} onSelect={setModePref} />
-            <TouchableOpacity
-              onPress={() => setViewMode('month')}
-              style={[styles.calBtn, N && { backgroundColor: N.surfaceAlt }]}
-              activeOpacity={0.7}
-            >
-              <MaterialIcons name="event" size={20} color={N ? '#69A8FF' : Colors.primary} />
-            </TouchableOpacity>
-          </View>
-          <View style={[styles.viewToggle, { alignSelf: 'stretch' }, N && { backgroundColor: N.border }]}>
-            <TouchableOpacity
-              style={[styles.toggleBtn, { flex: 1 }, styles.toggleBtnActive]}
-              onPress={() => setViewMode('today')}
-              activeOpacity={0.8}
-            >
-              <MaterialIcons name="access-time" size={15} color="#fff" />
-              <Text style={[styles.toggleBtnText, styles.toggleBtnTextActive]}>Today</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.toggleBtn, { flex: 1 }]}
-              onPress={() => setViewMode('month')}
-              activeOpacity={0.8}
-            >
-              <MaterialIcons name="calendar-month" size={15} color={N ? N.textSub : Colors.textSubtle} />
-              <Text style={[styles.toggleBtnText, N && { color: N.textSub }]}>Month</Text>
-            </TouchableOpacity>
-          </View>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -917,41 +1003,65 @@ export default function PrayerScreen() {
       ) : null}
 
       {viewMode === 'today' ? <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Forbidden Time Banner */}
-        {forbiddenInfo ? (
-          <View style={styles.forbiddenBanner}>
-            <View style={styles.forbiddenLeft}>
-              <MaterialIcons name="do-not-disturb" size={22} color="#fff" />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.forbiddenTitle}>{forbiddenInfo.label}</Text>
-                <Text style={styles.forbiddenReason}>{forbiddenInfo.reason}</Text>
-              </View>
-            </View>
-            <View style={styles.forbiddenRight}>
-              <Text style={styles.forbiddenUntilLabel}>Resumes at</Text>
-              <Text style={styles.forbiddenUntilTime}>{forbiddenInfo.endsAt}</Text>
-              <Text style={styles.forbiddenTimer}>{formatCountdownSeconds(forbiddenInfo.secondsLeft)}</Text>
-            </View>
-          </View>
-        ) : null}
-
-
-
-        {/* Next Prayer Banner */}
-        {(nextPrayerName || alertMode) ? (
+        {/* Unified Hero Card */}
+        {(forbiddenInfo || nextPrayerName || alertMode) ? (
           <ImageBackground
-            source={PRAYER_BG_IMAGES[alertMode ? (activePrayer?.name ?? nextPrayerName) : nextPrayerName] ?? PRAYER_BG_IMAGES['Dhuhr']}
+            source={PRAYER_BG_IMAGES[
+              forbiddenInfo
+                ? (forbiddenWindowMeta?.phase === 'Sunrise' ? 'Sunrise' : 'Dhuhr')
+                : (alertMode ? (activePrayer?.name ?? nextPrayerName) : nextPrayerName)
+            ] ?? PRAYER_BG_IMAGES['Dhuhr']}
             style={styles.nextBannerWrap}
             imageStyle={styles.nextBannerImage}
             resizeMode="cover"
           >
           <LinearGradient
-            colors={PRAYER_GRADIENTS[alertMode ? (activePrayer?.name ?? nextPrayerName) : nextPrayerName] ?? ['rgba(27,94,52,0.85)', 'rgba(45,138,79,0.80)']}
+            colors={
+              forbiddenInfo
+                ? ['rgba(122,40,14,0.90)', 'rgba(179,66,26,0.86)']
+                : (PRAYER_GRADIENTS[alertMode ? (activePrayer?.name ?? nextPrayerName) : nextPrayerName] ?? ['rgba(27,94,52,0.85)', 'rgba(45,138,79,0.80)'])
+            }
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.nextBanner}
           >
-            {alertMode ? (
+            {forbiddenInfo ? (
+              <>
+                <View style={styles.skyPeriodRow}>
+                  <MaterialIcons name="do-not-disturb" size={13} color="rgba(255,255,255,0.78)" />
+                  <Text style={styles.skyPeriodLabel}>Prayer Pause Window</Text>
+                </View>
+                <View style={styles.nextRow}>
+                  <View style={styles.nextLeft}>
+                    <Text style={styles.nextLabel}>Prayer Paused</Text>
+                    <Text style={styles.nextName}>{forbiddenWindowMeta?.phase ?? 'Zawaal'}</Text>
+                    <View style={styles.nextTimeRow}>
+                      <MaterialIcons name="hourglass-bottom" size={12} color="rgba(255,255,255,0.7)" />
+                      <Text style={styles.nextTimeLabel}>Resumes</Text>
+                      <Text style={styles.nextTimeValue}>in {formatCountdownSeconds(forbiddenInfo.secondsLeft)}</Text>
+                    </View>
+                    <View style={styles.nextTimeRow}>
+                      <MaterialIcons name="schedule" size={12} color="rgba(255,255,255,0.7)" />
+                      <Text style={styles.nextTimeLabel}>{forbiddenWindowMeta?.phase === 'Sunrise' ? 'Ishraq' : 'Dhuhr'}</Text>
+                      <Text style={styles.nextTimeValue}>{forbiddenInfo.endsAt}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.nextRight}>
+                    <Text style={styles.countdownPhase}>Ends In</Text>
+                    <Text style={styles.countdown}>{formatCountdownSeconds(forbiddenInfo.secondsLeft)}</Text>
+                    {renderLiveBadge('#FFD54F')}
+                  </View>
+                </View>
+                <View style={styles.heroProgressTrack}>
+                  <View
+                    style={[
+                      styles.heroProgressFill,
+                      { width: `${Math.round((forbiddenWindowMeta?.progress ?? 0) * 100)}%` },
+                    ]}
+                  />
+                </View>
+              </>
+            ) : alertMode ? (
               // ── ALERT MODE: prayer has begun ─────────────────────────────
               <>
                 <View style={styles.skyPeriodRow}>
@@ -960,7 +1070,7 @@ export default function PrayerScreen() {
                 </View>
                 <View style={styles.nextRow}>
                   <View style={styles.nextLeft}>
-                    <Text style={styles.nextLabel}>Time has begun</Text>
+                    <Text style={styles.nextLabel}>{SPECIAL_PRAYERS.has(activePrayer!.name) ? 'Period Active' : 'Prayer Active'}</Text>
                     <Text style={styles.nextName}>{activePrayer!.name}</Text>
                     <View style={styles.nextTimeRow}>
                       <MaterialIcons name="volume-up" size={12} color="rgba(255,255,255,0.7)" />
@@ -981,30 +1091,19 @@ export default function PrayerScreen() {
                       <Animated.View style={{ alignItems: 'center', opacity: flashAnim }}>
                         <MaterialIcons name="group" size={28} color="#fff" />
                         <Text style={[styles.countdown, { fontSize: 26 }]}>Jamaat!</Text>
-                        <View style={styles.liveDot}>
-                          <View style={[styles.liveDotInner, { backgroundColor: '#FFD54F' }]} />
-                          <Text style={[styles.liveText, { color: '#FFD54F' }]}>LIVE</Text>
-                        </View>
+                        {renderLiveBadge('#FFD54F')}
                       </Animated.View>
                     ) : hasJamaat ? (
                       // Countdown to jamaat
                       <>
-                        <Text style={styles.countdownPhase}>Jamaat in</Text>
+                        <Text style={styles.countdownPhase}>Jamaat In</Text>
                         <Text style={styles.countdown}>{jamaatCountdown}</Text>
-                        <View style={styles.liveDot}>
-                          <View style={styles.liveDotInner} />
-                          <Text style={styles.liveText}>LIVE</Text>
-                        </View>
+                        {renderLiveBadge()}
                       </>
                     ) : (
                       // No iqamah set
-                      <View style={{ alignItems: 'center', gap: 4 }}>
-                        <MaterialIcons name="check-circle" size={24} color="rgba(255,255,255,0.7)" />
-                        <Text style={styles.countdownPhase}>In progress</Text>
-                        <View style={styles.liveDot}>
-                          <View style={styles.liveDotInner} />
-                          <Text style={styles.liveText}>LIVE</Text>
-                        </View>
+                      <View style={{ alignItems: 'center', justifyContent: 'flex-start', paddingTop: 8 }}>
+                        {renderLiveBadge()}
                       </View>
                     )}
                   </View>
@@ -1019,7 +1118,7 @@ export default function PrayerScreen() {
                 </View>
                 <View style={styles.nextRow}>
                   <View style={styles.nextLeft}>
-                    <Text style={styles.nextLabel}>Next Prayer</Text>
+                    <Text style={styles.nextLabel}>Up Next</Text>
                     <Text style={styles.nextName}>{nextPrayerName}</Text>
                     <View style={styles.nextTimeRow}>
                       <MaterialIcons name="volume-up" size={12} color="rgba(255,255,255,0.7)" />
@@ -1035,12 +1134,9 @@ export default function PrayerScreen() {
                     ) : null}
                   </View>
                   <View style={styles.nextRight}>
-                    <Text style={styles.countdownPhase}>Athan in</Text>
+                    <Text style={styles.countdownPhase}>Begins In</Text>
                     <Text style={styles.countdown}>{countdown}</Text>
-                    <View style={styles.liveDot}>
-                      <View style={styles.liveDotInner} />
-                      <Text style={styles.liveText}>LIVE</Text>
-                    </View>
+                    {renderLiveBadge()}
                   </View>
                 </View>
               </>
@@ -1049,216 +1145,65 @@ export default function PrayerScreen() {
           </ImageBackground>
         ) : null}
 
-        {/* Table Header */}
-        <View style={[styles.tableHeader, N && { borderBottomColor: N.border }]}>
-          <Text style={[styles.colLabel, { flex: 2 }, N && { color: N.textMuted }]}>Prayer</Text>
-          <Text style={[styles.colLabel, { flex: 1.3, textAlign: 'center' }, N && { color: N.textMuted }]}>Begins</Text>
-          <Text style={[styles.colLabel, { flex: 1.3, textAlign: 'center' }, N && { color: N.textMuted }]}>Iqamah</Text>
+        {/* Daily Times (clean table) */}
+        <View style={[styles.tableHeader, N && { borderBottomColor: N.border }]}> 
+          <View style={styles.colPrayer}>
+            <Text style={[styles.colLabel, N && { color: N.textMuted }]}>Prayer</Text>
+          </View>
+          <View style={styles.colTime}>
+            <Text style={[styles.colLabel, N && { color: N.textMuted }]}>Begins</Text>
+          </View>
+          <View style={styles.colTime}>
+            <Text style={[styles.colLabel, N && { color: N.textMuted }]}>Jamaat</Text>
+          </View>
         </View>
 
-        {/* Jumuah row — only on Fridays, shown above Fajr */}
-        {isFriday ? (() => {
-          const jBST = isBST(now);
-          const jJ1Raw = todayDbRow?.jumu_ah_1 ?? (jBST ? '13:30' : '12:45');
-          const jJ2Raw = todayDbRow?.jumu_ah_2 ?? (jBST ? '14:30' : '13:30');
-          const fmt12 = (t: string) => {
-            if (!t || t.includes('M')) return t;
-            const [h, m] = t.split(':').map(Number);
-            const ampm = h >= 12 ? 'PM' : 'AM';
-            return `${h % 12 || 12}:${String(m).padStart(2,'0')} ${ampm}`;
-          };
-          const jJ1 = jJ1Raw;
-          const jJ2 = jJ2Raw;
-          const jDisplay1 = fmt12(jJ1Raw);
-          const jDisplay2 = fmt12(jJ2Raw);
-          const j1Date = new Date(now); j1Date.setHours(parseInt(jJ1), parseInt(jJ1.split(':')[1]), 0, 0);
-          const j2Date = new Date(now); j2Date.setHours(parseInt(jJ2), parseInt(jJ2.split(':')[1]), 0, 0);
-          const j1Passed = now >= j1Date;
-          const j2Passed = now >= j2Date;
-          return (
-            <View style={[styles.tableBody, N && { backgroundColor: N.jumuahBg }, { marginBottom: 8, borderWidth: 1.5, borderColor: '#FFD54F' }]}>
-              <View style={[styles.row, N && { backgroundColor: N.jumuahBg }]}>
-                <View style={[styles.rowLeft, { flex: 2 }]}>
-                  <View style={[styles.prayerIconBox, { backgroundColor: '#FFF8E1' }]}>
-                    <MaterialIcons name="star" size={18} color="#F9A825" />
-                  </View>
-                  <View>
-                    <Text style={[styles.prayerName, { color: '#F9A825' }]}>Jumuah</Text>
-                    <Text style={[styles.specialBadge, { color: jBST ? '#4CAF50' : '#FF8F00' }]}>{jBST ? 'BST' : 'GMT'} · Friday Prayer</Text>
-                  </View>
-                </View>
-                <View style={[styles.timeColCenter, { flex: 1.3 }]}>
-                  <Text style={[styles.timeCell, j1Passed && styles.timePassed, !j1Passed && { color: '#F9A825' }]}>{jDisplay1}</Text>
-                  {!j1Passed ? null : <Text style={[styles.timeCell, { color: '#F9A825', fontSize: 12 }]}>{jDisplay2}</Text>}
-                </View>
-                <View style={[styles.timeColCenter, { flex: 1.3 }]}>
-                  {!j1Passed ? (
-                    <Text style={[styles.iqamahTime, { color: '#F9A825' }]}>{jDisplay1}</Text>
-                  ) : !j2Passed ? (
-                    <Text style={[styles.iqamahTime, { color: '#F9A825' }]}>{jDisplay2}</Text>
-                  ) : (
-                    <Text style={[styles.timeCellMuted, N && { color: N.textMuted }]}>Done</Text>
-                  )}
-                </View>
-              </View>
-            </View>
-          );
-        })() : null}
-
-        {/* Prayer Rows */}
-        <View style={[styles.tableBody, N && { backgroundColor: N.surface }]}>
-          {data?.prayers.map((prayer, index) => {
+        <View style={[styles.tableBody, N && { backgroundColor: N.surface, borderColor: N.border }]}> 
+          {data?.prayers.map((prayer, idx) => {
             const isCurrent = isCurrentPrayer(prayer);
             const isNext = prayer.name === nextPrayerName;
-            const passed = hasPassed(prayer);
             const isSpecial = SPECIAL_PRAYERS.has(prayer.name);
-            const isSunrise = prayer.name === 'Sunrise';
-            const color = PRAYER_COLORS[prayer.name] ?? Colors.primary;
-            const showTomorrow = passed && prayer.tomorrowTime && !isCurrent;
+            const isCompleted = hasPassed(prayer) && !isCurrent && !isNext;
+            const jamaatText = (isSpecial || prayer.name === 'Sunrise' || prayer.iqamah === '-' || prayer.iqamah === '--:--')
+              ? '—'
+              : prayer.iqamah;
 
-            const rowBaseStyle = [
-              styles.row,
-              !isCurrent && isNext && [styles.rowNext, N && { backgroundColor: N.surfaceAlt }, { borderLeftWidth: 3, borderLeftColor: color }],
-              !isCurrent && isSpecial && [styles.rowSpecial, N && { backgroundColor: N.rowSpecial }],
-              !isCurrent && !isNext && !isSpecial && N && { backgroundColor: N.surface },
-              index < (data.prayers.length - 1) && [styles.rowBorder, N && { borderBottomColor: N.border }],
-            ];
-
-            return isCurrent ? (
-              // ── Active prayer: gradient row with glow ──────────────
+            return (
               <View
                 key={prayer.name}
                 style={[
-                  styles.rowCurrentWrap,
-                  { shadowColor: color },
+                  styles.row,
+                  idx < (data?.prayers.length ?? 0) - 1 && styles.rowBorder,
+                  isCurrent && styles.rowCurrent,
+                  isNext && styles.rowNext,
+                  isSpecial && styles.rowSpecial,
+                  N && {
+                    borderBottomColor: N.border,
+                    backgroundColor: isCurrent ? N.rowCurrent : isNext ? N.rowNext : isSpecial ? N.rowSpecial : N.surface,
+                  },
                 ]}
               >
-                <LinearGradient
-                  colors={[color + 'FF', color + 'CC']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.rowCurrentGradient}
-                >
-                  {/* Pulsing NOW pill */}
-                  <View style={styles.nowPillRow}>
-                    <View style={[styles.nowPill, { backgroundColor: 'rgba(255,255,255,0.22)' }]}>
-                      <View style={styles.nowPillDot} />
-                      <Text style={styles.nowPillText}>PRAYER IN PROGRESS</Text>
-                    </View>
+                <View style={[styles.rowLeft, styles.colPrayer]}>
+                  <View
+                    style={[
+                      styles.prayerIconBox,
+                      { backgroundColor: (PRAYER_COLORS[prayer.name] ?? Colors.primary) + (N ? '35' : '20') },
+                    ]}
+                  >
+                    <MaterialIcons name={PRAYER_ICONS[prayer.name] as any} size={16} color={PRAYER_COLORS[prayer.name] ?? Colors.primary} />
                   </View>
-
-                  <View style={styles.rowCurrentContent}>
-                    {/* Icon */}
-                    <View style={[styles.prayerIconBox, styles.prayerIconBoxCurrent]}>
-                      <MaterialIcons name={PRAYER_ICONS[prayer.name] as any} size={22} color={color} />
-                    </View>
-
-                    {/* Name */}
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.prayerNameCurrent}>{prayer.name}</Text>
-                      <Text style={styles.nowBadgeCurrent}>Now · Active</Text>
-                    </View>
-
-                    {/* Times */}
-                    <View style={styles.currentTimesCol}>
-                      <View style={styles.currentTimeRow}>
-                        <MaterialIcons name="volume-up" size={11} color="rgba(255,255,255,0.7)" />
-                        <Text style={styles.currentTimeLabel}>Began</Text>
-                        <Text style={styles.currentTimeVal}>{prayer.time}</Text>
-                      </View>
-                      {prayer.iqamah && prayer.iqamah !== '-' ? (
-                        <View style={styles.currentTimeRow}>
-                          <MaterialIcons name="group" size={11} color="rgba(255,255,255,0.7)" />
-                          <Text style={styles.currentTimeLabel}>Iqamah</Text>
-                          <Text style={[styles.currentTimeVal, styles.currentIqamah]}>{prayer.iqamah}</Text>
-                        </View>
-                      ) : null}
-                    </View>
-                  </View>
-                </LinearGradient>
-              </View>
-            ) : (
-              <View key={prayer.name} style={rowBaseStyle}>
-                {/* Icon + Name */}
-                <View style={[styles.rowLeft, { flex: 2 }]}>
-                  <View style={[
-                    styles.prayerIconBox,
-                    { backgroundColor: color + (N ? '30' : '22'), borderWidth: isNext ? 1.5 : 0, borderColor: color + '60' }
-                  ]}>
-                    <MaterialIcons
-                      name={PRAYER_ICONS[prayer.name] as any}
-                      size={18}
-                      color={color}
-                    />
-                  </View>
-                  <View>
-                    <Text style={[
-                      styles.prayerName,
-                      N && { color: N.text },
-                      isSpecial && !N && styles.prayerNameSpecial,
-                      isSpecial && N && { color: N.textSub, fontSize: 14 },
-                    ]}>
-                      {prayer.name}
-                    </Text>
-                    {isNext ? (
-                      <Text style={[styles.nowBadge, { color }]}>Next</Text>
-                    ) : isSpecial ? (
-                      <Text style={[styles.specialBadge, N && { color: '#A07820' }]}>
-                        {prayer.name === 'Ishraq' ? '+20 min' : '-20 min Dhuhr'}
-                      </Text>
-                    ) : null}
-                    {prayer.name === 'Sunrise' ? (
-                      <Text style={styles.forbiddenNote}>Forbidden to pray until Ishraq</Text>
-                    ) : null}
-                    {prayer.name === 'Zawaal' ? (
-                      <Text style={styles.forbiddenNote}>Forbidden to pray until Dhuhr</Text>
-                    ) : null}
-                    {prayer.name === 'Asr' ? (
-                      <Text style={styles.forbiddenNote}>Delay forbidden 20 mins before Maghrib</Text>
-                    ) : null}
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.prayerName, N && { color: N.text }]}>{prayer.name}</Text>
+                    {isCurrent ? <Text style={styles.nowBadge}>In Progress</Text> : null}
                   </View>
                 </View>
 
-                {/* Athan / Begins Time */}
-                <View style={[styles.timeColCenter, { flex: 1.3 }]}>
-                  <Text style={[
-                    styles.timeCell,
-                    N && { color: passed ? N.textMuted : N.text },
-                    passed && styles.timePassed,
-                  ]}>
-                    {prayer.time}
-                  </Text>
-                  {showTomorrow && prayer.tomorrowTime ? (
-                    <View style={styles.tomorrowBadge}>
-                      <Text style={styles.tomorrowTime}>{prayer.tomorrowTime}</Text>
-                      <Text style={styles.tomorrowLabel}>+24h</Text>
-                    </View>
-                  ) : null}
+                <View style={[styles.timeColCenter, styles.colTime]}>
+                  <Text style={[styles.timeCell, isCompleted && styles.timePassed, N && { color: N.text }]}>{prayer.time}</Text>
                 </View>
 
-                {/* Iqamah */}
-                <View style={[styles.timeColCenter, { flex: 1.3 }]}>
-                  {isSpecial || isSunrise ? (
-                    <Text style={[styles.timeCellMuted, N && { color: N.textMuted }]}>—</Text>
-                  ) : (
-                    <>
-                      <Text style={[
-                        styles.iqamahTime,
-                        N && { color: passed ? N.textMuted : '#69C995' },
-                        passed && styles.timePassed,
-                      ]}>
-                        {prayer.iqamah}
-                      </Text>
-                      {showTomorrow && prayer.tomorrowIqamah ? (
-                        <View style={[styles.tomorrowBadge, { backgroundColor: Colors.primary + '18' }]}>
-                          <Text style={[styles.tomorrowTime, { color: Colors.primary }]}>
-                            {prayer.tomorrowIqamah}
-                          </Text>
-                          <Text style={[styles.tomorrowLabel, { color: Colors.primary }]}>+24h</Text>
-                        </View>
-                      ) : null}
-                    </>
-                  )}
+                <View style={[styles.timeColCenter, styles.colTime]}>
+                  <Text style={[jamaatText === '—' ? styles.timeCellMuted : styles.iqamahTime, isCompleted && jamaatText !== '—' && styles.timePassed, N && jamaatText !== '—' && { color: N.text }]}>{jamaatText}</Text>
                 </View>
               </View>
             );
@@ -1282,22 +1227,6 @@ export default function PrayerScreen() {
           </View>
         ) : null}
 
-        {/* Column Legend */}
-        <View style={styles.legend}>
-          <MaterialIcons name="info-outline" size={13} color={N ? N.textMuted : Colors.textSubtle} />
-          <Text style={[styles.legendText, N && { color: N.textMuted }]}>
-            Begins = Athan call  ·  Iqamah = Congregation start  ·  +24h = Tomorrow's time
-          </Text>
-        </View>
-
-        {/* Ishraq / Zawaal note */}
-        <View style={styles.specialNote}>
-          <MaterialIcons name="flare" size={12} color={N ? N.textMuted : Colors.textSubtle} />
-          <Text style={[styles.legendText, N && { color: N.textMuted }]}>
-          Ishraq = 20 min after Sunrise  ·  Zawaal = 20 min before Dhuhr
-          </Text>
-        </View>
-
         {/* Source */}
         <View style={styles.sourceRow}>
           <MaterialIcons name={loading ? 'sync' : 'check-circle'} size={12} color={N ? '#3A7A5A' : Colors.primary} />
@@ -1319,12 +1248,12 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'column',
     paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.sm,
-    paddingBottom: 8,
+    paddingTop: 6,
+    paddingBottom: 6,
     backgroundColor: Colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
-    gap: 8,
+    gap: 6,
   },
   // Compact header used in month view
   headerCompact: {
@@ -1357,53 +1286,67 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.primary,
   },
-  headerRow1: {
+  headerRowCompact: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
+    gap: 10,
   },
-  headerLogo: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: '#fff',
-  },
-  headerMasjidName: {
-    fontSize: 13,
+  headerMasjidCompact: {
+    fontSize: 14,
     fontWeight: '800',
     color: Colors.primary,
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
+    flex: 1,
   },
-  headerTitle: { ...Typography.titleLarge, color: Colors.textPrimary },
-  headerCity: { ...Typography.bodySmall, color: Colors.textSubtle, marginTop: 2 },
-  headerDateRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },
-  headerDateGreg: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary },
-  headerDateSep: { fontSize: 11, color: Colors.textSubtle },
-  headerDateHijri: { fontSize: 12, fontWeight: '700', color: Colors.primary },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  viewToggle: {
-    flexDirection: 'row',
-    backgroundColor: Colors.border,
-    borderRadius: Radius.full,
-    padding: 2,
-  },
-  toggleBtn: {
+  headerMetaRow: {
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceAlt,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: Radius.full,
+    justifyContent: 'space-between',
+    gap: 10,
   },
-  toggleBtnActive: { backgroundColor: Colors.primary },
-  toggleBtnText: { fontSize: 12, fontWeight: '600', color: Colors.textSubtle },
-  toggleBtnTextActive: { color: '#fff' },
-  calBtn: {
-    width: 36, height: 36,
+  headerMetaLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    flex: 1,
+  },
+  headerMetaDate: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  headerMetaRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  headerMetaLocation: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textSubtle,
+  },
+  headerMetaAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
     borderRadius: Radius.full,
-    backgroundColor: Colors.primarySoft,
-    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#8EB9E8',
+    backgroundColor: '#EAF4FF',
+  },
+  headerMetaActionText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#1E5BA8',
   },
 
   dateStrip: {
@@ -1431,8 +1374,19 @@ const styles = StyleSheet.create({
   },
   nextBanner: {
     paddingHorizontal: Spacing.md,
-    paddingTop: 10,
-    paddingBottom: 16,
+    paddingTop: 12,
+    paddingBottom: 18,
+  },
+  heroProgressTrack: {
+    marginTop: 10,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.24)',
+    overflow: 'hidden',
+  },
+  heroProgressFill: {
+    height: '100%',
+    backgroundColor: '#FFD08A',
   },
   skyPeriodRow: {
     flexDirection: 'row',
@@ -1443,9 +1397,9 @@ const styles = StyleSheet.create({
   },
   skyPeriodLabel: {
     fontSize: 10,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.75)',
-    letterSpacing: 0.8,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.82)',
+    letterSpacing: 0.55,
     textTransform: 'uppercase',
   },
   nextRow: {
@@ -1455,11 +1409,18 @@ const styles = StyleSheet.create({
   },
   nextLeft: { gap: 4, flex: 1 },
   nextLabel: {
-    fontSize: 10, fontWeight: '700',
-    color: 'rgba(255,255,255,0.7)',
-    letterSpacing: 1, textTransform: 'uppercase',
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.82)',
+    letterSpacing: 0.35,
   },
-  nextName: { fontSize: 22, fontWeight: '800', color: '#fff' },
+  nextName: {
+    fontSize: 25,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: 0.2,
+    marginTop: 1,
+  },
   nextTimeRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1467,43 +1428,238 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   nextTimeLabel: {
-    fontSize: 11, fontWeight: '600',
-    color: 'rgba(255,255,255,0.65)',
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.76)',
     width: 44,
   },
   nextTimeValue: {
-    fontSize: 13, fontWeight: '700',
-    color: 'rgba(255,255,255,0.95)',
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   nextRight: { alignItems: 'flex-end', gap: 4 },
   countdownPhase: {
-    fontSize: 10, fontWeight: '700',
-    color: 'rgba(255,255,255,0.7)',
-    letterSpacing: 0.5,
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.83)',
+    letterSpacing: 0.3,
   },
   countdown: {
     fontSize: 30, fontWeight: '800',
     color: '#fff',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
     fontVariant: ['tabular-nums'],
   },
-  liveDot: {
+  liveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 7,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    backgroundColor: 'rgba(0,0,0,0.18)',
+    marginTop: -2,
   },
   liveDotInner: {
-    width: 7, height: 7,
-    borderRadius: 4,
+    width: 11,
+    height: 11,
+    borderRadius: 6,
     backgroundColor: '#69F0AE',
   },
   liveText: {
-    fontSize: 10, fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '800',
     color: '#69F0AE',
-    letterSpacing: 1,
+    letterSpacing: 1.1,
   },
 
   // ── Table ─────────────────────────────────────────
+  prayerCardsScroller: {
+    marginTop: 14,
+  },
+  prayerCardsTrack: {
+    paddingHorizontal: Spacing.md,
+    gap: 12,
+    paddingBottom: 6,
+  },
+  prayerCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+    gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  jumuahCard: {
+    borderWidth: 1.5,
+    borderColor: '#FFD54F',
+    backgroundColor: '#FFF9E8',
+  },
+  prayerCardCurrentWrap: {
+    borderRadius: Radius.lg,
+    overflow: 'hidden',
+    transform: [{ scale: 1.08 }],
+    zIndex: 2,
+    marginVertical: 6,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  prayerCardCurrentGradient: {
+    padding: Spacing.md,
+    gap: 10,
+  },
+  prayerCardNext: {
+    borderLeftWidth: 3,
+  },
+  prayerCardSpecial: {
+    backgroundColor: '#FFFDE7',
+  },
+  prayerCardHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  prayerCardTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+    letterSpacing: 0.2,
+  },
+  prayerCardTitleOnGradient: {
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0,0,0,0.18)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  prayerCardMeta: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textSubtle,
+    marginTop: 2,
+    letterSpacing: 0.3,
+  },
+  prayerCardTimesRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  prayerCardTimeBlock: {
+    flex: 1,
+    gap: 3,
+  },
+  prayerCardTimeLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.textSubtle,
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+  },
+  prayerCardTimeLabelOnGradient: {
+    color: 'rgba(255,255,255,0.85)',
+  },
+  prayerCardTimeVal: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+    fontVariant: ['tabular-nums'],
+  },
+  prayerCardTimeValOnGradient: {
+    color: '#FFFFFF',
+  },
+  prayerCardFuture: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textSubtle,
+    marginTop: 3,
+  },
+  zawaalModule: {
+    gap: 6,
+    marginTop: 2,
+  },
+  zawaalSkyStrip: {
+    borderRadius: Radius.md,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  zawaalSkyLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#5C4A22',
+    letterSpacing: 0.3,
+  },
+  zawaalSkyMeta: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#6E5A2C',
+    fontVariant: ['tabular-nums'],
+  },
+  zawaalTimelineTrack: {
+    height: 5,
+    borderRadius: 99,
+    backgroundColor: 'rgba(91, 75, 38, 0.22)',
+    overflow: 'visible',
+  },
+  zawaalTimelineFill: {
+    height: '100%',
+    borderRadius: 99,
+    backgroundColor: '#B8860B',
+  },
+  zawaalTimelineDot: {
+    position: 'absolute',
+    top: -3,
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: '#6E5A2C',
+    borderWidth: 2,
+    borderColor: '#F7EBD1',
+    marginLeft: -5,
+  },
+  zawaalTimelineLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  zawaalTimelineLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#6E5A2C',
+    fontVariant: ['tabular-nums'],
+  },
+  prayerCardFutureOnGradient: {
+    color: 'rgba(255,255,255,0.88)',
+  },
+  prayerCardsDotsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 8,
+    marginBottom: 2,
+  },
+  prayerCardsDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 4,
+    backgroundColor: 'rgba(29, 90, 60, 0.24)',
+  },
+  prayerCardsDotActive: {
+    width: 18,
+    backgroundColor: Colors.primary,
+  },
   tableHeader: {
     flexDirection: 'row',
     paddingHorizontal: Spacing.md,
@@ -1518,11 +1674,21 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
+  colPrayer: {
+    flex: 1.9,
+  },
+  colTime: {
+    width: 88,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   tableBody: {
     backgroundColor: Colors.surface,
     marginHorizontal: Spacing.md,
     borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -1663,6 +1829,9 @@ const styles = StyleSheet.create({
     color: '#B71C1C',
     marginTop: 2,
     maxWidth: 110,
+  forbiddenNoteOnGradient: {
+    color: '#FFE7B3',
+  },
   },
   textWhite: { color: '#fff' },
 
@@ -1715,36 +1884,47 @@ const styles = StyleSheet.create({
   // Forbidden time banner
   forbiddenBanner: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    backgroundColor: '#B71C1C',
+    backgroundColor: '#A61B1B',
     marginHorizontal: Spacing.md,
     marginTop: 12,
     borderRadius: Radius.lg,
     paddingHorizontal: Spacing.md,
-    paddingVertical: 14,
+    paddingVertical: 12,
     gap: 12,
+    position: 'relative',
+    overflow: 'hidden',
   },
   forbiddenLeft: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 10,
     flex: 1,
   },
   forbiddenTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '800',
     color: '#fff',
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
   },
   forbiddenReason: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.92)',
+    marginTop: 4,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'] as any,
+  },
+  forbiddenAction: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 2,
+    color: 'rgba(255,255,255,0.78)',
+    marginTop: 4,
+    lineHeight: 16,
   },
   forbiddenRight: {
     alignItems: 'flex-end',
     gap: 2,
+    paddingTop: 1,
   },
   forbiddenUntilLabel: {
     fontSize: 9,
@@ -1763,6 +1943,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: 'rgba(255,255,255,0.75)',
     fontVariant: ['tabular-nums'] as any,
+  },
+  forbiddenProgressTrack: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  forbiddenProgressFill: {
+    height: '100%',
+    backgroundColor: '#FFD08A',
   },
 
   // Jumuah countdown banner
