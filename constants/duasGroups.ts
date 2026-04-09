@@ -253,7 +253,7 @@ export const KNOWN_DHUHR_GROUPS: Record<string, { icon: string; color: string; b
 // Fallback colors for After Dhuhr cards
 export const DEFAULT_COLORS_DHUHR = [
   '#0A5C9E',
-  '#1B8A5A',
+  '#4FE948',
   '#3949AB',
   '#00695C',
   '#E65100',
@@ -306,7 +306,7 @@ export const KNOWN_ISHA_GROUPS: Record<
 // Fallback colors for Before Fajr cards
 export const DEFAULT_COLORS_BEFORE_FAJR = [
   '#3949AB',
-  '#1B8A5A',
+  '#4FE948',
   '#6A1B9A',
   '#1565C0',
   '#E65100',
@@ -317,7 +317,7 @@ export const DEFAULT_COLORS_BEFORE_FAJR = [
 
 // Fallback colors for After Fajr cards without KNOWN_FAJR_GROUPS metadata
 export const DEFAULT_COLORS = [
-  '#1B8A5A',
+  '#4FE948',
   '#3949AB',
   '#00695C',
   '#E65100',
@@ -330,7 +330,7 @@ export const DEFAULT_COLORS = [
 // Fallback colors for After Jumu'ah cards
 export const DEFAULT_COLORS_JUMUAH = [
   '#B8860B',
-  '#1B8A5A',
+  '#4FE948',
   '#3949AB',
   '#E65100',
   '#6A1B9A',
@@ -343,7 +343,7 @@ export const DEFAULT_COLORS_ASR = [
   '#E65100',
   '#1565C0',
   '#6A1B9A',
-  '#1B8A5A',
+  '#4FE948',
   '#3949AB',
   '#B8860B',
   '#00695C',
@@ -354,7 +354,7 @@ export const DEFAULT_COLORS_MAGHRIB = [
   '#6A1B9A',
   '#AD1457',
   '#1565C0',
-  '#1B8A5A',
+  '#4FE948',
   '#E65100',
   '#3949AB',
   '#B8860B',
@@ -365,7 +365,7 @@ export const DEFAULT_COLORS_ISHA = [
   '#1565C0',
   '#3949AB',
   '#6A1B9A',
-  '#1B8A5A',
+  '#4FE948',
   '#00695C',
   '#AD1457',
   '#B8860B',

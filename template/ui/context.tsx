@@ -207,14 +207,8 @@ const styles = StyleSheet.create({
     borderRadius: Platform.OS === 'ios' ? 14 : 12,
     minWidth: 280,
     maxWidth: 420,
-    // iOS style shadow
+    boxShadow: '0px 8px 20px rgba(0, 0, 0, 0.15)',
     ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.15,
-        shadowRadius: 20,
-      },
       android: {
         elevation: 12,
       },

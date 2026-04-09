@@ -1,17 +1,17 @@
 // Jami' Masjid Noorani — Design System (Green theme matching logo)
 export const Colors = {
   // Brand — emerald green palette
-  primary: '#2D8A4F',        // Emerald green
-  primaryLight: '#52B788',   // Light green
-  primarySoft: '#E8F5EE',    // Very light green tint
+  primary: '#4FE948',        // Primary green
+  primaryLight: '#8FF28A',   // Complementary light tint
+  primarySoft: '#ECFAEC',    // Soft tint for chips/cards
   accent: '#1B5E34',         // Dark forest green
-  headerBg: '#2D8A4F',       // Header green
+  headerBg: '#4FE948',       // Header green
 
   // Surface
   background: '#F4FAF6',     // Light green-white
   surface: '#FFFFFF',
-  surfaceAlt: '#EAF5EE',     // Light green tint
-  border: '#C8E6D3',
+  surfaceAlt: '#F4FBF2',     // Light green tint
+  border: '#CFE8CF',
 
   // Text
   textPrimary: '#0D2118',    // Deep dark green-black
@@ -20,13 +20,13 @@ export const Colors = {
   textInverse: '#FFFFFF',
 
   // Semantic
-  success: '#2D8A4F',
+  success: '#4FE948',
   warning: '#E9A840',
   error: '#C0392B',
 
   // Prayer time specific
-  prayerActive: '#2D8A4F',
-  prayerNext: '#52B788',
+  prayerActive: '#4FE948',
+  prayerNext: '#9ED59B',
   prayerPassed: '#B0D4BC',
 };
 

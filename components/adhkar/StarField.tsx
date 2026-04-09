@@ -18,7 +18,7 @@ const STARS = Array.from({ length: 90 }, (_, i) => ({
 
 export function StarField() {
   return (
-    <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+    <View style={[StyleSheet.absoluteFillObject, { pointerEvents: 'none' }]}>
       {STARS.map(s => (
         <View
           key={s.key}

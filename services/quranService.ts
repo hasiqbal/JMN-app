@@ -707,7 +707,7 @@ export const HOW_TO_GUIDES: HowToGuide[] = [
     title: 'Salat al-Eid',
     subtitle: 'Eid ul-Fitr & Eid ul-Adha · Hanafi Fiqh',
     icon: 'wb-sunny',
-    color: '#1B8A5A',
+    color: '#4FE948',
     intro: 'Salat al-Eid is Wajib (necessary/obligatory) for sane, adult men who are residents and in good health — the same people who must attend Jumuah. Women, children, travellers, and the sick are not obliged but receive reward for attending. The prayer is 2 rakaats with 6 extra Takbirs. It begins 20 minutes after Sunrise and ends at Zawaal (Dhuhr time).',
     sections: [
       {

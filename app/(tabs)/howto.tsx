@@ -25,7 +25,7 @@ const NIGHT = {
   textSub:    '#93B4D8',
   textMuted:  '#5A7A9E',
   accent:     '#6AAEFF',
-  primary:    '#4DCF88',
+  primary:    '#4FE948',
 };
 
 // ── Night Mode Toggle ────────────────────────────────────────────────────
@@ -294,17 +294,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFE88A',
     letterSpacing: 0.2,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    textShadow: '0px 1px 3px rgba(0,0,0,0.5)',
   },
   heroTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    textShadow: '0px 1px 4px rgba(0,0,0,0.5)',
   },
 });
 
@@ -321,8 +317,7 @@ const howToStyles = StyleSheet.create({
     backgroundColor: Colors.surface, borderRadius: Radius.lg,
     borderWidth: 1, borderColor: Colors.border,
     overflow: 'hidden',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
+    boxShadow: '0px 2px 6px rgba(0,0,0,0.06)',
   },
   guideHeader: {
     flexDirection: 'row', alignItems: 'center', gap: 12,

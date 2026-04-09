@@ -33,7 +33,7 @@ const NIGHT = {
   textSub:    '#93B4D8',
   textMuted:  '#5A7A9E',
   accent:     '#6AAEFF',
-  primary:    '#4DCF88',
+  primary:    '#4FE948',
 };
 
 function NightModeToggle({ nightMode, onToggle }: { nightMode: boolean; onToggle: () => void }) {
@@ -68,7 +68,7 @@ const nmStyles = StyleSheet.create({
 
 // ── Category color for announcements ─────────────────────────────────────
 const CATEGORY_COLORS: Record<string, string> = {
-  General:   '#1B8A5A',
+  General:   '#4FE948',
   Prayer:    '#3949AB',
   Event:     '#B8860B',
   Closure:   '#C62828',
@@ -136,7 +136,7 @@ export default function EventsScreen() {
             contentFit="contain"
           />
           <View style={{ flex: 1 }}>
-            <Text style={[styles.headerMasjidName, N && { color: '#69C995' }]}>Jami&apos; Masjid Noorani</Text>
+            <Text style={[styles.headerMasjidName, N && { color: '#4FE948' }]}>Jami&apos; Masjid Noorani</Text>
             <Text style={[styles.headerTitle, N && { color: N.text }]}>Events & Announcements</Text>
           </View>
         </View>
