@@ -625,7 +625,7 @@ export default function PrayerScreen() {
   const [nextInfo, setNextInfo] = useState<{ prayer: PrayerTime; secondsLeft: number } | null>(null);
 
   // ── Prayer alert state ──────────────────────────────────────────────────
-  const JAMAAT_FLASH_MS = 60 * 1000;
+  const JAMAAT_ONGOING_MS = 7 * 60 * 1000;
   const flashAnim = useRef(new Animated.Value(1)).current;
   const flashLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
@@ -650,8 +650,8 @@ export default function PrayerScreen() {
   })();
 
   const jamaatStarted = jamaatDate ? now >= jamaatDate : false;
-  const jamaatFlashOver = jamaatDate ? now >= new Date(jamaatDate.getTime() + JAMAAT_FLASH_MS) : false;
-  const alertMode = activePrayer !== null && !jamaatFlashOver;
+  const jamaatOngoing = jamaatDate ? now < new Date(jamaatDate.getTime() + JAMAAT_ONGOING_MS) : false;
+  const alertMode = activePrayer !== null;
 
   const secondsToJamaat = jamaatDate && !jamaatStarted
     ? Math.max(0, Math.floor((jamaatDate.getTime() - now.getTime()) / 1000))
@@ -662,7 +662,7 @@ export default function PrayerScreen() {
   const hasJamaat = jamaatDate !== null;
 
   useEffect(() => {
-    if (jamaatStarted && !jamaatFlashOver) {
+    if (jamaatStarted && jamaatOngoing) {
       const loop = Animated.loop(
         Animated.sequence([
           Animated.timing(flashAnim, { toValue: 0.15, duration: 400, useNativeDriver: true }),
@@ -677,7 +677,7 @@ export default function PrayerScreen() {
       flashAnim.setValue(1);
     }
     return () => { flashLoopRef.current?.stop(); };
-  }, [jamaatStarted, jamaatFlashOver, flashAnim]);
+  }, [jamaatStarted, jamaatOngoing, flashAnim]);
 
   const loadTimes = useCallback(async () => {
     // Seed instantly from local timetable
@@ -966,20 +966,48 @@ export default function PrayerScreen() {
 
   const heroEndMarker = forbiddenInfo ? null : 1;
 
+  const isFridayJumuahHero = isFriday
+    && !forbiddenInfo
+    && ((activePrayer?.name === 'Dhuhr') || (nextInfo?.prayer.name === 'Dhuhr'));
+
+  const heroPrayerName = forbiddenInfo
+    ? (forbiddenWindowMeta?.phase ?? 'Zawaal')
+    : (isFridayJumuahHero ? 'Jumuah' : (activePrayer?.name ?? nextPrayerName));
+
   const heroCountdownInfo = React.useMemo(() => {
     if (forbiddenInfo) {
       return {
         label: currentPhaseInfo.label || 'Until Resume',
         value: currentPhaseInfo.value,
         note: currentPhaseInfo.note,
+        flash: false,
       };
     }
 
     if (activePrayer) {
+      if (hasJamaat && !jamaatStarted) {
+        return {
+          label: 'Until Jamaat',
+          value: jamaatCountdown,
+          note: '',
+          flash: false,
+        };
+      }
+
+      if (hasJamaat && jamaatStarted && jamaatOngoing) {
+        return {
+          label: 'Jamaat On Going',
+          value: 'ON GOING',
+          note: 'Run to the masjid now',
+          flash: true,
+        };
+      }
+
       return {
         label: 'Until Next Prayer',
         value: currentEndsIn || countdown,
         note: '',
+        flash: false,
       };
     }
 
@@ -987,8 +1015,9 @@ export default function PrayerScreen() {
       label: currentPhaseInfo.label || 'Until Next Prayer',
       value: currentPhaseInfo.value || countdown,
       note: '',
+      flash: false,
     };
-  }, [forbiddenInfo, activePrayer, currentEndsIn, countdown, currentPhaseInfo]);
+  }, [forbiddenInfo, activePrayer, hasJamaat, jamaatStarted, jamaatOngoing, jamaatCountdown, currentEndsIn, countdown, currentPhaseInfo]);
 
   const heroWide = viewportWidth >= 700;
 
@@ -1061,11 +1090,26 @@ export default function PrayerScreen() {
               {forbiddenInfo ? 'Prayer Pause Window' : (activePrayer ? 'Current Prayer' : 'Up Next Prayer')}
             </Text>
             <Text style={[styles.heroTitle, heroWide && styles.heroTitleWide]}>
-              {forbiddenInfo ? (forbiddenWindowMeta?.phase ?? 'Zawaal') : (activePrayer?.name ?? nextPrayerName)}
+              {heroPrayerName}
             </Text>
 
             <View style={[styles.heroStatsRow, heroWide && styles.heroStatsRowWide]}>
-              {!forbiddenInfo ? (
+              {!forbiddenInfo && isFridayJumuahHero ? (
+                <>
+                  <View style={[styles.heroGlassStat, heroWide && styles.heroGlassStatWideDesktop]}>
+                    <Text style={styles.heroGlassLabel}>Athan</Text>
+                    <Text style={styles.heroGlassValue}>{activePrayer?.time ?? nextInfo?.prayer.time ?? ''}</Text>
+                  </View>
+                  <View style={[styles.heroGlassStat, heroWide && styles.heroGlassStatWideDesktop]}>
+                    <Text style={styles.heroGlassLabel}>1st Jamaat</Text>
+                    <Text style={styles.heroGlassValue}>{j1}</Text>
+                  </View>
+                  <View style={[styles.heroGlassStat, heroWide && styles.heroGlassStatWideDesktop]}>
+                    <Text style={styles.heroGlassLabel}>2nd Jamaat</Text>
+                    <Text style={styles.heroGlassValue}>{j2}</Text>
+                  </View>
+                </>
+              ) : !forbiddenInfo ? (
                 <>
                   <View style={[styles.heroGlassStat, heroWide && styles.heroGlassStatWideDesktop]}>
                     <Text style={styles.heroGlassLabel}>Athan</Text>
@@ -1089,9 +1133,9 @@ export default function PrayerScreen() {
             <View style={[styles.heroCountdownCard, heroWide && styles.heroCountdownCardWide]}>
               <View style={styles.heroCountdownCardRow}>
                 <Text style={styles.heroCountdownCardLabel}>{heroCountdownInfo.label}</Text>
-                {jamaatStarted && !forbiddenInfo ? (
+                {heroCountdownInfo.flash ? (
                   <Animated.View style={{ opacity: flashAnim }}>
-                    <Text style={[styles.heroCountdownCardValue, styles.heroCountdownCardValueCompact]}>Jamaat!</Text>
+                    <Text style={[styles.heroCountdownCardValue, styles.heroCountdownCardValueAlert, heroWide && styles.heroCountdownCardValueWide]}>{heroCountdownInfo.value}</Text>
                   </Animated.View>
                 ) : (
                   <Text style={[styles.heroCountdownCardValue, heroWide && styles.heroCountdownCardValueWide]}>{heroCountdownInfo.value}</Text>
@@ -1731,6 +1775,10 @@ const styles = StyleSheet.create({
     color: '#F8FBFF',
     fontVariant: ['tabular-nums'],
     letterSpacing: -0.6,
+  },
+  heroCountdownCardValueAlert: {
+    color: '#FFE082',
+    letterSpacing: 0.1,
   },
   heroCountdownCardValueWide: {
     fontSize: 28,
