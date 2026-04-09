@@ -9,7 +9,7 @@ import {
   Animated,
   TextInput,
   Switch,
-  Platform,
+  Platform
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -35,7 +35,7 @@ const NIGHT = {
   textSub:    '#93B4D8',
   textMuted:  '#5A7A9E',
   accent:     '#6AAEFF',
-  primary:    '#4DCF88',
+  primary:    '#4FE948'
 };
 
 type NightPalette = typeof NIGHT | null;
@@ -64,14 +64,14 @@ const SURAH_NAMES: Record<number, string> = {
   96:'Al-Alaq',97:'Al-Qadr',98:'Al-Bayyinah',99:'Az-Zalzalah',100:'Al-Adiyat',
   101:'Al-Qariah',102:'At-Takathur',103:'Al-Asr',104:'Al-Humazah',105:'Al-Fil',
   106:'Quraysh',107:'Al-Maun',108:'Al-Kawthar',109:'Al-Kafirun',110:'An-Nasr',
-  111:'Al-Masad',112:'Al-Ikhlas',113:'Al-Falaq',114:'An-Nas',
+  111:'Al-Masad',112:'Al-Ikhlas',113:'Al-Falaq',114:'An-Nas'
 };
 
 // ── Night Mode 3-way Toggle (Auto / Day / Night) ──────────────────────────
 function NightModeToggle({
   modePref,
   onSelect,
-  N,
+  N
 }: {
   modePref: NightModePref;
   onSelect: (p: NightModePref) => void;
@@ -80,7 +80,7 @@ function NightModeToggle({
   const options: { pref: NightModePref; icon: string; label: string }[] = [
     { pref: 'day',   icon: 'wb-sunny',        label: 'Day'  },
     { pref: 'auto',  icon: 'brightness-auto', label: 'Auto' },
-    { pref: 'night', icon: 'nights-stay',     label: 'Night' },
+    { pref: 'night', icon: 'nights-stay',     label: 'Night' }
   ];
   return (
     <View style={[nmStyles.row, N && { backgroundColor: N.border }]}>
@@ -114,16 +114,16 @@ const nmStyles = StyleSheet.create({
     backgroundColor: Colors.border,
     borderRadius: 999,
     padding: 2,
-    gap: 2,
+    gap: 2
   },
   btn: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
     paddingHorizontal: 7, paddingVertical: 4,
-    borderRadius: 999,
+    borderRadius: 999
   },
   btnActive:      { backgroundColor: Colors.primary },
   btnActiveNight: { backgroundColor: '#2A4A7A' },
-  label: { fontSize: 10, fontWeight: '700', letterSpacing: 0.2, color: Colors.textSubtle },
+  label: { fontSize: 10, fontWeight: '700', letterSpacing: 0.2, color: Colors.textSubtle }
 });
 
 // ── Pulse animation ───────────────────────────────────────────────────────
@@ -136,13 +136,13 @@ function PulsingRing({ active, color, size = 58 }: { active: boolean; color?: st
     const loop = Animated.loop(
       Animated.sequence([
         Animated.parallel([
-          Animated.timing(scale,   { toValue: 1.55, duration: 900, useNativeDriver: true }),
-          Animated.timing(opacity, { toValue: 0,    duration: 900, useNativeDriver: true }),
+          Animated.timing(scale,   { toValue: 1.55, duration: 900, useNativeDriver: Platform.OS !== 'web' }),
+          Animated.timing(opacity, { toValue: 0,    duration: 900, useNativeDriver: Platform.OS !== 'web' })
         ]),
         Animated.parallel([
-          Animated.timing(scale,   { toValue: 1,   duration: 0, useNativeDriver: true }),
-          Animated.timing(opacity, { toValue: 0.6, duration: 0, useNativeDriver: true }),
-        ]),
+          Animated.timing(scale,   { toValue: 1,   duration: 0, useNativeDriver: Platform.OS !== 'web' }),
+          Animated.timing(opacity, { toValue: 0.6, duration: 0, useNativeDriver: Platform.OS !== 'web' })
+        ])
       ])
     );
     loop.start();
@@ -154,16 +154,16 @@ function PulsingRing({ active, color, size = 58 }: { active: boolean; color?: st
       {
         position: 'absolute',
         width: size, height: size, borderRadius: size / 2,
-        borderWidth: 2, borderColor: color ?? Colors.primary,
+        borderWidth: 2, borderColor: color ?? Colors.primary
       },
-      { transform: [{ scale }], opacity },
+      { transform: [{ scale }], opacity }
     ]} />
   );
 }
 
 // ── Qiraat Live Controls (expanded panel for continuous stream) ──────────
 function QiraatControls({
-  N, accentColor, isPlaying, isLoading, onPlay, onStop,
+  N, accentColor, isPlaying, isLoading, onPlay, onStop
 }: {
   N: NightPalette;
   accentColor: string;
@@ -202,11 +202,11 @@ function QiraatControls({
 const SURAH_LIST = Object.entries(SURAH_NAMES).map(([num, name]) => ({
   num: Number(num),
   name,
-  label: `${num}. ${name}`,
+  label: `${num}. ${name}`
 }));
 
 function BasitControls({
-  N, accentColor, isPlaying, isLoading, playingSurah, onPlay, onStop,
+  N, accentColor, isPlaying, isLoading, playingSurah, onPlay, onStop
 }: {
   N: NightPalette;
   accentColor: string;
@@ -293,7 +293,7 @@ function BasitControls({
                   style={[
                     basitStyles.surahRow,
                     idx < filtered.length - 1 && [basitStyles.surahRowBorder, N && { borderBottomColor: N.border }],
-                    N && { backgroundColor: N.surfaceAlt },
+                    N && { backgroundColor: N.surfaceAlt }
                   ]}
                   onPress={() => { onPlay(s.num); setSearch(''); }}
                   activeOpacity={0.75}
@@ -322,37 +322,37 @@ const basitStyles = StyleSheet.create({
   container: {
     borderTopWidth: 1, borderTopColor: Colors.border,
     backgroundColor: Colors.background,
-    marginTop: 12, paddingTop: 12, paddingHorizontal: 4, gap: 10,
+    marginTop: 12, paddingTop: 12, paddingHorizontal: 4, gap: 10
   },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   searchWrap: {
     flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
     height: 42, borderWidth: 1.5, borderColor: Colors.border,
     borderRadius: 10, paddingHorizontal: 10,
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.surface
   },
   searchInput: {
-    flex: 1, fontSize: 14, fontWeight: '500', color: Colors.textPrimary,
+    flex: 1, fontSize: 14, fontWeight: '500', color: Colors.textPrimary
   },
   randomBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 12, height: 42, borderRadius: 10,
-    backgroundColor: Colors.border,
+    backgroundColor: Colors.border
   },
   randomBtnText: { fontSize: 12, fontWeight: '700' },
   listWrap: {
     borderRadius: 10, borderWidth: 1.5, borderColor: Colors.border,
-    overflow: 'hidden',
+    overflow: 'hidden'
   },
   surahRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 12, paddingVertical: 11,
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.surface
   },
   surahRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.border },
   surahNum: {
     width: 34, height: 34, borderRadius: 17,
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center'
   },
   surahNumText: { fontSize: 12, fontWeight: '800' },
   surahName: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary, flex: 1 },
@@ -360,15 +360,15 @@ const basitStyles = StyleSheet.create({
   emptyText: { fontSize: 13, color: Colors.textSubtle, fontWeight: '500' },
   stopBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center',
-    backgroundColor: '#C62828', borderRadius: 10, paddingVertical: 10,
+    backgroundColor: '#C62828', borderRadius: 10, paddingVertical: 10
   },
   stopBtnText: { fontSize: 14, fontWeight: '700', color: '#fff' },
   nowPlayingRow: {
     flexDirection: 'row', alignItems: 'center', gap: 7,
     backgroundColor: Colors.primarySoft, borderRadius: 8,
-    paddingHorizontal: 12, paddingVertical: 8,
+    paddingHorizontal: 12, paddingVertical: 8
   },
-  nowPlayingText: { fontSize: 13, fontWeight: '700', flex: 1 },
+  nowPlayingText: { fontSize: 13, fontWeight: '700', flex: 1 }
 });
 
 const NOTIF_KEY = 'jmn_radio_notify';
@@ -416,8 +416,8 @@ export default function StreamScreen() {
     if (!isLive) { livePulse.setValue(0.3); return; }
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(livePulse, { toValue: 1,   duration: 600, useNativeDriver: true }),
-        Animated.timing(livePulse, { toValue: 0.3, duration: 600, useNativeDriver: true }),
+        Animated.timing(livePulse, { toValue: 1,   duration: 600, useNativeDriver: Platform.OS !== 'web' }),
+        Animated.timing(livePulse, { toValue: 0.3, duration: 600, useNativeDriver: Platform.OS !== 'web' })
       ])
     );
     loop.start();
@@ -466,7 +466,7 @@ export default function StreamScreen() {
         shouldPlayInBackground: true,
         playsInSilentMode: true,
         shouldRouteThroughEarpiece: false,
-        interruptionModeAndroid: 'doNotMix',
+        interruptionModeAndroid: 'doNotMix'
       });
       const player = createAudioPlayer({ uri: url }, 250);
       soundRef.current = player;
@@ -536,7 +536,7 @@ export default function StreamScreen() {
           <Animated.View style={[
             styles.liveBadge,
             isLive && styles.liveBadgeActive,
-            { opacity: isLive ? livePulse : 1 },
+            { opacity: isLive ? livePulse : 1 }
           ]}>
             <View style={[styles.liveDot, !isLive && { opacity: 0.5 }]} />
             <Text style={styles.liveText}>{isLive ? 'LIVE NOW' : 'LIVE'}</Text>
@@ -548,7 +548,7 @@ export default function StreamScreen() {
             contentFit="contain"
           />
           <View>
-            <Text style={[styles.headerMasjidName, N && { color: '#69C995' }]}>Jami' Masjid Noorani</Text>
+            <Text style={[styles.headerMasjidName, N && { color: '#4FE948' }]}>Jami' Masjid Noorani</Text>
             <Text style={[styles.headerTitle, N && { color: N.text }]}>Live Stream</Text>
             <Text style={[styles.headerSub, N && { color: N.textSub }]}>Halifax, UK</Text>
           </View>
@@ -574,7 +574,7 @@ export default function StreamScreen() {
               />
               <Text style={[
                 styles.tabText, N && { color: N.textSub },
-                isActive && [styles.tabTextActive, N && { color: N.accent }],
+                isActive && [styles.tabTextActive, N && { color: N.accent }]
               ]}>
                 {tab === 'video' ? 'YouTube Live' : 'Radio Stream'}
               </Text>
@@ -647,7 +647,7 @@ export default function StreamScreen() {
               {[
                 { icon: 'star',        day: 'Every Friday',   time: 'Jumuah Khutbah \u00b7 1:00 PM (BST) / 12:30 PM (GMT)' },
                 { icon: 'nights-stay', day: 'Ramadan Nights', time: 'Tarawih \u00b7 after Isha' },
-                { icon: 'campaign',    day: 'Special Events', time: 'As announced' },
+                { icon: 'campaign',    day: 'Special Events', time: 'As announced' }
               ].map((s, i) => (
                 <View key={i} style={styles.scheduleRow}>
                   <MaterialIcons name={s.icon as any} size={16} color={N ? N.primary : Colors.primary} />
@@ -684,7 +684,7 @@ export default function StreamScreen() {
                     N && { backgroundColor: N.surface, borderColor: N.border },
                     isActive && { borderColor: accent },
                     // Highlight JMN card when live
-                    isMasjid && isLive && !isActive && { borderColor: '#C0392B' },
+                    isMasjid && isLive && !isActive && { borderColor: '#C0392B' }
                   ]}
                 >
                   <TouchableOpacity
@@ -724,8 +724,8 @@ export default function StreamScreen() {
                             backgroundColor: isActive
                               ? accent + '22'
                               : (N ? N.surfaceAlt : Colors.surfaceAlt),
-                            alignItems: 'center', justifyContent: 'center',
-                          },
+                            alignItems: 'center', justifyContent: 'center'
+                          }
                         ]}>
                           <MaterialIcons
                             name={stream.icon as any}
@@ -746,7 +746,7 @@ export default function StreamScreen() {
                         radioStyles.stationName,
                         isMasjid && radioStyles.masjidName,
                         N && { color: N.text },
-                        isActive && { color: accent },
+                        isActive && { color: accent }
                       ]} numberOfLines={2}>
                         {stream.label}
                       </Text>
@@ -785,7 +785,7 @@ export default function StreamScreen() {
                         isActive && !isPlaying && { backgroundColor: accent },
                         isPlaying && { backgroundColor: '#C62828' },
                         !isActive && isMasjid && isLive && { backgroundColor: '#C0392B' },
-                        !isActive && !(isMasjid && isLive) && { backgroundColor: N ? N.border : Colors.border },
+                        !isActive && !(isMasjid && isLive) && { backgroundColor: N ? N.border : Colors.border }
                       ]}>
                         <MaterialIcons
                           name={isLoading ? 'hourglass-empty' : isPlaying ? 'stop' : 'play-arrow'}
@@ -862,7 +862,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'center'
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   headerMasjidName: { fontSize: 13, fontWeight: '800', color: Colors.primary, letterSpacing: 0.2 },
@@ -871,16 +871,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: '#7f1d1d',
     paddingHorizontal: 8, paddingVertical: 3,
-    borderRadius: Radius.full,
+    borderRadius: Radius.full
   },
   liveBadgeActive: {
-    backgroundColor: '#C0392B',
-    shadowColor: '#ff0000',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 8,
-    elevation: 6,
-  },
+    backgroundColor: '#C0392B'
+    
+    
+    
+    
+    },
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#fff' },
   liveText: { ...Typography.labelMedium, color: '#fff', fontSize: 10 },
   headerTitle: { ...Typography.titleLarge, color: Colors.textPrimary },
@@ -889,12 +888,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: Colors.surface,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
-    paddingHorizontal: Spacing.md, gap: Spacing.md,
+    paddingHorizontal: Spacing.md, gap: Spacing.md
   },
   tabBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingVertical: Spacing.sm, paddingHorizontal: 4,
-    borderBottomWidth: 2, borderBottomColor: 'transparent',
+    borderBottomWidth: 2, borderBottomColor: 'transparent'
   },
   tabBtnActive: { borderBottomColor: Colors.primary },
   tabText: { ...Typography.titleSmall, color: Colors.textSubtle },
@@ -905,41 +904,40 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: '#1C0000',
     borderRadius: Radius.md, borderWidth: 1.5, borderColor: '#C0392B',
-    paddingHorizontal: Spacing.md, paddingVertical: 12,
+    paddingHorizontal: Spacing.md, paddingVertical: 12
   },
   liveNowDot: {
     width: 12, height: 12, borderRadius: 6,
-    backgroundColor: '#ff4444',
+    backgroundColor: '#ff4444'
   },
   liveNowTitle: {
-    fontSize: 15, fontWeight: '800', color: '#ff6b6b',
+    fontSize: 15, fontWeight: '800', color: '#ff6b6b'
   },
   liveNowSub: {
-    fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 2,
+    fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 2
   },
   // YouTube
   ytHeroCard: {
     borderRadius: Radius.xl, overflow: 'hidden',
     backgroundColor: '#1a1a2e',
     borderWidth: 1, borderColor: '#333',
-    minHeight: 200,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25, shadowRadius: 14, elevation: 8,
-  },
+    minHeight: 200
+     
+      },
   ytHeroBg: {
     position: 'absolute', inset: 0,
     backgroundColor: '#C00000',
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center'
   },
   ytHeroContent: {
     flex: 1, padding: Spacing.lg, gap: 10, justifyContent: 'flex-end', minHeight: 200,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(0,0,0,0.45)'
   },
   ytLiveRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   ytLivePill: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: '#7f1d1d', borderRadius: Radius.full,
-    paddingHorizontal: 10, paddingVertical: 4,
+    paddingHorizontal: 10, paddingVertical: 4
   },
   ytLivePillActive: { backgroundColor: '#C00000' },
   ytLiveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#fff' },
@@ -951,43 +949,41 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'flex-start',
     backgroundColor: 'rgba(255,255,255,0.15)',
     borderRadius: Radius.full, paddingHorizontal: 14, paddingVertical: 9,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)'
   },
   ytOpenBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
   // Shared
   infoCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    backgroundColor: Colors.primarySoft, borderRadius: Radius.md, padding: Spacing.md,
+    backgroundColor: Colors.primarySoft, borderRadius: Radius.md, padding: Spacing.md
   },
   infoText: { ...Typography.bodyMedium, color: Colors.textPrimary, flex: 1, lineHeight: 22 },
   scheduleCard: {
     backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.md,
-    borderWidth: 1, borderColor: Colors.border, gap: Spacing.sm,
+    borderWidth: 1, borderColor: Colors.border, gap: Spacing.sm
   },
   scheduleTitle: { ...Typography.titleSmall, color: Colors.textPrimary, marginBottom: 4 },
   scheduleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
   scheduleDay: { ...Typography.labelLarge, color: Colors.textPrimary, fontSize: 14 },
-  scheduleTime: { ...Typography.bodySmall, color: Colors.textSubtle, marginTop: 1 },
+  scheduleTime: { ...Typography.bodySmall, color: Colors.textSubtle, marginTop: 1 }
 });
 
 const radioStyles = StyleSheet.create({
   stationCard: {
     backgroundColor: Colors.surface,
     borderRadius: Radius.lg, borderWidth: 1.5, borderColor: Colors.border,
-    padding: Spacing.md,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07, shadowRadius: 6, elevation: 3,
-  },
+    padding: Spacing.md
+     
+      },
   masjidCard: {
     padding: Spacing.lg,
-    borderWidth: 2,
-    shadowOpacity: 0.13, shadowRadius: 10, elevation: 6,
-  },
+    borderWidth: 2
+      },
   stationMain: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   thumbWrap: {
     borderRadius: Radius.md,
     alignItems: 'center', justifyContent: 'center',
-    overflow: 'visible',
+    overflow: 'visible'
   },
   thumb: { borderRadius: Radius.md },
   liveBadgeDot: {
@@ -995,7 +991,7 @@ const radioStyles = StyleSheet.create({
     top: -3, right: -3,
     width: 12, height: 12, borderRadius: 6,
     backgroundColor: '#ff2222',
-    borderWidth: 2, borderColor: '#fff',
+    borderWidth: 2, borderColor: '#fff'
   },
   stationName: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary },
   masjidName: { fontSize: 16 },
@@ -1008,19 +1004,18 @@ const radioStyles = StyleSheet.create({
   playBtn: {
     width: 40, height: 40, borderRadius: 20,
     backgroundColor: Colors.border,
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15, shadowRadius: 4, elevation: 3,
-  },
+    alignItems: 'center', justifyContent: 'center'
+     
+      },
   masjidPlayBtn: {
-    width: 48, height: 48, borderRadius: 24,
+    width: 48, height: 48, borderRadius: 24
   },
   notifRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     borderTopWidth: 1, borderTopColor: Colors.border,
-    marginTop: 12, paddingTop: 12,
+    marginTop: 12, paddingTop: 12
   },
   notifLabel: {
-    flex: 1, fontSize: 13, fontWeight: '600', color: Colors.textSecondary,
-  },
+    flex: 1, fontSize: 13, fontWeight: '600', color: Colors.textSecondary
+  }
 });

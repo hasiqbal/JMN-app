@@ -54,9 +54,9 @@ const NIGHT = {
   cardBg:       '#111A2E',
   jumuahBg:     '#1F1A0A',
   jumuahBord:   '#3D2F00',
-  accent:       '#22C55E',
-  accentSoft:   '#4ADE80',
-  accentGlow:   'rgba(34,197,94,0.15)',
+  accent:       '#4FE948',
+  accentSoft:   '#A4F2A0',
+  accentGlow:   'rgba(79,233,72,0.16)',
   gold:         '#FBBF24',
   cardShadow:   'rgba(0,0,0,0.30)',
 };
@@ -523,8 +523,8 @@ function FlippingLogoCard({ nightMode, sunnah }: {
 
   const renderFace = () => {
     if (displayFace === 'sunnah') {
-      const sunnahColor = nightMode ? '#52B788' : Colors.primary;
-      const accentBg    = nightMode ? 'rgba(82,183,136,0.12)' : 'rgba(27,138,90,0.08)';
+      const sunnahColor = nightMode ? '#4FE948' : Colors.primary;
+      const accentBg    = nightMode ? 'rgba(79,233,72,0.12)' : 'rgba(79,233,72,0.08)';
       return (
         <View style={flipCard.face}>
           <View style={flipCard.faceHeader}>
@@ -541,7 +541,7 @@ function FlippingLogoCard({ nightMode, sunnah }: {
     }
     if (displayFace === 'hadith') {
       const hadithColor = nightMode ? NIGHT.accentSoft : Colors.primary;
-      const hadithBg    = nightMode ? NIGHT.accentGlow : 'rgba(27,138,90,0.07)';
+      const hadithBg    = nightMode ? NIGHT.accentGlow : 'rgba(79,233,72,0.07)';
       return (
         <View style={flipCard.face}>
           <View style={flipCard.faceHeader}>
@@ -558,8 +558,8 @@ function FlippingLogoCard({ nightMode, sunnah }: {
       );
     }
     if (displayFace === 'verse') {
-      const verseCol = nightMode ? '#52B788' : Colors.primary;
-      const verseBg  = nightMode ? 'rgba(82,183,136,0.12)' : 'rgba(27,138,90,0.08)';
+      const verseCol = nightMode ? '#4FE948' : Colors.primary;
+      const verseBg  = nightMode ? 'rgba(79,233,72,0.12)' : 'rgba(79,233,72,0.08)';
       return (
         <View style={flipCard.face}>
           <View style={flipCard.faceHeader}>
@@ -641,7 +641,7 @@ type FYCardData = {
 
 const PRAYER_ADHKAR_CARDS: Record<string, FYCardData> = {
   Fajr: {
-    id: 'adhkar-fajr', icon: 'wb-twilight', color: '#1B8A5A',
+    id: 'adhkar-fajr', icon: 'wb-twilight', color: '#4FE948',
     title: 'Morning Adhkar', sub: 'Wird al-Latif · Yaseen · Dua of Yaseen',
     route: '/(tabs)/duas', badge: 'After Fajr', prayerTab: 'after-fajr',
   },
@@ -967,8 +967,8 @@ function QuranPortionCard({
   };
 
   const lv = QURAN_READ_LEVELS[levelIdx];
-  const accentColor = nightMode ? '#52B788' : lv.color;
-  const bgTint      = nightMode ? 'rgba(82,183,136,0.15)' : lv.bg;
+  const accentColor = nightMode ? '#4FE948' : lv.color;
+  const bgTint      = nightMode ? 'rgba(79,233,72,0.15)' : lv.bg;
 
   // ── Pick content based on level ────────────────────────────────────────
   let badge = '';
@@ -1421,7 +1421,7 @@ function DuroodCounterCard({
 // ── Next Adhkar Countdown Card ──────────────────────────────────────────
 const PRAYER_ADHKAR_META: Record<string, { icon: string; color: string; title: string; sub: string; badge: string; prayerTab: string }> = {
   Tahajjud:{ icon: 'nights-stay', color: '#1A237E', title: 'Tahajjud Adhkar', sub: 'Night prayer · Witr · Istighfar · Last-third duas', badge: 'Before Fajr',   prayerTab: 'before-fajr'   },
-  Fajr:    { icon: 'wb-twilight', color: '#1B8A5A', title: 'Morning Adhkar',  sub: 'Wird al-Latif · Yaseen · Dua',         badge: 'After Fajr',    prayerTab: 'after-fajr'    },
+  Fajr:    { icon: 'wb-twilight', color: '#4FE948', title: 'Morning Adhkar',  sub: 'Wird al-Latif · Yaseen · Dua',         badge: 'After Fajr',    prayerTab: 'after-fajr'    },
   Dhuhr:   { icon: 'wb-sunny',    color: '#0A5C9E', title: 'Dhuhr Adhkar',   sub: 'Tasbih · Salawat · Astaghfirullah',    badge: 'After Dhuhr',   prayerTab: 'after-dhuhr'   },
   Asr:     { icon: 'wb-cloudy',   color: '#E65100', title: 'Asr Adhkar',     sub: 'Al-Waqiah · Hizb ul Bahr',             badge: 'After Asr',     prayerTab: 'after-asr'     },
   Maghrib: { icon: 'bedtime',     color: '#6A1B9A', title: 'Evening Adhkar', sub: 'Evening duas & protection dhikr',      badge: 'After Maghrib', prayerTab: 'after-maghrib' },
@@ -1983,8 +1983,8 @@ function ForYouTodaySection({
           ]}>
             <View style={fyStyles.colorBar} />
             <View style={[fyStyles.cardBody, { alignItems: 'center', gap: 8, paddingVertical: 16 }]}>
-              <View style={[fyStyles.iconCircle, { backgroundColor: '#1B8A5A22', width: 40, height: 40, borderRadius: 20 }]}>
-                <MaterialIcons name="check-circle" size={22} color="#1B8A5A" />
+              <View style={[fyStyles.iconCircle, { backgroundColor: '#4FE94822', width: 40, height: 40, borderRadius: 20 }]}>
+                <MaterialIcons name="check-circle" size={22} color="#4FE948" />
               </View>
               <Text style={[fyStyles.cardTitle, { textAlign: 'center', fontSize: 13 }, N && { color: N.text }]}>
                 All caught up!
@@ -2717,7 +2717,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.xs,
   },
   quickLinkIconGlow: {
-    shadowColor: '#22C55E',
+    shadowColor: '#4FE948',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.85,
     shadowRadius: 8,

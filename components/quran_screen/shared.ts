@@ -13,7 +13,7 @@ const NIGHT = {
   textSub:    '#93B4D8',   // Clear blue-grey
   textMuted:  '#5A7A9E',   // Readable muted
   accent:     '#6AAEFF',   // Bright sky blue
-  primary:    '#4DCF88',   // Bright emerald green
+  primary:    '#4FE948',   // Primary green
   chip:       '#0A1A35',   // Chip bg
 };
 
@@ -34,9 +34,7 @@ const ysPdfSt = StyleSheet.create({
   pageCard: {
     borderRadius: 3,
     overflow: 'hidden',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
+    boxShadow: '0px 4px 10px rgba(0, 0, 0, 0.20)',
     elevation: 6,
     position: 'relative',
   },

@@ -599,7 +599,7 @@ function BeforeFajrScreen({ nightMode, onSelect, onSelectGroup }: { nightMode: b
     routeMap={BEFORE_FAJR_GROUP_TO_SELECTION}
     icon="nights-stay" nightIcon="nights-stay" nightColor="#A5B4FC" accent="#3949AB"
     title="Before Fajr & Tahajjud" subtitle="Choose what to recite before Fajr and during Tahajjud"
-    colors={['#3949AB','#1B8A5A','#6A1B9A','#1565C0','#E65100','#B8860B','#00695C']}
+    colors={['#3949AB','#4FE948','#6A1B9A','#1565C0','#E65100','#B8860B','#00695C']}
   />;
 }
 
@@ -960,7 +960,7 @@ function AfterMaghribScreen({ nightMode, onSelect, onSelectGroup }: { nightMode:
     routeMap={MAGHRIB_GROUP_TO_SELECTION}
     icon="bedtime" nightIcon="bedtime" nightColor="#C084FC" accent="#6A1B9A"
     title="After Maghrib" subtitle="Choose what to recite after Maghrib prayer"
-    colors={['#6A1B9A','#AD1457','#1565C0','#1B8A5A','#E65100','#3949AB','#B8860B']}
+    colors={['#6A1B9A','#AD1457','#1565C0','#4FE948','#E65100','#3949AB','#B8860B']}
   />;
 }
 
@@ -1045,7 +1045,7 @@ function AfterIshaScreen({ nightMode, onSelectGroup }: { nightMode: boolean; onS
     prayerTime="after-isha" nightMode={nightMode} onSelect={handleIshaSelect} onSelectGroup={(gn) => setViewingGroupName(gn)}
     icon="nightlight" nightIcon="nightlight" nightColor="#93C5FD" accent="#1565C0"
     title="After Isha" subtitle="Choose what to recite after Isha prayer"
-    colors={['#1565C0','#3949AB','#6A1B9A','#1B8A5A','#00695C','#AD1457','#B8860B']}
+    colors={['#1565C0','#3949AB','#6A1B9A','#4FE948','#00695C','#AD1457','#B8860B']}
   />;
 }
 
@@ -1425,7 +1425,7 @@ const WIRD_SURAHS = [
     number: null,
     title: 'Peace upon Nuh (AS)',
     arabicTitle: 'سَلَامٌ عَلَى نُوح',
-    color: '#1B8A5A',
+    color: '#4FE948',
     arabic:
       'سَلَامٌ عَلَىٰ نُوحٍ فِي الْعَالَمِينَ ﴿٧٩﴾ إِنَّا كَذَٰلِكَ نَجْزِي الْمُحْسِنِينَ ﴿٨٠﴾ إِنَّهُ مِنْ عِبَادِنَا الْمُؤْمِنِينَ ﴿٨١﴾',
     transliteration:
@@ -1468,7 +1468,7 @@ const WIRD_SURAHS = [
     number: null,
     title: 'Morning Blessing & Protection',
     arabicTitle: 'اللَّهُمَّ إِنِّي أَصْبَحْتُ',
-    color: '#1B8A5A',
+    color: '#4FE948',
     count: '×3',
     arabic:
       'اللَّهُمَّ إِنِّي أَصْبَحْتُ مِنْكَ فِي نِعْمَةٍ وَعَافِيَةٍ وَسِتْرٍ، فَأَتِمَّ نِعْمَتَكَ عَلَيَّ وَعَافِيَتَكَ وَسِتْرَكَ فِي الدُّنْيَا وَالْآخِرَةِ',
@@ -1558,7 +1558,7 @@ const WIRD_SURAHS = [
     number: null,
     title: 'Salawat on the Prophet',
     arabicTitle: 'اللَّهُمَّ صَلِّ عَلَى سَيِّدِنَا',
-    color: '#1B8A5A',
+    color: '#4FE948',
     count: '×10',
     arabic:
       'اللَّهُمَّ صَلِّ عَلَى سَيِّدِنَا مُحَمَّدٍ وَآلِهِ وَصَحْبِهِ وَسَلِّمْ',
@@ -1663,7 +1663,7 @@ const WIRD_SURAHS = [
     number: null,
     title: 'Refuge from Anxiety & Grief',
     arabicTitle: 'أَعُوذُ بِكَ مِنَ الْهَمِّ',
-    color: '#1B8A5A',
+    color: '#4FE948',
     count: '×1',
     arabic:
       'اللَّهُمَّ إِنِّي أَعُوذُ بِكَ مِنَ الْهَمِّ وَالْحَزَنِ، وَأَعُوذُ بِكَ مِنَ الْعَجْزِ وَالْكَسَلِ، وَأَعُوذُ بِكَ مِنَ الْجُبْنِ وَالْبُخْلِ، وَأَعُوذُ بِكَ مِنْ غَلَبَةِ الدَّيْنِ وَقَهْرِ الرِّجَالِ',
@@ -1753,7 +1753,7 @@ const WIRD_SURAHS = [
     number: null,
     title: 'Morning upon the Fitrah of Islam',
     arabicTitle: 'أَصْبَحْنَا عَلَى فِطْرَةِ الْإِسْلَام',
-    color: '#1B8A5A',
+    color: '#4FE948',
     count: '×1',
     arabic:
       'أَصْبَحْنَا عَلَى فِطْرَةِ الْإِسْلَامِ، وَعَلَى كَلِمَةِ الْإِخْلَاصِ، وَعَلَى دِينِ نَبِيِّنَا مُحَمَّدٍ صَلَّى اللَّهُ عَلَيْهِ وَآلِهِ وَسَلَّمَ، وَعَلَى مِلَّةِ أَبِينَا إِبْرَاهِيمَ حَنِيفًا مُسْلِمًا وَمَا كَانَ مِنَ الْمُشْرِكِينَ',
@@ -1828,7 +1828,7 @@ const WIRD_SURAHS = [
     number: null,
     title: 'SubhanAllah — Equal to His Creation',
     arabicTitle: 'سُبْحَانَ اللَّهِ وَبِحَمْدِهِ عَدَدَ خَلْقِه',
-    color: '#1B8A5A',
+    color: '#4FE948',
     count: '×3',
     arabic:
       'سُبْحَانَ اللَّهِ وَبِحَمْدِهِ عَدَدَ خَلْقِهِ، وَرِضَاءَ نَفْسِهِ، وَزِنَةَ عَرْشِهِ، وَمِدَادَ كَلِمَاتِهِ',
@@ -1891,7 +1891,7 @@ const WIRD_SURAHS = [
     number: null,
     title: 'La Ilaha illa Allah — Final Closing Dhikr',
     arabicTitle: 'لَا إِلَهَ إِلَّا اللَّهُ — خَاتِمَة',
-    color: '#1B8A5A',
+    color: '#4FE948',
     count: '×3',
     arabic:
       'لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَاشَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ يُحْيِي وَيُمِيتُ وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٍ عَدَدَ كُلِّ ذَرَّةٍ أَلْفَ مَرَّةٍ',

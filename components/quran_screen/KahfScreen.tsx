@@ -64,7 +64,7 @@ function SurahKahfScreen({ nightMode, onBack }: { nightMode: boolean; onBack: ()
   const BG = N ? '#081408' : '#F0FBF4';
   const HDR_BG = N ? '#040C06' : '#E8F5EC';
   const HDR_BORDER = N ? '#1A4A25' : '#5A9A6A';
-  const ACCENT = N ? '#4ADE80' : '#1B8A5A';
+  const ACCENT = '#4FE948';
   const META = N ? '#94A3B8' : '#6B7280';
 
   const has16LineImages = Object.keys(KAHF_16LINE_LOCAL).length > 0;

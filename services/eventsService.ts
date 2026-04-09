@@ -91,7 +91,7 @@ export const MOCK_ANNOUNCEMENTS: Announcement[] = [
 export function getEventCategoryColor(category: MasjidEvent['category']): string {
   const map = {
     lecture: '#2D6A4F',
-    class: '#52B788',
+    class: '#4FE948',
     community: '#B7935A',
     special: '#C0392B',
   };

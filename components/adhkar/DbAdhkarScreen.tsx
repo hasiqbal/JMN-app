@@ -37,7 +37,7 @@ const ENHANCED_ARABIC_GROUPS = new Set([
 
 // ── Prayer-time display metadata ─────────────────────────────────────────
 const PRAYER_TIME_META: Record<string, { title: string; icon: string; accent: string }> = {
-  'after-fajr':    { title: 'Morning Adhkar',         icon: 'wb-twilight', accent: '#1B8A5A' },
+  'after-fajr':    { title: 'Morning Adhkar',         icon: 'wb-twilight', accent: '#4FE948' },
   'after-zuhr':    { title: 'After Dhuhr Adhkar',     icon: 'wb-sunny',    accent: '#0A5C9E' },
   'after-jumuah':  { title: "After Jumu'ah Adhkar",   icon: 'star',        accent: '#B8860B' },
   'after-asr':     { title: 'After Asr Adhkar',       icon: 'wb-cloudy',   accent: '#E65100' },
@@ -50,7 +50,7 @@ const PRAYER_TIME_META: Record<string, { title: string; icon: string; accent: st
   'Dua after Surah Yaseen':  { title: 'Dua after Surah Yaseen',    icon: 'favorite',    accent: '#C62828' },
   'Dua al-Waqiah':           { title: 'Dua after Surah Waqiah',    icon: 'auto-awesome',accent: '#6A1B9A' },
   'Wird Abu Bakr bin Salim': { title: 'Wird of Abu Bakr bin Salim',icon: 'stars',       accent: '#B8860B' },
-  'Morning Adhkar':          { title: 'Morning Adhkar',            icon: 'wb-twilight', accent: '#1B8A5A' },
+  'Morning Adhkar':          { title: 'Morning Adhkar',            icon: 'wb-twilight', accent: '#4FE948' },
 };
 
 // ── Shared Arabic/wording styles ─────────────────────────────────────────
@@ -187,8 +187,8 @@ export function DbAdhkarScreen({
   }, [prayerTime, groupFilter]);
 
   const meta = groupFilter
-    ? (PRAYER_TIME_META[groupFilter] ?? PRAYER_TIME_META[prayerTime] ?? { title: groupFilter, icon: 'auto-awesome', accent: '#1B8A5A' })
-    : (PRAYER_TIME_META[prayerTime] ?? { title: 'Adhkar', icon: 'auto-awesome', accent: '#1B8A5A' });
+    ? (PRAYER_TIME_META[groupFilter] ?? PRAYER_TIME_META[prayerTime] ?? { title: groupFilter, icon: 'auto-awesome', accent: '#4FE948' })
+    : (PRAYER_TIME_META[prayerTime] ?? { title: 'Adhkar', icon: 'auto-awesome', accent: '#4FE948' });
   const displayTitle = titleOverride ?? meta.title;
   const accent = meta.accent;
 

@@ -14,8 +14,8 @@ function LiveDot() {
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1,   duration: 600, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0.4, duration: 600, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1,   duration: 600, useNativeDriver: Platform.OS !== 'web' }),
+        Animated.timing(pulse, { toValue: 0.4, duration: 600, useNativeDriver: Platform.OS !== 'web' }),
       ])
     );
     loop.start();

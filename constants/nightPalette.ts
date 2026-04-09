@@ -12,7 +12,9 @@ export const NIGHT_PALETTE = {
   textSub:    '#93B4D8',
   textMuted:  '#5A7A9E',
   accent:     '#6AAEFF',
-  primary:    '#4DCF88',
+  primary:    '#4FE948',
+  primarySoft:'#A4F2A0',
+  primaryGlow:'rgba(79,233,72,0.16)',
   chip:       '#0A1A35',
 } as const;
 

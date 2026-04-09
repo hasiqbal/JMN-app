@@ -10,7 +10,7 @@ export async function fetchLiveStatus(): Promise<boolean> {
       .from('app_settings')
       .select('value')
       .eq('key', 'is_live')
-      .single();
+      .maybeSingle();
     if (error || !data) return false;
     return data.value === 'true';
   } catch {

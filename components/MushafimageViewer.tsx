@@ -288,7 +288,7 @@ export function KahfMushafPlaceholder({ nightMode, onBack }: { nightMode: boolea
     nightMode={nightMode} pageNums={KAHF_PAGE_NUMS} localPages={KAHF_15LINE_LOCAL} ayatMap={KAHF_PAGE_AYAT}
     nameAr={'سُورَةُ الْكَهْف'}
     nameEn="Surah Al-Kahf" juz="Juz 15–16 · 110 verses"
-    accentDay="#1B8A5A" accentNight="#4ADE80"
+    accentDay="#4FE948" accentNight="#4FE948"
     bgNight="#081408" hdrBgNight="#04080A" hdrBorNight="#1A4A25"
     bgDay="#F0FBF4" hdrBgDay="#E8F5EC" hdrBorDay="#5A9A6A"
   />;
