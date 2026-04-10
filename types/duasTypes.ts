@@ -82,11 +82,11 @@ export interface PrayerTimeEntry {
 }
 
 export const PRAYER_TIMES: PrayerTimeEntry[] = [
-  { id: 'before-fajr',   label: 'Before Fajr & Tahajjud',   arabicLabel: 'قَبْلَ الفَجْر',   icon: 'nights-stay',  color: '#3949AB', accentBg: '#3949AB15' },
-  { id: 'after-fajr',    label: 'After Fajr',    arabicLabel: 'بَعْدَ الفَجْر',   icon: 'wb-twilight',  color: '#4FE948', accentBg: '#4FE94815' },
-  { id: 'after-zuhr',    label: 'After Dhuhr',   arabicLabel: 'بَعْدَ الظُّهْر',  icon: 'wb-sunny',     color: '#0A5C9E', accentBg: '#0A5C9E15' },
-  { id: 'after-jumuah',  label: "After Jumu'ah", arabicLabel: 'بَعْدَ الجُمُعَة', icon: 'star',         color: '#B8860B', accentBg: '#B8860B15' },
-  { id: 'after-asr',     label: 'After Asr',     arabicLabel: 'بَعْدَ العَصْر',   icon: 'wb-cloudy',    color: '#E65100', accentBg: '#E6510015' },
-  { id: 'after-maghrib', label: 'After Maghrib', arabicLabel: 'بَعْدَ المَغْرِب', icon: 'bedtime',      color: '#6A1B9A', accentBg: '#6A1B9A15' },
-  { id: 'after-isha',    label: 'After Isha',    arabicLabel: 'بَعْدَ العِشَاء',  icon: 'nightlight',   color: '#1565C0', accentBg: '#1565C015' },
+  { id: 'before-fajr',   label: 'Before Fajr & Tahajjud',   arabicLabel: 'قَبْلَ الفَجْر',   icon: 'nights-stay',  color: '#3FAE5A', accentBg: '#E6F4EA' },
+  { id: 'after-fajr',    label: 'After Fajr',    arabicLabel: 'بَعْدَ الفَجْر',   icon: 'wb-twilight',  color: '#3FAE5A', accentBg: '#E6F4EA' },
+  { id: 'after-zuhr',    label: 'After Dhuhr',   arabicLabel: 'بَعْدَ الظُّهْر',  icon: 'wb-sunny',     color: '#3FAE5A', accentBg: '#E6F4EA' },
+  { id: 'after-jumuah',  label: "After Jumu'ah", arabicLabel: 'بَعْدَ الجُمُعَة', icon: 'star',         color: '#3FAE5A', accentBg: '#E6F4EA' },
+  { id: 'after-asr',     label: 'After Asr',     arabicLabel: 'بَعْدَ العَصْر',   icon: 'wb-cloudy',    color: '#3FAE5A', accentBg: '#E6F4EA' },
+  { id: 'after-maghrib', label: 'After Maghrib', arabicLabel: 'بَعْدَ المَغْرِب', icon: 'bedtime',      color: '#3FAE5A', accentBg: '#E6F4EA' },
+  { id: 'after-isha',    label: 'After Isha',    arabicLabel: 'بَعْدَ العِشَاء',  icon: 'nightlight',   color: '#3FAE5A', accentBg: '#E6F4EA' },
 ];

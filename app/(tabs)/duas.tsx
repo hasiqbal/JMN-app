@@ -6,9 +6,8 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
+  Pressable,
   ImageBackground,
-  Animated,
-  Easing,
 } from 'react-native';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 
@@ -39,16 +38,38 @@ import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { useNightMode } from '@/hooks/useNightMode';
 import { fetchAdhkarForPrayerTime, fetchAdhkarGroupsForPrayerTime, AdhkarGroupMeta, AdhkarRow, resolveAdhkarUrduTranslation } from '@/services/contentService';
 import { ImranMushafPlaceholder, LuqmanMushafPlaceholder, MulkMushafPlaceholder, SajdahMushafPlaceholder } from '@/components/MushafimageViewer';
-import { StarField } from '@/components/adhkar/StarField';
 import { NightModeToggle } from '@/components/adhkar/NightModeToggle';
 import { PrayerTimeChipBar } from '@/components/adhkar/PrayerTimeChipBar';
 import { DbAdhkarScreen } from '@/components/adhkar/DbAdhkarScreen';
 import { NIGHT_PALETTE as NIGHT } from '@/components/quran_screen/shared';
 import { SurahKahfScreen, SurahSajdahScreen, SurahWaqiahMushafScreen, SurahYaseenScreen } from '@/components/quran_screen';
-import { PRAYER_MOODS } from '@/constants/prayerMoods';
 import { getPrayerTimesForDate, PrayerTimesData } from '@/services/prayerService';
 
-// StarField, NightModeToggle, PrayerTimeChipBar, DbAdhkarScreen — imported from components/adhkar/
+const DUAS_ACCENT_GREEN = '#3FAE5A';
+const DUAS_ACCENT_GREEN_SOFT = '#E7F4EA';
+const FLOW_ACCENT = '#3FAE5A';
+const FLOW_ACCENT_DARK = '#2C7A41';
+const ADHKAR_SURFACE_OVERLAY = 'rgba(245, 247, 245, 0.82)';
+const ADHKAR_CONTEXT_OVERLAY = 'rgba(63, 174, 90, 0.03)';
+const ADHKAR_HERO_GRADIENT: [string, string, string] = ['rgba(255,255,255,0.22)', 'rgba(230,244,234,0.74)', 'rgba(245,247,245,0.96)'];
+const ADHKAR_CARD_TITLE = '#1F2A24';
+const ADHKAR_CARD_TEXT = '#6B7A72';
+const ADHKAR_META_TEXT = '#7A887F';
+const ADHKAR_DESCRIPTION_TEXT = '#4F5D56';
+const ADHKAR_ICON_BG = '#F0F7F3';
+const ADHKAR_ARROW = '#A0A8A2';
+
+const GUIDED_FLOW_META: Record<PrayerTimeId, { accent: string; background: string; doneTitle: string; icon: string }> = {
+  'before-fajr': { accent: DUAS_ACCENT_GREEN, background: Colors.background, doneTitle: 'Before Fajr Adhkar', icon: 'nights-stay' },
+  'after-fajr': { accent: DUAS_ACCENT_GREEN, background: Colors.background, doneTitle: 'Morning Adhkar', icon: 'wb-twilight' },
+  'after-zuhr': { accent: DUAS_ACCENT_GREEN, background: Colors.background, doneTitle: 'After Dhuhr Adhkar', icon: 'wb-sunny' },
+  'after-jumuah': { accent: DUAS_ACCENT_GREEN, background: Colors.background, doneTitle: "After Jumu'ah Adhkar", icon: 'star' },
+    'after-asr': { accent: DUAS_ACCENT_GREEN, background: Colors.background, doneTitle: 'After Asr Adhkar', icon: 'wb-cloudy' },
+    'after-maghrib': { accent: DUAS_ACCENT_GREEN, background: Colors.background, doneTitle: 'Evening Adhkar', icon: 'bedtime' },
+    'after-isha': { accent: DUAS_ACCENT_GREEN, background: Colors.background, doneTitle: 'After Isha Adhkar', icon: 'nightlight' },
+};
+
+// NightModeToggle, PrayerTimeChipBar, DbAdhkarScreen — imported from components/adhkar/
 
 function resolveSelectionFromGroupMeta(
   group: Pick<AdhkarGroupMeta, 'group_name' | 'arabic_title' | 'card_subtitle' | 'description' | 'content_key' | 'content_type'>,
@@ -103,6 +124,11 @@ function resolveSelectionFromGroupMeta(
   }
 
   return undefined;
+}
+
+function resolveGroupCardTitle(group: AdhkarGroupMeta): string {
+  const portalName = (group.name ?? '').trim();
+  return portalName || group.group_name;
 }
 
 function resolvePrayerTimeByClock(data: PrayerTimesData, now: Date = new Date()): PrayerTimeId {
@@ -179,8 +205,6 @@ export default function DuasScreen() {
       const normParam = prayerTimeParam === 'after-dhuhr' ? 'after-zuhr' : prayerTimeParam;
       if (PRAYER_TIMES.some(pt => pt.id === normParam)) {
         setSelectedPrayerTime(normParam as PrayerTimeId);
-        setAdhkarFlowActive(false);
-        setAsrFlowActive(false);
         // If a group param is provided, jump straight to that group
         if (groupParam) {
           setViewingGroup({ groupName: groupParam, prayerTime: normParam as PrayerTimeId });
@@ -209,10 +233,12 @@ export default function DuasScreen() {
     'MarwanIndoPak': 'https://static-cdn.tarteel.ai/qul/fonts/nastaleeq/Hanafi/normal-v4.2.2/with-waqf-lazmi/font.ttf',
     'UrduNastaliq': require('@/assets/fonts/UrduNastaliq.ttf'),
   });
-  const [adhkarFlowActive, setAdhkarFlowActive] = useState(false);
-  const [adhkarFlowStep, setAdhkarFlowStep] = useState<1|2|3|4>(1);
-  const [asrFlowActive, setAsrFlowActive]   = useState(false);
-  const [asrFlowStep, setAsrFlowStep]       = useState<1|2|3|4>(1);
+  const [surahFlowContext, setSurahFlowContext] = useState<{
+    prayerTime: PrayerTimeId;
+    surahs: AdhkarSelection[];
+    currentIndex: number;
+    completed: Set<number>;
+  } | null>(null);
 
   const debugLog = (...parts: any[]) => {
     if (__DEV__) {
@@ -225,10 +251,8 @@ export default function DuasScreen() {
       selectedPrayerTime,
       fajrSelection,
       viewingGroup,
-      adhkarFlowActive,
-      asrFlowActive,
     });
-  }, [selectedPrayerTime, fajrSelection, viewingGroup, adhkarFlowActive, asrFlowActive]);
+  }, [selectedPrayerTime, fajrSelection, viewingGroup]);
 
   // Reset all sub-screens when the tab is tapped / re-focused
   useFocusEffect(
@@ -241,36 +265,9 @@ export default function DuasScreen() {
 
   // Expose a single reset fn so the header logo can also trigger it
   const resetToMain = () => {
-    setAdhkarFlowActive(false);
-    setAdhkarFlowStep(1);
-    setAsrFlowActive(false);
-    setAsrFlowStep(1);
     setFajrSelection(null);
     setViewingGroup(null);
-  };
-
-  const startAdhkarFlow = () => {
-    setAdhkarFlowActive(true);
-    setAdhkarFlowStep(1);
-    setFajrSelection(null);
-    setSelectedPrayerTime('after-fajr');
-  };
-
-  const exitAdhkarFlow = () => {
-    setAdhkarFlowActive(false);
-    setAdhkarFlowStep(1);
-  };
-
-  const startAsrFlow = () => {
-    setAsrFlowActive(true);
-    setAsrFlowStep(1);
-    setFajrSelection(null);
-    setSelectedPrayerTime('after-asr');
-  };
-
-  const exitAsrFlow = () => {
-    setAsrFlowActive(false);
-    setAsrFlowStep(1);
+    setSurahFlowContext(null);
   };
 
   const openGroupOrSpecial = (groupName: string, prayerTime: PrayerTimeId) => {
@@ -318,8 +315,7 @@ export default function DuasScreen() {
     if (mapped) {
       debugLog('openGroupOrSpecial -> special', { groupName, prayerTime, mapped });
       setViewingGroup(null);
-      setAdhkarFlowActive(false);
-      setAsrFlowActive(false);
+      setSurahFlowContext(null);
       setFajrSelection(mapped);
       return;
     }
@@ -329,28 +325,6 @@ export default function DuasScreen() {
   };
 
   const N = nightMode ? NIGHT : null;
-  const [activeMood, setActiveMood] = useState(PRAYER_MOODS[selectedPrayerTime]);
-  const [incomingMood, setIncomingMood] = useState<(typeof PRAYER_MOODS)[PrayerTimeId] | null>(null);
-  const moodOverlayOpacity = React.useRef(new Animated.Value(0)).current;
-
-  React.useEffect(() => {
-    const nextMood = PRAYER_MOODS[selectedPrayerTime];
-    if (nextMood === activeMood) return;
-
-    setIncomingMood(nextMood);
-    moodOverlayOpacity.setValue(0);
-    Animated.timing(moodOverlayOpacity, {
-      toValue: 1,
-      duration: 420,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (!finished) return;
-      setActiveMood(nextMood);
-      setIncomingMood(null);
-      moodOverlayOpacity.setValue(0);
-    });
-  }, [selectedPrayerTime, activeMood, moodOverlayOpacity]);
 
   const renderPrayerTimePicker = () => (
     <View style={{ flex: 1 }}>
@@ -370,80 +344,110 @@ export default function DuasScreen() {
         onSelectSpecial={(selection) => {
           debugLog('onSelectSpecial', { selection, selectedPrayerTime });
           setViewingGroup(null);
-          setAdhkarFlowActive(false);
-          setAsrFlowActive(false);
+          setSurahFlowContext(null);
           setFajrSelection(selection);
         }}
         onSelectGroup={openGroupOrSpecial}
-        onStartFlow={selectedPrayerTime === 'after-fajr' ? startAdhkarFlow : selectedPrayerTime === 'after-asr' ? startAsrFlow : undefined}
       />
     </View>
   );
 
+  const handleOpenSpecialGroupFromFlow = (
+    selection: AdhkarSelection,
+    availableSurahs?: AdhkarSelection[],
+    currentIndex?: number
+  ) => {
+    setViewingGroup(null);
+    setFajrSelection(selection);
+    setSurahFlowContext(null);
+  };
+
+  const closeSurahFlow = () => {
+    setFajrSelection(null);
+    setSurahFlowContext(null);
+  };
+
+  const moveSurahFlow = (markCompleted: boolean) => {
+    if (!surahFlowContext) {
+      closeSurahFlow();
+      return;
+    }
+
+    const completed = new Set(surahFlowContext.completed);
+    if (markCompleted) {
+      completed.add(surahFlowContext.currentIndex);
+    }
+
+    const nextIndex = surahFlowContext.currentIndex + 1;
+    if (nextIndex >= surahFlowContext.surahs.length) {
+      closeSurahFlow();
+      return;
+    }
+
+    setFajrSelection(surahFlowContext.surahs[nextIndex]);
+    setSurahFlowContext({
+      ...surahFlowContext,
+      currentIndex: nextIndex,
+      completed,
+    });
+  };
+
+  const renderSurahWithFlow = (surahComponent: React.ReactNode) => (
+    <SurahFlowWrapper
+      surahFlowContext={surahFlowContext}
+      nightMode={nightMode}
+      onSkip={() => moveSurahFlow(false)}
+      onNext={() => moveSurahFlow(true)}
+    >
+      {surahComponent}
+    </SurahFlowWrapper>
+  );
+
   const renderActiveContent = () => {
-    if (asrFlowActive) {
-      return (
-        <AsrFlowScreen
-          step={asrFlowStep}
-          onStepChange={setAsrFlowStep}
-          onExit={exitAsrFlow}
-          nightMode={nightMode}
-        />
-      );
-    }
-
-    if (adhkarFlowActive) {
-      return (
-        <AdhkarFlowScreen
-          step={adhkarFlowStep}
-          onStepChange={setAdhkarFlowStep}
-          onExit={exitAdhkarFlow}
-          nightMode={nightMode}
-        />
-      );
-    }
-
     switch (fajrSelection) {
       case 'yaseen':
-        return <SurahYaseenScreen nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
+        return renderSurahWithFlow(<SurahYaseenScreen nightMode={nightMode} onBack={closeSurahFlow} />);
       case 'wird-al-latif':
         return (
           <DbAdhkarScreen
             prayerTime="after-fajr"
             groupFilter="Wird al-Latif"
             nightMode={nightMode}
-            onBack={() => setFajrSelection(null)}
-            onOpenSpecialGroup={setFajrSelection}
+            onBack={closeSurahFlow}
+            onOpenSpecialGroup={(selection) => {
+              setSurahFlowContext(null);
+              setFajrSelection(selection);
+            }}
           />
         );
       case 'wird-abu-bakr':
-        return <WirdAbuBakrFullScreen nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
+        return <WirdAbuBakrFullScreen nightMode={nightMode} onBack={closeSurahFlow} />;
       case 'yaseen-dua':
-        return <DuaYaseenScreen nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
+        return <DuaYaseenScreen nightMode={nightMode} onBack={closeSurahFlow} />;
       case 'waqiah':
-        return <SurahWaqiahMushafScreen nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
+        return renderSurahWithFlow(<SurahWaqiahMushafScreen nightMode={nightMode} onBack={closeSurahFlow} />);
       case 'hizb-bahr':
-        return <DbAdhkarScreen prayerTime="after-asr" groupFilter="Hizb ul Bahr" nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
+        return <DbAdhkarScreen prayerTime="after-asr" groupFilter="Hizb ul Bahr" nightMode={nightMode} onBack={closeSurahFlow} />;
       case 'kahf-mushaf':
-        return <SurahKahfScreen nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
+        return renderSurahWithFlow(<SurahKahfScreen nightMode={nightMode} onBack={closeSurahFlow} />);
       case 'mulk-mushaf':
-        return <MulkMushafPlaceholder nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
+        return renderSurahWithFlow(<MulkMushafPlaceholder nightMode={nightMode} onBack={closeSurahFlow} />);
       case 'luqman-mushaf':
-        return <LuqmanMushafPlaceholder nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
+        return renderSurahWithFlow(<LuqmanMushafPlaceholder nightMode={nightMode} onBack={closeSurahFlow} />);
       case 'imran-mushaf':
-        return <ImranMushafPlaceholder nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
+        return renderSurahWithFlow(<ImranMushafPlaceholder nightMode={nightMode} onBack={closeSurahFlow} />);
       case 'sajdah-mushaf':
-        return <SurahSajdahScreen nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
+        return renderSurahWithFlow(<SurahSajdahScreen nightMode={nightMode} onBack={closeSurahFlow} />);
       case 'kahf':
-        return <SurahKahfScreen nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
+        return renderSurahWithFlow(<SurahKahfScreen nightMode={nightMode} onBack={closeSurahFlow} />);
       case '__all-dhuhr__':
-        return <DbAdhkarScreen prayerTime={'after-zuhr' as any} nightMode={nightMode} onBack={() => setFajrSelection(null)} onOpenSpecialGroup={setFajrSelection} />;
+        return <DbAdhkarScreen prayerTime={'after-zuhr' as any} nightMode={nightMode} onBack={closeSurahFlow} onOpenSpecialGroup={(selection) => { setSurahFlowContext(null); setFajrSelection(selection); }} />;
       case '__all-jumuah__':
-        return <DbAdhkarScreen prayerTime="after-jumuah" nightMode={nightMode} onBack={() => setFajrSelection(null)} onOpenSpecialGroup={setFajrSelection} />;
+        return <DbAdhkarScreen prayerTime="after-jumuah" nightMode={nightMode} onBack={closeSurahFlow} onOpenSpecialGroup={(selection) => { setSurahFlowContext(null); setFajrSelection(selection); }} />;
       case 'morning-adhkar':
-        return <DbAdhkarScreen prayerTime="after-fajr" nightMode={nightMode} onBack={() => setFajrSelection(null)} onOpenSpecialGroup={setFajrSelection} />;
+        return <DbAdhkarScreen prayerTime="after-fajr" nightMode={nightMode} onBack={closeSurahFlow} onOpenSpecialGroup={(selection) => { setSurahFlowContext(null); setFajrSelection(selection); }} />;
       case 'waqiah-dua':
-        return <DuaWaqiahScreen nightMode={nightMode} onBack={() => setFajrSelection(null)} />;
+        return <DuaWaqiahScreen nightMode={nightMode} onBack={closeSurahFlow} />;
       default:
         break;
     }
@@ -455,7 +459,10 @@ export default function DuasScreen() {
           groupFilter={viewingGroup.groupName}
           nightMode={nightMode}
           onBack={() => setViewingGroup(null)}
-          onOpenSpecialGroup={setFajrSelection}
+          onOpenSpecialGroup={(selection) => {
+            setSurahFlowContext(null);
+            setFajrSelection(selection);
+          }}
         />
       );
     }
@@ -463,63 +470,21 @@ export default function DuasScreen() {
     return renderPrayerTimePicker();
   };
 
-  // Preview fixed prayer mood while wiring visuals step-by-step.
-  const pageBg = activeMood.pageBg;
+  const pageBg = N ? N.bg : Colors.background;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }, { backgroundColor: pageBg }]}>
-      {incomingMood ? (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.moodPageOverlay,
-            { backgroundColor: incomingMood.pageBg, opacity: moodOverlayOpacity },
-          ]}
-        />
-      ) : null}
-      {/* Hero Header with masjid image — compact */}
+      {!N ? <View pointerEvents="none" style={styles.contextOverlay} /> : null}
       <ImageBackground
         source={require('@/assets/images/masjid-building.jpg')}
         style={[styles.heroHeader, { paddingTop: insets.top }]}
-        imageStyle={{ opacity: activeMood.heroImageOpacity }}
+        imageStyle={{ opacity: N ? 0.14 : 0.18 }}
       >
+        <View pointerEvents="none" style={styles.heroSoftenOverlay} />
         <LinearGradient
-          colors={activeMood.heroGradient}
+          colors={ADHKAR_HERO_GRADIENT}
           style={StyleSheet.absoluteFillObject}
         />
-        {activeMood.showClouds ? (
-          <View
-            pointerEvents="none"
-            style={[
-              styles.cloudLayer,
-              { backgroundColor: activeMood.cloudTint, opacity: activeMood.cloudOpacity },
-            ]}
-          />
-        ) : null}
-        {activeMood.showStars ? (
-          <View pointerEvents="none" style={{ opacity: activeMood.starOpacity }}>
-            <StarField />
-          </View>
-        ) : null}
-        {incomingMood ? (
-          <Animated.View pointerEvents="none" style={[styles.moodHeroOverlay, { opacity: moodOverlayOpacity }]}>
-            <LinearGradient colors={incomingMood.heroGradient} style={StyleSheet.absoluteFillObject} />
-            {incomingMood.showClouds ? (
-              <View
-                pointerEvents="none"
-                style={[
-                  styles.cloudLayer,
-                  { backgroundColor: incomingMood.cloudTint, opacity: incomingMood.cloudOpacity },
-                ]}
-              />
-            ) : null}
-            {incomingMood.showStars ? (
-              <View pointerEvents="none" style={{ opacity: incomingMood.starOpacity }}>
-                <StarField />
-              </View>
-            ) : null}
-          </Animated.View>
-        ) : null}
         {/* Nav row */}
         <View style={styles.heroNav}>
           <View style={styles.headerTitleRow}>
@@ -545,7 +510,7 @@ export default function DuasScreen() {
       </ImageBackground>
 
       {/* Back-to-main bar — visible whenever not on the root chip-bar view */}
-      {(asrFlowActive || adhkarFlowActive || fajrSelection !== null || viewingGroup !== null) ? (
+      {(fajrSelection !== null || viewingGroup !== null) ? (
         <TouchableOpacity
           onPress={resetToMain}
           activeOpacity={0.8}
@@ -554,8 +519,8 @@ export default function DuasScreen() {
             N && { backgroundColor: N.surface, borderBottomColor: N.border },
           ]}
         >
-          <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : Colors.primary} />
-          <Text style={[mainBackStyles.label, { color: N ? N.accent : Colors.primary }]}>
+          <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : DUAS_ACCENT_GREEN} />
+          <Text style={[mainBackStyles.label, { color: N ? N.accent : DUAS_ACCENT_GREEN }]}> 
             Back to Adhkar
           </Text>
         </TouchableOpacity>
@@ -570,14 +535,14 @@ export default function DuasScreen() {
 
 // ── Prayer Time Content Router ───────────────────────────────────────────
 function PrayerTimeContent({
-  prayerTime, nightMode, onSelectSpecial, onSelectGroup, onStartFlow,
-}: { prayerTime: PrayerTimeId; nightMode: boolean; onSelectSpecial: (s: AdhkarSelection) => void; onSelectGroup: (groupName: string, prayerTime: PrayerTimeId) => void; onStartFlow?: () => void }) {
+  prayerTime, nightMode, onSelectSpecial, onSelectGroup,
+}: { prayerTime: PrayerTimeId; nightMode: boolean; onSelectSpecial: (s: AdhkarSelection) => void; onSelectGroup: (groupName: string, prayerTime: PrayerTimeId) => void }) {
   switch (prayerTime) {
     case 'before-fajr':   return <BeforeFajrScreen nightMode={nightMode} onSelect={onSelectSpecial} onSelectGroup={(gn) => onSelectGroup(gn, 'before-fajr')} />;
-    case 'after-fajr':    return <AfterFajrScreen nightMode={nightMode} onSelect={onSelectSpecial} onSelectGroup={(gn) => onSelectGroup(gn, 'after-fajr')} onStartFlow={onStartFlow} />;
+    case 'after-fajr':    return <AfterFajrScreen nightMode={nightMode} onSelect={onSelectSpecial} onSelectGroup={(gn) => onSelectGroup(gn, 'after-fajr')} />;
     case 'after-zuhr':    return <AfterDhuhrScreen nightMode={nightMode} onSelect={onSelectSpecial} onSelectGroup={(gn) => onSelectGroup(gn, 'after-zuhr')} />;
     case 'after-jumuah':  return <AfterJumuahScreen nightMode={nightMode} onSelect={onSelectSpecial} onSelectGroup={(gn) => onSelectGroup(gn, 'after-jumuah')} />;
-    case 'after-asr':     return <AfterAsrScreen nightMode={nightMode} onSelect={onSelectSpecial} onSelectGroup={(gn) => onSelectGroup(gn, 'after-asr')} onStartFlow={onStartFlow} />;
+    case 'after-asr':     return <AfterAsrScreen nightMode={nightMode} onSelect={onSelectSpecial} onSelectGroup={(gn) => onSelectGroup(gn, 'after-asr')} />;
     case 'after-maghrib': return <AfterMaghribScreen nightMode={nightMode} onSelect={onSelectSpecial} onSelectGroup={(gn) => onSelectGroup(gn, 'after-maghrib')} />;
     case 'after-isha':    return <AfterIshaScreen nightMode={nightMode} onSelectGroup={(gn) => onSelectGroup(gn, 'after-isha')} />;
     default:              return null;
@@ -598,8 +563,8 @@ function BeforeFajrScreen({ nightMode, onSelect, onSelectGroup }: { nightMode: b
     prayerTime="before-fajr" nightMode={nightMode} onSelect={onSelect} onSelectGroup={onSelectGroup}
     routeMap={BEFORE_FAJR_GROUP_TO_SELECTION}
     icon="nights-stay" nightIcon="nights-stay" nightColor="#A5B4FC" accent="#3949AB"
-    title="Before Fajr & Tahajjud" subtitle="Choose what to recite before Fajr and during Tahajjud"
-    colors={['#3949AB','#4FE948','#6A1B9A','#1565C0','#E65100','#B8860B','#00695C']}
+    title="Before Fajr Adhkar" subtitle="Choose what to recite before Fajr and during Tahajjud"
+    colors={['#3949AB', DUAS_ACCENT_GREEN, '#6A1B9A', '#1565C0', '#E65100', '#B8860B', '#00695C']}
   />;
 }
 
@@ -619,15 +584,12 @@ function DhuhrSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMod
       setLoading(false);
     });
   }, []);
-
-  const accent = '#0A5C9E';
-
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[fajrSelStyles.container, N && { backgroundColor: N.bg }]}>
-      <View style={[fajrSelStyles.headerBand, N && { backgroundColor: N.surface, borderColor: N.border }]}>
-        <MaterialIcons name="wb-sunny" size={22} color={N ? '#60A5FA' : accent} />
+      <View style={fajrSelStyles.headerBand}>
+        <MaterialIcons name="wb-sunny" size={22} color={N ? N.textSub : DUAS_ACCENT_GREEN} />
         <View style={{ flex: 1 }}>
-          <Text style={[fajrSelStyles.headerTitle, N && { color: N.text }]}>After Dhuhr</Text>
+          <Text style={[fajrSelStyles.headerTitle, N && { color: N.text }]}>After Dhuhr Adhkar</Text>
           <Text style={[fajrSelStyles.headerSub, N && { color: N.textSub }]}>Choose what to recite after Dhuhr prayer</Text>
         </View>
       </View>
@@ -638,24 +600,24 @@ function DhuhrSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMod
           <Text style={{ fontSize: 12, color: N ? N.textMuted : Colors.textSubtle }}>Loading adhkar…</Text>
         </View>
       ) : groups.length === 0 ? (
-        <View style={{ alignItems: 'center', padding: 32, gap: 10 }}>
-          <MaterialIcons name="auto-awesome" size={36} color={N ? N.textMuted : Colors.textSubtle} style={{ opacity: 0.4 }} />
-          <Text style={{ fontSize: 13, color: N ? N.textMuted : Colors.textSubtle, textAlign: 'center', lineHeight: 20 }}>
-            Adhkar coming soon.
-          </Text>
-        </View>
-      ) : groups.map((grp, idx) => {
+        <View style={{ height: 32 }} />
+      ) : groups.map((grp) => {
         const meta = KNOWN_DHUHR_GROUPS[grp.group_name];
-        const color = grp.card_color ?? meta?.color ?? DEFAULT_COLORS_DHUHR[idx % DEFAULT_COLORS_DHUHR.length];
         const icon  = meta?.icon  ?? 'auto-awesome';
         const badge = meta?.badge ?? 'Adhkar';
-        const subtitle = grp.card_subtitle || `${grp.item_count} dua${grp.item_count !== 1 ? 's' : ''}`;
+        const subtitle = grp.card_subtitle ?? null;
         const detail  = grp.description ?? null;
+        const groupTitle = resolveGroupCardTitle(grp);
 
         return (
-          <TouchableOpacity
+          <AdhkarGroupCard
             key={grp.group_name}
-            style={[fajrSelStyles.card, N && { backgroundColor: N.surface, borderColor: N.border }]}
+            title={groupTitle}
+            subtitle={subtitle}
+            detail={detail}
+            badge={badge}
+            icon={icon as string}
+            nightPalette={N}
             onPress={() => {
               const knownKey = resolveSelectionFromGroupMeta(grp, DHUHR_GROUP_TO_SELECTION);
               if (knownKey) {
@@ -664,30 +626,10 @@ function DhuhrSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMod
                 onSelectGroup(grp.group_name);
               }
             }}
-            activeOpacity={0.85}
-          >
-            <View style={[fajrSelStyles.iconBox, { backgroundColor: color + '22' }]}>
-              <MaterialIcons name={icon as any} size={28} color={color} />
-            </View>
-            <View style={{ flex: 1, gap: 3 }}>
-              <View style={fajrSelStyles.titleRow}>
-                <Text style={[fajrSelStyles.cardTitle, N && { color: N.text }]}>{grp.group_name}</Text>
-                <View style={[fajrSelStyles.badge, { backgroundColor: color + '22', borderColor: color + '55' }]}>
-                  <Text style={[fajrSelStyles.badgeText, { color }]}>{badge}</Text>
-                </View>
-              </View>
-              <Text style={[fajrSelStyles.subtitle, N && { color: N.textSub }]}>{subtitle}</Text>
-              {detail ? <Text style={[fajrSelStyles.detail, { color: color + 'BB' }, N && { color: N.textMuted }]}>{detail}</Text> : null}
-            </View>
-            <MaterialIcons name="chevron-right" size={24} color={N ? N.textMuted : Colors.textSubtle} />
-          </TouchableOpacity>
+          />
         );
       })}
 
-      <View style={[fajrSelStyles.tip, N && { backgroundColor: N.surface, borderColor: N.border }]}>
-        <MaterialIcons name="info-outline" size={14} color={N ? N.textMuted : Colors.textSubtle} />
-        <Text style={[fajrSelStyles.tipText, N && { color: N.textMuted }]}>Adhkar coming soon.</Text>
-      </View>
       <View style={{ height: 24 }} />
     </ScrollView>
   );
@@ -709,15 +651,12 @@ function JumuahSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMo
       setLoading(false);
     });
   }, []);
-
-  const accent = '#B8860B';
-
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[fajrSelStyles.container, N && { backgroundColor: N.bg }]}>
-      <View style={[fajrSelStyles.headerBand, N && { backgroundColor: N.surface, borderColor: N.border }]}>
-        <MaterialIcons name="star" size={22} color={N ? '#F9C74F' : accent} />
+      <View style={fajrSelStyles.headerBand}>
+        <MaterialIcons name="star" size={22} color={N ? N.textSub : DUAS_ACCENT_GREEN} />
         <View style={{ flex: 1 }}>
-          <Text style={[fajrSelStyles.headerTitle, N && { color: N.text }]}>{"After Jumu'ah"}</Text>
+          <Text style={[fajrSelStyles.headerTitle, N && { color: N.text }]}>After Jumu'ah Adhkar</Text>
           <Text style={[fajrSelStyles.headerSub, N && { color: N.textSub }]}>{"Choose what to recite after Jumu'ah"}</Text>
         </View>
       </View>
@@ -727,24 +666,24 @@ function JumuahSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMo
           <Text style={{ fontSize: 12, color: N ? N.textMuted : Colors.textSubtle }}>Loading adhkar…</Text>
         </View>
       ) : groups.length === 0 ? (
-        <View style={{ alignItems: 'center', padding: 32, gap: 10 }}>
-          <MaterialIcons name="auto-awesome" size={36} color={N ? N.textMuted : Colors.textSubtle} style={{ opacity: 0.4 }} />
-          <Text style={{ fontSize: 13, color: N ? N.textMuted : Colors.textSubtle, textAlign: 'center', lineHeight: 20 }}>
-            Adhkar coming soon.
-          </Text>
-        </View>
-      ) : groups.map((grp, idx) => {
+        <View style={{ height: 32 }} />
+      ) : groups.map((grp) => {
         const meta = KNOWN_JUMUAH_GROUPS[grp.group_name];
-        const color = grp.card_color ?? meta?.color ?? DEFAULT_COLORS_JUMUAH[idx % DEFAULT_COLORS_JUMUAH.length];
         const icon  = meta?.icon  ?? 'auto-awesome';
         const badge = meta?.badge ?? 'Adhkar';
-        const subtitle = grp.card_subtitle || `${grp.item_count} dua${grp.item_count !== 1 ? 's' : ''}`;
+        const subtitle = grp.card_subtitle ?? null;
         const detail  = grp.description ?? null;
+        const groupTitle = resolveGroupCardTitle(grp);
 
         return (
-          <TouchableOpacity
+          <AdhkarGroupCard
             key={grp.group_name}
-            style={[fajrSelStyles.card, N && { backgroundColor: N.surface, borderColor: N.border }]}
+            title={groupTitle}
+            subtitle={subtitle}
+            detail={detail}
+            badge={badge}
+            icon={icon as string}
+            nightPalette={N}
             onPress={() => {
               const groupNameNormalized = (grp.group_name ?? '')
                 .toLowerCase()
@@ -801,41 +740,21 @@ function JumuahSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMo
                 onSelectGroup(grp.group_name);
               }
             }}
-            activeOpacity={0.85}
-          >
-            <View style={[fajrSelStyles.iconBox, { backgroundColor: color + '22' }]}>
-              <MaterialIcons name={icon as any} size={28} color={color} />
-            </View>
-            <View style={{ flex: 1, gap: 3 }}>
-              <View style={fajrSelStyles.titleRow}>
-                <Text style={[fajrSelStyles.cardTitle, N && { color: N.text }]}>{grp.group_name}</Text>
-                <View style={[fajrSelStyles.badge, { backgroundColor: color + '22', borderColor: color + '55' }]}>
-                  <Text style={[fajrSelStyles.badgeText, { color }]}>{badge}</Text>
-                </View>
-              </View>
-              <Text style={[fajrSelStyles.subtitle, N && { color: N.textSub }]}>{subtitle}</Text>
-              {detail ? <Text style={[fajrSelStyles.detail, { color: color + 'BB' }, N && { color: N.textMuted }]}>{detail}</Text> : null}
-            </View>
-            <MaterialIcons name="chevron-right" size={24} color={N ? N.textMuted : Colors.textSubtle} />
-          </TouchableOpacity>
+          />
         );
       })}
 
-      <View style={[fajrSelStyles.tip, N && { backgroundColor: N.surface, borderColor: N.border }]}>
-        <MaterialIcons name="info-outline" size={14} color={N ? N.textMuted : Colors.textSubtle} />
-        <Text style={[fajrSelStyles.tipText, N && { color: N.textMuted }]}>Adhkar coming soon.</Text>
-      </View>
       <View style={{ height: 24 }} />
     </ScrollView>
   );
 }
 
 // ── After Asr Screen ─────────────────────────────────────────────────────
-function AfterAsrScreen({ nightMode, onSelect, onSelectGroup, onStartFlow }: { nightMode: boolean; onSelect: (s: AdhkarSelection) => void; onSelectGroup: (groupName: string) => void; onStartFlow?: () => void }) {
-  return <AsrSelectionScreen nightMode={nightMode} onSelect={onSelect} onSelectGroup={onSelectGroup} onStartFlow={onStartFlow} />;
+function AfterAsrScreen({ nightMode, onSelect, onSelectGroup }: { nightMode: boolean; onSelect: (s: AdhkarSelection) => void; onSelectGroup: (groupName: string) => void }) {
+  return <AsrSelectionScreen nightMode={nightMode} onSelect={onSelect} onSelectGroup={onSelectGroup} />;
 }
 
-function AsrSelectionScreen({ nightMode, onSelect, onSelectGroup, onStartFlow }: { nightMode: boolean; onSelect: (s: AdhkarSelection) => void; onSelectGroup: (groupName: string) => void; onStartFlow?: () => void }) {
+function AsrSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMode: boolean; onSelect: (s: AdhkarSelection) => void; onSelectGroup: (groupName: string) => void }) {
   const N = nightMode ? NIGHT : null;
   const [groups, setGroups] = React.useState<AdhkarGroupMeta[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -846,34 +765,12 @@ function AsrSelectionScreen({ nightMode, onSelect, onSelectGroup, onStartFlow }:
       setLoading(false);
     });
   }, []);
-
-  const accent = '#E65100';
-
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[fajrSelStyles.container, N && { backgroundColor: N.bg }]}>
-      {onStartFlow ? (
-        <TouchableOpacity
-          style={[fajrSelStyles.flowStartBtn, { backgroundColor: accent, borderColor: accent, shadowColor: accent }, N && { backgroundColor: '#BF4500', borderColor: '#BF4500' }]}
-          onPress={onStartFlow}
-          activeOpacity={0.88}
-        >
-          <View style={fajrSelStyles.flowStartLeft}>
-            <View style={fajrSelStyles.flowPlayIcon}>
-              <MaterialIcons name="play-arrow" size={22} color="#fff" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={fajrSelStyles.flowStartTitle}>Start After Asr Adhkar</Text>
-              <Text style={fajrSelStyles.flowStartSub}>Waqiah · Hizb ul Bahr · Dua  ·  8–10 mins</Text>
-            </View>
-          </View>
-          <MaterialIcons name="chevron-right" size={22} color="rgba(255,255,255,0.85)" />
-        </TouchableOpacity>
-      ) : null}
-
-      <View style={[fajrSelStyles.headerBand, N && { backgroundColor: N.surface, borderColor: N.border }]}>
-        <MaterialIcons name="wb-cloudy" size={22} color={N ? '#F9A825' : accent} />
+      <View style={fajrSelStyles.headerBand}>
+        <MaterialIcons name="wb-cloudy" size={22} color={N ? N.textSub : DUAS_ACCENT_GREEN} />
         <View style={{ flex: 1 }}>
-          <Text style={[fajrSelStyles.headerTitle, N && { color: N.text }]}>After Asr</Text>
+          <Text style={[fajrSelStyles.headerTitle, N && { color: N.text }]}>After Asr Adhkar</Text>
           <Text style={[fajrSelStyles.headerSub, N && { color: N.textSub }]}>Choose what to recite after Asr prayer</Text>
         </View>
       </View>
@@ -882,18 +779,23 @@ function AsrSelectionScreen({ nightMode, onSelect, onSelectGroup, onStartFlow }:
         <View style={{ alignItems: 'center', paddingVertical: 20 }}>
           <Text style={{ fontSize: 12, color: N ? N.textMuted : Colors.textSubtle }}>Loading adhkar…</Text>
         </View>
-      ) : groups.map((grp, idx) => {
+      ) : groups.map((grp) => {
         const meta     = KNOWN_ASR_GROUPS[grp.group_name];
-        const color    = grp.card_color ?? meta?.color ?? DEFAULT_COLORS_ASR[idx % DEFAULT_COLORS_ASR.length];
         const icon     = meta?.icon     ?? 'auto-awesome';
         const badge    = meta?.badge    ?? 'Adhkar';
-        const subtitle = grp.card_subtitle || `${grp.item_count} dua${grp.item_count !== 1 ? 's' : ''}`;
+        const subtitle = grp.card_subtitle ?? null;
         const detail   = grp.description ?? null;
+        const groupTitle = resolveGroupCardTitle(grp);
 
         return (
-          <TouchableOpacity
+          <AdhkarGroupCard
             key={grp.group_name}
-            style={[fajrSelStyles.card, N && { backgroundColor: N.surface, borderColor: N.border }]}
+            title={groupTitle}
+            subtitle={subtitle}
+            detail={detail}
+            badge={badge}
+            icon={icon as string}
+            nightPalette={N}
             onPress={() => {
               const knownKey = resolveSelectionFromGroupMeta(grp, ASR_GROUP_TO_SELECTION);
               if (knownKey) {
@@ -902,39 +804,14 @@ function AsrSelectionScreen({ nightMode, onSelect, onSelectGroup, onStartFlow }:
                 onSelectGroup(grp.group_name);
               }
             }}
-            activeOpacity={0.85}
-          >
-            <View style={[fajrSelStyles.iconBox, { backgroundColor: color + '22' }]}>
-              <MaterialIcons name={icon as any} size={28} color={color} />
-            </View>
-            <View style={{ flex: 1, gap: 3 }}>
-              <View style={fajrSelStyles.titleRow}>
-                <Text style={[fajrSelStyles.cardTitle, N && { color: N.text }]}>{grp.group_name}</Text>
-                <View style={[fajrSelStyles.badge, { backgroundColor: color + '22', borderColor: color + '55' }]}>
-                  <Text style={[fajrSelStyles.badgeText, { color }]}>{badge}</Text>
-                </View>
-              </View>
-              <Text style={[fajrSelStyles.subtitle, N && { color: N.textSub }]}>{subtitle}</Text>
-              {detail ? <Text style={[fajrSelStyles.detail, { color: color + 'BB' }, N && { color: N.textMuted }]}>{detail}</Text> : null}
-            </View>
-            <MaterialIcons name="chevron-right" size={24} color={N ? N.textMuted : Colors.textSubtle} />
-          </TouchableOpacity>
+          />
         );
       })}
 
       {!loading && groups.length === 0 ? (
-        <View style={{ alignItems: 'center', padding: 32, gap: 10 }}>
-          <MaterialIcons name="auto-awesome" size={36} color={N ? N.textMuted : Colors.textSubtle} style={{ opacity: 0.4 }} />
-          <Text style={{ fontSize: 13, color: N ? N.textMuted : Colors.textSubtle, textAlign: 'center', lineHeight: 20 }}>
-            Adhkar coming soon.
-          </Text>
-        </View>
+        <View style={{ height: 32 }} />
       ) : null}
 
-      <View style={[fajrSelStyles.tip, N && { backgroundColor: N.surface, borderColor: N.border }]}>
-        <MaterialIcons name="info-outline" size={14} color={N ? N.textMuted : Colors.textSubtle} />
-        <Text style={[fajrSelStyles.tipText, N && { color: N.textMuted }]}>Adhkar coming soon.</Text>
-      </View>
       <View style={{ height: 24 }} />
     </ScrollView>
   );
@@ -959,8 +836,8 @@ function AfterMaghribScreen({ nightMode, onSelect, onSelectGroup }: { nightMode:
     prayerTime="after-maghrib" nightMode={nightMode} onSelect={onSelect} onSelectGroup={onSelectGroup}
     routeMap={MAGHRIB_GROUP_TO_SELECTION}
     icon="bedtime" nightIcon="bedtime" nightColor="#C084FC" accent="#6A1B9A"
-    title="After Maghrib" subtitle="Choose what to recite after Maghrib prayer"
-    colors={['#6A1B9A','#AD1457','#1565C0','#4FE948','#E65100','#3949AB','#B8860B']}
+    title="After Maghrib Adhkar" subtitle="Choose what to recite after Maghrib prayer"
+    colors={['#6A1B9A', '#AD1457', '#1565C0', DUAS_ACCENT_GREEN, '#E65100', '#3949AB', '#B8860B']}
   />;
 }
 
@@ -980,8 +857,8 @@ function AfterIshaScreen({ nightMode, onSelectGroup }: { nightMode: boolean; onS
     return (
       <>
         <TouchableOpacity onPress={() => setViewingGroupName(null)} activeOpacity={0.8} style={[mainBackStyles.bar, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}>
-          <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : Colors.primary} />
-          <Text style={[mainBackStyles.label, { color: N ? N.accent : Colors.primary }]}>Back to Adhkar</Text>
+          <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : DUAS_ACCENT_GREEN} />
+          <Text style={[mainBackStyles.label, { color: N ? N.accent : DUAS_ACCENT_GREEN }]}>Back to Adhkar</Text>
         </TouchableOpacity>
         <DbAdhkarScreen
           prayerTime="after-isha"
@@ -998,8 +875,8 @@ function AfterIshaScreen({ nightMode, onSelectGroup }: { nightMode: boolean; onS
   if (sel === 'sajdah-mushaf') return (
     <>
       <TouchableOpacity onPress={() => setSel(null)} activeOpacity={0.8} style={[mainBackStyles.bar, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}>
-        <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : Colors.primary} />
-        <Text style={[mainBackStyles.label, { color: N ? N.accent : Colors.primary }]}>Back to Adhkar</Text>
+        <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : DUAS_ACCENT_GREEN} />
+        <Text style={[mainBackStyles.label, { color: N ? N.accent : DUAS_ACCENT_GREEN }]}>Back to Adhkar</Text>
       </TouchableOpacity>
       <SajdahMushafPlaceholder nightMode={nightMode} onBack={() => setSel(null)} />
     </>
@@ -1007,8 +884,8 @@ function AfterIshaScreen({ nightMode, onSelectGroup }: { nightMode: boolean; onS
   if (sel === 'mulk-mushaf') return (
     <>
       <TouchableOpacity onPress={() => setSel(null)} activeOpacity={0.8} style={[mainBackStyles.bar, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}>
-        <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : Colors.primary} />
-        <Text style={[mainBackStyles.label, { color: N ? N.accent : Colors.primary }]}>Back to Adhkar</Text>
+        <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : DUAS_ACCENT_GREEN} />
+        <Text style={[mainBackStyles.label, { color: N ? N.accent : DUAS_ACCENT_GREEN }]}>Back to Adhkar</Text>
       </TouchableOpacity>
       <MulkMushafPlaceholder nightMode={nightMode} onBack={() => setSel(null)} />
     </>
@@ -1016,8 +893,8 @@ function AfterIshaScreen({ nightMode, onSelectGroup }: { nightMode: boolean; onS
   if (sel === 'luqman-mushaf') return (
     <>
       <TouchableOpacity onPress={() => setSel(null)} activeOpacity={0.8} style={[mainBackStyles.bar, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}>
-        <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : Colors.primary} />
-        <Text style={[mainBackStyles.label, { color: N ? N.accent : Colors.primary }]}>Back to Adhkar</Text>
+        <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : DUAS_ACCENT_GREEN} />
+        <Text style={[mainBackStyles.label, { color: N ? N.accent : DUAS_ACCENT_GREEN }]}>Back to Adhkar</Text>
       </TouchableOpacity>
       <LuqmanMushafPlaceholder nightMode={nightMode} onBack={() => setSel(null)} />
     </>
@@ -1025,8 +902,8 @@ function AfterIshaScreen({ nightMode, onSelectGroup }: { nightMode: boolean; onS
   if (sel === 'imran-mushaf') return (
     <>
       <TouchableOpacity onPress={() => setSel(null)} activeOpacity={0.8} style={[mainBackStyles.bar, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}>
-        <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : Colors.primary} />
-        <Text style={[mainBackStyles.label, { color: N ? N.accent : Colors.primary }]}>Back to Adhkar</Text>
+        <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : DUAS_ACCENT_GREEN} />
+        <Text style={[mainBackStyles.label, { color: N ? N.accent : DUAS_ACCENT_GREEN }]}>Back to Adhkar</Text>
       </TouchableOpacity>
       <ImranMushafPlaceholder nightMode={nightMode} onBack={() => setSel(null)} />
     </>
@@ -1045,8 +922,84 @@ function AfterIshaScreen({ nightMode, onSelectGroup }: { nightMode: boolean; onS
     prayerTime="after-isha" nightMode={nightMode} onSelect={handleIshaSelect} onSelectGroup={(gn) => setViewingGroupName(gn)}
     icon="nightlight" nightIcon="nightlight" nightColor="#93C5FD" accent="#1565C0"
     title="After Isha" subtitle="Choose what to recite after Isha prayer"
-    colors={['#1565C0','#3949AB','#6A1B9A','#4FE948','#00695C','#AD1457','#B8860B']}
+    colors={['#1565C0', '#3949AB', '#6A1B9A', DUAS_ACCENT_GREEN, '#00695C', '#AD1457', '#B8860B']}
   />;
+}
+
+function AdhkarGroupCard({
+  title,
+  subtitle,
+  detail,
+  badge,
+  icon,
+  nightPalette,
+  onPress,
+}: {
+  title: string;
+  subtitle?: string | null;
+  detail?: string | null;
+  badge: string;
+  icon: string;
+  nightPalette: typeof NIGHT | null;
+  onPress: () => void;
+}) {
+  const [showDetail, setShowDetail] = React.useState(false);
+
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        fajrSelStyles.card,
+        pressed && fajrSelStyles.cardPressed,
+        nightPalette && { backgroundColor: nightPalette.surface, borderColor: nightPalette.border, shadowColor: '#000' },
+      ]}
+      onPress={onPress}
+    >
+      {({ pressed }) => (
+        <>
+          <View style={fajrSelStyles.iconBox}>
+            <MaterialIcons name={icon as any} size={24} color={DUAS_ACCENT_GREEN} />
+          </View>
+          <View style={fajrSelStyles.cardBody}>
+            <View style={fajrSelStyles.titleRow}>
+              <Text style={[fajrSelStyles.cardTitle, nightPalette && { color: nightPalette.text }]}>{title}</Text>
+              <View style={fajrSelStyles.badge}>
+                <Text style={fajrSelStyles.badgeText}>{badge}</Text>
+              </View>
+            </View>
+            {subtitle ? <Text style={[fajrSelStyles.subtitle, nightPalette && { color: nightPalette.textSub }]}>{subtitle}</Text> : null}
+            {detail ? (
+              <>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  style={[
+                    fajrSelStyles.detailToggleBtn,
+                    nightPalette && { backgroundColor: nightPalette.surfaceAlt, borderColor: nightPalette.border },
+                  ]}
+                  onPress={(event) => {
+                    event.stopPropagation();
+                    setShowDetail((prev) => !prev);
+                  }}
+                >
+                  <Text style={[fajrSelStyles.detailToggleText, nightPalette && { color: nightPalette.accent }]}>
+                    {showDetail ? 'Hide details' : 'View details'}
+                  </Text>
+                  <MaterialIcons
+                    name={showDetail ? 'expand-less' : 'expand-more'}
+                    size={16}
+                    color={nightPalette ? nightPalette.accent : DUAS_ACCENT_GREEN}
+                  />
+                </TouchableOpacity>
+                {showDetail ? <Text style={[fajrSelStyles.detail, nightPalette && { color: nightPalette.text }]}>{detail}</Text> : null}
+              </>
+            ) : null}
+          </View>
+          <View style={[fajrSelStyles.chevronWrap, pressed && fajrSelStyles.chevronWrapPressed]}>
+            <MaterialIcons name="chevron-right" size={20} color={nightPalette ? nightPalette.textMuted : ADHKAR_ARROW} />
+          </View>
+        </>
+      )}
+    </Pressable>
+  );
 }
 
 // ── Generic Prayer Time Selection Screen (shared between Maghrib & Isha) ───────
@@ -1066,8 +1019,8 @@ function PrayerTimeSelectionScreen({
   }, [prayerTime]);
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[fajrSelStyles.container, N && { backgroundColor: N.bg }]}>
-      <View style={[fajrSelStyles.headerBand, N && { backgroundColor: N.surface, borderColor: N.border }]}>
-        <MaterialIcons name={icon as any} size={22} color={N ? nightColor : accent} />
+      <View style={fajrSelStyles.headerBand}>
+        <MaterialIcons name={icon as any} size={22} color={N ? N.textSub : DUAS_ACCENT_GREEN} />
         <View style={{ flex: 1 }}>
           <Text style={[fajrSelStyles.headerTitle, N && { color: N.text }]}>{title}</Text>
           <Text style={[fajrSelStyles.headerSub, N && { color: N.textSub }]}>{subtitle}</Text>
@@ -1078,19 +1031,22 @@ function PrayerTimeSelectionScreen({
           <Text style={{ fontSize: 12, color: N ? N.textMuted : Colors.textSubtle }}>Loading adhkar…</Text>
         </View>
       ) : groups.length === 0 ? (
-        <View style={{ alignItems: 'center', padding: 32, gap: 10 }}>
-          <MaterialIcons name="auto-awesome" size={36} color={N ? N.textMuted : Colors.textSubtle} style={{ opacity: 0.4 }} />
-          <Text style={{ fontSize: 13, color: N ? N.textMuted : Colors.textSubtle, textAlign: 'center', lineHeight: 20 }}>
-            Adhkar coming soon.
-          </Text>
-        </View>
+        <View style={{ height: 32 }} />
       ) : groups.map((grp, idx) => {
         const color = grp.card_color ?? colors[idx % colors.length];
         const badge = 'Adhkar';
-        const subtitleText = grp.card_subtitle || `${grp.item_count} dua${grp.item_count !== 1 ? 's' : ''}`;
+        const subtitleText = grp.card_subtitle ?? null;
         const detail = grp.description ?? null;
+        const groupTitle = resolveGroupCardTitle(grp);
         return (
-          <TouchableOpacity key={grp.group_name} style={[fajrSelStyles.card, N && { backgroundColor: N.surface, borderColor: N.border }]}
+          <AdhkarGroupCard
+            key={grp.group_name}
+            title={groupTitle}
+            subtitle={subtitleText}
+            detail={detail}
+            badge={badge}
+            icon="auto-awesome"
+            nightPalette={N}
             onPress={() => {
               const knownKey = routeMap?.[grp.group_name];
               if (knownKey) {
@@ -1098,28 +1054,10 @@ function PrayerTimeSelectionScreen({
               } else {
                 onSelectGroup(grp.group_name);
               }
-            }} activeOpacity={0.85}>
-            <View style={[fajrSelStyles.iconBox, { backgroundColor: color + '22' }]}>
-              <MaterialIcons name="auto-awesome" size={28} color={color} />
-            </View>
-            <View style={{ flex: 1, gap: 3 }}>
-              <View style={fajrSelStyles.titleRow}>
-                <Text style={[fajrSelStyles.cardTitle, N && { color: N.text }]}>{grp.group_name}</Text>
-                <View style={[fajrSelStyles.badge, { backgroundColor: color + '22', borderColor: color + '55' }]}>
-                  <Text style={[fajrSelStyles.badgeText, { color }]}>{badge}</Text>
-                </View>
-              </View>
-              <Text style={[fajrSelStyles.subtitle, N && { color: N.textSub }]}>{subtitleText}</Text>
-              {detail ? <Text style={[fajrSelStyles.detail, { color: color + 'BB' }, N && { color: N.textMuted }]}>{detail}</Text> : null}
-            </View>
-            <MaterialIcons name="chevron-right" size={24} color={N ? N.textMuted : Colors.textSubtle} />
-          </TouchableOpacity>
+            }}
+          />
         );
       })}
-      <View style={[fajrSelStyles.tip, N && { backgroundColor: N.surface, borderColor: N.border }]}>
-        <MaterialIcons name="info-outline" size={14} color={N ? N.textMuted : Colors.textSubtle} />
-        <Text style={[fajrSelStyles.tipText, N && { color: N.textMuted }]}>Adhkar coming soon.</Text>
-      </View>
       <View style={{ height: 24 }} />
     </ScrollView>
   );
@@ -1131,11 +1069,11 @@ function PrayerTimeSelectionScreen({
 // dbStyles removed — DbAdhkarScreen is imported from components/adhkar/
 
 // ── After Fajr Selection Screen ─────────────────────────────────────────
-function AfterFajrScreen({ nightMode, onSelect, onSelectGroup, onStartFlow }: { nightMode: boolean; onSelect: (s: AdhkarSelection) => void; onSelectGroup: (groupName: string) => void; onStartFlow?: () => void }) {
-  return <FajrSelectionScreen nightMode={nightMode} onSelect={onSelect} onSelectGroup={onSelectGroup} onStartFlow={onStartFlow} />;
+function AfterFajrScreen({ nightMode, onSelect, onSelectGroup }: { nightMode: boolean; onSelect: (s: AdhkarSelection) => void; onSelectGroup: (groupName: string) => void }) {
+  return <FajrSelectionScreen nightMode={nightMode} onSelect={onSelect} onSelectGroup={onSelectGroup} />;
 }
 
-function FajrSelectionScreen({ nightMode, onSelect, onSelectGroup, onStartFlow }: { nightMode: boolean; onSelect: (s: AdhkarSelection) => void; onSelectGroup: (groupName: string) => void; onStartFlow?: () => void }) {
+function FajrSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMode: boolean; onSelect: (s: AdhkarSelection) => void; onSelectGroup: (groupName: string) => void }) {
   const N = nightMode ? NIGHT : null;
   const [groups, setGroups] = React.useState<AdhkarGroupMeta[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -1149,30 +1087,10 @@ function FajrSelectionScreen({ nightMode, onSelect, onSelectGroup, onStartFlow }
 
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[fajrSelStyles.container, N && { backgroundColor: N.bg }]}>
-      {/* ── Guided Morning Adhkar Flow CTA ─────────────────── */}
-      {onStartFlow ? (
-        <TouchableOpacity
-          style={[fajrSelStyles.flowStartBtn, N && { backgroundColor: '#1B7A47', borderColor: '#1B7A47' }]}
-          onPress={onStartFlow}
-          activeOpacity={0.88}
-        >
-          <View style={fajrSelStyles.flowStartLeft}>
-            <View style={fajrSelStyles.flowPlayIcon}>
-              <MaterialIcons name="play-arrow" size={22} color="#fff" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={fajrSelStyles.flowStartTitle}>Start Morning Adhkar</Text>
-              <Text style={fajrSelStyles.flowStartSub}>Wird al-Latif · Dua  ·  5–7 mins</Text>
-            </View>
-          </View>
-          <MaterialIcons name="chevron-right" size={22} color="rgba(255,255,255,0.85)" />
-        </TouchableOpacity>
-      ) : null}
-
-      <View style={[fajrSelStyles.headerBand, N && { backgroundColor: N.surface, borderColor: N.border }]}>
-        <MaterialIcons name="wb-twilight" size={22} color={N ? '#F9C74F' : '#F57C00'} />
+      <View style={fajrSelStyles.headerBand}>
+        <MaterialIcons name="wb-twilight" size={22} color={N ? N.textSub : DUAS_ACCENT_GREEN} />
         <View style={{ flex: 1 }}>
-          <Text style={[fajrSelStyles.headerTitle, N && { color: N.text }]}>After Fajr</Text>
+          <Text style={[fajrSelStyles.headerTitle, N && { color: N.text }]}>After Fajr Adhkar</Text>
           <Text style={[fajrSelStyles.headerSub, N && { color: N.textSub }]}>Choose what to recite after Fajr prayer</Text>
         </View>
       </View>
@@ -1184,16 +1102,21 @@ function FajrSelectionScreen({ nightMode, onSelect, onSelectGroup, onStartFlow }
         </View>
       ) : groups.map((grp, idx) => {
         const meta = KNOWN_FAJR_GROUPS[grp.group_name];
-        const color = grp.card_color ?? meta?.color ?? DEFAULT_COLORS[idx % DEFAULT_COLORS.length];
         const icon  = meta?.icon  ?? 'auto-awesome';
         const badge = meta?.badge ?? 'Adhkar';
-        const subtitle = grp.card_subtitle || `${grp.item_count} dua${grp.item_count !== 1 ? 's' : ''}`;
+        const subtitle = grp.card_subtitle ?? null;
         const detail  = grp.description ?? null;
+        const groupTitle = resolveGroupCardTitle(grp);
 
         return (
-          <TouchableOpacity
+          <AdhkarGroupCard
             key={grp.group_name}
-            style={[fajrSelStyles.card, N && { backgroundColor: N.surface, borderColor: N.border }]}
+            title={groupTitle}
+            subtitle={subtitle}
+            detail={detail}
+            badge={badge}
+            icon={icon as string}
+            nightPalette={N}
             onPress={() => {
               const groupNameNormalized = (grp.group_name ?? '')
                 .toLowerCase()
@@ -1218,66 +1141,77 @@ function FajrSelectionScreen({ nightMode, onSelect, onSelectGroup, onStartFlow }
                 onSelectGroup(grp.group_name);
               }
             }}
-            activeOpacity={0.85}
-          >
-            <View style={[fajrSelStyles.iconBox, { backgroundColor: color + '22' }]}>
-              <MaterialIcons name={icon as any} size={28} color={color} />
-            </View>
-            <View style={{ flex: 1, gap: 3 }}>
-              <View style={fajrSelStyles.titleRow}>
-                <Text style={[fajrSelStyles.cardTitle, N && { color: N.text }]}>{grp.group_name}</Text>
-                <View style={[fajrSelStyles.badge, { backgroundColor: color + '22', borderColor: color + '55' }]}>
-                  <Text style={[fajrSelStyles.badgeText, { color }]}>{badge}</Text>
-                </View>
-              </View>
-              <Text style={[fajrSelStyles.subtitle, N && { color: N.textSub }]}>{subtitle}</Text>
-              {detail ? <Text style={[fajrSelStyles.detail, { color: color + 'BB' }, N && { color: N.textMuted }]}>{detail}</Text> : null}
-            </View>
-            <MaterialIcons name="chevron-right" size={24} color={N ? N.textMuted : Colors.textSubtle} />
-          </TouchableOpacity>
+          />
         );
       })}
 
-      <View style={[fajrSelStyles.tip, N && { backgroundColor: N.surface, borderColor: N.border }]}>
-        <MaterialIcons name="info-outline" size={14} color={N ? N.textMuted : Colors.textSubtle} />
-        <Text style={[fajrSelStyles.tipText, N && { color: N.textMuted }]}>Adhkar coming soon.</Text>
-      </View>
       <View style={{ height: 24 }} />
     </ScrollView>
   );
 }
 
 const fajrSelStyles = StyleSheet.create({
-  container: { padding: Spacing.md, gap: Spacing.sm },
+  container: { paddingHorizontal: Spacing.md, paddingTop: 14, paddingBottom: Spacing.md, gap: Spacing.sm },
   headerBand: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: Colors.surface, borderRadius: Radius.lg,
-    padding: Spacing.md, borderWidth: 1, borderColor: Colors.border, marginBottom: 4,
+    backgroundColor: 'transparent',
+    paddingVertical: 8,
+    paddingLeft: 12,
+    paddingRight: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: DUAS_ACCENT_GREEN,
+    marginBottom: 6,
   },
   headerTitle: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary },
-  headerSub: { fontSize: 11, fontWeight: '500', color: Colors.textSubtle, marginTop: 1 },
+  headerSub: { fontSize: 11, fontWeight: '500', color: Colors.textSubtle, marginTop: 2 },
   card: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 12,
-    backgroundColor: Colors.surface, borderRadius: Radius.lg,
-    borderWidth: 1, borderColor: Colors.border,
-    padding: Spacing.md,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
+    backgroundColor: '#FFFFFF', borderRadius: 15,
+    borderWidth: 1, borderColor: 'rgba(31, 42, 36, 0.06)',
+    padding: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.045, shadowRadius: 14, elevation: 4,
+  },
+  cardPressed: {
+    transform: [{ scale: 0.98 }],
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 4,
   },
   iconBox: {
-    width: 52, height: 52, borderRadius: Radius.md,
+    width: 50, height: 50, borderRadius: 15,
+    backgroundColor: ADHKAR_ICON_BG,
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    opacity: 0.9,
   },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  cardTitle: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary },
+  cardBody: { flex: 1, gap: 0, paddingTop: 1, justifyContent: 'center' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  cardTitle: { fontSize: 18, fontWeight: '700', color: ADHKAR_CARD_TITLE, flexShrink: 1, lineHeight: 24 },
   arabicTitle: { fontSize: 18, fontWeight: '700' } as any,
   badge: {
-    paddingHorizontal: 7, paddingVertical: 2,
-    borderRadius: Radius.full, borderWidth: 1,
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: Radius.full, borderWidth: 0,
+    backgroundColor: DUAS_ACCENT_GREEN_SOFT,
   },
-  badgeText: { fontSize: 10, fontWeight: '700' },
-  subtitle: { fontSize: 12, fontWeight: '600', color: Colors.textSubtle },
-  detail: { fontSize: 12.5, fontWeight: '500', fontStyle: 'italic', lineHeight: 20, color: Colors.textSubtle, marginTop: 4 },
+  badgeText: { fontSize: 10, fontWeight: '700', color: DUAS_ACCENT_GREEN },
+  subtitle: { fontSize: 12, fontWeight: '600', color: ADHKAR_META_TEXT, marginTop: 4, lineHeight: 16 },
+  detailToggleBtn: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: DUAS_ACCENT_GREEN_SOFT,
+    backgroundColor: DUAS_ACCENT_GREEN_SOFT,
+  },
+  detailToggleText: { fontSize: 12, fontWeight: '700', color: DUAS_ACCENT_GREEN },
+  detail: { fontSize: 13, fontWeight: '400', lineHeight: 18.2, color: ADHKAR_DESCRIPTION_TEXT, marginTop: 12 },
+  chevronWrap: { alignSelf: 'flex-start', marginLeft: 0, marginRight: -2, paddingTop: 3, opacity: 0.78, transform: [{ translateX: 0 }] },
+  chevronWrapPressed: { transform: [{ translateX: 3 }] },
   tip: {
     flexDirection: 'row', gap: 6, alignItems: 'flex-start',
     backgroundColor: Colors.surface, borderRadius: Radius.md,
@@ -1286,10 +1220,10 @@ const fajrSelStyles = StyleSheet.create({
   tipText: { flex: 1, fontSize: 11, fontWeight: '400', lineHeight: 16, color: Colors.textSubtle },
   flowStartBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: Colors.primary, borderRadius: Radius.lg,
-    borderWidth: 1.5, borderColor: Colors.primary,
+    backgroundColor: DUAS_ACCENT_GREEN, borderRadius: Radius.lg,
+    borderWidth: 1.5, borderColor: DUAS_ACCENT_GREEN,
     paddingHorizontal: Spacing.md, paddingVertical: 14,
-    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
+    shadowColor: DUAS_ACCENT_GREEN, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35, shadowRadius: 8, elevation: 5,
   },
   flowStartLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
@@ -1425,7 +1359,7 @@ const WIRD_SURAHS = [
     number: null,
     title: 'Peace upon Nuh (AS)',
     arabicTitle: 'سَلَامٌ عَلَى نُوح',
-    color: '#4FE948',
+    color: DUAS_ACCENT_GREEN,
     arabic:
       'سَلَامٌ عَلَىٰ نُوحٍ فِي الْعَالَمِينَ ﴿٧٩﴾ إِنَّا كَذَٰلِكَ نَجْزِي الْمُحْسِنِينَ ﴿٨٠﴾ إِنَّهُ مِنْ عِبَادِنَا الْمُؤْمِنِينَ ﴿٨١﴾',
     transliteration:
@@ -1468,7 +1402,7 @@ const WIRD_SURAHS = [
     number: null,
     title: 'Morning Blessing & Protection',
     arabicTitle: 'اللَّهُمَّ إِنِّي أَصْبَحْتُ',
-    color: '#4FE948',
+    color: DUAS_ACCENT_GREEN,
     count: '×3',
     arabic:
       'اللَّهُمَّ إِنِّي أَصْبَحْتُ مِنْكَ فِي نِعْمَةٍ وَعَافِيَةٍ وَسِتْرٍ، فَأَتِمَّ نِعْمَتَكَ عَلَيَّ وَعَافِيَتَكَ وَسِتْرَكَ فِي الدُّنْيَا وَالْآخِرَةِ',
@@ -1558,7 +1492,7 @@ const WIRD_SURAHS = [
     number: null,
     title: 'Salawat on the Prophet',
     arabicTitle: 'اللَّهُمَّ صَلِّ عَلَى سَيِّدِنَا',
-    color: '#4FE948',
+    color: DUAS_ACCENT_GREEN,
     count: '×10',
     arabic:
       'اللَّهُمَّ صَلِّ عَلَى سَيِّدِنَا مُحَمَّدٍ وَآلِهِ وَصَحْبِهِ وَسَلِّمْ',
@@ -1663,7 +1597,7 @@ const WIRD_SURAHS = [
     number: null,
     title: 'Refuge from Anxiety & Grief',
     arabicTitle: 'أَعُوذُ بِكَ مِنَ الْهَمِّ',
-    color: '#4FE948',
+    color: DUAS_ACCENT_GREEN,
     count: '×1',
     arabic:
       'اللَّهُمَّ إِنِّي أَعُوذُ بِكَ مِنَ الْهَمِّ وَالْحَزَنِ، وَأَعُوذُ بِكَ مِنَ الْعَجْزِ وَالْكَسَلِ، وَأَعُوذُ بِكَ مِنَ الْجُبْنِ وَالْبُخْلِ، وَأَعُوذُ بِكَ مِنْ غَلَبَةِ الدَّيْنِ وَقَهْرِ الرِّجَالِ',
@@ -1753,7 +1687,7 @@ const WIRD_SURAHS = [
     number: null,
     title: 'Morning upon the Fitrah of Islam',
     arabicTitle: 'أَصْبَحْنَا عَلَى فِطْرَةِ الْإِسْلَام',
-    color: '#4FE948',
+    color: DUAS_ACCENT_GREEN,
     count: '×1',
     arabic:
       'أَصْبَحْنَا عَلَى فِطْرَةِ الْإِسْلَامِ، وَعَلَى كَلِمَةِ الْإِخْلَاصِ، وَعَلَى دِينِ نَبِيِّنَا مُحَمَّدٍ صَلَّى اللَّهُ عَلَيْهِ وَآلِهِ وَسَلَّمَ، وَعَلَى مِلَّةِ أَبِينَا إِبْرَاهِيمَ حَنِيفًا مُسْلِمًا وَمَا كَانَ مِنَ الْمُشْرِكِينَ',
@@ -1828,7 +1762,7 @@ const WIRD_SURAHS = [
     number: null,
     title: 'SubhanAllah — Equal to His Creation',
     arabicTitle: 'سُبْحَانَ اللَّهِ وَبِحَمْدِهِ عَدَدَ خَلْقِه',
-    color: '#4FE948',
+    color: DUAS_ACCENT_GREEN,
     count: '×3',
     arabic:
       'سُبْحَانَ اللَّهِ وَبِحَمْدِهِ عَدَدَ خَلْقِهِ، وَرِضَاءَ نَفْسِهِ، وَزِنَةَ عَرْشِهِ، وَمِدَادَ كَلِمَاتِهِ',
@@ -1891,7 +1825,7 @@ const WIRD_SURAHS = [
     number: null,
     title: 'La Ilaha illa Allah — Final Closing Dhikr',
     arabicTitle: 'لَا إِلَهَ إِلَّا اللَّهُ — خَاتِمَة',
-    color: '#4FE948',
+    color: DUAS_ACCENT_GREEN,
     count: '×3',
     arabic:
       'لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَاشَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ يُحْيِي وَيُمِيتُ وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٍ عَدَدَ كُلِّ ذَرَّةٍ أَلْفَ مَرَّةٍ',
@@ -1909,8 +1843,6 @@ export function WirdAlLatifScreen({ nightMode, onBack }: { nightMode: boolean; o
   const [loading, setLoading] = React.useState(true);
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
   const [urduById, setUrduById] = React.useState<Record<string, boolean>>({});
-  const scrollRef = React.useRef<ScrollView>(null);
-  const cardYRefs = React.useRef<Record<string, number>>({});
 
   React.useEffect(() => {
     fetchAdhkarForPrayerTime('after-fajr').then(all => {
@@ -1944,30 +1876,21 @@ export function WirdAlLatifScreen({ nightMode, onBack }: { nightMode: boolean; o
     });
   }, []);
 
-  const accent = '#6A1B9A';
+  const accent = DUAS_ACCENT_GREEN;
 
   const handleToggle = (id: string) => {
     const isOpening = expandedId !== id;
     setExpandedId(isOpening ? id : null);
-    if (isOpening) {
-      setTimeout(() => {
-        const y = cardYRefs.current[id];
-        if (y !== undefined) {
-          scrollRef.current?.scrollTo({ y: Math.max(0, y - 12), animated: true });
-        }
-      }, 80);
-    }
   };
 
   return (
     <View style={{ flex: 1 }}>
       <ScrollView
-        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: Spacing.md, paddingBottom: 24, gap: Spacing.sm }}
       >
         {/* Info band */}
-        <View style={[wirdStyles.infoBand, N && { backgroundColor: '#6A1B9A15', borderColor: '#6A1B9A30' }]}>
+        <View style={[wirdStyles.infoBand, N && { backgroundColor: DUAS_ACCENT_GREEN_SOFT, borderColor: Colors.border }]}>
           <MaterialIcons name="auto-awesome" size={18} color={accent} />
           <Text style={[wirdStyles.infoText, N && { color: N.textSub }]}>
             Recite each Surah three times. The Prophet ﷺ said these three surahs suffice as protection every morning and evening.
@@ -2002,7 +1925,6 @@ export function WirdAlLatifScreen({ nightMode, onBack }: { nightMode: boolean; o
               ]}
               onPress={() => handleToggle(item.id)}
               activeOpacity={0.85}
-              onLayout={(e) => { cardYRefs.current[item.id] = e.nativeEvent.layout.y; }}
             >
               <View style={wirdStyles.cardHeader}>
                 <View style={[wirdStyles.numBadge, { backgroundColor: itemColor + '22' }]}>
@@ -2016,11 +1938,6 @@ export function WirdAlLatifScreen({ nightMode, onBack }: { nightMode: boolean; o
                     <Text style={[wirdStyles.arabicTitle, { color: itemColor }]}>{item.arabic_title}</Text>
                   ) : null}
                 </View>
-                {item.count ? (
-                  <View style={[wirdStyles.countPill, { backgroundColor: itemColor + '22', borderColor: itemColor + '44' }]}>
-                    <Text style={[wirdStyles.countText, { color: itemColor }]}>×{item.count}</Text>
-                  </View>
-                ) : null}
                 <MaterialIcons
                   name={isOpen ? 'expand-less' : 'expand-more'}
                   size={22}
@@ -2127,11 +2044,6 @@ const wirdStyles = StyleSheet.create({
   numText: { fontSize: 13, fontWeight: '800' },
   surahTitle: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary },
   arabicTitle: { fontSize: 15, fontWeight: '700', marginTop: 1 } as any,
-  countPill: {
-    paddingHorizontal: 10, paddingVertical: 4,
-    borderRadius: Radius.full, borderWidth: 1,
-  },
-  countText: { fontSize: 13, fontWeight: '800' },
   expandedBody: { marginTop: 14, gap: 0 },
   arabicBox: {
     borderWidth: 1, borderRadius: Radius.md,
@@ -2165,92 +2077,57 @@ const wirdStyles = StyleSheet.create({
   completionText: { flex: 1, fontSize: 12, lineHeight: 18, color: Colors.textSecondary },
 });
 
-// ── After Asr Guided Flow ──────────────────────────────────────────────
-const ASR_FLOW_STEPS = [
-  { num: 1 as const, label: 'Surah Waqiah',  icon: 'menu-book', color: '#E65100' },
-  { num: 2 as const, label: 'Hizb ul Bahr',  icon: 'waves',     color: '#1565C0' },
-  { num: 3 as const, label: 'Dua al-Waqiah', icon: 'auto-awesome', color: '#6A1B9A' },
-];
+// ── Guided Adhkar Flow — Dynamic for each salah prayer time ────────────
+function resolveGroupToSurah(groupName: string): AdhkarSelection | null {
+  const normalized = groupName
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\u0600-\u06ff]+/g, ' ')
+    .trim();
 
-function AsrFlowScreen({
-  step, onStepChange, onExit, nightMode,
-}: { step: 1|2|3|4; onStepChange: (s: 1|2|3|4) => void; onExit: () => void; nightMode: boolean }) {
-  const N = nightMode ? NIGHT : null;
-  if (step === 4) return <AsrDoneScreen onExit={onExit} nightMode={nightMode} />;
-  return (
-    <View style={{ flex: 1, backgroundColor: N ? N.bg : '#FFF8F2' }}>
-      {/* Progress header */}
-      <View style={[flowStyles.progressBar, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}>
-        <TouchableOpacity onPress={onExit} style={[flowStyles.exitBtn, N && { backgroundColor: N.surfaceAlt }]} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <MaterialIcons name="close" size={18} color={N ? N.textMuted : Colors.textSubtle} />
-        </TouchableOpacity>
-        <View style={flowStyles.stepsRow}>
-          {ASR_FLOW_STEPS.map((s) => {
-            const isDone = step > s.num;
-            const isActive = step === s.num;
-            return (
-              <View key={s.num} style={flowStyles.stepItem}>
-                <View style={[flowStyles.stepCircle, { backgroundColor: isDone || isActive ? s.color : (N ? N.border : Colors.border) }]}>
-                  {isDone ? <MaterialIcons name="check" size={11} color="#fff" /> : <Text style={flowStyles.stepCircleText}>{s.num}</Text>}
-                </View>
-                <Text style={[flowStyles.stepLabel, N && { color: N.textMuted }, isActive && { color: s.color, fontWeight: '800' }]} numberOfLines={1}>{s.label}</Text>
-              </View>
-            );
-          })}
-        </View>
-      </View>
-      {step === 1 ? (
-        <View style={{ flex: 1 }}>
-          <DbAdhkarScreen prayerTime="after-asr" groupFilter="Surah Al-Waqiah" nightMode={nightMode} />
-          <FlowNavBar color="#E65100" nightMode={nightMode} showSkip skipLabel="Skip Waqiah" nextLabel="Done — Next Step" onSkip={() => onStepChange(2)} onNext={() => onStepChange(2)} />
-        </View>
-      ) : step === 2 ? (
-        <View style={{ flex: 1 }}>
-          <DbAdhkarScreen prayerTime="after-asr" groupFilter="Hizb ul Bahr" nightMode={nightMode} />
-          <FlowNavBar color="#1565C0" nightMode={nightMode} showSkip skipLabel="Skip Hizb" nextLabel="Next: Dua al-Waqiah" onSkip={() => onStepChange(3)} onNext={() => onStepChange(3)} />
-        </View>
-      ) : (
-        <View style={{ flex: 1 }}>
-          <DuaWaqiahScreen nightMode={nightMode} onBack={() => onStepChange(2)} />
-          <FlowNavBar color="#6A1B9A" nightMode={nightMode} nextLabel="Complete Adhkar" onNext={() => onStepChange(4)} />
-        </View>
-      )}
-    </View>
-  );
+  if (/(surah\s*18|kahf|kaaf|khf|kafh|kahaf|khaf|الكهف)/.test(normalized)) return 'kahf-mushaf';
+  if (/(surah\s*36|yaseen|yasin|ya\s*seen|يس)/.test(normalized)) return 'yaseen';
+  if (/(surah\s*56|waqiah|waqia|waqea|waqeah|الواقعة)/.test(normalized)) return 'waqiah';
+  if (/(surah\s*32|sajdah|sajda|sajadah|السجدة)/.test(normalized)) return 'sajdah-mushaf';
+  if (/(surah\s*67|mulk|الملك)/.test(normalized)) return 'mulk-mushaf';
+  if (/(surah\s*31|luqman|luqmaan|لقمان)/.test(normalized)) return 'luqman-mushaf';
+  if (/(ali?\s*imran|aal\s*imran|al\s*imran|عمران)/.test(normalized)) return 'imran-mushaf';
+
+  return null;
 }
 
-function AsrDoneScreen({ onExit, nightMode }: { onExit: () => void; nightMode: boolean }) {
-  const N = nightMode ? NIGHT : null;
-  return (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[flowStyles.doneContainer, N && { backgroundColor: N.bg }]}>
-      <Text style={[flowStyles.doneTitle, N && { color: N.text }]}>After Asr Adhkar Complete</Text>
-      <TouchableOpacity style={[flowStyles.doneBtn, { backgroundColor: '#E65100' }]} onPress={onExit} activeOpacity={0.85}>
-        <MaterialIcons name="wb-sunny" size={18} color="#fff" />
-        <Text style={flowStyles.doneBtnText}>Back to Adhkar</Text>
-      </TouchableOpacity>
-      <View style={{ height: 32 }} />
-    </ScrollView>
-  );
-}
-
-// ── Morning Adhkar Guided Flow — Dynamic (loads all after-fajr groups from DB) ──
-function AdhkarFlowScreen({
-  step, onStepChange, onExit, nightMode,
-}: { step: 1|2|3|4; onStepChange: (s: 1|2|3|4) => void; onExit: () => void; nightMode: boolean }) {
+function PrayerGuidedFlowScreen({
+  prayerTime, onExit, nightMode, onOpenSpecialGroup,
+}: {
+  prayerTime: PrayerTimeId;
+  onExit: () => void;
+  nightMode: boolean;
+  onOpenSpecialGroup?: (selection: AdhkarSelection, availableSurahs?: AdhkarSelection[], currentIndex?: number) => void;
+}) {
   const N = nightMode ? NIGHT : null;
   const [groups, setGroups] = React.useState<AdhkarGroupMeta[]>([]);
   const [loadingGroups, setLoadingGroups] = React.useState(true);
   const [currentStep, setCurrentStep] = React.useState(0);
   const [isDone, setIsDone] = React.useState(false);
+  const meta = GUIDED_FLOW_META[prayerTime];
 
   React.useEffect(() => {
-    fetchAdhkarGroupsForPrayerTime('after-fajr').then(g => {
+    setLoadingGroups(true);
+    setCurrentStep(0);
+    setIsDone(false);
+    fetchAdhkarGroupsForPrayerTime(prayerTime as AdhkarRow['prayer_time']).then(g => {
       setGroups(g);
       setLoadingGroups(false);
     });
-  }, []);
+  }, [prayerTime]);
 
-  if (isDone) return <AdhkarDoneScreen onExit={onExit} nightMode={nightMode} />;
+  const availableSurahs = React.useMemo(
+    () => groups.map((group) => resolveGroupToSurah(group.group_name)).filter((selection): selection is AdhkarSelection => selection !== null),
+    [groups]
+  );
+
+  if (isDone) return <PrayerGuidedFlowDoneScreen prayerTime={prayerTime} onExit={onExit} nightMode={nightMode} />;
 
   if (loadingGroups) {
     return (
@@ -2262,8 +2139,11 @@ function AdhkarFlowScreen({
 
   const totalSteps = groups.length;
   const currentGroup = groups[currentStep];
-  const stepMeta = currentGroup ? (KNOWN_FAJR_GROUPS[currentGroup.group_name] ?? null) : null;
-  const stepColor = stepMeta?.color ?? DEFAULT_COLORS[currentStep % DEFAULT_COLORS.length];
+  const currentGroupSurah = currentGroup ? resolveGroupToSurah(currentGroup.group_name) : null;
+  const currentSurahIndex = currentGroupSurah
+    ? groups.slice(0, currentStep + 1).reduce((count, group) => count + (resolveGroupToSurah(group.group_name) ? 1 : 0), 0) - 1
+    : undefined;
+  const stepColor = meta.accent;
   const isLastStep = currentStep === totalSteps - 1;
   const nextGroupName = !isLastStep ? groups[currentStep + 1]?.group_name : '';
   const nextLabel = isLastStep
@@ -2276,7 +2156,7 @@ function AdhkarFlowScreen({
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: N ? N.bg : '#F5EFE6' }}>
+    <View style={{ flex: 1, backgroundColor: N ? N.bg : meta.background }}>
       {/* Progress header — scrollable step dots */}
       <View style={[flowStyles.progressBar, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}>
         <TouchableOpacity onPress={onExit} style={[flowStyles.exitBtn, N && { backgroundColor: N.surfaceAlt }]} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -2284,18 +2164,16 @@ function AdhkarFlowScreen({
         </TouchableOpacity>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={[flowStyles.stepsRow, { paddingHorizontal: 4 }]}>
           {groups.map((grp, idx) => {
-            const grpMeta = KNOWN_FAJR_GROUPS[grp.group_name];
-            const grpColor = grpMeta?.color ?? DEFAULT_COLORS[idx % DEFAULT_COLORS.length];
             const done = idx < currentStep;
             const active = idx === currentStep;
             return (
               <View key={grp.group_name} style={flowStyles.stepItem}>
-                <View style={[flowStyles.stepCircle, { backgroundColor: done || active ? grpColor : (N ? N.border : Colors.border) }]}>
+                <View style={[flowStyles.stepCircle, { backgroundColor: done || active ? FLOW_ACCENT : (N ? N.border : Colors.border) }]}>
                   {done
                     ? <MaterialIcons name="check" size={11} color="#fff" />
                     : <Text style={flowStyles.stepCircleText}>{idx + 1}</Text>}
                 </View>
-                <Text style={[flowStyles.stepLabel, N && { color: N.textMuted }, active && { color: grpColor, fontWeight: '800' }]} numberOfLines={1}>
+                <Text style={[flowStyles.stepLabel, N && { color: N.textMuted }, active && { color: FLOW_ACCENT_DARK, fontWeight: '800' }]} numberOfLines={1}>
                   {grp.group_name.split(' ').slice(0, 2).join(' ')}
                 </Text>
               </View>
@@ -2311,22 +2189,97 @@ function AdhkarFlowScreen({
       {currentGroup ? (
         <View style={{ flex: 1 }}>
           <DbAdhkarScreen
-            prayerTime="after-fajr"
+            prayerTime={prayerTime as AdhkarRow['prayer_time']}
             groupFilter={currentGroup.group_name}
             nightMode={nightMode}
+            onOpenSpecialGroup={currentGroupSurah && onOpenSpecialGroup
+              ? (selection) => onOpenSpecialGroup(selection, availableSurahs, currentSurahIndex)
+              : onOpenSpecialGroup}
           />
           <FlowNavBar
             color={stepColor}
             nightMode={nightMode}
+            showSkip={!isLastStep}
+            skipLabel="Skip this step"
+            onSkip={handleNext}
             nextLabel={nextLabel}
             onNext={handleNext}
           />
         </View>
-      ) : (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-          <Text style={{ color: N ? N.textMuted : Colors.textSubtle, textAlign: 'center' }}>Adhkar coming soon.</Text>
+      ) : <View style={{ flex: 1 }} />}
+    </View>
+  );
+}
+
+function SurahFlowWrapper({
+  surahFlowContext,
+  nightMode,
+  onSkip,
+  onNext,
+  children,
+}: {
+  surahFlowContext: {
+    prayerTime: PrayerTimeId;
+    surahs: AdhkarSelection[];
+    currentIndex: number;
+    completed: Set<number>;
+  } | null;
+  nightMode: boolean;
+  onSkip: () => void;
+  onNext: () => void;
+  children: React.ReactNode;
+}) {
+  const N = nightMode ? NIGHT : null;
+
+  if (!surahFlowContext) {
+    return <>{children}</>;
+  }
+
+  const { surahs, currentIndex, completed } = surahFlowContext;
+  const isLastSurah = currentIndex >= surahs.length - 1;
+
+  return (
+    <View style={{ flex: 1 }}>
+      <View style={[surahFlowStyles.progressBar, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}>
+        <Text style={[surahFlowStyles.progressCount, N && { color: N.text }]}>
+          {currentIndex + 1}/{surahs.length}
+        </Text>
+        <View style={surahFlowStyles.progressDots}>
+          {surahs.map((_, index) => {
+            const isCurrent = index === currentIndex;
+            const isCompleted = completed.has(index);
+            return (
+              <View
+                key={`${index}-${surahs[index]}`}
+                style={[
+                  surahFlowStyles.progressDot,
+                  isCurrent && surahFlowStyles.progressDotCurrent,
+                  {
+                    backgroundColor: isCompleted || isCurrent ? FLOW_ACCENT : (N ? N.border : Colors.border),
+                  },
+                ]}
+              >
+                {isCompleted ? <MaterialIcons name="check" size={10} color="#fff" /> : null}
+              </View>
+            );
+          })}
         </View>
-      )}
+      </View>
+
+      <View style={{ flex: 1 }}>{children}</View>
+
+      <View style={[surahFlowStyles.navBar, N && { backgroundColor: N.surface, borderTopColor: N.border }]}>
+        <TouchableOpacity style={[surahFlowStyles.skipBtn, N && { borderColor: N.border }]} onPress={onSkip} activeOpacity={0.8}>
+          <Text style={[surahFlowStyles.skipBtnText, N && { color: N.textSub }]}>
+            {isLastSurah ? 'Exit' : 'Skip Surah'}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={surahFlowStyles.nextBtn} onPress={onNext} activeOpacity={0.85}>
+          <MaterialIcons name="check-circle" size={16} color="#fff" />
+          <Text style={surahFlowStyles.nextBtnText}>{isLastSurah ? 'Finish Flow' : 'Next Surah'}</Text>
+          <MaterialIcons name="chevron-right" size={18} color="rgba(255,255,255,0.9)" />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -2361,20 +2314,21 @@ function WirdAbuBakrFullScreen({ nightMode, onBack }: { nightMode: boolean; onBa
   return <WirdAbuBakrContent nightMode={nightMode} onBack={onBack} />;
 }
 
-function AdhkarDoneScreen({ onExit, nightMode }: { onExit: () => void; nightMode: boolean }) {
+function PrayerGuidedFlowDoneScreen({ prayerTime, onExit, nightMode }: { prayerTime: PrayerTimeId; onExit: () => void; nightMode: boolean }) {
   const N = nightMode ? NIGHT : null;
+  const meta = GUIDED_FLOW_META[prayerTime];
   return (
     <ScrollView
       showsVerticalScrollIndicator={false}
       contentContainerStyle={[flowStyles.doneContainer, N && { backgroundColor: N.bg }]}
     >
-      <Text style={[flowStyles.doneTitle, N && { color: N.text }]}>Morning Adhkar Complete</Text>
+      <Text style={[flowStyles.doneTitle, N && { color: N.text }]}>{meta.doneTitle} Complete</Text>
       <TouchableOpacity
-        style={[flowStyles.doneBtn, N && { backgroundColor: N.primary }]}
+        style={[flowStyles.doneBtn, { backgroundColor: FLOW_ACCENT }, N && { backgroundColor: FLOW_ACCENT_DARK }]}
         onPress={onExit}
         activeOpacity={0.85}
       >
-        <MaterialIcons name="wb-twilight" size={18} color="#fff" />
+        <MaterialIcons name={meta.icon as any} size={18} color="#fff" />
         <Text style={flowStyles.doneBtnText}>Back to Adhkar</Text>
       </TouchableOpacity>
       <View style={{ height: 32 }} />
@@ -2428,13 +2382,88 @@ const flowStyles = StyleSheet.create({
   doneTitle: { fontSize: 20, fontWeight: '800', color: Colors.textPrimary, textAlign: 'center', letterSpacing: 0.2 },
   doneBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center',
-    backgroundColor: Colors.primary,
+    backgroundColor: DUAS_ACCENT_GREEN,
     borderRadius: Radius.full, paddingHorizontal: 28, paddingVertical: 14,
     width: '100%', maxWidth: 320,
-    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
+    shadowColor: DUAS_ACCENT_GREEN, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
   doneBtnText: { fontSize: 15, fontWeight: '800', color: '#fff', letterSpacing: 0.2 },
+});
+
+const surahFlowStyles = StyleSheet.create({
+  progressBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: Spacing.md, paddingVertical: 10,
+    backgroundColor: Colors.surface,
+    borderBottomWidth: 1, borderBottomColor: Colors.border,
+  },
+  progressCount: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+    minWidth: 34,
+  },
+  progressDots: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  progressDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  progressDotCurrent: {
+    transform: [{ scale: 1.08 }],
+  },
+  navBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: Spacing.md, paddingVertical: 12,
+    backgroundColor: Colors.surface,
+    borderTopWidth: 1, borderTopColor: Colors.border,
+    shadowColor: '#000', shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.06, shadowRadius: 6, elevation: 4,
+  },
+  skipBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  skipBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+  nextBtn: {
+    flex: 1.4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: Radius.lg,
+    backgroundColor: FLOW_ACCENT,
+    shadowColor: FLOW_ACCENT_DARK,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.22,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  nextBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#fff',
+  },
 });
 
 const mainBackStyles = StyleSheet.create({
@@ -2451,19 +2480,19 @@ const mainBackStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  moodPageOverlay: {
+  contextOverlay: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 1,
+    backgroundColor: ADHKAR_CONTEXT_OVERLAY,
   },
   heroHeader: {
     overflow: 'hidden',
     paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
-  moodHeroOverlay: {
+  heroSoftenOverlay: {
     ...StyleSheet.absoluteFillObject,
-  },
-  cloudLayer: {
-    ...StyleSheet.absoluteFillObject,
+    backgroundColor: ADHKAR_SURFACE_OVERLAY,
   },
   heroNav: {
     flexDirection: 'row',
@@ -2483,26 +2512,20 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 9,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.35)',
+    borderWidth: 1,
+    borderColor: 'rgba(63,174,90,0.16)',
     backgroundColor: '#fff',
   },
   heroMasjidName: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#FFE88A',
+    color: Colors.primary,
     letterSpacing: 0.2,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
   },
   heroTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#FFFFFF',
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    color: Colors.textPrimary,
   },
   fajrTagRow: {
     flexDirection: 'row',
@@ -2556,7 +2579,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: Radius.full,
   },
-  tabBtnActive: { backgroundColor: Colors.primary },
+  tabBtnActive: { backgroundColor: DUAS_ACCENT_GREEN },
   tabBtnText: { ...Typography.labelMedium, color: Colors.textSecondary, fontSize: 11 },
   tabBtnTextActive: { color: Colors.textInverse },
   categoryBar: {
@@ -2573,7 +2596,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  catChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  catChipActive: { backgroundColor: DUAS_ACCENT_GREEN, borderColor: DUAS_ACCENT_GREEN },
   catChipText: { ...Typography.labelMedium, color: Colors.textSecondary },
   catChipTextActive: { color: Colors.textInverse },
   content: { padding: Spacing.md, gap: Spacing.sm },
@@ -2587,7 +2610,7 @@ const styles = StyleSheet.create({
   duaHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   duaTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
   duaTitle: { ...Typography.titleSmall, color: Colors.textPrimary, flex: 1 },
-  categoryBadge: { ...Typography.bodySmall, color: Colors.primary, marginTop: 4 },
+  categoryBadge: { ...Typography.bodySmall, color: DUAS_ACCENT_GREEN, marginTop: 4 },
   duaExpanded: { marginTop: Spacing.md, gap: Spacing.sm },
   duaArabic: {
     ...Typography.arabic,
@@ -2595,7 +2618,7 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     textAlign: 'right',
     lineHeight: 52,
-    backgroundColor: Colors.primarySoft,
+    backgroundColor: DUAS_ACCENT_GREEN_SOFT,
     paddingHorizontal: 14, paddingVertical: 12,
     borderRadius: Radius.sm,
   },
@@ -2606,12 +2629,12 @@ const styles = StyleSheet.create({
   duaRef: { ...Typography.bodySmall, color: Colors.textSubtle, flex: 1, lineHeight: 16 },
   ratibIndex: {
     width: 22, height: 22, borderRadius: 11,
-    backgroundColor: Colors.primarySoft,
+    backgroundColor: DUAS_ACCENT_GREEN_SOFT,
     alignItems: 'center', justifyContent: 'center',
   },
-  ratibIndexText: { fontSize: 11, fontWeight: '800', color: Colors.primary },
+  ratibIndexText: { fontSize: 11, fontWeight: '800', color: DUAS_ACCENT_GREEN },
   countBadge: {
-    backgroundColor: Colors.primary, borderRadius: Radius.full,
+    backgroundColor: DUAS_ACCENT_GREEN, borderRadius: Radius.full,
     paddingHorizontal: 7, paddingVertical: 2,
   },
   countBadgeText: { fontSize: 11, fontWeight: '800', color: '#fff' },
@@ -2623,9 +2646,9 @@ const styles = StyleSheet.create({
   },
   surahNumber: {
     width: 40, height: 40, borderRadius: Radius.full,
-    backgroundColor: Colors.primarySoft, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: DUAS_ACCENT_GREEN_SOFT, alignItems: 'center', justifyContent: 'center',
   },
-  surahNumberText: { ...Typography.labelLarge, color: Colors.primary },
+  surahNumberText: { ...Typography.labelLarge, color: DUAS_ACCENT_GREEN },
   surahInfo: { flex: 1 },
   surahName: { ...Typography.titleSmall, color: Colors.textPrimary },
   surahMeta: { ...Typography.bodySmall, color: Colors.textSubtle, marginTop: 2 },
