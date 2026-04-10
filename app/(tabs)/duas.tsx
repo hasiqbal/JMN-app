@@ -48,6 +48,9 @@ import { SurahKahfScreen, SurahSajdahScreen, SurahWaqiahMushafScreen, SurahYasee
 import { PRAYER_MOODS } from '@/constants/prayerMoods';
 import { getPrayerTimesForDate, PrayerTimesData } from '@/services/prayerService';
 
+const DUAS_ACCENT_GREEN = '#3FAE5A';
+const DUAS_ACCENT_GREEN_SOFT = '#E7F4EA';
+
 // StarField, NightModeToggle, PrayerTimeChipBar, DbAdhkarScreen — imported from components/adhkar/
 
 function resolveSelectionFromGroupMeta(
@@ -554,8 +557,8 @@ export default function DuasScreen() {
             N && { backgroundColor: N.surface, borderBottomColor: N.border },
           ]}
         >
-          <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : Colors.primary} />
-          <Text style={[mainBackStyles.label, { color: N ? N.accent : Colors.primary }]}>
+          <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : DUAS_ACCENT_GREEN} />
+          <Text style={[mainBackStyles.label, { color: N ? N.accent : DUAS_ACCENT_GREEN }]}> 
             Back to Adhkar
           </Text>
         </TouchableOpacity>
@@ -599,7 +602,7 @@ function BeforeFajrScreen({ nightMode, onSelect, onSelectGroup }: { nightMode: b
     routeMap={BEFORE_FAJR_GROUP_TO_SELECTION}
     icon="nights-stay" nightIcon="nights-stay" nightColor="#A5B4FC" accent="#3949AB"
     title="Before Fajr & Tahajjud" subtitle="Choose what to recite before Fajr and during Tahajjud"
-    colors={['#3949AB','#4FE948','#6A1B9A','#1565C0','#E65100','#B8860B','#00695C']}
+    colors={['#3949AB', DUAS_ACCENT_GREEN, '#6A1B9A', '#1565C0', '#E65100', '#B8860B', '#00695C']}
   />;
 }
 
@@ -960,7 +963,7 @@ function AfterMaghribScreen({ nightMode, onSelect, onSelectGroup }: { nightMode:
     routeMap={MAGHRIB_GROUP_TO_SELECTION}
     icon="bedtime" nightIcon="bedtime" nightColor="#C084FC" accent="#6A1B9A"
     title="After Maghrib" subtitle="Choose what to recite after Maghrib prayer"
-    colors={['#6A1B9A','#AD1457','#1565C0','#4FE948','#E65100','#3949AB','#B8860B']}
+    colors={['#6A1B9A', '#AD1457', '#1565C0', DUAS_ACCENT_GREEN, '#E65100', '#3949AB', '#B8860B']}
   />;
 }
 
@@ -980,8 +983,8 @@ function AfterIshaScreen({ nightMode, onSelectGroup }: { nightMode: boolean; onS
     return (
       <>
         <TouchableOpacity onPress={() => setViewingGroupName(null)} activeOpacity={0.8} style={[mainBackStyles.bar, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}>
-          <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : Colors.primary} />
-          <Text style={[mainBackStyles.label, { color: N ? N.accent : Colors.primary }]}>Back to Adhkar</Text>
+          <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : DUAS_ACCENT_GREEN} />
+          <Text style={[mainBackStyles.label, { color: N ? N.accent : DUAS_ACCENT_GREEN }]}>Back to Adhkar</Text>
         </TouchableOpacity>
         <DbAdhkarScreen
           prayerTime="after-isha"
@@ -998,8 +1001,8 @@ function AfterIshaScreen({ nightMode, onSelectGroup }: { nightMode: boolean; onS
   if (sel === 'sajdah-mushaf') return (
     <>
       <TouchableOpacity onPress={() => setSel(null)} activeOpacity={0.8} style={[mainBackStyles.bar, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}>
-        <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : Colors.primary} />
-        <Text style={[mainBackStyles.label, { color: N ? N.accent : Colors.primary }]}>Back to Adhkar</Text>
+        <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : DUAS_ACCENT_GREEN} />
+        <Text style={[mainBackStyles.label, { color: N ? N.accent : DUAS_ACCENT_GREEN }]}>Back to Adhkar</Text>
       </TouchableOpacity>
       <SajdahMushafPlaceholder nightMode={nightMode} onBack={() => setSel(null)} />
     </>
@@ -1007,8 +1010,8 @@ function AfterIshaScreen({ nightMode, onSelectGroup }: { nightMode: boolean; onS
   if (sel === 'mulk-mushaf') return (
     <>
       <TouchableOpacity onPress={() => setSel(null)} activeOpacity={0.8} style={[mainBackStyles.bar, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}>
-        <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : Colors.primary} />
-        <Text style={[mainBackStyles.label, { color: N ? N.accent : Colors.primary }]}>Back to Adhkar</Text>
+        <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : DUAS_ACCENT_GREEN} />
+        <Text style={[mainBackStyles.label, { color: N ? N.accent : DUAS_ACCENT_GREEN }]}>Back to Adhkar</Text>
       </TouchableOpacity>
       <MulkMushafPlaceholder nightMode={nightMode} onBack={() => setSel(null)} />
     </>
@@ -1016,8 +1019,8 @@ function AfterIshaScreen({ nightMode, onSelectGroup }: { nightMode: boolean; onS
   if (sel === 'luqman-mushaf') return (
     <>
       <TouchableOpacity onPress={() => setSel(null)} activeOpacity={0.8} style={[mainBackStyles.bar, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}>
-        <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : Colors.primary} />
-        <Text style={[mainBackStyles.label, { color: N ? N.accent : Colors.primary }]}>Back to Adhkar</Text>
+        <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : DUAS_ACCENT_GREEN} />
+        <Text style={[mainBackStyles.label, { color: N ? N.accent : DUAS_ACCENT_GREEN }]}>Back to Adhkar</Text>
       </TouchableOpacity>
       <LuqmanMushafPlaceholder nightMode={nightMode} onBack={() => setSel(null)} />
     </>
@@ -1025,8 +1028,8 @@ function AfterIshaScreen({ nightMode, onSelectGroup }: { nightMode: boolean; onS
   if (sel === 'imran-mushaf') return (
     <>
       <TouchableOpacity onPress={() => setSel(null)} activeOpacity={0.8} style={[mainBackStyles.bar, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}>
-        <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : Colors.primary} />
-        <Text style={[mainBackStyles.label, { color: N ? N.accent : Colors.primary }]}>Back to Adhkar</Text>
+        <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : DUAS_ACCENT_GREEN} />
+        <Text style={[mainBackStyles.label, { color: N ? N.accent : DUAS_ACCENT_GREEN }]}>Back to Adhkar</Text>
       </TouchableOpacity>
       <ImranMushafPlaceholder nightMode={nightMode} onBack={() => setSel(null)} />
     </>
@@ -1045,7 +1048,7 @@ function AfterIshaScreen({ nightMode, onSelectGroup }: { nightMode: boolean; onS
     prayerTime="after-isha" nightMode={nightMode} onSelect={handleIshaSelect} onSelectGroup={(gn) => setViewingGroupName(gn)}
     icon="nightlight" nightIcon="nightlight" nightColor="#93C5FD" accent="#1565C0"
     title="After Isha" subtitle="Choose what to recite after Isha prayer"
-    colors={['#1565C0','#3949AB','#6A1B9A','#4FE948','#00695C','#AD1457','#B8860B']}
+    colors={['#1565C0', '#3949AB', '#6A1B9A', DUAS_ACCENT_GREEN, '#00695C', '#AD1457', '#B8860B']}
   />;
 }
 
@@ -1286,10 +1289,10 @@ const fajrSelStyles = StyleSheet.create({
   tipText: { flex: 1, fontSize: 11, fontWeight: '400', lineHeight: 16, color: Colors.textSubtle },
   flowStartBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: Colors.primary, borderRadius: Radius.lg,
-    borderWidth: 1.5, borderColor: Colors.primary,
+    backgroundColor: DUAS_ACCENT_GREEN, borderRadius: Radius.lg,
+    borderWidth: 1.5, borderColor: DUAS_ACCENT_GREEN,
     paddingHorizontal: Spacing.md, paddingVertical: 14,
-    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
+    shadowColor: DUAS_ACCENT_GREEN, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35, shadowRadius: 8, elevation: 5,
   },
   flowStartLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
@@ -1425,7 +1428,7 @@ const WIRD_SURAHS = [
     number: null,
     title: 'Peace upon Nuh (AS)',
     arabicTitle: 'سَلَامٌ عَلَى نُوح',
-    color: '#4FE948',
+    color: DUAS_ACCENT_GREEN,
     arabic:
       'سَلَامٌ عَلَىٰ نُوحٍ فِي الْعَالَمِينَ ﴿٧٩﴾ إِنَّا كَذَٰلِكَ نَجْزِي الْمُحْسِنِينَ ﴿٨٠﴾ إِنَّهُ مِنْ عِبَادِنَا الْمُؤْمِنِينَ ﴿٨١﴾',
     transliteration:
@@ -1468,7 +1471,7 @@ const WIRD_SURAHS = [
     number: null,
     title: 'Morning Blessing & Protection',
     arabicTitle: 'اللَّهُمَّ إِنِّي أَصْبَحْتُ',
-    color: '#4FE948',
+    color: DUAS_ACCENT_GREEN,
     count: '×3',
     arabic:
       'اللَّهُمَّ إِنِّي أَصْبَحْتُ مِنْكَ فِي نِعْمَةٍ وَعَافِيَةٍ وَسِتْرٍ، فَأَتِمَّ نِعْمَتَكَ عَلَيَّ وَعَافِيَتَكَ وَسِتْرَكَ فِي الدُّنْيَا وَالْآخِرَةِ',
@@ -1558,7 +1561,7 @@ const WIRD_SURAHS = [
     number: null,
     title: 'Salawat on the Prophet',
     arabicTitle: 'اللَّهُمَّ صَلِّ عَلَى سَيِّدِنَا',
-    color: '#4FE948',
+    color: DUAS_ACCENT_GREEN,
     count: '×10',
     arabic:
       'اللَّهُمَّ صَلِّ عَلَى سَيِّدِنَا مُحَمَّدٍ وَآلِهِ وَصَحْبِهِ وَسَلِّمْ',
@@ -1663,7 +1666,7 @@ const WIRD_SURAHS = [
     number: null,
     title: 'Refuge from Anxiety & Grief',
     arabicTitle: 'أَعُوذُ بِكَ مِنَ الْهَمِّ',
-    color: '#4FE948',
+    color: DUAS_ACCENT_GREEN,
     count: '×1',
     arabic:
       'اللَّهُمَّ إِنِّي أَعُوذُ بِكَ مِنَ الْهَمِّ وَالْحَزَنِ، وَأَعُوذُ بِكَ مِنَ الْعَجْزِ وَالْكَسَلِ، وَأَعُوذُ بِكَ مِنَ الْجُبْنِ وَالْبُخْلِ، وَأَعُوذُ بِكَ مِنْ غَلَبَةِ الدَّيْنِ وَقَهْرِ الرِّجَالِ',
@@ -1753,7 +1756,7 @@ const WIRD_SURAHS = [
     number: null,
     title: 'Morning upon the Fitrah of Islam',
     arabicTitle: 'أَصْبَحْنَا عَلَى فِطْرَةِ الْإِسْلَام',
-    color: '#4FE948',
+    color: DUAS_ACCENT_GREEN,
     count: '×1',
     arabic:
       'أَصْبَحْنَا عَلَى فِطْرَةِ الْإِسْلَامِ، وَعَلَى كَلِمَةِ الْإِخْلَاصِ، وَعَلَى دِينِ نَبِيِّنَا مُحَمَّدٍ صَلَّى اللَّهُ عَلَيْهِ وَآلِهِ وَسَلَّمَ، وَعَلَى مِلَّةِ أَبِينَا إِبْرَاهِيمَ حَنِيفًا مُسْلِمًا وَمَا كَانَ مِنَ الْمُشْرِكِينَ',
@@ -1828,7 +1831,7 @@ const WIRD_SURAHS = [
     number: null,
     title: 'SubhanAllah — Equal to His Creation',
     arabicTitle: 'سُبْحَانَ اللَّهِ وَبِحَمْدِهِ عَدَدَ خَلْقِه',
-    color: '#4FE948',
+    color: DUAS_ACCENT_GREEN,
     count: '×3',
     arabic:
       'سُبْحَانَ اللَّهِ وَبِحَمْدِهِ عَدَدَ خَلْقِهِ، وَرِضَاءَ نَفْسِهِ، وَزِنَةَ عَرْشِهِ، وَمِدَادَ كَلِمَاتِهِ',
@@ -1891,7 +1894,7 @@ const WIRD_SURAHS = [
     number: null,
     title: 'La Ilaha illa Allah — Final Closing Dhikr',
     arabicTitle: 'لَا إِلَهَ إِلَّا اللَّهُ — خَاتِمَة',
-    color: '#4FE948',
+    color: DUAS_ACCENT_GREEN,
     count: '×3',
     arabic:
       'لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَاشَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ يُحْيِي وَيُمِيتُ وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٍ عَدَدَ كُلِّ ذَرَّةٍ أَلْفَ مَرَّةٍ',
@@ -2428,10 +2431,10 @@ const flowStyles = StyleSheet.create({
   doneTitle: { fontSize: 20, fontWeight: '800', color: Colors.textPrimary, textAlign: 'center', letterSpacing: 0.2 },
   doneBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center',
-    backgroundColor: Colors.primary,
+    backgroundColor: DUAS_ACCENT_GREEN,
     borderRadius: Radius.full, paddingHorizontal: 28, paddingVertical: 14,
     width: '100%', maxWidth: 320,
-    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
+    shadowColor: DUAS_ACCENT_GREEN, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
   doneBtnText: { fontSize: 15, fontWeight: '800', color: '#fff', letterSpacing: 0.2 },
@@ -2556,7 +2559,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: Radius.full,
   },
-  tabBtnActive: { backgroundColor: Colors.primary },
+  tabBtnActive: { backgroundColor: DUAS_ACCENT_GREEN },
   tabBtnText: { ...Typography.labelMedium, color: Colors.textSecondary, fontSize: 11 },
   tabBtnTextActive: { color: Colors.textInverse },
   categoryBar: {
@@ -2573,7 +2576,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  catChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  catChipActive: { backgroundColor: DUAS_ACCENT_GREEN, borderColor: DUAS_ACCENT_GREEN },
   catChipText: { ...Typography.labelMedium, color: Colors.textSecondary },
   catChipTextActive: { color: Colors.textInverse },
   content: { padding: Spacing.md, gap: Spacing.sm },
@@ -2587,7 +2590,7 @@ const styles = StyleSheet.create({
   duaHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   duaTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
   duaTitle: { ...Typography.titleSmall, color: Colors.textPrimary, flex: 1 },
-  categoryBadge: { ...Typography.bodySmall, color: Colors.primary, marginTop: 4 },
+  categoryBadge: { ...Typography.bodySmall, color: DUAS_ACCENT_GREEN, marginTop: 4 },
   duaExpanded: { marginTop: Spacing.md, gap: Spacing.sm },
   duaArabic: {
     ...Typography.arabic,
@@ -2595,7 +2598,7 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     textAlign: 'right',
     lineHeight: 52,
-    backgroundColor: Colors.primarySoft,
+    backgroundColor: DUAS_ACCENT_GREEN_SOFT,
     paddingHorizontal: 14, paddingVertical: 12,
     borderRadius: Radius.sm,
   },
@@ -2606,12 +2609,12 @@ const styles = StyleSheet.create({
   duaRef: { ...Typography.bodySmall, color: Colors.textSubtle, flex: 1, lineHeight: 16 },
   ratibIndex: {
     width: 22, height: 22, borderRadius: 11,
-    backgroundColor: Colors.primarySoft,
+    backgroundColor: DUAS_ACCENT_GREEN_SOFT,
     alignItems: 'center', justifyContent: 'center',
   },
-  ratibIndexText: { fontSize: 11, fontWeight: '800', color: Colors.primary },
+  ratibIndexText: { fontSize: 11, fontWeight: '800', color: DUAS_ACCENT_GREEN },
   countBadge: {
-    backgroundColor: Colors.primary, borderRadius: Radius.full,
+    backgroundColor: DUAS_ACCENT_GREEN, borderRadius: Radius.full,
     paddingHorizontal: 7, paddingVertical: 2,
   },
   countBadgeText: { fontSize: 11, fontWeight: '800', color: '#fff' },
@@ -2623,9 +2626,9 @@ const styles = StyleSheet.create({
   },
   surahNumber: {
     width: 40, height: 40, borderRadius: Radius.full,
-    backgroundColor: Colors.primarySoft, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: DUAS_ACCENT_GREEN_SOFT, alignItems: 'center', justifyContent: 'center',
   },
-  surahNumberText: { ...Typography.labelLarge, color: Colors.primary },
+  surahNumberText: { ...Typography.labelLarge, color: DUAS_ACCENT_GREEN },
   surahInfo: { flex: 1 },
   surahName: { ...Typography.titleSmall, color: Colors.textPrimary },
   surahMeta: { ...Typography.bodySmall, color: Colors.textSubtle, marginTop: 2 },

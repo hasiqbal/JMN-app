@@ -9,6 +9,8 @@ import { Colors, Spacing, Radius } from '@/constants/theme';
 import { NIGHT_PALETTE } from '@/constants/nightPalette';
 import { PrayerTimeId, PRAYER_TIMES } from '@/types/duasTypes';
 
+const ADHKAR_ACCENT_GREEN = '#3FAE5A';
+
 interface Props {
   selected: PrayerTimeId;
   onSelect: (t: PrayerTimeId) => void;
@@ -26,13 +28,14 @@ export function PrayerTimeChipBar({ selected, onSelect, nightMode }: Props) {
       >
         {PRAYER_TIMES.map((pt) => {
           const isActive = selected === pt.id;
+          const activeColor = pt.id === 'after-fajr' ? ADHKAR_ACCENT_GREEN : pt.color;
           return (
             <TouchableOpacity
               key={pt.id}
               style={[
                 styles.chip,
                 N && { backgroundColor: N.surfaceAlt, borderColor: N.border },
-                isActive && { backgroundColor: pt.color, borderColor: pt.color },
+                isActive && { backgroundColor: activeColor, borderColor: activeColor },
               ]}
               onPress={() => onSelect(pt.id)}
               activeOpacity={0.8}

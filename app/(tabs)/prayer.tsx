@@ -98,6 +98,9 @@ const NIGHT = {
   jumuahBord: '#3D2F00',
 };
 
+const PRAYER_HEADER_GREEN = '#3FAE5A';
+const PRAYER_HEADER_GREEN_DARK = '#2F8E47';
+
 function useCurrentTime() {
   const [now, setNow] = useState(new Date());
   useEffect(() => {
@@ -157,7 +160,7 @@ const nmToggleStyles = StyleSheet.create({
     paddingHorizontal: 6, paddingVertical: 4,
     borderRadius: 999,
   },
-  btnActive: { backgroundColor: Colors.primary },
+  btnActive: { backgroundColor: PRAYER_HEADER_GREEN },
   btnNight:  { backgroundColor: '#2A4A7A' },
   label: { fontSize: 10, fontWeight: '700', letterSpacing: 0.2 },
 });
@@ -170,11 +173,17 @@ export default function PrayerScreen() {
   const [loading, setLoading] = useState(true);
   const { view: viewParam } = useLocalSearchParams<{ view?: string }>();
   const [viewMode, setViewMode] = useState<'today' | 'month'>(viewParam === 'month' ? 'month' : 'today');
+  const [monthViewSeed, setMonthViewSeed] = useState(0);
+
+  const openMonthlyView = React.useCallback(() => {
+    setMonthViewSeed((s) => s + 1);
+    setViewMode('month');
+  }, []);
 
   // Respond to navigation param changes (e.g. from Home date card)
   React.useEffect(() => {
-    if (viewParam === 'month') setViewMode('month');
-  }, [viewParam]);
+    if (viewParam === 'month') openMonthlyView();
+  }, [viewParam, openMonthlyView]);
   const [forbiddenInfo, setForbiddenInfo] = useState<ForbiddenTimeInfo | null>(null);
   const now = useCurrentTime();
 
@@ -324,7 +333,7 @@ export default function PrayerScreen() {
         /* ── Compact month header ── */
         <View style={[styles.headerCompact, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}>
           <TouchableOpacity onPress={() => setViewMode('today')} style={styles.backToTodayBtn} activeOpacity={0.8}>
-            <MaterialIcons name="arrow-back" size={18} color={N ? '#69A8FF' : Colors.primary} />
+            <MaterialIcons name="arrow-back" size={18} color={N ? '#69A8FF' : PRAYER_HEADER_GREEN_DARK} />
             <Text style={[styles.backToTodayText, N && { color: '#69A8FF' }]}>Today</Text>
           </TouchableOpacity>
           <Text style={[styles.headerCompactTitle, N && { color: N.text }]}>Monthly View</Text>
@@ -339,7 +348,7 @@ export default function PrayerScreen() {
           </View>
 
           <TouchableOpacity
-            onPress={() => setViewMode('month')}
+            onPress={openMonthlyView}
             activeOpacity={0.82}
             style={[styles.headerMetaRow, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}
           >
@@ -351,7 +360,7 @@ export default function PrayerScreen() {
               </Text>
             </View>
             <View style={styles.headerMetaRight}>
-              <MaterialIcons name="place" size={12} color={N ? '#6BB89A' : Colors.primary} />
+              <MaterialIcons name="place" size={12} color={N ? '#6BB89A' : PRAYER_HEADER_GREEN_DARK} />
               <Text style={[styles.headerMetaLocation, N && { color: N.textSub }]}>Halifax</Text>
               <View style={[styles.headerMetaAction, N && { backgroundColor: '#2A4A7A', borderColor: '#456A9E' }]}>
                 <Text style={[styles.headerMetaActionText, N && { color: '#D7E8FF' }]}>View timetable</Text>
@@ -365,6 +374,7 @@ export default function PrayerScreen() {
       {/* ── Monthly Calendar View — split layout fills remaining screen ── */}
       {viewMode === 'month' ? (
         <MonthlyCalendarSection
+          key={`month-view-${monthViewSeed}`}
           today={now}
           nightMode={nightMode}
           nightPalette={NIGHT}
@@ -498,7 +508,7 @@ export default function PrayerScreen() {
 
         {/* Source */}
         <View style={styles.sourceRow}>
-          <MaterialIcons name={loading ? 'sync' : 'check-circle'} size={12} color={N ? '#3A7A5A' : Colors.primary} />
+          <MaterialIcons name={loading ? 'sync' : 'check-circle'} size={12} color={N ? '#3A7A5A' : PRAYER_HEADER_GREEN_DARK} />
           <Text style={[styles.sourceText, N && { color: N.textMuted }]}>
             {sourceLabel}
           </Text>
@@ -553,7 +563,7 @@ const styles = StyleSheet.create({
   backToTodayText: {
     fontSize: 13,
     fontWeight: '700',
-    color: Colors.primary,
+    color: PRAYER_HEADER_GREEN_DARK,
   },
   headerRowCompact: {
     flexDirection: 'row',
@@ -564,7 +574,7 @@ const styles = StyleSheet.create({
   headerMasjidCompact: {
     fontSize: 14,
     fontWeight: '800',
-    color: Colors.primary,
+    color: PRAYER_HEADER_GREEN_DARK,
     letterSpacing: 0.1,
     flex: 1,
   },
@@ -609,13 +619,13 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: '#8EB9E8',
-    backgroundColor: '#EAF4FF',
+    borderColor: '#A8D7B3',
+    backgroundColor: '#EDF8F0',
   },
   headerMetaActionText: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#1E5BA8',
+    color: PRAYER_HEADER_GREEN_DARK,
   },
 
   dateStrip: {
