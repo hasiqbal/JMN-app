@@ -7,6 +7,59 @@ import { getSupabaseClient } from '@/template';
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
+export interface HijriCalendarRow {
+  gregorian_date: string;
+  hijri_date: string;
+  gregorian_year: number;
+  gregorian_month: number;
+  gregorian_day: number;
+}
+
+function toIsoLocalDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+export async function fetchHijriDateForGregorian(date: Date): Promise<string | null> {
+  try {
+    const supabase = getSupabaseClient();
+    const iso = toIsoLocalDate(date);
+
+    const { data, error } = await supabase
+      .from('hijri_calendar')
+      .select('hijri_date')
+      .eq('gregorian_date', iso)
+      .maybeSingle();
+
+    if (error || !data) return null;
+    return (data as Pick<HijriCalendarRow, 'hijri_date'>).hijri_date ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchHijriCalendarForMonth(
+  year: number,
+  month: number
+): Promise<HijriCalendarRow[]> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('hijri_calendar')
+      .select('gregorian_date,hijri_date,gregorian_year,gregorian_month,gregorian_day')
+      .eq('gregorian_year', year)
+      .eq('gregorian_month', month)
+      .order('gregorian_day', { ascending: true });
+
+    if (error || !data) return [];
+    return data as HijriCalendarRow[];
+  } catch {
+    return [];
+  }
+}
+
 export interface PrayerTimeRow {
   id: string;
   month: number;
@@ -44,7 +97,7 @@ export interface AdhkarRow {
   count: string | null;
   display_order: number;
   is_active: boolean;
-  sections: Array<{ heading: string; arabic: string; transliteration?: string; translation?: string }> | null;
+  sections: { heading: string; arabic: string; transliteration?: string; translation?: string }[] | null;
   group_name: string | null;
   group_order: number;
   description: string | null;

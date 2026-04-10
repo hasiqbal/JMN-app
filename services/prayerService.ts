@@ -1,5 +1,5 @@
 import { lookupTimetable, DayTimetable } from './timetableData';
-import { fetchPrayerTimeForDay } from './contentService';
+import { fetchPrayerTimeForDay, fetchHijriDateForGregorian } from './contentService';
 
 export function isBST(date: Date): boolean {
   const year = date.getFullYear();
@@ -242,7 +242,10 @@ export async function getPrayerTimesForDate(date?: Date): Promise<PrayerTimesDat
   const day = target.getDate();
 
   // Try DB first
-  const dbRow = await fetchPrayerTimeForDay(month, day);
+  const [dbRow, hijriFromDb] = await Promise.all([
+  fetchPrayerTimeForDay(month, day),
+  fetchHijriDateForGregorian(target),
+]);
   if (dbRow) {
     // Iqamah times & Hijri date come from local timetable (not stored in DB yet)
     const localRaw = lookupTimetable(target);
@@ -256,7 +259,7 @@ export async function getPrayerTimesForDate(date?: Date): Promise<PrayerTimesDat
       maghrib:  dbRow.maghrib,
       isha:     dbRow.isha,
       jumuah:   dbRow.jumu_ah_1,
-      hijri:    localRaw?.hijri ?? '',
+      hijri:    hijriFromDb ?? localRaw?.hijri ?? '',
       iqFajr:   dbRow.fajr_jamat     ?? localRaw?.iqFajr   ?? '07:30',
       iqDhuhr:  dbRow.zuhr_jamat     ?? localRaw?.iqDhuhr  ?? '13:00',
       iqAsr:    dbRow.asr_jamat      ?? localRaw?.iqAsr    ?? '15:30',
@@ -267,7 +270,19 @@ export async function getPrayerTimesForDate(date?: Date): Promise<PrayerTimesDat
   }
 
   // Fall back to local
-  return getPrayerTimesFromTimetable(target);
+  const fallback = getPrayerTimesFromTimetable(target);
+if (!fallback) return null;
+
+if (!hijriFromDb) return fallback;
+
+return {
+  ...fallback,
+  hijriDate: hijriFromDb,
+  raw: {
+    ...fallback.raw,
+    hijri: hijriFromDb,
+  },
+};
 }
 
 // ── Local-only (synchronous) — used for quick lookups & tomorrow ──────────

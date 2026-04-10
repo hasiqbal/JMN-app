@@ -2237,7 +2237,7 @@ export default function HomeScreen() {
       {/* ── Hero Header ─────────────────────────────── */}
       <ImageBackground
         source={nightMode
-          ? require('@/assets/images/sky-night.jpg')
+          ? require('@/assets/images/isha.jpg')
           : require('@/assets/images/masjid-building.jpg')}
         style={[styles.heroHeader, { paddingTop: insets.top + 8 }]}
         imageStyle={{ opacity: nightMode ? 0.6 : 1 }}
