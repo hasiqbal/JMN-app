@@ -1,33 +1,32 @@
-// Jami' Masjid Noorani — Design System (Green theme matching logo)
 export const Colors = {
-  // Brand — emerald green palette
-  primary: '#4FE948',        // Primary green
-  primaryLight: '#8FF28A',   // Complementary light tint
-  primarySoft: '#ECFAEC',    // Soft tint for chips/cards
-  accent: '#1B5E34',         // Dark forest green
-  headerBg: '#4FE948',       // Header green
+  // Brand
+  primary: '#3FAE5A',
+  primaryLight: '#6FC285',
+  primarySoft: '#E6F4EA',
+  accent: '#3FAE5A',
+  headerBg: '#F5F7F5',
 
   // Surface
-  background: '#F4FAF6',     // Light green-white
+  background: '#F5F7F5',
   surface: '#FFFFFF',
-  surfaceAlt: '#F4FBF2',     // Light green tint
-  border: '#CFE8CF',
+  surfaceAlt: '#F0F7F3',
+  border: '#E3E8E4',
 
   // Text
-  textPrimary: '#0D2118',    // Deep dark green-black
-  textSecondary: '#2C5F3A',
-  textSubtle: '#7BAF92',
+  textPrimary: '#1F2A24',
+  textSecondary: '#6B7A72',
+  textSubtle: '#9AA09A',
   textInverse: '#FFFFFF',
 
   // Semantic
-  success: '#4FE948',
+  success: '#3FAE5A',
   warning: '#E9A840',
   error: '#C0392B',
 
   // Prayer time specific
-  prayerActive: '#4FE948',
-  prayerNext: '#9ED59B',
-  prayerPassed: '#B0D4BC',
+  prayerActive: '#3FAE5A',
+  prayerNext: '#E6F4EA',
+  prayerPassed: '#E3E8E4',
 };
 
 export const Spacing = {

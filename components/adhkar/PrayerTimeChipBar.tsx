@@ -28,14 +28,13 @@ export function PrayerTimeChipBar({ selected, onSelect, nightMode }: Props) {
       >
         {PRAYER_TIMES.map((pt) => {
           const isActive = selected === pt.id;
-          const activeColor = pt.id === 'after-fajr' ? ADHKAR_ACCENT_GREEN : pt.color;
           return (
             <TouchableOpacity
               key={pt.id}
               style={[
                 styles.chip,
-                N && { backgroundColor: N.surfaceAlt, borderColor: N.border },
-                isActive && { backgroundColor: activeColor, borderColor: activeColor },
+                N && { borderColor: N.border },
+                isActive && { backgroundColor: ADHKAR_ACCENT_GREEN, borderColor: ADHKAR_ACCENT_GREEN },
               ]}
               onPress={() => onSelect(pt.id)}
               activeOpacity={0.8}
@@ -43,7 +42,7 @@ export function PrayerTimeChipBar({ selected, onSelect, nightMode }: Props) {
               <MaterialIcons
                 name={pt.icon as any}
                 size={13}
-                color={isActive ? '#fff' : (N ? N.textSub : Colors.textSubtle)}
+                color={isActive ? '#fff' : (N ? N.textSub : Colors.textPrimary)}
               />
               <Text
                 style={[
@@ -70,7 +69,7 @@ const styles = StyleSheet.create({
   },
   scroll: {
     paddingHorizontal: Spacing.md,
-    paddingVertical: 10,
+    paddingVertical: 8,
     gap: 8,
     flexDirection: 'row',
     alignItems: 'center',
@@ -82,13 +81,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: Radius.full,
-    backgroundColor: Colors.surfaceAlt,
-    borderWidth: 1.5,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
     borderColor: Colors.border,
   },
   chipText: {
     fontSize: 12,
     fontWeight: '700',
-    color: Colors.textSecondary,
+    color: Colors.textPrimary,
   },
 });

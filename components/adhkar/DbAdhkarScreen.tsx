@@ -11,6 +11,7 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -30,6 +31,15 @@ import {
 import { AdhkarSelection } from '@/types/duasTypes';
 
 const ADHKAR_ACCENT_GREEN = '#3FAE5A';
+const ADHKAR_CARD_TITLE = '#1F2A24';
+const ADHKAR_CARD_TEXT = '#6B7A72';
+const ADHKAR_META_TEXT = '#7A887F';
+const ADHKAR_DESCRIPTION_TEXT = '#4F5D56';
+const ADHKAR_ICON_BG = '#F0F7F3';
+const ADHKAR_TAG_BG = '#E6F4EA';
+const ADHKAR_ARROW = '#A0A8A2';
+const ADHKAR_BENEFITS_GOLD = '#B88917';
+const ADHKAR_BENEFITS_GOLD_SOFT = '#FFF4D6';
 
 // ── Groups that use enhanced Indo-Pak paragraph formatting ───────────────
 const ENHANCED_ARABIC_GROUPS = new Set([
@@ -40,18 +50,18 @@ const ENHANCED_ARABIC_GROUPS = new Set([
 // ── Prayer-time display metadata ─────────────────────────────────────────
 const PRAYER_TIME_META: Record<string, { title: string; icon: string; accent: string }> = {
   'after-fajr':    { title: 'Morning Adhkar',         icon: 'wb-twilight', accent: ADHKAR_ACCENT_GREEN },
-  'after-zuhr':    { title: 'After Dhuhr Adhkar',     icon: 'wb-sunny',    accent: '#0A5C9E' },
-  'after-jumuah':  { title: "After Jumu'ah Adhkar",   icon: 'star',        accent: '#B8860B' },
-  'after-asr':     { title: 'After Asr Adhkar',       icon: 'wb-cloudy',   accent: '#E65100' },
-  'after-maghrib': { title: 'Evening Adhkar',          icon: 'bedtime',     accent: '#6A1B9A' },
-  'after-isha':    { title: 'After Isha Adhkar',       icon: 'nightlight',  accent: '#1565C0' },
-  'before-fajr':   { title: 'Before Fajr & Tahajjud Adhkar', icon: 'nights-stay', accent: '#3949AB' },
+  'after-zuhr':    { title: 'After Dhuhr Adhkar',     icon: 'wb-sunny',    accent: ADHKAR_ACCENT_GREEN },
+  'after-jumuah':  { title: "After Jumu'ah Adhkar",   icon: 'star',        accent: ADHKAR_ACCENT_GREEN },
+  'after-asr':     { title: 'After Asr Adhkar',       icon: 'wb-cloudy',   accent: ADHKAR_ACCENT_GREEN },
+  'after-maghrib': { title: 'Evening Adhkar',         icon: 'bedtime',     accent: ADHKAR_ACCENT_GREEN },
+  'after-isha':    { title: 'After Isha Adhkar',      icon: 'nightlight',  accent: ADHKAR_ACCENT_GREEN },
+  'before-fajr':   { title: 'Before Fajr & Tahajjud Adhkar', icon: 'nights-stay', accent: ADHKAR_ACCENT_GREEN },
   // Group-filtered overrides
-  'Surah Al-Waqiah':         { title: 'Surah Al-Waqiah',           icon: 'menu-book',   accent: '#E65100' },
-  'Hizb ul Bahr':            { title: 'Hizb ul Bahr',              icon: 'waves',       accent: '#1565C0' },
-  'Dua after Surah Yaseen':  { title: 'Dua after Surah Yaseen',    icon: 'favorite',    accent: '#C62828' },
-  'Dua al-Waqiah':           { title: 'Dua after Surah Waqiah',    icon: 'auto-awesome',accent: '#6A1B9A' },
-  'Wird Abu Bakr bin Salim': { title: 'Wird of Abu Bakr bin Salim',icon: 'stars',       accent: '#B8860B' },
+  'Surah Al-Waqiah':         { title: 'Surah Al-Waqiah',           icon: 'menu-book',   accent: ADHKAR_ACCENT_GREEN },
+  'Hizb ul Bahr':            { title: 'Hizb ul Bahr',              icon: 'waves',       accent: ADHKAR_ACCENT_GREEN },
+  'Dua after Surah Yaseen':  { title: 'Dua after Surah Yaseen',    icon: 'favorite',    accent: ADHKAR_ACCENT_GREEN },
+  'Dua al-Waqiah':           { title: 'Dua after Surah Waqiah',    icon: 'auto-awesome',accent: ADHKAR_ACCENT_GREEN },
+  'Wird Abu Bakr bin Salim': { title: 'Wird of Abu Bakr bin Salim',icon: 'stars',       accent: ADHKAR_ACCENT_GREEN },
   'Morning Adhkar':          { title: 'Morning Adhkar',            icon: 'wb-twilight', accent: ADHKAR_ACCENT_GREEN },
 };
 
@@ -169,21 +179,28 @@ export function DbAdhkarScreen({
 
   const [adhkar, setAdhkar] = React.useState<AdhkarRow[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [expandedId, setExpandedId] = React.useState<string | null>(null);
+  const [expandedById, setExpandedById] = React.useState<Record<string, boolean>>({});
   const [expandedGroups, setExpandedGroups] = React.useState<Record<string, boolean>>({});
   const [urduById, setUrduById] = React.useState<Record<string, boolean>>({});
+  const [benefitsById, setBenefitsById] = React.useState<Record<string, boolean>>({});
+  const [transliterationById, setTransliterationById] = React.useState<Record<string, boolean>>({});
+  const [translationById, setTranslationById] = React.useState<Record<string, boolean>>({});
 
   React.useEffect(() => {
     setLoading(true);
-    fetchAdhkarForPrayerTime(prayerTime).then(rows => {
+    fetchAdhkarForPrayerTime(prayerTime).then((rows) => {
       const filtered = groupFilter ? rows.filter(r => r.group_name === groupFilter) : rows;
       setAdhkar(filtered);
+
       // Auto-expand all groups on load
       const groups: Record<string, boolean> = {};
       filtered.forEach(r => { if (r.group_name) groups[r.group_name] = true; });
       setExpandedGroups(groups);
       // Keep cards collapsed by default; user can tap to expand.
-      setExpandedId(null);
+      setExpandedById({});
+      setBenefitsById({});
+      setTransliterationById({});
+      setTranslationById({});
       setLoading(false);
     });
   }, [prayerTime, groupFilter]);
@@ -205,14 +222,7 @@ export function DbAdhkarScreen({
 
   // ── Empty state ───────────────────────────────────────────────────────
   if (adhkar.length === 0) {
-    return (
-      <View style={styles.centred}>
-        <MaterialIcons name="auto-awesome" size={40} color={N ? N.textMuted : Colors.textSubtle} style={{ opacity: 0.4 }} />
-        <Text style={[styles.emptyText, N && { color: N.textMuted }]}>
-          {'No adhkar found in the database.\nAdd them via Cloud \u2192 Data \u2192 adhkar table.'}
-        </Text>
-      </View>
-    );
+    return <View style={styles.centred} />;
   }
 
   // ── Group items by group_name, ordered by group_order then display_order ──
@@ -241,9 +251,14 @@ export function DbAdhkarScreen({
 
   // ── Item renderer ─────────────────────────────────────────────────────
   const renderItem = (item: AdhkarRow) => {
-    const isOpen = expandedId === item.id;
+    const isOpen = !!expandedById[item.id];
+    const isBenefitsOpen = !!benefitsById[item.id];
+    const isTransliterationOpen = !!transliterationById[item.id];
+    const isTranslationOpen = !!translationById[item.id];
     const arabicFontSize   = useEnhancedFont ? 26 : 24;
     const arabicLineHeight = useEnhancedFont ? 58 : 52;
+    const itemBenefits = (item.benefits ?? item.description ?? '').trim();
+    const hasBenefits = itemBenefits.length > 0;
     const urduTranslation = resolveAdhkarUrduTranslation(item);
     const hasUrduTranslation = urduTranslation.length > 0;
     const showUrdu = !!urduById[item.id] && hasUrduTranslation;
@@ -258,13 +273,28 @@ export function DbAdhkarScreen({
     const translitParas = useEnhancedFont && item.transliteration
       ? item.transliteration.split('\n').map(l => l.trim()).filter(Boolean)
       : [];
+    const hasSectionTransliteration = !!item.sections?.some((sec) => !!sec.transliteration?.trim());
+    const hasSectionTranslation = !!item.sections?.some((sec) => !!sec.translation?.trim());
+    const hasTransliteration = !!(
+      item.transliteration?.trim() ||
+      translitParas.length > 0 ||
+      hasSectionTransliteration
+    );
+    const hasTranslation = !!(
+      item.translation?.trim() ||
+      transParas.length > 0 ||
+      hasSectionTranslation ||
+      hasUrduTranslation
+    );
 
     return (
-      <TouchableOpacity
+      <Pressable
         key={item.id}
-        style={[
+        style={({ pressed }) => [
           styles.itemCard,
-          N && { backgroundColor: N.surfaceAlt, borderColor: N.border },
+          pressed && styles.itemCardPressed,
+          N && { backgroundColor: N.surfaceAlt, borderColor: N.border, shadowColor: '#000' },
+          isOpen && styles.itemCardOpen,
           isOpen && { borderColor: accent },
           useEnhancedFont && isOpen && styles.itemCardEnhanced,
         ]}
@@ -278,37 +308,71 @@ export function DbAdhkarScreen({
             return;
           }
 
-          setExpandedId(isOpen ? null : item.id);
+          setExpandedById((prev) => ({
+            ...prev,
+            [item.id]: !prev[item.id],
+          }));
         }}
-        activeOpacity={0.85}
       >
-        {/* ── Header row ── */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <View style={[styles.itemDot, { backgroundColor: accent + '33' }]}>
-            <MaterialIcons name="format-quote" size={16} color={accent} />
-          </View>
-          <View style={{ flex: 1, gap: 1 }}>
-            <Text style={[styles.itemTitle, N && { color: N.text }]}>{item.title}</Text>
-            {item.arabic_title ? (
-              <Text style={[styles.itemArabicTitle, { color: accent }]}>{item.arabic_title}</Text>
-            ) : null}
-          </View>
-          {item.count ? (
-            <View style={[styles.badge, { backgroundColor: accent + '22', borderColor: accent + '55' }]}>
-              <Text style={[styles.badgeText, { color: accent }]}>×{item.count}</Text>
+        {({ pressed }) => (
+          <>
+            {/* ── Header row ── */}
+            <View style={styles.itemHeader}>
+              <View style={styles.itemDot}>
+                <MaterialIcons name="format-quote" size={16} color={ADHKAR_ACCENT_GREEN} />
+              </View>
+              <View style={styles.itemHeaderBody}>
+                <View style={styles.itemHeaderTopRow}>
+                  <Text style={[styles.itemTitle, N && { color: N.text }]}>{item.title}</Text>
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>Adhkar</Text>
+                  </View>
+                </View>
+                {item.arabic_title ? (
+                  <Text style={[styles.itemArabicTitle, N && { color: N.textSub }]}>{item.arabic_title}</Text>
+                ) : null}
+              </View>
+              <View style={[styles.itemChevronWrap, pressed && styles.itemChevronWrapPressed]}>
+                <MaterialIcons
+                  name={isOpen ? 'expand-less' : 'expand-more'}
+                  size={20}
+                  color={N ? N.textMuted : ADHKAR_ARROW}
+                />
+              </View>
             </View>
-          ) : null}
-          <MaterialIcons
-            name={isOpen ? 'expand-less' : 'expand-more'}
-            size={20}
-            color={N ? N.textMuted : Colors.textSubtle}
-          />
-        </View>
 
-        {/* ── Expanded body ── */}
-        {isOpen ? (
-          <View style={{ marginTop: 14, gap: 12 }}>
-            {useEnhancedFont ? (
+            {/* ── Expanded body ── */}
+            {isOpen ? (
+              <View style={styles.itemBody}>
+                {hasBenefits ? (
+                  <View style={styles.benefitsWrap}>
+                    <TouchableOpacity
+                      style={[
+                        styles.benefitsBtn,
+                        { borderColor: ADHKAR_BENEFITS_GOLD + '99', backgroundColor: ADHKAR_BENEFITS_GOLD_SOFT },
+                        isBenefitsOpen && { backgroundColor: '#F4E1A6', borderColor: ADHKAR_BENEFITS_GOLD },
+                      ]}
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        setBenefitsById(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.benefitsBtnText, { color: ADHKAR_BENEFITS_GOLD }]}>Benefits</Text>
+                      <MaterialIcons
+                        name={isBenefitsOpen ? 'expand-less' : 'expand-more'}
+                        size={16}
+                        color={ADHKAR_BENEFITS_GOLD}
+                      />
+                    </TouchableOpacity>
+                    {isBenefitsOpen ? (
+                      <View style={[styles.benefitsBox, { borderLeftColor: ADHKAR_BENEFITS_GOLD, backgroundColor: ADHKAR_BENEFITS_GOLD_SOFT }, N && { backgroundColor: '#4A3B13' }]}>
+                        <Text style={[styles.benefitsText, N && { color: N.textSub }]}>{itemBenefits}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                ) : null}
+                {useEnhancedFont ? (
               // Enhanced paragraph-by-paragraph layout
               <View style={{ gap: 16 }}>
                 <View style={[styles.arabicTopMeta, { borderBottomColor: accent + '25', borderBottomWidth: 1, paddingBottom: 8, marginBottom: 4 }]}>
@@ -321,13 +385,57 @@ export function DbAdhkarScreen({
                         {para}
                       </Text>
                     </View>
-                    {translitParas[pi] ? (
+                    {isTransliterationOpen && translitParas[pi] ? (
                       <Text style={[styles.translit, { marginTop: 4, fontSize: 13, lineHeight: 21, fontStyle: 'italic' }, N && { color: N.textSub }]}>
                         {translitParas[pi]}
                       </Text>
                     ) : null}
                     {pi === 0 ? (
                       <View style={styles.translationToggleRow}>
+                        <View style={styles.actionLeftGroup}>
+                          {hasTransliteration ? (
+                            <TouchableOpacity
+                              style={[
+                                styles.transliterationBtn,
+                                { borderColor: accent + '66' },
+                                isTransliterationOpen && { backgroundColor: accent + '14', borderColor: accent },
+                              ]}
+                              onPress={(event) => {
+                                event.stopPropagation();
+                                setTransliterationById(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+                              }}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={[styles.transliterationBtnText, { color: accent }]}>Transliteration</Text>
+                              <MaterialIcons
+                                name={isTransliterationOpen ? 'expand-less' : 'expand-more'}
+                                size={16}
+                                color={accent}
+                              />
+                            </TouchableOpacity>
+                          ) : null}
+                          {hasTranslation ? (
+                            <TouchableOpacity
+                              style={[
+                                styles.translationBtn,
+                                { borderColor: accent + '66' },
+                                isTranslationOpen && { backgroundColor: accent + '14', borderColor: accent },
+                              ]}
+                              onPress={(event) => {
+                                event.stopPropagation();
+                                setTranslationById(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+                              }}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={[styles.translationBtnText, { color: accent }]}>Translation</Text>
+                              <MaterialIcons
+                                name={isTranslationOpen ? 'expand-less' : 'expand-more'}
+                                size={16}
+                                color={accent}
+                              />
+                            </TouchableOpacity>
+                          ) : null}
+                        </View>
                         <TouchableOpacity
                           style={[
                             styles.translationToggleBtn,
@@ -341,13 +449,13 @@ export function DbAdhkarScreen({
                           }}
                           activeOpacity={0.8}
                         >
-                          <Text style={[styles.translationToggleText, { color: accent }]}>
+                          <Text style={[styles.translationToggleText, { color: accent }]}> 
                             {hasUrduTranslation ? 'Urdu' : 'Urdu (N/A)'}
                           </Text>
                         </TouchableOpacity>
                       </View>
                     ) : null}
-                    {(showUrdu ? (pi === 0 && selectedTranslation) : transParas[pi]) ? (
+                    {isTranslationOpen && (showUrdu ? (pi === 0 && selectedTranslation) : transParas[pi]) ? (
                       <View style={[styles.paraTransBox, { borderLeftColor: accent }, N && { backgroundColor: accent + '12' }]}>
                         <Text style={[styles.translation, { fontSize: 14, lineHeight: 22 }, N && { color: N.text }, showUrdu && styles.translationUrdu]}>
                           {showUrdu ? selectedTranslation : transParas[pi]}
@@ -363,7 +471,7 @@ export function DbAdhkarScreen({
                   </View>
                 ) : null}
               </View>
-            ) : (
+                ) : (
               // Standard layout: arabic → transliteration → translation
               <View style={{ gap: 0 }}>
                 <View style={[styles.arabicBox, { backgroundColor: accent + '10', borderColor: accent + '30', marginBottom: 14 }]}>
@@ -384,14 +492,58 @@ export function DbAdhkarScreen({
                         {sec.arabic}
                       </Text>
                     </View>
-                    {sec.transliteration ? <Text style={[styles.translit, N && { color: N.textSub }]}>{sec.transliteration}</Text> : null}
-                    {sec.translation ? <Text style={[styles.translation, { marginTop: 4 }, N && { color: N.text }]}>{sec.translation}</Text> : null}
+                    {isTransliterationOpen && sec.transliteration ? <Text style={[styles.translit, N && { color: N.textSub }]}>{sec.transliteration}</Text> : null}
+                    {isTranslationOpen && sec.translation ? <Text style={[styles.translation, { marginTop: 4 }, N && { color: N.text }]}>{sec.translation}</Text> : null}
                   </View>
                 )) : null}
-                {item.transliteration ? (
+                {isTransliterationOpen && item.transliteration ? (
                   <Text style={[styles.translit, { marginBottom: 8 }, N && { color: N.textSub }]}>{item.transliteration}</Text>
                 ) : null}
                 <View style={styles.translationToggleRow}>
+                  <View style={styles.actionLeftGroup}>
+                    {hasTransliteration ? (
+                      <TouchableOpacity
+                        style={[
+                          styles.transliterationBtn,
+                          { borderColor: accent + '66' },
+                          isTransliterationOpen && { backgroundColor: accent + '14', borderColor: accent },
+                        ]}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          setTransliterationById(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.transliterationBtnText, { color: accent }]}>Transliteration</Text>
+                        <MaterialIcons
+                          name={isTransliterationOpen ? 'expand-less' : 'expand-more'}
+                          size={16}
+                          color={accent}
+                        />
+                      </TouchableOpacity>
+                    ) : null}
+                    {hasTranslation ? (
+                      <TouchableOpacity
+                        style={[
+                          styles.translationBtn,
+                          { borderColor: accent + '66' },
+                          isTranslationOpen && { backgroundColor: accent + '14', borderColor: accent },
+                        ]}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          setTranslationById(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.translationBtnText, { color: accent }]}>Translation</Text>
+                        <MaterialIcons
+                          name={isTranslationOpen ? 'expand-less' : 'expand-more'}
+                          size={16}
+                          color={accent}
+                        />
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
                   <TouchableOpacity
                     style={[
                       styles.translationToggleBtn,
@@ -405,12 +557,12 @@ export function DbAdhkarScreen({
                     }}
                     activeOpacity={0.8}
                   >
-                    <Text style={[styles.translationToggleText, { color: accent }]}>
+                    <Text style={[styles.translationToggleText, { color: accent }]}> 
                       {hasUrduTranslation ? 'Urdu' : 'Urdu (N/A)'}
                     </Text>
                   </TouchableOpacity>
                 </View>
-                {selectedTranslation ? (
+                {isTranslationOpen && selectedTranslation ? (
                   <Text style={[styles.translation, { marginBottom: item.reference ? 10 : 0 }, N && { color: N.text }, showUrdu && styles.translationUrdu]}>
                     {selectedTranslation}
                   </Text>
@@ -422,10 +574,12 @@ export function DbAdhkarScreen({
                   </View>
                 ) : null}
               </View>
-            )}
-          </View>
-        ) : null}
-      </TouchableOpacity>
+                )}
+              </View>
+            ) : null}
+          </>
+        )}
+      </Pressable>
     );
   };
 
@@ -537,40 +691,61 @@ const styles = StyleSheet.create({
 
   // Item card
   itemCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.md,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 15,
     borderWidth: 1,
-    borderColor: Colors.border,
-    padding: 12,
+    borderColor: 'rgba(31, 42, 36, 0.06)',
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.045,
+    shadowRadius: 14,
+    elevation: 4,
+  },
+  itemCardPressed: {
+    transform: [{ scale: 0.98 }],
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  itemCardOpen: {
+    shadowOpacity: 0.08,
   },
   itemCardEnhanced: {
     borderWidth: 1.5,
     borderRadius: Radius.lg,
-    padding: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 3,
   },
+  itemHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  itemHeaderBody: { flex: 1, gap: 0, paddingTop: 1, justifyContent: 'center' },
+  itemHeaderTopRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  itemBody: { marginTop: 16, gap: 12 },
   itemDot: {
-    width: 36, height: 36,
-    borderRadius: Radius.md,
+    width: 44, height: 44,
+    borderRadius: 14,
+    backgroundColor: ADHKAR_ICON_BG,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    opacity: 0.9,
   },
-  itemTitle:      { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
-  itemArabicTitle:{ fontSize: 14, fontWeight: '600' } as any,
+  itemTitle:      { fontSize: 17, fontWeight: '700', color: ADHKAR_CARD_TITLE, flexShrink: 1, lineHeight: 22 },
+  itemArabicTitle:{ fontSize: 13, fontWeight: '400', color: ADHKAR_DESCRIPTION_TEXT, lineHeight: 18.2, marginTop: 12 } as any,
+  itemChevronWrap: { alignSelf: 'center', marginRight: -2, opacity: 0.78, transform: [{ translateX: 0 }] },
+  itemChevronWrapPressed: { transform: [{ translateX: 3 }] },
 
   // Badge
   badge: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderRadius: Radius.full,
-    borderWidth: 1,
+    backgroundColor: ADHKAR_TAG_BG,
   },
-  badgeText: { fontSize: 10, fontWeight: '700' },
+  badgeText: { fontSize: 10, fontWeight: '700', color: ADHKAR_ACCENT_GREEN },
 
   // Arabic text
   arabicBox: {
@@ -607,7 +782,8 @@ const styles = StyleSheet.create({
   translit:    { fontSize: 13, fontStyle: 'italic', color: Colors.textSecondary, lineHeight: 21 },
   translation: { fontSize: 14, color: Colors.textPrimary, lineHeight: 22 },
   translationUrdu: { writingDirection: 'rtl', textAlign: 'right', fontFamily: 'UrduNastaliq', fontSize: 22, lineHeight: 40 } as any,
-  translationToggleRow: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 8 },
+  translationToggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 },
+  actionLeftGroup: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
   translationToggleBtn: {
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -615,6 +791,56 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   translationToggleText: { fontSize: 11, fontWeight: '700' },
+
+  // Translation toggle
+  translationBtn: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    backgroundColor: Colors.surface,
+  },
+  translationBtnText: { fontSize: 11, fontWeight: '700' },
+
+  // Transliteration toggle
+  transliterationBtn: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    backgroundColor: Colors.surface,
+  },
+  transliterationBtnText: { fontSize: 11, fontWeight: '700' },
+
+  // DB description / benefits
+  benefitsWrap: { gap: 8 },
+  benefitsBtn: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+  },
+  benefitsBtnText: { fontSize: 11, fontWeight: '700' },
+  benefitsBox: {
+    borderLeftWidth: 3,
+    backgroundColor: Colors.primarySoft,
+    borderRadius: Radius.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  benefitsText: { fontSize: 13, lineHeight: 20, color: ADHKAR_DESCRIPTION_TEXT },
 
   // Reference rows
   refRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
