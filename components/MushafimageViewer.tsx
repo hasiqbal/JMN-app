@@ -4,11 +4,12 @@
  *   assets/images/Quran 15 line indo-pak/{Kahf|Mulk|Luqman|Imran|Sajdah}/
  */
 import React from 'react';
-import { View, Text, TouchableOpacity, AppState, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, AppState, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { GestureHandlerRootView, Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
+import { fetchChapterTranslationById, fetchTranslationResources, QuranTranslationResource } from '@/services/quranApiService';
 import {
   IMRAN_PAGE_AYAT,
   KAHF_PAGE_AYAT,
@@ -16,6 +17,10 @@ import {
   MULK_PAGE_AYAT,
   SAJDAH_PAGE_AYAT,
 } from '@/constants/mushafPageAyat';
+
+const URDU_TRANSLATOR_LABEL_OVERRIDES: Record<number, string> = {
+  819: 'مولانا وحید الدین خان',
+};
 
 // ── Page lists & local asset maps ─────────────────────────────────────────
 export const KAHF_PAGE_NUMS   = [293,294,295,296,297,298,299,300,301,302,303,304];
@@ -65,7 +70,7 @@ export const SAJDAH_15LINE_LOCAL: Partial<Record<number,any>> = {
 export const SAJDAH_16LINE_LOCAL: Partial<Record<number,any>> = {};
 
 // ── Translation type ──────────────────────────────────────────────────────
-export interface VerseTranslation { verse: number; text: string; }
+export interface VerseTranslation { verse: number; text: string; urduText?: string; transliteration?: string; }
 
 // ── Clear Quran Translation — Surah As-Sajdah ────────────────────────────
 export const SAJDAH_TRANSLATIONS: Record<number, VerseTranslation[]> = {
@@ -107,6 +112,25 @@ export const SAJDAH_TRANSLATIONS: Record<number, VerseTranslation[]> = {
   ],
 };
 
+// ── Translation — Last Ayahs of Surah Al-Imran (3:190-200) ───────────────
+export const IMRAN_LAST_AYAH_TRANSLATIONS: Record<number, VerseTranslation[]> = {
+  75: [
+    { verse: 190, text: 'Indeed, in the creation of the heavens and the earth and the alternation of the night and the day are signs for people of understanding.', urduText: 'بے شک آسمانوں اور زمین کی پیدائش اور رات اور دن کے بدلنے میں عقل والوں کے لیے نشانیاں ہیں۔', transliteration: 'Inna fi khalqi as-samawati wal-ardi wakhtilafi al-layli wan-nahari la-ayatin li-ulil-albab.' },
+    { verse: 191, text: 'Those who remember Allah while standing, sitting, and lying on their sides, and reflect on the creation of the heavens and the earth, saying, "Our Lord, You did not create this in vain. Glory be to You, so protect us from the punishment of the Fire."', urduText: 'جو اللہ کو کھڑے، بیٹھے اور اپنے پہلوؤں پر لیٹے ہوئے یاد کرتے ہیں اور آسمانوں اور زمین کی پیدائش میں غور کرتے ہیں، کہتے ہیں: اے ہمارے رب! تو نے یہ سب بے مقصد نہیں بنایا، تو پاک ہے، پس ہمیں آگ کے عذاب سے بچا لے۔', transliteration: 'Alladhina yadhkuruna Allaha qiyaman waqu`udan wa`ala junubihim wa yatafakkaruna fi khalqi as-samawati wal-ard. Rabbana ma khalaqta hadha batilan, subhanaka faqina `adhaba an-nar.' },
+    { verse: 192, text: 'Our Lord, indeed whoever You admit into the Fire, You have certainly disgraced him, and there are no helpers for the wrongdoers.', urduText: 'اے ہمارے رب! جسے تو نے آگ میں داخل کیا، یقیناً تو نے اسے رسوا کر دیا، اور ظالموں کا کوئی مددگار نہیں۔', transliteration: 'Rabbana innaka man tudkhili an-nara faqad akhzaytahu, wa ma liz-zalimina min ansar.' },
+    { verse: 193, text: 'Our Lord, indeed we have heard a caller calling to faith, saying, "Believe in your Lord," and we have believed. Our Lord, forgive us our sins, remove from us our misdeeds, and cause us to die with the righteous.', urduText: 'اے ہمارے رب! ہم نے ایک پکارنے والے کو ایمان کی طرف بلاتے سنا کہ اپنے رب پر ایمان لاؤ، تو ہم ایمان لے آئے۔ اے ہمارے رب! ہمارے گناہ بخش دے، ہماری برائیاں ہم سے دور کر دے، اور ہمیں نیک لوگوں کے ساتھ وفات دے۔', transliteration: 'Rabbana innana sami`na munadiyan yunadi lil-imani an aminu birabbikum fa-amanna. Rabbana faghfir lana dhunubana wa kaffir `anna sayyiatina wa tawaffana ma`a al-abrar.' },
+    { verse: 194, text: 'Our Lord, grant us what You have promised us through Your messengers and do not disgrace us on the Day of Resurrection. Indeed, You never fail in Your promise.', urduText: 'اے ہمارے رب! ہمیں وہ عطا فرما جس کا تو نے اپنے رسولوں کے ذریعے ہم سے وعدہ کیا ہے اور قیامت کے دن ہمیں رسوا نہ کرنا۔ بے شک تو وعدہ خلافی نہیں کرتا۔', transliteration: 'Rabbana wa atina ma wa`adtana `ala rusulika wa la tukhzina yawma al-qiyamah. Innaka la tukhlifu al-mi`ad.' },
+  ],
+  76: [
+    { verse: 195, text: 'So their Lord answered them, "I never allow the work of any worker among you to be lost, whether male or female; you are of one another. So those who emigrated, were expelled from their homes, were harmed in My cause, fought, and were killed - I will surely remove from them their misdeeds and admit them to Gardens beneath which rivers flow as a reward from Allah. And with Allah is the best reward."', urduText: 'پس ان کے رب نے ان کی دعا قبول فرما لی کہ میں تم میں سے کسی عمل کرنے والے کا عمل ضائع نہیں کرتا، خواہ مرد ہو یا عورت، تم ایک دوسرے ہی سے ہو۔ پس جن لوگوں نے ہجرت کی، اپنے گھروں سے نکالے گئے، میری راہ میں ستائے گئے، لڑے اور قتل کیے گئے، میں ضرور ان کی برائیاں ان سے دور کر دوں گا اور انہیں ایسے باغات میں داخل کروں گا جن کے نیچے نہریں بہتی ہیں۔ یہ اللہ کے پاس سے بدلہ ہے، اور بہترین بدلہ اللہ ہی کے پاس ہے۔', transliteration: 'Fastajaba lahum rabbuhum anni la udi`u `amala `amilin minkum min dhakarin aw untha ba`dukum min ba`d. Falladhina hajaru wa ukhriju min diyarihim wa udhu fi sabili wa qatalu wa qutillu la-ukaffiranna `anhum sayyiatihim wa la-udkhilannahum jannatin tajri min tahtiha al-anhar thawaban min `indi Allah. Wa Allahu `indahu husnu ath-thawab.' },
+    { verse: 196, text: 'Do not be deceived by the movement of the disbelievers throughout the land.', urduText: 'کافروں کا شہروں میں چلنا پھرنا تمہیں دھوکے میں نہ ڈالے۔', transliteration: 'La yaghurrannaka taqallubu alladhina kafaru fi al-bilad.' },
+    { verse: 197, text: 'It is only a brief enjoyment, then their refuge is Hell - and what an evil resting place.', urduText: 'یہ تھوڑا سا فائدہ ہے، پھر ان کا ٹھکانا جہنم ہے، اور وہ بہت برا ٹھکانا ہے۔', transliteration: 'Mata`un qalilun thumma ma-wahum jahannam, wa bi-sa al-mihad.' },
+    { verse: 198, text: 'But those who fear their Lord will have Gardens beneath which rivers flow, remaining in them forever, as a welcome from Allah. And what is with Allah is best for the righteous.', urduText: 'لیکن جو لوگ اپنے رب سے ڈرتے رہے، ان کے لیے ایسے باغات ہیں جن کے نیچے نہریں بہتی ہیں، وہ ان میں ہمیشہ رہیں گے، یہ اللہ کی طرف سے مہمانی ہے، اور جو کچھ اللہ کے پاس ہے وہ نیک لوگوں کے لیے بہتر ہے۔', transliteration: 'Lakini alladhina ittaqaw rabbahum lahum jannatun tajri min tahtiha al-anhar khalidina fiha nuzulan min `indi Allah. Wa ma `inda Allahi khayrun lil-abrar.' },
+    { verse: 199, text: 'Indeed, among the People of the Scripture are those who believe in Allah and in what has been revealed to you and what has been revealed to them, humbling themselves before Allah. They do not exchange Allah\'s verses for a small price. Those will have their reward with their Lord. Indeed, Allah is swift in account.', urduText: 'اور یقیناً اہلِ کتاب میں کچھ ایسے بھی ہیں جو اللہ پر ایمان رکھتے ہیں اور اس پر بھی جو تمہاری طرف نازل کیا گیا اور اس پر بھی جو ان کی طرف نازل کیا گیا، اللہ کے آگے جھکنے والے ہیں۔ وہ اللہ کی آیات کے بدلے تھوڑی قیمت نہیں لیتے۔ یہی وہ لوگ ہیں جن کے لیے ان کے رب کے پاس اجر ہے۔ بے شک اللہ جلد حساب لینے والا ہے۔', transliteration: 'Wa inna min ahli al-kitabi laman yu-minu billahi wa ma unzila ilaykum wa ma unzila ilayhim khashi`ina lillah, la yashtaruna bi-ayati Allahi thamanan qalila. Ulaika lahum ajruhum `inda rabbihim. Inna Allaha sari`u al-hisab.' },
+    { verse: 200, text: 'O you who believe, persevere and endure and remain stationed and fear Allah so that you may be successful.', urduText: 'اے ایمان والو! صبر کرو، ثابت قدم رہو، پہرہ دیتے رہو، اور اللہ سے ڈرتے رہو تاکہ تم کامیاب ہو جاؤ۔', transliteration: 'Ya ayyuha alladhina amanu isbiru wa sabiru wa rabitu wa ittaqu Allaha la`allakum tuflihun.' },
+  ],
+};
+
 // ── Shared internal viewer ───────────────────────────────────────────────
 interface ViewerProps {
   nightMode: boolean;
@@ -122,18 +146,32 @@ interface ViewerProps {
   accentNight: string;
   bgNight: string; hdrBgNight: string; hdrBorNight: string;
   bgDay:  string; hdrBgDay:  string; hdrBorDay:  string;
+  chapterNumber?: number;
+  enableApiTranslationPicker?: boolean;
 }
 
 function MushafImageViewer({
   nightMode, pageNums, localPages, localPages16, ayatMap, translations,
   nameAr, nameEn, juz,
   accentDay, accentNight, bgNight, hdrBgNight, hdrBorNight, bgDay, hdrBgDay, hdrBorDay,
+  chapterNumber, enableApiTranslationPicker,
 }: ViewerProps) {
   const N = nightMode;
+  const transScrollRef = React.useRef<ScrollView>(null);
   const [pi, setPi] = React.useState(0);
   const [rk, setRk] = React.useState(0);
   const [layoutStyle, setLayoutStyle] = React.useState<'15line' | '16line'>('15line');
   const [showTrans, setShowTrans] = React.useState(false);
+  const [transLang, setTransLang] = React.useState<'en' | 'ur'>('en');
+  const [showApiPicker, setShowApiPicker] = React.useState(false);
+  const [apiOptionsByLang, setApiOptionsByLang] = React.useState<Record<'en' | 'ur', QuranTranslationResource[]>>({ en: [], ur: [] });
+  const [selectedTranslationIdByLang, setSelectedTranslationIdByLang] = React.useState<Record<'en' | 'ur', number | null>>({ en: null, ur: null });
+  const [apiMapByVerse, setApiMapByVerse] = React.useState<Record<number, string>>({});
+  const [apiMapCache, setApiMapCache] = React.useState<Record<string, Record<number, string>>>({});
+  const [isLoadingApiTrans, setIsLoadingApiTrans] = React.useState(false);
+  const transLocale: 'en' | 'ur' = transLang === 'ur' ? 'ur' : 'en';
+  const apiOptions = apiOptionsByLang[transLocale] ?? [];
+  const selectedTranslationId = selectedTranslationIdByLang[transLocale] ?? null;
 
   React.useEffect(() => {
     const sub = AppState.addEventListener('change', s => {
@@ -141,6 +179,58 @@ function MushafImageViewer({
     });
     return () => sub.remove();
   }, []);
+
+  React.useEffect(() => {
+    if (!showTrans) return;
+    transScrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [pi, showTrans]);
+
+  React.useEffect(() => {
+    if (!showTrans || !enableApiTranslationPicker || !chapterNumber || apiOptions.length > 0) return;
+    let cancelled = false;
+    (async () => {
+      const opts = await fetchTranslationResources(transLocale);
+      if (cancelled) return;
+      const requiredLang = transLocale === 'en' ? 'english' : 'urdu';
+      const langFiltered = opts.filter((o) => {
+        const languageOk = (o.languageName ?? '').toLowerCase().includes(requiredLang);
+        const searchable = `${o.name} ${o.authorName ?? ''}`.toLowerCase();
+        const isExcluded = /taqi\s*usmani|taqi\s*usman|maududi|tafhim|shaykh\s*al\s*hind|shaikh\s*al\s*hind|mahmud\s*al[-\s]*hasan|mahmood\s*al[-\s]*hasan|tafsir\s*e\s*usmani|tafsir[-\s]*usmani/.test(searchable);
+        return languageOk && !isExcluded;
+      });
+      const preferred = transLocale === 'en' ? [131, 20, 85, 84, 22, 21] : [];
+      const ordered = [
+        ...preferred.map((id) => langFiltered.find((o) => o.id === id)).filter(Boolean) as QuranTranslationResource[],
+        ...langFiltered.filter((o) => !preferred.includes(o.id)).slice(0, 24),
+      ];
+      setApiOptionsByLang((prev) => ({ ...prev, [transLocale]: ordered }));
+    })();
+    return () => { cancelled = true; };
+  }, [showTrans, enableApiTranslationPicker, chapterNumber, apiOptions.length, transLocale]);
+
+  React.useEffect(() => {
+    if (!enableApiTranslationPicker || !chapterNumber || !selectedTranslationId) {
+      setApiMapByVerse({});
+      setIsLoadingApiTrans(false);
+      return;
+    }
+    const cacheKey = `${transLocale}:${selectedTranslationId}`;
+    if (apiMapCache[cacheKey]) {
+      setApiMapByVerse(apiMapCache[cacheKey]);
+      setIsLoadingApiTrans(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setIsLoadingApiTrans(true);
+      const map = await fetchChapterTranslationById(chapterNumber, selectedTranslationId, transLocale);
+      if (cancelled) return;
+      setApiMapCache((prev) => ({ ...prev, [cacheKey]: map }));
+      setApiMapByVerse(map);
+      setIsLoadingApiTrans(false);
+    })();
+    return () => { cancelled = true; };
+  }, [enableApiTranslationPicker, chapterNumber, selectedTranslationId, apiMapCache, transLocale]);
 
   const txX = useSharedValue(0);
   const sc   = useSharedValue(1);
@@ -152,16 +242,45 @@ function MushafImageViewer({
   const hasImages = Object.keys(localPages).length > 0;
   const has16LineImages = Object.keys(localPages16 ?? {}).length > 0;
   const hasTranslations = !!translations && Object.keys(translations).length > 0;
+  const hasUrduTranslations = !!translations && Object.values(translations).some(list => list.some(v => !!v.urduText));
+  const canChooseApiTranslation = !!enableApiTranslationPicker && !!chapterNumber;
   const pageNum = pageNums[pi];
   const src = layoutStyle === '15line'
     ? (localPages[pageNum] ?? null)
     : ((localPages16 ?? {})[pageNum] ?? null);
-  const pageVerses = translations?.[pageNum] ?? [];
+  const basePageVerses = translations?.[pageNum] ?? [];
+  const pageVerses = basePageVerses.map((v) => ({
+    ...v,
+    text: selectedTranslationId && apiMapByVerse[v.verse] ? apiMapByVerse[v.verse] : v.text,
+  }));
+  const shouldExcludeTranslationOption = (option: QuranTranslationResource) => {
+    const searchable = `${option.name} ${option.translatedName ?? ''} ${option.authorName ?? ''}`.toLowerCase();
+    return /taqi\s*usmani|taqi\s*usman|maududi|tafhim|shaykh\s*al\s*hind|shaikh\s*al\s*hind|mahmud\s*al[-\s]*hasan|mahmood\s*al[-\s]*hasan|tafsir\s*e\s*usmani|tafsir[-\s]*usmani/.test(searchable);
+  };
+  const visibleApiOptions = apiOptions.filter((option) => !shouldExcludeTranslationOption(option));
+  const getTranslationOptionLabel = (option: QuranTranslationResource) => transLocale === 'ur'
+    ? (URDU_TRANSLATOR_LABEL_OVERRIDES[option.id] || option.translatedName || option.name)
+    : option.name;
+  const selectedApiOption = visibleApiOptions.find((o) => o.id === selectedTranslationId) ?? null;
+  const useApiSelectedTranslation = selectedTranslationId !== null;
+  const activeTranslatorLabel = selectedApiOption
+    ? getTranslationOptionLabel(selectedApiOption)
+    : (transLocale === 'ur' ? 'ایپ ڈیفالٹ' : 'App Default');
+  const activeTranslatorCaption = transLocale === 'ur' ? 'منتخب مترجم' : 'Selected translator';
 
   const goTo = (idx: number) => {
     if (idx < 0 || idx >= pageNums.length) return;
     setPi(idx); setRk(k => k + 1); setShowTrans(false);
+    setTransLang('en');
+    setShowApiPicker(false);
     sc.value = withSpring(1, { damping:20, stiffness:300 }); svSc.value = 1;
+  };
+
+  const goToFromOverlay = (idx: number) => {
+    if (idx < 0 || idx >= pageNums.length) return;
+    setPi(idx); setRk(k => k + 1);
+    setTransLang('en');
+    setShowApiPicker(false);
   };
 
   const gest = Gesture.Simultaneous(
@@ -195,11 +314,20 @@ function MushafImageViewer({
         <View style={[S.topBar, { backgroundColor:HDR_BG, borderBottomColor:HDR_BOR }]}>
           <TouchableOpacity
             style={[S.transBtn, { borderColor:ACCENT }, showTrans && { backgroundColor:ACCENT }]}
-            onPress={() => setShowTrans(v => !v)}
+            onPress={() => {
+              setShowTrans((prev) => {
+                const next = !prev;
+                if (next) {
+                  setTransLang('en');
+                  setShowApiPicker(false);
+                }
+                return next;
+              });
+            }}
             activeOpacity={0.8}
           >
             <MaterialIcons name="translate" size={14} color={showTrans ? '#fff' : ACCENT} />
-            <Text style={[S.transBtnText, { color: showTrans ? '#fff' : ACCENT }]}>Translation</Text>
+            <Text style={[S.transBtnText, { color: showTrans ? '#fff' : ACCENT }]}>Translation <Text style={[S.transBtnTextUrdu, { color: showTrans ? '#fff' : ACCENT }]}>اردو ترجمہ</Text></Text>
           </TouchableOpacity>
           <View style={{ flex:1 }}/>
           <View style={[S.toggleGroup, { backgroundColor: N ? '#1F2D45' : '#E8E8E0', borderColor: N ? '#2A3F5C' : '#C8C8B8' }]}>
@@ -283,35 +411,187 @@ function MushafImageViewer({
               </TouchableOpacity>
             </View>
 
-            {/* Translation overlay */}
+            {/* Translation layer (bottom sheet) */}
             {showTrans ? (
-              <View style={[S.transOverlay, { backgroundColor: N ? 'rgba(10,8,8,0.97)' : 'rgba(255,248,248,0.97)' }]}>
-                <View style={[S.transOverlayHeader, { borderBottomColor: HDR_BOR }]}>
-                  <MaterialIcons name="menu-book" size={15} color={ACCENT} />
-                  <Text style={[S.transOverlayTitle, { color:ACCENT, flex:1 }]}>Translation</Text>
-                  <TouchableOpacity onPress={() => setShowTrans(false)} hitSlop={{ top:10, bottom:10, left:10, right:10 }}>
-                    <MaterialIcons name="close" size={20} color={META} />
-                  </TouchableOpacity>
-                </View>
-                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom:16 }}>
-                  {hasTranslations ? (
-                    <>
-                      {pageVerses.map(v => (
-                        <View key={v.verse} style={[S.transVerseRow, { borderBottomColor: HDR_BOR }]}>
-                          <View style={[S.transVerseNum, { backgroundColor: ACCENT + '22' }]}>
-                            <Text style={[S.transVerseNumText, { color:ACCENT }]}>{v.verse}</Text>
-                          </View>
-                          <Text style={[S.transVerseText, { color: N ? '#EEF3FC' : '#1F2937' }]}>{v.text}</Text>
-                        </View>
-                      ))}
-                      <Text style={[S.transSource, { color:META }]}>Translation: The Clear Quran — Dr. Mustafa Khattab</Text>
-                    </>
-                  ) : (
-                    <View style={[S.emptyBox, { paddingVertical: 28 }]}> 
-                      <Text style={[S.emptyTitle, { color: ACCENT, fontSize: 14 }]}>Translation coming soon.</Text>
+              <View style={S.transOverlay} pointerEvents="box-none">
+                <TouchableOpacity
+                  style={[S.transBackdrop, { backgroundColor: 'rgba(0,0,0,0.2)' }]}
+                  activeOpacity={1}
+                  onPress={() => setShowTrans(false)}
+                />
+                <View style={[S.transPanel, { backgroundColor: N ? 'rgba(10,8,8,0.98)' : '#FFFFFF', borderTopColor: N ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)' }]}>
+                  <View style={S.dragHandleWrap}>
+                    <View style={[S.dragHandle, { backgroundColor: N ? '#64748B' : '#D0D5D2' }]} />
+                  </View>
+                  <View style={[S.transOverlayHeader, { borderBottomColor: N ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)' }]}>
+                    <View style={S.transHeaderTopRow}>
+                      <MaterialIcons name="menu-book" size={15} color={ACCENT} />
+                      <Text style={[S.transOverlayTitle, { color:ACCENT, flex:1 }]}>Translation</Text>
+                      <View style={S.overlayNavGroup}>
+                        <TouchableOpacity
+                          style={[S.overlayNavBtn, pi === 0 && S.overlayNavBtnDisabled]}
+                          onPress={() => goToFromOverlay(pi - 1)}
+                          disabled={pi === 0}
+                          activeOpacity={0.8}
+                        >
+                          <MaterialIcons name="chevron-left" size={22} color={pi === 0 ? '#94A3B8' : ACCENT} />
+                        </TouchableOpacity>
+                        <Text style={[S.overlayPageText, { color: META }]}>{transLocale === 'ur' ? `صفحہ ${pi + 1}/${pageNums.length}` : `Page ${pi + 1}/${pageNums.length}`}</Text>
+                        <TouchableOpacity
+                          style={[S.overlayNavBtn, pi === pageNums.length - 1 && S.overlayNavBtnDisabled]}
+                          onPress={() => goToFromOverlay(pi + 1)}
+                          disabled={pi === pageNums.length - 1}
+                          activeOpacity={0.8}
+                        >
+                          <MaterialIcons name="chevron-right" size={22} color={pi === pageNums.length - 1 ? '#94A3B8' : ACCENT} />
+                        </TouchableOpacity>
+                      </View>
+                      <TouchableOpacity onPress={() => setShowTrans(false)} hitSlop={{ top:10, bottom:10, left:10, right:10 }}>
+                        <MaterialIcons name="close" size={20} color={META} />
+                      </TouchableOpacity>
                     </View>
-                  )}
-                </ScrollView>
+
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={S.transHeaderControlsRow}
+                    >
+                      {canChooseApiTranslation ? (
+                        <TouchableOpacity
+                          style={[S.translatorSelectBtn, { borderColor: ACCENT }, showApiPicker && { backgroundColor: ACCENT }]}
+                          onPress={() => setShowApiPicker(v => !v)}
+                          activeOpacity={0.8}
+                        >
+                          <MaterialIcons
+                            name="arrow-drop-down-circle"
+                            size={16}
+                            color={showApiPicker ? '#fff' : ACCENT}
+                          />
+                          <Text
+                            style={[
+                              S.langBtnText,
+                              { color: showApiPicker ? '#fff' : ACCENT },
+                              transLocale === 'ur' && S.langBtnTextUrdu,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {transLocale === 'ur' ? 'مترجم منتخب کریں' : 'Select Translator'}
+                          </Text>
+                        </TouchableOpacity>
+                      ) : null}
+                      {hasUrduTranslations ? (
+                        <View style={S.langChoiceGroup}>
+                          <TouchableOpacity
+                            style={[S.langBtn, { borderColor: ACCENT }, transLang === 'en' && { backgroundColor: ACCENT }]}
+                            onPress={() => {
+                              setTransLang('en');
+                              setShowApiPicker(false);
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={[S.langBtnText, { color: transLang === 'en' ? '#fff' : ACCENT }]}>English</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[S.langBtn, { borderColor: ACCENT }, transLang === 'ur' && { backgroundColor: ACCENT }]}
+                            onPress={() => {
+                              setTransLang('ur');
+                              setShowApiPicker(false);
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={[S.langBtnText, S.langBtnTextUrdu, { color: transLang === 'ur' ? '#fff' : ACCENT }]}>اردو</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : null}
+                    </ScrollView>
+                  </View>
+                  <View
+                    style={[
+                      S.activeTranslatorCard,
+                      transLocale === 'ur' && S.activeTranslatorCardUrdu,
+                      { backgroundColor: N ? 'rgba(255,255,255,0.05)' : 'rgba(15,118,110,0.06)', borderColor: N ? 'rgba(255,255,255,0.08)' : 'rgba(15,118,110,0.12)' },
+                    ]}
+                  >
+                    <Text style={[S.activeTranslatorCaption, { color: META }, transLocale === 'ur' && S.activeTranslatorCaptionUrdu]} numberOfLines={1}>
+                      {activeTranslatorCaption}
+                    </Text>
+                    <Text style={[S.activeTranslatorValue, { color: N ? '#F8FAFC' : '#0F172A' }, transLocale === 'ur' && S.activeTranslatorValueUrdu]} numberOfLines={1}>
+                      {activeTranslatorLabel}
+                    </Text>
+                  </View>
+                  {canChooseApiTranslation && showApiPicker ? (
+                    <View style={[S.apiPickerWrap, { borderBottomColor: N ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)' }]}>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={S.apiPickerContent}>
+                        <TouchableOpacity
+                          style={[S.apiChip, { borderColor: ACCENT }, selectedTranslationId === null && { backgroundColor: ACCENT }]}
+                          onPress={() => {
+                            setSelectedTranslationIdByLang((prev) => ({ ...prev, [transLocale]: null }));
+                            setShowApiPicker(false);
+                          }}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={[S.apiChipText, transLocale === 'ur' && S.apiChipTextUrdu, { color: selectedTranslationId === null ? '#fff' : ACCENT }]}>
+                            {transLocale === 'ur' ? 'ایپ ڈیفالٹ' : 'App Default'}
+                          </Text>
+                        </TouchableOpacity>
+                        {visibleApiOptions.map((opt) => (
+                          <TouchableOpacity
+                            key={opt.id}
+                            style={[S.apiChip, { borderColor: ACCENT }, selectedTranslationId === opt.id && { backgroundColor: ACCENT }]}
+                            onPress={() => {
+                              setSelectedTranslationIdByLang((prev) => ({ ...prev, [transLocale]: opt.id }));
+                              setShowApiPicker(false);
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={[S.apiChipText, transLocale === 'ur' && S.apiChipTextUrdu, { color: selectedTranslationId === opt.id ? '#fff' : ACCENT }]}>{getTranslationOptionLabel(opt)}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  ) : null}
+                  <ScrollView ref={transScrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom:16, paddingHorizontal:16 }}>
+                    {hasTranslations ? (
+                      <>
+                        {isLoadingApiTrans ? (
+                          <View style={S.loadingTranslationBox}>
+                            <ActivityIndicator size="small" color={ACCENT} />
+                            <Text style={[S.loadingTranslationText, { color: META }]}>Loading selected translation...</Text>
+                          </View>
+                        ) : null}
+                        {pageVerses.map(v => (
+                          <View key={v.verse} style={[S.transVerseRow, { borderBottomColor: N ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
+                            <View style={[S.transVerseNum, { backgroundColor: '#E6F4EA' }]}>
+                              <Text style={[S.transVerseNumText, { color:'#3FAE5A' }]}>{v.verse}</Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text
+                                style={[
+                                  S.transVerseText,
+                                  { color: N ? '#EEF3FC' : '#1F2937' },
+                                  transLang === 'ur' && S.transVerseTextUrdu,
+                                ]}
+                              >
+                                {transLang === 'ur' && !useApiSelectedTranslation && v.urduText ? v.urduText : v.text}
+                              </Text>
+                            </View>
+                          </View>
+                        ))}
+                        <Text style={[S.transSource, { color:META }]}>
+                          {selectedApiOption
+                            ? `Translation: ${getTranslationOptionLabel(selectedApiOption)}`
+                            : transLang === 'ur'
+                            ? 'ترجمہ: اردو'
+                            : 'Translation: The Clear Quran — Dr. Mustafa Khattab'}
+                        </Text>
+                      </>
+                    ) : (
+                      <View style={[S.emptyBox, { paddingVertical: 28 }]}> 
+                        <Text style={[S.emptyTitle, { color: ACCENT, fontSize: 14 }]}>Translation coming soon.</Text>
+                      </View>
+                    )}
+                  </ScrollView>
+                </View>
               </View>
             ) : null}
           </>
@@ -357,7 +637,9 @@ export function LuqmanMushafPlaceholder({ nightMode, onBack }: { nightMode: bool
 
 export function ImranMushafPlaceholder({ nightMode, onBack }: { nightMode: boolean; onBack: () => void }) {
   return <MushafImageViewer
-    nightMode={nightMode} pageNums={IMRAN_PAGE_NUMS} localPages={IMRAN_15LINE_LOCAL} localPages16={IMRAN_16LINE_LOCAL} ayatMap={IMRAN_PAGE_AYAT}
+    nightMode={nightMode} pageNums={IMRAN_PAGE_NUMS} localPages={IMRAN_15LINE_LOCAL} localPages16={IMRAN_16LINE_LOCAL}
+    ayatMap={IMRAN_PAGE_AYAT} translations={IMRAN_LAST_AYAH_TRANSLATIONS}
+    chapterNumber={3} enableApiTranslationPicker
     nameAr={'سُورَةُ آلِ عِمْرَان'}
     nameEn="Surah Ali 'Imran"
     juz="Juz 3 · excerpt"
@@ -390,8 +672,9 @@ const S = StyleSheet.create({
   pageNum:   { fontSize:14, fontWeight:'800', letterSpacing:0.3 },
   dot:       { width:6, height:6, borderRadius:3 },
   // Translation toggle
-  transBtn:  { flexDirection:'row', alignItems:'center', gap:4, paddingHorizontal:10, paddingVertical:5, borderRadius:999, borderWidth:1.5 },
-  transBtnText: { fontSize:11, fontWeight:'700' },
+  transBtn:  { flexDirection:'row', alignItems:'center', gap:6, paddingHorizontal:14, paddingVertical:8, borderRadius:999, borderWidth:1.5 },
+  transBtnText: { fontSize:13, fontWeight:'800' },
+  transBtnTextUrdu: { fontFamily:'UrduNastaliqBold', fontSize:16, lineHeight:24 } as any,
   toggleGroup: {
     flexDirection:'row',
     borderRadius:999,
@@ -418,12 +701,67 @@ const S = StyleSheet.create({
   },
   altBtnText: { fontSize:13, fontWeight:'700' },
   // Translation overlay
-  transOverlay: { position:'absolute', top:0, left:0, right:0, bottom:0, zIndex:10 },
-  transOverlayHeader: { flexDirection:'row', alignItems:'center', gap:8, paddingHorizontal:14, paddingVertical:11, borderBottomWidth:1 },
+  transOverlay: { position:'absolute', top:0, left:0, right:0, bottom:0, zIndex:10, justifyContent:'flex-end' },
+  transBackdrop: { position:'absolute', top:0, left:0, right:0, bottom:0 },
+  transPanel: { maxHeight:'62%', borderTopWidth:1, borderTopLeftRadius:20, borderTopRightRadius:20, overflow:'hidden' },
+  dragHandleWrap: { alignItems:'center', paddingTop:8, paddingBottom:4 },
+  dragHandle: { width:40, height:4, borderRadius:2 },
+  transOverlayHeader: { paddingHorizontal:16, paddingVertical:10, borderBottomWidth:1 },
+  transHeaderTopRow: { flexDirection:'row', alignItems:'center', gap:8 },
+  transHeaderControlsRow: { flexDirection:'row', alignItems:'center', gap:8, paddingTop:8, paddingBottom:8 },
   transOverlayTitle:  { fontSize:13, fontWeight:'800', letterSpacing:0.2 },
-  transVerseRow:      { flexDirection:'row', gap:10, paddingHorizontal:14, paddingVertical:10, borderBottomWidth:1, alignItems:'flex-start' },
+  overlayNavGroup: { flexDirection:'row', alignItems:'center', gap:8, marginRight:6 },
+  overlayNavBtn: {
+    width:34,
+    height:34,
+    borderRadius:17,
+    alignItems:'center',
+    justifyContent:'center',
+    backgroundColor:'rgba(148,163,184,0.14)',
+  },
+  overlayNavBtnDisabled: { opacity:0.45 },
+  overlayPageText: { fontSize:12, minWidth:72, textAlign:'center', fontWeight:'700' },
+  apiPickerWrap: { borderBottomWidth:1 },
+  apiPickerContent: { paddingHorizontal:16, paddingVertical:10, gap:8 },
+  apiChip: { borderWidth:1.25, borderRadius:999, paddingHorizontal:10, paddingVertical:6 },
+  apiChipText: { fontSize:11, fontWeight:'700' },
+  apiChipTextUrdu: { fontFamily:'UrduNastaliqBold', fontSize:17, lineHeight:28 } as any,
+  activeTranslatorCard: {
+    marginHorizontal:16,
+    marginTop:8,
+    marginBottom:4,
+    borderWidth:1,
+    borderRadius:999,
+    paddingHorizontal:12,
+    paddingVertical:7,
+    gap:8,
+    flexDirection:'row',
+    alignItems:'center',
+  },
+  activeTranslatorCardUrdu: { flexDirection:'row-reverse' },
+  activeTranslatorCaption: { fontSize:10, fontWeight:'700', textTransform:'uppercase', letterSpacing:0.4, flexShrink:0 },
+  activeTranslatorCaptionUrdu: { fontFamily:'UrduNastaliqBold', fontSize:15, lineHeight:22, textTransform:'none', letterSpacing:0 },
+  activeTranslatorValue: { fontSize:12, fontWeight:'700', flex:1 },
+  activeTranslatorValueUrdu: { fontFamily:'UrduNastaliqBold', fontSize:18, lineHeight:26, flex:1, textAlign:'right' },
+  langChoiceGroup: { flexDirection:'row', alignItems:'center', gap:8 },
+  translatorSelectBtn: {
+    flexDirection:'row',
+    alignItems:'center',
+    gap:6,
+    borderWidth:1.25,
+    borderRadius:999,
+    paddingHorizontal:12,
+    paddingVertical:6,
+  },
+  langBtn: { borderWidth:1.25, borderRadius:999, paddingHorizontal:10, paddingVertical:5 },
+  langBtnText: { fontSize:11, fontWeight:'700' },
+  langBtnTextUrdu: { fontFamily:'UrduNastaliqBold', fontSize:16, lineHeight:24 } as any,
+  loadingTranslationBox: { flexDirection:'row', alignItems:'center', gap:8, paddingVertical:10 },
+  loadingTranslationText: { fontSize:12, fontWeight:'500' },
+  transVerseRow:      { flexDirection:'row', gap:10, paddingVertical:14, borderBottomWidth:1, alignItems:'flex-start' },
   transVerseNum:      { width:26, height:26, borderRadius:13, alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:2 },
-  transVerseNumText:  { fontSize:11, fontWeight:'800' },
+  transVerseNumText:  { fontSize:12, fontWeight:'700' },
   transVerseText:     { flex:1, fontSize:13, lineHeight:21, fontWeight:'400' },
+  transVerseTextUrdu: { writingDirection:'rtl', textAlign:'right', fontFamily:'UrduNastaliqBold', fontSize:22, lineHeight:40 } as any,
   transSource:        { fontSize:10, textAlign:'center', fontStyle:'italic', paddingVertical:12, paddingHorizontal:16 },
 });

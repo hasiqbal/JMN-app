@@ -231,6 +231,7 @@ export default function DuasScreen() {
     'IndoPakNastaleeq': 'https://static-cdn.tarteel.ai/qul/fonts/nastaleeq/Hanafi/normal-v4.2.2/with-waqf-lazmi/font.ttf',
     'MarwanIndoPak': 'https://static-cdn.tarteel.ai/qul/fonts/nastaleeq/Hanafi/normal-v4.2.2/with-waqf-lazmi/font.ttf',
     'UrduNastaliq': require('@/assets/fonts/UrduNastaliq.ttf'),
+    'UrduNastaliqBold': require('@/assets/fonts/UrduNastaliqBold.ttf'),
   });
   const [surahFlowContext, setSurahFlowContext] = useState<{
     prayerTime: PrayerTimeId;

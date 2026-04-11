@@ -41,6 +41,18 @@ export interface QuranAyahFull extends QuranAyah {
   pageNumber: number;
 }
 
+export interface QuranTranslationResource {
+  id: number;
+  name: string;
+  translatedName?: string;
+  languageName?: string;
+  authorName?: string;
+}
+
+const URDU_TRANSLATOR_NAME_OVERRIDES: Record<number, string> = {
+  819: 'مولانا وحید الدین خان',
+};
+
 const BASE_URL = 'https://api.quran.com/api/v4';
 const TRANSLATION_ID = 131; // Saheeh International
 
@@ -86,6 +98,74 @@ function extractTranslation(verse: any): string {
   const translations: any[] = verse.translations ?? [];
   if (translations.length === 0) return '';
   return (translations[0]?.text ?? '').replace(/<[^>]+>/g, '').trim();
+}
+
+/** Fetch available translation resources from quran.com (defaults to English). */
+export async function fetchTranslationResources(language = 'en'): Promise<QuranTranslationResource[]> {
+  try {
+    const url = `${BASE_URL}/resources/translations?language=${encodeURIComponent(language)}&per_page=100`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`quran.com API error: ${res.status}`);
+    const json = await res.json();
+    const rows: any[] = json?.translations ?? [];
+    return rows
+      .map((r: any) => {
+        const preferredName = language === 'ur'
+          ? (r.translated_name?.name ?? r.name ?? `Translation ${r.id}`)
+          : (r.name ?? r.translated_name?.name ?? `Translation ${r.id}`);
+        const translatedName = URDU_TRANSLATOR_NAME_OVERRIDES[Number(r.id)]
+          ?? (r.translated_name?.name ? String(r.translated_name.name).replace(/<[^>]+>/g, '').trim() : undefined);
+        return {
+          id: Number(r.id),
+          name: String(preferredName).replace(/<[^>]+>/g, '').trim(),
+          translatedName,
+          languageName: r.language_name ? String(r.language_name) : undefined,
+          authorName: r.author_name ? String(r.author_name) : undefined,
+        };
+      })
+      .filter((r) => Number.isFinite(r.id));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Fetch chapter translation text keyed by verse number for a selected translation resource.
+ */
+export async function fetchChapterTranslationById(
+  surahNumber: number,
+  translationId: number,
+  language = 'en',
+): Promise<Record<number, string>> {
+  const out: Record<number, string> = {};
+  try {
+    const PER_PAGE = 50;
+    for (let page = 1; page <= 10; page += 1) {
+      const url =
+        `${BASE_URL}/verses/by_chapter/${surahNumber}` +
+        `?per_page=${PER_PAGE}` +
+        `&page=${page}` +
+        `&translations=${translationId}` +
+        `&fields=verse_number` +
+        `&language=${encodeURIComponent(language)}`;
+
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`quran.com API error: ${res.status}`);
+      const json = await res.json();
+      const verses: any[] = json?.verses ?? [];
+
+      for (const v of verses) {
+        const verseNumber = Number(v?.verse_number);
+        if (!Number.isFinite(verseNumber)) continue;
+        out[verseNumber] = (v?.translations?.[0]?.text ?? '').replace(/<[^>]+>/g, '').trim();
+      }
+
+      if (verses.length < PER_PAGE) break;
+    }
+    return out;
+  } catch {
+    return {};
+  }
 }
 
 /** Fetch all raw verses for a surah, handling pagination */

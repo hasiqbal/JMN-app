@@ -32,8 +32,8 @@ export const LUQMAN_PAGE_AYAT: MushafPageAyatMap = {
 };
 
 export const IMRAN_PAGE_AYAT: MushafPageAyatMap = {
-  75: [1, 10],
-  76: [11, 20],
+  75: [190, 194],
+  76: [195, 200],
 };
 
 export const SAJDAH_PAGE_AYAT: MushafPageAyatMap = {
