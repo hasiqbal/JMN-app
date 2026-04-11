@@ -18,7 +18,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius } from '@/constants/theme';
 import { NIGHT_PALETTE } from '@/constants/nightPalette';
-import { fetchAdhkarForPrayerTime, AdhkarRow, resolveAdhkarUrduTranslation } from '@/services/contentService';
+import { fetchAdhkarForPrayerTime, AdhkarRow, resolveAdhkarUrduTranslation, translateTextToUrdu } from '@/services/contentService';
 import {
   ASR_GROUP_TO_SELECTION,
   BEFORE_FAJR_GROUP_TO_SELECTION,
@@ -41,6 +41,121 @@ const ADHKAR_TAG_BG = '#E6F4EA';
 const ADHKAR_ARROW = '#A0A8A2';
 const ADHKAR_BENEFITS_GOLD = '#B88917';
 const ADHKAR_BENEFITS_GOLD_SOFT = '#FFF4D6';
+const DEFAULT_MUSLIM_ENTRY_ICONS = [
+  'brightness-3',
+  'nights-stay',
+  'nightlight-round',
+  'wb-sunny',
+  'wb-twilight',
+  'bedtime',
+  'flare',
+  'stars',
+  'star',
+  'star-border',
+  'auto-awesome',
+  'auto-fix-high',
+  'spa',
+  'self-improvement',
+  'favorite',
+  'favorite-border',
+  'volunteer-activism',
+  'diversity-3',
+  'groups',
+  'group',
+  'public',
+  'language',
+  'travel-explore',
+  'eco',
+  'nature',
+  'park',
+  'local-florist',
+  'water-drop',
+  'opacity',
+  'filter-vintage',
+  'waves',
+  'cloud',
+  'cloud-queue',
+  'cloud-done',
+  'light-mode',
+  'dark-mode',
+  'brightness-auto',
+  'brightness-5',
+  'brightness-2',
+  'shield-moon',
+  'verified',
+  'verified-user',
+  'security',
+  'bookmarks',
+  'bookmark',
+  'bookmark-border',
+  'menu-book',
+  'library-books',
+  'import-contacts',
+  'translate',
+  'history-edu',
+  'hourglass-empty',
+  'schedule',
+  'access-time',
+  'psychology',
+  'insights',
+  'emoji-objects',
+  'emoji-symbols',
+  'emoji-nature',
+  'emoji-people',
+  'diamond',
+  'check-circle',
+  'check-circle-outline',
+  'thumb-up',
+  'volunteer-activism',
+];
+
+type EntryLeadVisual =
+  | { kind: 'icon'; value: string }
+  | { kind: 'text'; value: string };
+
+function normalizeMetaText(value?: string | null): string {
+  return (value ?? '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\u0600-\u06ff]+/g, ' ')
+    .trim();
+}
+
+function pickStableDefaultIcon(seed: string): string {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash + seed.charCodeAt(i)) % 997;
+  }
+  return DEFAULT_MUSLIM_ENTRY_ICONS[hash % DEFAULT_MUSLIM_ENTRY_ICONS.length];
+}
+
+function resolveEntryLeadVisual(
+  groupFilter: string | undefined,
+  item: Pick<AdhkarRow, 'group_name' | 'title' | 'arabic_title' | 'reference'>,
+  salawatGroupName?: string | null
+): EntryLeadVisual {
+  // Check if this entry belongs to the Salawat group from database
+  if (salawatGroupName && item.group_name === salawatGroupName) {
+    return { kind: 'text', value: 'ﷺ' };
+  }
+
+  const normalized = normalizeMetaText([
+    groupFilter,
+    item.group_name,
+    item.title,
+    item.arabic_title,
+    item.reference,
+  ]
+    .filter(Boolean)
+    .join(' '));
+
+  if (/(^|\s)(quran|qur an|القران|القرآن)(\s|$)|surah\s*\d+|kahf|yaseen|yasin|waqiah|sajdah|mulk|luqman|imran|الكهف|يس|الواقعة|السجدة|الملك|لقمان|عمران/.test(normalized)) {
+    return { kind: 'icon', value: 'menu-book' };
+  }
+
+  return { kind: 'icon', value: pickStableDefaultIcon(normalized || 'default') };
+}
 
 // ── Groups that use enhanced Indo-Pak paragraph formatting ───────────────
 const ENHANCED_ARABIC_GROUPS = new Set([
@@ -181,10 +296,13 @@ export function DbAdhkarScreen({
   const useEnhancedFont = !!(groupFilter && ENHANCED_ARABIC_GROUPS.has(groupFilter));
 
   const [adhkar, setAdhkar] = React.useState<AdhkarRow[]>([]);
+  const [salawatGroupName, setSalawatGroupName] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [expandedById, setExpandedById] = React.useState<Record<string, boolean>>({});
   const [expandedGroups, setExpandedGroups] = React.useState<Record<string, boolean>>({});
   const [urduById, setUrduById] = React.useState<Record<string, boolean>>({});
+  const [urduFallbackById, setUrduFallbackById] = React.useState<Record<string, string>>({});
+  const [urduLoadingById, setUrduLoadingById] = React.useState<Record<string, boolean>>({});
   const [benefitsById, setBenefitsById] = React.useState<Record<string, boolean>>({});
   const [transliterationById, setTransliterationById] = React.useState<Record<string, boolean>>({});
   const [translationById, setTranslationById] = React.useState<Record<string, boolean>>({});
@@ -192,6 +310,19 @@ export function DbAdhkarScreen({
   React.useEffect(() => {
     setLoading(true);
     fetchAdhkarForPrayerTime(prayerTime).then((rows) => {
+      // Detect Salawat group from database
+      let foundSalawatGroup: string | null = null;
+      for (const row of rows) {
+        if (row.group_name) {
+          const normalized = normalizeMetaText(row.group_name);
+          if (/(salawat|salawaat|salat|salaat|salaah|durud|durood|darood|صلوات)/.test(normalized)) {
+            foundSalawatGroup = row.group_name;
+            break;
+          }
+        }
+      }
+      setSalawatGroupName(foundSalawatGroup);
+
       const filtered = groupFilter ? rows.filter(r => r.group_name === groupFilter) : rows;
       setAdhkar(filtered);
 
@@ -201,12 +332,69 @@ export function DbAdhkarScreen({
       setExpandedGroups(groups);
       // Keep cards collapsed by default; user can tap to expand.
       setExpandedById({});
+      setUrduById({});
+      setUrduFallbackById({});
+      setUrduLoadingById({});
       setBenefitsById({});
       setTransliterationById({});
       setTranslationById({});
       setLoading(false);
     });
   }, [prayerTime, groupFilter]);
+
+  const resolveEnglishTranslationSource = React.useCallback((item: AdhkarRow): string => {
+    const direct = (item.translation ?? '').trim();
+    if (direct) return direct;
+
+    const fromSections = (item.sections ?? [])
+      .map((sec) => (sec.translation ?? '').trim())
+      .filter(Boolean)
+      .join('\n\n');
+
+    return fromSections;
+  }, []);
+
+  const prefetchUrduForItem = React.useCallback(async (item: AdhkarRow): Promise<string> => {
+    const dbUrdu = resolveAdhkarUrduTranslation(item);
+    if (dbUrdu) return dbUrdu;
+
+    const cached = (urduFallbackById[item.id] ?? '').trim();
+    if (cached) return cached;
+
+    if (urduLoadingById[item.id]) return '';
+
+    const english = resolveEnglishTranslationSource(item);
+    if (!english) return '';
+
+    setUrduLoadingById(prev => ({ ...prev, [item.id]: true }));
+    const translated = await translateTextToUrdu(english);
+    setUrduLoadingById(prev => ({ ...prev, [item.id]: false }));
+
+    if (!translated) return '';
+
+    setUrduFallbackById(prev => ({ ...prev, [item.id]: translated }));
+    return translated;
+  }, [resolveEnglishTranslationSource, urduFallbackById, urduLoadingById]);
+
+  const handleUrduToggle = React.useCallback(async (item: AdhkarRow) => {
+    // Always open translation panel when user requests Urdu.
+    setTranslationById(prev => ({ ...prev, [item.id]: true }));
+
+    const dbUrdu = resolveAdhkarUrduTranslation(item);
+    const fallbackUrdu = (urduFallbackById[item.id] ?? '').trim();
+    const hasUrdu = !!(dbUrdu || fallbackUrdu);
+
+    if (hasUrdu) {
+      setUrduById(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+      return;
+    }
+
+    const translated = await prefetchUrduForItem(item);
+
+    if (!translated) return;
+
+    setUrduById(prev => ({ ...prev, [item.id]: true }));
+  }, [prefetchUrduForItem, urduFallbackById]);
 
   const meta = groupFilter
     ? (PRAYER_TIME_META[groupFilter] ?? PRAYER_TIME_META[prayerTime] ?? { title: groupFilter, icon: 'auto-awesome', accent: ADHKAR_ACCENT_GREEN })
@@ -266,10 +454,18 @@ export function DbAdhkarScreen({
       : (isCompactPhone ? 46 : 52);
     const itemBenefits = (item.benefits ?? item.description ?? '').trim();
     const hasBenefits = itemBenefits.length > 0;
-    const urduTranslation = resolveAdhkarUrduTranslation(item);
+    const dbUrduTranslation = resolveAdhkarUrduTranslation(item);
+    const fallbackUrduTranslation = (urduFallbackById[item.id] ?? '').trim();
+    const urduTranslation = dbUrduTranslation || fallbackUrduTranslation;
     const hasUrduTranslation = urduTranslation.length > 0;
+    const isUrduLoading = !!urduLoadingById[item.id];
+    const englishTranslationSource = resolveEnglishTranslationSource(item);
+    const hasEnglishTranslation = englishTranslationSource.length > 0;
+    const canResolveUrdu = hasUrduTranslation || hasEnglishTranslation;
+    const itemBadge = (item.card_badge ?? '').trim();
     const showUrdu = !!urduById[item.id] && hasUrduTranslation;
     const selectedTranslation = showUrdu ? urduTranslation : item.translation;
+    const itemLeadVisual = resolveEntryLeadVisual(groupFilter, item, salawatGroupName);
 
     const arabicParas = useEnhancedFont
       ? item.arabic.split('\n').map(l => l.trim()).filter(Boolean)
@@ -291,7 +487,7 @@ export function DbAdhkarScreen({
       item.translation?.trim() ||
       transParas.length > 0 ||
       hasSectionTranslation ||
-      hasUrduTranslation
+      canResolveUrdu
     );
 
     return (
@@ -317,10 +513,16 @@ export function DbAdhkarScreen({
             return;
           }
 
-          setExpandedById((prev) => ({
-            ...prev,
-            [item.id]: !prev[item.id],
-          }));
+          setExpandedById((prev) => {
+            const nextOpen = !prev[item.id];
+            if (nextOpen) {
+              void prefetchUrduForItem(item);
+            }
+            return {
+              ...prev,
+              [item.id]: nextOpen,
+            };
+          });
         }}
       >
         {({ pressed }) => (
@@ -328,14 +530,20 @@ export function DbAdhkarScreen({
             {/* ── Header row ── */}
             <View style={styles.itemHeader}>
               <View style={styles.itemDot}>
-                <MaterialIcons name="format-quote" size={16} color={ADHKAR_ACCENT_GREEN} />
+                {itemLeadVisual.kind === 'text' ? (
+                  <Text style={styles.itemDotText}>{itemLeadVisual.value}</Text>
+                ) : (
+                  <MaterialIcons name={itemLeadVisual.value as any} size={16} color={ADHKAR_ACCENT_GREEN} />
+                )}
               </View>
               <View style={styles.itemHeaderBody}>
                 <View style={styles.itemHeaderTopRow}>
                   <Text style={[styles.itemTitle, N && { color: N.text }]}>{item.title}</Text>
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>Adhkar</Text>
-                  </View>
+                  {itemBadge ? (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>{itemBadge}</Text>
+                    </View>
+                  ) : null}
                 </View>
                 {item.arabic_title ? (
                   <Text style={[styles.itemArabicTitle, isCompactPhone && styles.itemArabicTitleCompact, N && { color: N.textSub }]}>{item.arabic_title}</Text>
@@ -450,16 +658,16 @@ export function DbAdhkarScreen({
                             styles.translationToggleBtn,
                             { borderColor: accent + '88' },
                             showUrdu && { backgroundColor: accent + '22', borderColor: accent },
-                            !hasUrduTranslation && { opacity: 0.55 },
+                            !canResolveUrdu && { opacity: 0.55 },
                           ]}
-                          onPress={() => {
-                            if (!hasUrduTranslation) return;
-                            setUrduById(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            handleUrduToggle(item);
                           }}
                           activeOpacity={0.8}
                         >
                           <Text style={[styles.translationToggleText, { color: accent }]}> 
-                            {hasUrduTranslation ? 'Urdu' : 'Urdu (N/A)'}
+                            {isUrduLoading ? 'اردو ترجمہ (...)' : (canResolveUrdu ? 'اردو ترجمہ' : 'اردو ترجمہ (N/A)')}
                           </Text>
                         </TouchableOpacity>
                       </View>
@@ -558,16 +766,16 @@ export function DbAdhkarScreen({
                       styles.translationToggleBtn,
                       { borderColor: accent + '88' },
                       showUrdu && { backgroundColor: accent + '22', borderColor: accent },
-                      !hasUrduTranslation && { opacity: 0.55 },
+                      !canResolveUrdu && { opacity: 0.55 },
                     ]}
-                    onPress={() => {
-                      if (!hasUrduTranslation) return;
-                      setUrduById(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      handleUrduToggle(item);
                     }}
                     activeOpacity={0.8}
                   >
                     <Text style={[styles.translationToggleText, { color: accent }]}> 
-                      {hasUrduTranslation ? 'Urdu' : 'Urdu (N/A)'}
+                      {isUrduLoading ? 'اردو ترجمہ (...)' : (canResolveUrdu ? 'اردو ترجمہ' : 'اردو ترجمہ (N/A)')}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -740,6 +948,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexShrink: 0,
     opacity: 0.9,
+  },
+  itemDotText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: ADHKAR_ACCENT_GREEN,
+    textAlign: 'center',
+    includeFontPadding: false,
   },
   itemTitle:      { fontSize: 17, fontWeight: '700', color: ADHKAR_CARD_TITLE, flexShrink: 1, lineHeight: 22 },
   itemArabicTitle:{

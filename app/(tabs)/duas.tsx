@@ -36,7 +36,7 @@ import {
 } from '@/constants/duasGroups';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { useNightMode } from '@/hooks/useNightMode';
-import { fetchAdhkarForPrayerTime, fetchAdhkarGroupsForPrayerTime, AdhkarGroupMeta, AdhkarRow, resolveAdhkarUrduTranslation } from '@/services/contentService';
+import { fetchAdhkarForPrayerTime, fetchAdhkarGroupsForPrayerTime, AdhkarGroupMeta, AdhkarRow, resolveAdhkarUrduTranslation, translateTextToUrdu } from '@/services/contentService';
 import { ImranMushafPlaceholder, LuqmanMushafPlaceholder, MulkMushafPlaceholder, SajdahMushafPlaceholder } from '@/components/MushafimageViewer';
 import { PrayerTimeChipBar } from '@/components/adhkar/PrayerTimeChipBar';
 import { DbAdhkarScreen } from '@/components/adhkar/DbAdhkarScreen';
@@ -58,6 +58,12 @@ const ADHKAR_META_TEXT = '#7A887F';
 const ADHKAR_DESCRIPTION_TEXT = '#4F5D56';
 const ADHKAR_ICON_BG = '#F0F7F3';
 const ADHKAR_ARROW = '#A0A8A2';
+const QURAN_GROUP_THUMB = require('../../assets/images/Group icons/quran2.jpg');
+const HIZB_BAHR_GROUP_THUMB = require('../../assets/images/Group icons/Imam-Shadhili.jpg');
+const WIRD_LATIF_GROUP_THUMB = require('../../assets/images/Group icons/alawi2.jpg');
+const WIRD_ABU_BAKR_GROUP_THUMB = require('../../assets/images/Group icons/binsalim.jpg');
+const DUA_AFTER_YASEEN_GROUP_THUMB = require('../../assets/images/Group icons/dua.jpg');
+const SALAWAAT_GROUP_THUMB = require('../../assets/images/Group icons/nabwi.jpg');
 
 const GUIDED_FLOW_META: Record<PrayerTimeId, { accent: string; background: string; doneTitle: string; icon: string }> = {
   'before-fajr': { accent: DUAS_ACCENT_GREEN, background: Colors.background, doneTitle: 'Before Fajr Adhkar', icon: 'nights-stay' },
@@ -129,6 +135,144 @@ function resolveSelectionFromGroupMeta(
 function resolveGroupCardTitle(group: AdhkarGroupMeta): string {
   const portalName = (group.name ?? '').trim();
   return portalName || group.group_name;
+}
+
+function isQuranGroupMeta(
+  group: Pick<AdhkarGroupMeta, 'group_name' | 'name' | 'arabic_title' | 'card_subtitle' | 'description'>
+): boolean {
+  const normalized = [
+    group.group_name,
+    group.name,
+    group.arabic_title,
+    group.card_subtitle,
+    group.description,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\u0600-\u06ff]+/g, ' ')
+    .trim();
+
+  return /(^|\s)(quran|qur an|القران|القرآن)(\s|$)/.test(normalized);
+}
+
+function isHizbBahrGroupMeta(
+  group: Pick<AdhkarGroupMeta, 'group_name' | 'name' | 'arabic_title' | 'card_subtitle' | 'description'>
+): boolean {
+  const normalized = [
+    group.group_name,
+    group.name,
+    group.arabic_title,
+    group.card_subtitle,
+    group.description,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\u0600-\u06ff]+/g, ' ')
+    .trim();
+
+  return /(hizb\s*(al|ul)?\s*bahr|hizb(al|ul)?bahr|حزب\s*البحر)/.test(normalized);
+}
+
+function isWirdLatifGroupMeta(
+  group: Pick<AdhkarGroupMeta, 'group_name' | 'name' | 'arabic_title' | 'card_subtitle' | 'description'>
+): boolean {
+  const normalized = [
+    group.group_name,
+    group.name,
+    group.arabic_title,
+    group.card_subtitle,
+    group.description,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\u0600-\u06ff]+/g, ' ')
+    .trim();
+
+  return /(wird\s*al\s*latif|al\s*wird\s*al\s*latif|الورد\s*اللطيف)/.test(normalized);
+}
+
+function isWirdAbuBakrGroupMeta(
+  group: Pick<AdhkarGroupMeta, 'group_name' | 'name' | 'arabic_title' | 'card_subtitle' | 'description'>
+): boolean {
+  const normalized = [
+    group.group_name,
+    group.name,
+    group.arabic_title,
+    group.card_subtitle,
+    group.description,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\u0600-\u06ff]+/g, ' ')
+    .trim();
+
+  return /(wird\s*abu\s*bakr(\s*bin\s*salim)?|wird\s*abubakr|ابو\s*بكر\s*بن\s*سالم)/.test(normalized);
+}
+
+function isDuaAfterYaseenGroupMeta(
+  group: Pick<AdhkarGroupMeta, 'group_name' | 'name' | 'arabic_title' | 'card_subtitle' | 'description'>
+): boolean {
+  const normalized = [
+    group.group_name,
+    group.name,
+    group.arabic_title,
+    group.card_subtitle,
+    group.description,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\u0600-\u06ff]+/g, ' ')
+    .trim();
+
+  return /(dua\s*after\s*surah\s*(36|yaseen|yasin)|dua\s*after\s*yaseen|دعا\s*بعد\s*يس)/.test(normalized);
+}
+
+function isSalawaatGroupMeta(
+  group: Pick<AdhkarGroupMeta, 'group_name' | 'name' | 'arabic_title' | 'card_subtitle' | 'description'>
+): boolean {
+  const normalized = [
+    group.group_name,
+    group.name,
+    group.arabic_title,
+    group.card_subtitle,
+    group.description,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\u0600-\u06ff]+/g, ' ')
+    .trim();
+
+  return /(salawat|salawaat|salaat\s*alan\s*nabi|صلوات|الصلاة\s*على\s*النبي)/.test(normalized);
+}
+
+function resolveGroupThumbnailSource(
+  group: Pick<AdhkarGroupMeta, 'group_name' | 'name' | 'arabic_title' | 'card_subtitle' | 'description'>
+): string | number | undefined {
+  if (isSalawaatGroupMeta(group)) return SALAWAAT_GROUP_THUMB;
+  if (isDuaAfterYaseenGroupMeta(group)) return DUA_AFTER_YASEEN_GROUP_THUMB;
+  if (isWirdAbuBakrGroupMeta(group)) return WIRD_ABU_BAKR_GROUP_THUMB;
+  if (isWirdLatifGroupMeta(group)) return WIRD_LATIF_GROUP_THUMB;
+  if (isHizbBahrGroupMeta(group)) return HIZB_BAHR_GROUP_THUMB;
+  if (isQuranGroupMeta(group)) return QURAN_GROUP_THUMB;
+  return undefined;
 }
 
 function resolvePrayerTimeByClock(data: PrayerTimesData, now: Date = new Date()): PrayerTimeId {
@@ -622,7 +766,7 @@ function DhuhrSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMod
       ) : groups.map((grp) => {
         const meta = KNOWN_DHUHR_GROUPS[grp.group_name];
         const icon  = meta?.icon  ?? 'auto-awesome';
-        const badge = meta?.badge ?? 'Adhkar';
+        const badge = (grp.card_badge ?? '').trim() || undefined;
         const subtitle = grp.card_subtitle ?? null;
         const detail  = grp.description ?? null;
         const groupTitle = resolveGroupCardTitle(grp);
@@ -635,6 +779,7 @@ function DhuhrSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMod
             detail={detail}
             badge={badge}
             icon={icon as string}
+            thumbnailSource={resolveGroupThumbnailSource(grp)}
             nightPalette={N}
             onPress={() => {
               const knownKey = resolveSelectionFromGroupMeta(grp, DHUHR_GROUP_TO_SELECTION);
@@ -688,7 +833,7 @@ function JumuahSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMo
       ) : groups.map((grp) => {
         const meta = KNOWN_JUMUAH_GROUPS[grp.group_name];
         const icon  = meta?.icon  ?? 'auto-awesome';
-        const badge = meta?.badge ?? 'Adhkar';
+        const badge = (grp.card_badge ?? '').trim() || undefined;
         const subtitle = grp.card_subtitle ?? null;
         const detail  = grp.description ?? null;
         const groupTitle = resolveGroupCardTitle(grp);
@@ -701,6 +846,7 @@ function JumuahSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMo
             detail={detail}
             badge={badge}
             icon={icon as string}
+            thumbnailSource={resolveGroupThumbnailSource(grp)}
             nightPalette={N}
             onPress={() => {
               const groupNameNormalized = (grp.group_name ?? '')
@@ -800,7 +946,7 @@ function AsrSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMode:
       ) : groups.map((grp) => {
         const meta     = KNOWN_ASR_GROUPS[grp.group_name];
         const icon     = meta?.icon     ?? 'auto-awesome';
-        const badge    = meta?.badge    ?? 'Adhkar';
+        const badge    = (grp.card_badge ?? '').trim() || undefined;
         const subtitle = grp.card_subtitle ?? null;
         const detail   = grp.description ?? null;
         const groupTitle = resolveGroupCardTitle(grp);
@@ -813,6 +959,7 @@ function AsrSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMode:
             detail={detail}
             badge={badge}
             icon={icon as string}
+            thumbnailSource={resolveGroupThumbnailSource(grp)}
             nightPalette={N}
             onPress={() => {
               const knownKey = resolveSelectionFromGroupMeta(grp, ASR_GROUP_TO_SELECTION);
@@ -950,14 +1097,16 @@ function AdhkarGroupCard({
   detail,
   badge,
   icon,
+  thumbnailSource,
   nightPalette,
   onPress,
 }: {
   title: string;
   subtitle?: string | null;
   detail?: string | null;
-  badge: string;
+  badge?: string;
   icon: string;
+  thumbnailSource?: string | number;
   nightPalette: typeof NIGHT | null;
   onPress: () => void;
 }) {
@@ -975,14 +1124,20 @@ function AdhkarGroupCard({
       {({ pressed }) => (
         <>
           <View style={fajrSelStyles.iconBox}>
-            <MaterialIcons name={icon as any} size={24} color={DUAS_ACCENT_GREEN} />
+            {thumbnailSource ? (
+              <Image source={thumbnailSource} contentFit="cover" style={fajrSelStyles.iconThumb} />
+            ) : (
+              <MaterialIcons name={icon as any} size={24} color={DUAS_ACCENT_GREEN} />
+            )}
           </View>
           <View style={fajrSelStyles.cardBody}>
             <View style={fajrSelStyles.titleRow}>
               <Text style={[fajrSelStyles.cardTitle, nightPalette && { color: nightPalette.text }]}>{title}</Text>
-              <View style={fajrSelStyles.badge}>
-                <Text style={fajrSelStyles.badgeText}>{badge}</Text>
-              </View>
+              {badge ? (
+                <View style={fajrSelStyles.badge}>
+                  <Text style={fajrSelStyles.badgeText}>{badge}</Text>
+                </View>
+              ) : null}
             </View>
             {subtitle ? <Text style={[fajrSelStyles.subtitle, nightPalette && { color: nightPalette.textSub }]}>{subtitle}</Text> : null}
             {detail ? (
@@ -1052,7 +1207,7 @@ function PrayerTimeSelectionScreen({
         <View style={{ height: 32 }} />
       ) : groups.map((grp, idx) => {
         const color = grp.card_color ?? colors[idx % colors.length];
-        const badge = 'Adhkar';
+        const badge = (grp.card_badge ?? '').trim() || undefined;
         const subtitleText = grp.card_subtitle ?? null;
         const detail = grp.description ?? null;
         const groupTitle = resolveGroupCardTitle(grp);
@@ -1064,6 +1219,7 @@ function PrayerTimeSelectionScreen({
             detail={detail}
             badge={badge}
             icon="auto-awesome"
+            thumbnailSource={resolveGroupThumbnailSource(grp)}
             nightPalette={N}
             onPress={() => {
               const knownKey = routeMap?.[grp.group_name];
@@ -1121,7 +1277,7 @@ function FajrSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMode
       ) : groups.map((grp, idx) => {
         const meta = KNOWN_FAJR_GROUPS[grp.group_name];
         const icon  = meta?.icon  ?? 'auto-awesome';
-        const badge = meta?.badge ?? 'Adhkar';
+        const badge = (grp.card_badge ?? '').trim() || undefined;
         const subtitle = grp.card_subtitle ?? null;
         const detail  = grp.description ?? null;
         const groupTitle = resolveGroupCardTitle(grp);
@@ -1134,6 +1290,7 @@ function FajrSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMode
             detail={detail}
             badge={badge}
             icon={icon as string}
+            thumbnailSource={resolveGroupThumbnailSource(grp)}
             nightPalette={N}
             onPress={() => {
               const groupNameNormalized = (grp.group_name ?? '')
@@ -1201,6 +1358,11 @@ const fajrSelStyles = StyleSheet.create({
     backgroundColor: ADHKAR_ICON_BG,
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
     opacity: 0.9,
+  },
+  iconThumb: {
+    width: 50,
+    height: 50,
+    borderRadius: 15,
   },
   cardBody: { flex: 1, gap: 0, paddingTop: 1, justifyContent: 'center' },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
@@ -1861,6 +2023,8 @@ export function WirdAlLatifScreen({ nightMode, onBack }: { nightMode: boolean; o
   const [loading, setLoading] = React.useState(true);
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
   const [urduById, setUrduById] = React.useState<Record<string, boolean>>({});
+  const [urduFallbackById, setUrduFallbackById] = React.useState<Record<string, string>>({});
+  const [urduLoadingById, setUrduLoadingById] = React.useState<Record<string, boolean>>({});
 
   React.useEffect(() => {
     fetchAdhkarForPrayerTime('after-fajr').then(all => {
@@ -1896,10 +2060,52 @@ export function WirdAlLatifScreen({ nightMode, onBack }: { nightMode: boolean; o
 
   const accent = DUAS_ACCENT_GREEN;
 
-  const handleToggle = (id: string) => {
-    const isOpening = expandedId !== id;
-    setExpandedId(isOpening ? id : null);
+  const prefetchUrduForItem = React.useCallback(async (item: AdhkarRow): Promise<string> => {
+    const dbUrdu = resolveAdhkarUrduTranslation(item);
+    if (dbUrdu) return dbUrdu;
+
+    const cached = (urduFallbackById[item.id] ?? '').trim();
+    if (cached) return cached;
+
+    if (urduLoadingById[item.id]) return '';
+
+    const english = (item.translation ?? '').trim();
+    if (!english) return '';
+
+    setUrduLoadingById(prev => ({ ...prev, [item.id]: true }));
+    const translated = await translateTextToUrdu(english);
+    setUrduLoadingById(prev => ({ ...prev, [item.id]: false }));
+
+    if (!translated) return '';
+
+    setUrduFallbackById(prev => ({ ...prev, [item.id]: translated }));
+    return translated;
+  }, [urduFallbackById, urduLoadingById]);
+
+  const handleToggle = (item: AdhkarRow) => {
+    const isOpening = expandedId !== item.id;
+    setExpandedId(isOpening ? item.id : null);
+    if (isOpening) {
+      void prefetchUrduForItem(item);
+    }
   };
+
+  const handleUrduToggle = React.useCallback(async (item: AdhkarRow) => {
+    const dbUrdu = resolveAdhkarUrduTranslation(item);
+    const fallbackUrdu = (urduFallbackById[item.id] ?? '').trim();
+    const hasUrdu = !!(dbUrdu || fallbackUrdu);
+
+    if (hasUrdu) {
+      setUrduById(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+      return;
+    }
+
+    const translated = await prefetchUrduForItem(item);
+
+    if (!translated) return;
+
+    setUrduById(prev => ({ ...prev, [item.id]: true }));
+  }, [prefetchUrduForItem, urduFallbackById]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -1929,8 +2135,13 @@ export function WirdAlLatifScreen({ nightMode, onBack }: { nightMode: boolean; o
         ) : rows.map((item) => {
           const isOpen = expandedId === item.id;
           const itemColor = accent;
-          const urduTranslation = resolveAdhkarUrduTranslation(item);
+          const dbUrduTranslation = resolveAdhkarUrduTranslation(item);
+          const fallbackUrduTranslation = (urduFallbackById[item.id] ?? '').trim();
+          const urduTranslation = dbUrduTranslation || fallbackUrduTranslation;
           const hasUrduTranslation = urduTranslation.length > 0;
+          const isUrduLoading = !!urduLoadingById[item.id];
+          const hasEnglishTranslation = !!item.translation?.trim();
+          const canResolveUrdu = hasUrduTranslation || hasEnglishTranslation;
           const showUrdu = !!urduById[item.id] && hasUrduTranslation;
           const selectedTranslation = showUrdu ? urduTranslation : item.translation;
           return (
@@ -1941,7 +2152,7 @@ export function WirdAlLatifScreen({ nightMode, onBack }: { nightMode: boolean; o
                 N && { backgroundColor: N.surface, borderColor: N.border },
                 isOpen && { borderColor: itemColor },
               ]}
-              onPress={() => handleToggle(item.id)}
+              onPress={() => handleToggle(item)}
               activeOpacity={0.85}
             >
               <View style={wirdStyles.cardHeader}>
@@ -1979,16 +2190,16 @@ export function WirdAlLatifScreen({ nightMode, onBack }: { nightMode: boolean; o
                         wirdStyles.translationToggleBtn,
                         { borderColor: itemColor + '88' },
                         showUrdu && { backgroundColor: itemColor + '22', borderColor: itemColor },
-                        !hasUrduTranslation && { opacity: 0.55 },
+                        !canResolveUrdu && { opacity: 0.55 },
                       ]}
-                      onPress={() => {
-                        if (!hasUrduTranslation) return;
-                        setUrduById(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        handleUrduToggle(item);
                       }}
                       activeOpacity={0.8}
                     >
                       <Text style={[wirdStyles.translationToggleText, { color: itemColor }]}> 
-                        {hasUrduTranslation ? 'Urdu' : 'Urdu (N/A)'}
+                        {isUrduLoading ? 'اردو ترجمہ (...)' : (canResolveUrdu ? 'اردو ترجمہ' : 'اردو ترجمہ (N/A)')}
                       </Text>
                     </TouchableOpacity>
                   </View>

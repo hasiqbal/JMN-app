@@ -27,12 +27,36 @@ const URDU_TRANSLATOR_LABEL_OVERRIDES: Record<number, string> = {
 
 const DEFAULT_API_TRANSLATION_ID_BY_LANG: Record<'en' | 'ur', number> = {
   en: 131,
-  ur: 54,
+  ur: 819,
 };
 const DEFAULT_TRANSLATOR_LABEL_BY_LANG: Record<'en' | 'ur', string> = {
-  en: 'Saheeh International',
+  en: 'The Clear Quran — Dr. Mustafa Khattab',
   ur: 'اردو ترجمہ',
 };
+
+function pickDefaultTranslatorId(
+  locale: 'en' | 'ur',
+  options: QuranTranslationResource[],
+): number | null {
+  if (options.length === 0) return null;
+
+  const normalized = options.map((opt) => ({
+    ...opt,
+    search: `${opt.name} ${opt.translatedName ?? ''} ${opt.authorName ?? ''}`.toLowerCase(),
+  }));
+
+  if (locale === 'en') {
+    const clear = normalized.find((opt) => /clear\s*quran|mustafa\s*khattab/.test(opt.search));
+    if (clear) return clear.id;
+    const existing = normalized.find((opt) => opt.id === DEFAULT_API_TRANSLATION_ID_BY_LANG.en);
+    return existing?.id ?? normalized[0].id;
+  }
+
+  const urduPreferred = normalized.find((opt) => /waheed\s*uddin|wahid\s*uddin|وحید\s*الدین/.test(opt.search));
+  if (urduPreferred) return urduPreferred.id;
+  const existing = normalized.find((opt) => opt.id === DEFAULT_API_TRANSLATION_ID_BY_LANG.ur);
+  return existing?.id ?? normalized[0].id;
+}
 
 function buildVerseTranslationsByPage(
   ayatMap: Record<number, [number, number]>,
@@ -261,12 +285,19 @@ function MushafImageViewer({
         const isExcluded = /taqi\s*usmani|taqi\s*usman|maududi|tafhim|shaykh\s*al\s*hind|shaikh\s*al\s*hind|mahmud\s*al[-\s]*hasan|mahmood\s*al[-\s]*hasan|tafsir\s*e\s*usmani|tafsir[-\s]*usmani/.test(searchable);
         return languageOk && !isExcluded;
       });
-      const preferred = transLocale === 'en' ? [131, 20, 85, 84, 22, 21] : [];
+      const preferred = transLocale === 'en' ? [131, 20, 85, 84, 22, 21] : [819, 54];
       const ordered = [
         ...preferred.map((id) => langFiltered.find((o) => o.id === id)).filter(Boolean) as QuranTranslationResource[],
         ...langFiltered.filter((o) => !preferred.includes(o.id)).slice(0, 24),
       ];
       setApiOptionsByLang((prev) => ({ ...prev, [transLocale]: ordered }));
+      const preferredDefaultId = pickDefaultTranslatorId(transLocale, ordered);
+      if (preferredDefaultId) {
+        setSelectedTranslationIdByLang((prev) => {
+          if (prev[transLocale] !== null) return prev;
+          return { ...prev, [transLocale]: preferredDefaultId };
+        });
+      }
     })();
     return () => { cancelled = true; };
   }, [showTrans, enableApiTranslationPicker, chapterNumber, apiOptions.length, transLocale]);

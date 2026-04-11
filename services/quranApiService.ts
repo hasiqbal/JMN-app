@@ -4,6 +4,7 @@
  * Uses Indo-Pak (Nastaleeq-compatible) script for Arabic text.
  * No API key required for public content endpoints.
  */
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface QuranAyah {
   number: number;
@@ -55,6 +56,19 @@ const URDU_TRANSLATOR_NAME_OVERRIDES: Record<number, string> = {
 
 const BASE_URL = 'https://api.quran.com/api/v4';
 const TRANSLATION_ID = 131; // Saheeh International
+const QURAN_TRANSLATION_RESOURCE_CACHE_PREFIX = '@quran_trans_resources_v1:';
+const QURAN_CHAPTER_TRANSLATION_CACHE_PREFIX = '@quran_chapter_trans_v1:';
+
+const translationResourcesMemoryCache: Partial<Record<string, QuranTranslationResource[]>> = {};
+const chapterTranslationMemoryCache: Record<string, Record<number, string>> = {};
+
+function getTranslationResourcesCacheKey(language: string): string {
+  return `${QURAN_TRANSLATION_RESOURCE_CACHE_PREFIX}${language}`;
+}
+
+function getChapterTranslationCacheKey(surahNumber: number, translationId: number, language: string): string {
+  return `${QURAN_CHAPTER_TRANSLATION_CACHE_PREFIX}${surahNumber}:${translationId}:${language}`;
+}
 
 async function fetchVersePage(
   surahNumber: number,
@@ -102,13 +116,32 @@ function extractTranslation(verse: any): string {
 
 /** Fetch available translation resources from quran.com (defaults to English). */
 export async function fetchTranslationResources(language = 'en'): Promise<QuranTranslationResource[]> {
+  const memoryHit = translationResourcesMemoryCache[language];
+  if (memoryHit && memoryHit.length > 0) {
+    return memoryHit;
+  }
+
+  const cacheKey = getTranslationResourcesCacheKey(language);
+
+  try {
+    const stored = await AsyncStorage.getItem(cacheKey);
+    if (stored) {
+      const parsed = JSON.parse(stored) as QuranTranslationResource[];
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        translationResourcesMemoryCache[language] = parsed;
+      }
+    }
+  } catch {
+    // ignore cache read issues
+  }
+
   try {
     const url = `${BASE_URL}/resources/translations?language=${encodeURIComponent(language)}&per_page=100`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`quran.com API error: ${res.status}`);
     const json = await res.json();
     const rows: any[] = json?.translations ?? [];
-    return rows
+    const normalized = rows
       .map((r: any) => {
         const preferredName = language === 'ur'
           ? (r.translated_name?.name ?? r.name ?? `Translation ${r.id}`)
@@ -124,8 +157,19 @@ export async function fetchTranslationResources(language = 'en'): Promise<QuranT
         };
       })
       .filter((r) => Number.isFinite(r.id));
+
+    if (normalized.length > 0) {
+      translationResourcesMemoryCache[language] = normalized;
+      try {
+        await AsyncStorage.setItem(cacheKey, JSON.stringify(normalized));
+      } catch {
+        // ignore cache write issues
+      }
+    }
+
+    return normalized;
   } catch {
-    return [];
+    return translationResourcesMemoryCache[language] ?? [];
   }
 }
 
@@ -137,6 +181,25 @@ export async function fetchChapterTranslationById(
   translationId: number,
   language = 'en',
 ): Promise<Record<number, string>> {
+  const cacheKey = getChapterTranslationCacheKey(surahNumber, translationId, language);
+  const memoryHit = chapterTranslationMemoryCache[cacheKey];
+  if (memoryHit && Object.keys(memoryHit).length > 0) {
+    return memoryHit;
+  }
+
+  try {
+    const stored = await AsyncStorage.getItem(cacheKey);
+    if (stored) {
+      const parsed = JSON.parse(stored) as Record<number, string>;
+      if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+        chapterTranslationMemoryCache[cacheKey] = parsed;
+        return parsed;
+      }
+    }
+  } catch {
+    // ignore cache read issues and continue with network fetch
+  }
+
   const out: Record<number, string> = {};
   try {
     const PER_PAGE = 50;
@@ -162,9 +225,57 @@ export async function fetchChapterTranslationById(
 
       if (verses.length < PER_PAGE) break;
     }
+    if (Object.keys(out).length > 0) {
+      chapterTranslationMemoryCache[cacheKey] = out;
+      try {
+        await AsyncStorage.setItem(cacheKey, JSON.stringify(out));
+      } catch {
+        // ignore cache write issues
+      }
+    }
+
     return out;
   } catch {
     return {};
+  }
+}
+
+export async function resolveDefaultQuranTranslationId(language: 'en' | 'ur'): Promise<number> {
+  const options = await fetchTranslationResources(language);
+  if (options.length === 0) {
+    return language === 'en' ? 131 : 819;
+  }
+
+  const normalized = options.map((opt) => ({
+    ...opt,
+    search: `${opt.name} ${opt.translatedName ?? ''} ${opt.authorName ?? ''}`.toLowerCase(),
+  }));
+
+  if (language === 'en') {
+    const clear = normalized.find((opt) => /clear\s*quran|mustafa\s*khattab/.test(opt.search));
+    if (clear) return clear.id;
+    const fallback = normalized.find((opt) => opt.id === 131);
+    if (fallback) return fallback.id;
+    return normalized[0].id;
+  }
+
+  const preferredUrdu = normalized.find((opt) => /waheed\s*uddin|wahid\s*uddin|وحید\s*الدین/.test(opt.search));
+  if (preferredUrdu) return preferredUrdu.id;
+  const fallbackUrdu = normalized.find((opt) => opt.id === 819 || opt.id === 54);
+  if (fallbackUrdu) return fallbackUrdu.id;
+  return normalized[0].id;
+}
+
+export async function prewarmQuranChapterTranslations(
+  chapters: number[],
+  translationIdsByLang?: Partial<Record<'en' | 'ur', number>>,
+): Promise<void> {
+  const enTranslationId = translationIdsByLang?.en ?? await resolveDefaultQuranTranslationId('en');
+  const urTranslationId = translationIdsByLang?.ur ?? await resolveDefaultQuranTranslationId('ur');
+
+  for (const chapterNumber of chapters) {
+    await fetchChapterTranslationById(chapterNumber, enTranslationId, 'en');
+    await fetchChapterTranslationById(chapterNumber, urTranslationId, 'ur');
   }
 }
 

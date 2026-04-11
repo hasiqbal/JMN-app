@@ -4,6 +4,51 @@
  * Falls back to local data when offline or table is empty.
  */
 import { getSupabaseClient } from '@/template';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const URDU_TRANSLATION_CACHE_PREFIX = '@adhkar_urdu_cache_v1:';
+const urduTranslationMemoryCache = new Map<string, string>();
+
+function normalizeTranslationSourceKey(text: string): string {
+  return text.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function buildTranslationCacheKey(text: string): string {
+  return `${URDU_TRANSLATION_CACHE_PREFIX}${normalizeTranslationSourceKey(text)}`;
+}
+
+async function readCachedUrduTranslation(text: string): Promise<string> {
+  const normalizedKey = normalizeTranslationSourceKey(text);
+  const memoryHit = urduTranslationMemoryCache.get(normalizedKey);
+  if (memoryHit) return memoryHit;
+
+  try {
+    const stored = await AsyncStorage.getItem(buildTranslationCacheKey(text));
+    const value = (stored ?? '').trim();
+    if (value) {
+      urduTranslationMemoryCache.set(normalizedKey, value);
+      return value;
+    }
+  } catch {
+    // ignore storage issues and continue with live translation
+  }
+
+  return '';
+}
+
+async function writeCachedUrduTranslation(text: string, urdu: string): Promise<void> {
+  const normalizedKey = normalizeTranslationSourceKey(text);
+  const value = urdu.trim();
+  if (!normalizedKey || !value) return;
+
+  urduTranslationMemoryCache.set(normalizedKey, value);
+
+  try {
+    await AsyncStorage.setItem(buildTranslationCacheKey(text), value);
+  } catch {
+    // ignore storage issues; memory cache still helps current session
+  }
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -119,6 +164,111 @@ export function resolveAdhkarUrduTranslation(row: AdhkarRow): string {
     row.translation_ur ??
     ''
   ).trim();
+}
+
+// Runtime Urdu translation fallback for rows that only have English translation.
+// Database Urdu columns still take priority at render time.
+export async function translateTextToUrdu(text: string): Promise<string> {
+  const source = text.trim();
+  if (!source) return '';
+
+  const cached = await readCachedUrduTranslation(source);
+  if (cached) return cached;
+
+  const normalizeGoogleTranslatePayload = (payload: unknown): string => {
+    // google translate public endpoint returns nested arrays where [0][i][0]
+    // holds translated text fragments.
+    if (!Array.isArray(payload) || !Array.isArray(payload[0])) return '';
+    const firstChunk = payload[0] as unknown[];
+    const translated = firstChunk
+      .map((part) => (Array.isArray(part) && typeof part[0] === 'string' ? part[0] : ''))
+      .join('')
+      .trim();
+    return translated;
+  };
+
+  const translateViaGoogleFallback = async (): Promise<string> => {
+    try {
+      const url =
+        'https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ur&dt=t&q=' +
+        encodeURIComponent(source);
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) return '';
+      const payload = await res.json();
+      return normalizeGoogleTranslatePayload(payload);
+    } catch {
+      return '';
+    }
+  };
+
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.functions.invoke('translate-urdu', {
+      body: { text: source },
+    });
+
+    if (error) {
+      const fallbackUrdu = await translateViaGoogleFallback();
+      if (fallbackUrdu) {
+        await writeCachedUrduTranslation(source, fallbackUrdu);
+      }
+      return fallbackUrdu;
+    }
+
+    const urdu = typeof data?.urdu === 'string' ? data.urdu.trim() : '';
+    if (urdu) {
+      await writeCachedUrduTranslation(source, urdu);
+      return urdu;
+    }
+
+    const fallbackUrdu = await translateViaGoogleFallback();
+    if (fallbackUrdu) {
+      await writeCachedUrduTranslation(source, fallbackUrdu);
+    }
+    return fallbackUrdu;
+  } catch {
+    const fallbackUrdu = await translateViaGoogleFallback();
+    if (fallbackUrdu) {
+      await writeCachedUrduTranslation(source, fallbackUrdu);
+    }
+    return fallbackUrdu;
+  }
+}
+
+function getEnglishTranslationSource(row: AdhkarRow): string {
+  const direct = (row.translation ?? '').trim();
+  if (direct) return direct;
+  return (row.sections ?? [])
+    .map((sec) => (sec.translation ?? '').trim())
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+export async function prewarmAdhkarUrduTranslationCache(maxItems = Number.MAX_SAFE_INTEGER): Promise<void> {
+  const rows = await fetchAllAdhkar();
+  if (rows.length === 0) return;
+
+  let processed = 0;
+
+  for (const row of rows) {
+    if (processed >= maxItems) break;
+
+    const dbUrdu = resolveAdhkarUrduTranslation(row);
+    if (dbUrdu) continue;
+
+    const english = getEnglishTranslationSource(row);
+    if (!english) continue;
+
+    const alreadyCached = await readCachedUrduTranslation(english);
+    if (!alreadyCached) {
+      await translateTextToUrdu(english);
+    }
+
+    processed += 1;
+  }
 }
 
 export interface AnnouncementRow {
@@ -237,6 +387,17 @@ export interface AdhkarGroupMeta {
   content_key: string | null;                   // New: e.g., 'surah-36' for local Quran
   card_icon: string | null;                     // New: portal-defined card icon
   card_badge: string | null;                    // New: portal-defined badge text
+}
+
+export interface AdhkarGroupWarmupRow {
+  group_name: string | null;
+  name: string | null;
+  content_key: string | null;
+  content_type: 'adhkar' | 'quran' | null;
+  card_subtitle: string | null;
+  description: string | null;
+  arabic_title: string | null;
+  is_active: boolean | null;
 }
 
 function normalizeGroupKey(value: string | null | undefined): string {
@@ -382,7 +543,9 @@ export async function fetchAdhkarGroupsForPrayerTime(
             card_badge:
               typeof raw.card_badge === 'string'
                 ? raw.card_badge
-                : existing?.card_badge ?? null,
+                : (typeof (raw as { tag?: unknown }).tag === 'string'
+                    ? ((raw as { tag?: string }).tag ?? null)
+                    : existing?.card_badge ?? null),
           };
 
           map.set(groupName, merged);
@@ -393,6 +556,21 @@ export async function fetchAdhkarGroupsForPrayerTime(
     }
 
     return Array.from(map.values()).sort((a, b) => a.group_order - b.group_order);
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchAllActiveAdhkarGroupsForWarmup(): Promise<AdhkarGroupWarmupRow[]> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('adhkar_groups')
+      .select('group_name,name,content_key,content_type,card_subtitle,description,arabic_title,is_active')
+      .eq('is_active', true);
+
+    if (error || !Array.isArray(data)) return [];
+    return data as AdhkarGroupWarmupRow[];
   } catch {
     return [];
   }

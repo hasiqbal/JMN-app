@@ -23,13 +23,13 @@ export const PRAYER_GRADIENTS: Record<string, readonly [string, string, ...strin
 };
 
 export const PRAYER_BG_IMAGES: Record<string, any> = {
-  Fajr: require('@/assets/images/fajr.jpg'),
-  Sunrise: require('@/assets/images/sunrise.jpg'),
-  Ishraq: require('@/assets/images/sunrise.jpg'),
-  Zawaal: require('@/assets/images/zuhr.jpg'),
-  Dhuhr: require('@/assets/images/zuhr.jpg'),
-  Asr: require('@/assets/images/asr.jpg'),
-  Maghrib: require('@/assets/images/maghrib.jpg'),
-  Isha: require('@/assets/images/fajr.jpg'),
-  Jumuah: require('@/assets/images/zuhr.jpg'),
+  Fajr: require('@/assets/images/sky/fajr.jpg'),
+  Sunrise: require('@/assets/images/sky/sunrise.jpg'),
+  Ishraq: require('@/assets/images/sky/sunrise.jpg'),
+  Zawaal: require('@/assets/images/sky/zuhr.jpg'),
+  Dhuhr: require('@/assets/images/sky/zuhr.jpg'),
+  Asr: require('@/assets/images/sky/asr.jpg'),
+  Maghrib: require('@/assets/images/sky/maghrib.jpg'),
+  Isha: require('@/assets/images/sky/fajr.jpg'),
+  Jumuah: require('@/assets/images/sky/zuhr.jpg'),
 };
