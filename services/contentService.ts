@@ -146,6 +146,7 @@ export interface AdhkarRow {
   group_name: string | null;
   group_order: number;
   benefits?: string | null;
+  tafsir?: string | null;
   description: string | null;
   card_color?: string | null;
   content_type?: 'adhkar' | 'quran' | null;     // New: how to render this group

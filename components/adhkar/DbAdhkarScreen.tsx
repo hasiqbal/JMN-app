@@ -10,12 +10,17 @@ import {
   View,
   Text,
   ScrollView,
+  Modal,
   TouchableOpacity,
   Pressable,
   StyleSheet,
   useWindowDimensions,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import RenderHtml from 'react-native-render-html';
 import { Colors, Spacing, Radius } from '@/constants/theme';
 import { NIGHT_PALETTE } from '@/constants/nightPalette';
 import { fetchAdhkarForPrayerTime, AdhkarRow, resolveAdhkarUrduTranslation, translateTextToUrdu } from '@/services/contentService';
@@ -32,15 +37,17 @@ import {
 import { AdhkarSelection } from '@/types/duasTypes';
 
 const ADHKAR_ACCENT_GREEN = '#3FAE5A';
-const ADHKAR_CARD_TITLE = '#1F2A24';
-const ADHKAR_CARD_TEXT = '#6B7A72';
-const ADHKAR_META_TEXT = '#7A887F';
-const ADHKAR_DESCRIPTION_TEXT = '#4F5D56';
+const ADHKAR_CARD_TITLE = '#111827';
+const ADHKAR_CARD_TEXT = '#374151';
+const ADHKAR_META_TEXT = '#4B5563';
+const ADHKAR_DESCRIPTION_TEXT = '#374151';
 const ADHKAR_ICON_BG = '#F0F7F3';
 const ADHKAR_TAG_BG = '#E6F4EA';
 const ADHKAR_ARROW = '#A0A8A2';
 const ADHKAR_BENEFITS_GOLD = '#B88917';
 const ADHKAR_BENEFITS_GOLD_SOFT = '#FFF4D6';
+const ADHKAR_TAFSIR_TEAL = '#0D7C6E';
+const ADHKAR_TAFSIR_TEAL_SOFT = '#E6F7F4';
 const DEFAULT_MUSLIM_ENTRY_ICONS = [
   'brightness-3',
   'nights-stay',
@@ -122,6 +129,10 @@ function normalizeMetaText(value?: string | null): string {
     .trim();
 }
 
+function containsHtml(value: string): boolean {
+  return /<\/?[a-z][\s\S]*>/i.test(value);
+}
+
 function pickStableDefaultIcon(seed: string): string {
   let hash = 0;
   for (let i = 0; i < seed.length; i += 1) {
@@ -185,8 +196,10 @@ const PRAYER_TIME_META: Record<string, { title: string; icon: string; accent: st
 const arabicBoxBase = {
   borderWidth: 1,
   borderRadius: Radius.md,
-  paddingHorizontal: 14,
-  paddingVertical: 12,
+  borderColor: '#E5E7EB',
+  backgroundColor: '#F8FAF9',
+  paddingHorizontal: 20,
+  paddingVertical: 20,
 } as const;
 
 // ── Props ─────────────────────────────────────────────────────────────────
@@ -303,9 +316,19 @@ export function DbAdhkarScreen({
   const [urduById, setUrduById] = React.useState<Record<string, boolean>>({});
   const [urduFallbackById, setUrduFallbackById] = React.useState<Record<string, string>>({});
   const [urduLoadingById, setUrduLoadingById] = React.useState<Record<string, boolean>>({});
-  const [benefitsById, setBenefitsById] = React.useState<Record<string, boolean>>({});
+  const [benefitsOverlayItemId, setBenefitsOverlayItemId] = React.useState<string | null>(null);
+  const [tafsirOverlayItemId, setTafsirOverlayItemId] = React.useState<string | null>(null);
+  const [urduBenefitsFallbackById, setUrduBenefitsFallbackById] = React.useState<Record<string, string>>({});
+  const [urduBenefitsLoadingById, setUrduBenefitsLoadingById] = React.useState<Record<string, boolean>>({});
+  const [urduTafsirFallbackById, setUrduTafsirFallbackById] = React.useState<Record<string, string>>({});
+  const [urduTafsirLoadingById, setUrduTafsirLoadingById] = React.useState<Record<string, boolean>>({});
   const [transliterationById, setTransliterationById] = React.useState<Record<string, boolean>>({});
-  const [translationById, setTranslationById] = React.useState<Record<string, boolean>>({});
+
+  React.useEffect(() => {
+    if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+      UIManager.setLayoutAnimationEnabledExperimental(true);
+    }
+  }, []);
 
   React.useEffect(() => {
     setLoading(true);
@@ -335,9 +358,13 @@ export function DbAdhkarScreen({
       setUrduById({});
       setUrduFallbackById({});
       setUrduLoadingById({});
-      setBenefitsById({});
+      setBenefitsOverlayItemId(null);
+      setTafsirOverlayItemId(null);
+      setUrduBenefitsFallbackById({});
+      setUrduBenefitsLoadingById({});
+      setUrduTafsirFallbackById({});
+      setUrduTafsirLoadingById({});
       setTransliterationById({});
-      setTranslationById({});
       setLoading(false);
     });
   }, [prayerTime, groupFilter]);
@@ -376,25 +403,79 @@ export function DbAdhkarScreen({
     return translated;
   }, [resolveEnglishTranslationSource, urduFallbackById, urduLoadingById]);
 
+  const ensureUrduBenefits = React.useCallback(async (id: string, plainText: string) => {
+    const cached = (urduBenefitsFallbackById[id] ?? '').trim();
+    if (cached) return;
+    if (urduBenefitsLoadingById[id] || !plainText) return;
+    setUrduBenefitsLoadingById(prev => ({ ...prev, [id]: true }));
+    const translated = await translateTextToUrdu(plainText);
+    setUrduBenefitsLoadingById(prev => ({ ...prev, [id]: false }));
+    if (translated) {
+      setUrduBenefitsFallbackById(prev => ({ ...prev, [id]: translated }));
+    }
+  }, [urduBenefitsFallbackById, urduBenefitsLoadingById]);
+
+  const ensureUrduTafsir = React.useCallback(async (id: string, plainText: string) => {
+    const cached = (urduTafsirFallbackById[id] ?? '').trim();
+    if (cached) return;
+    if (urduTafsirLoadingById[id] || !plainText) return;
+    setUrduTafsirLoadingById(prev => ({ ...prev, [id]: true }));
+    const translated = await translateTextToUrdu(plainText);
+    setUrduTafsirLoadingById(prev => ({ ...prev, [id]: false }));
+    if (translated) {
+      setUrduTafsirFallbackById(prev => ({ ...prev, [id]: translated }));
+    }
+  }, [urduTafsirFallbackById, urduTafsirLoadingById]);
+
   const handleUrduToggle = React.useCallback(async (item: AdhkarRow) => {
-    // Always open translation panel when user requests Urdu.
-    setTranslationById(prev => ({ ...prev, [item.id]: true }));
+    if (urduById[item.id]) {
+      setUrduById(prev => ({ ...prev, [item.id]: false }));
+      return;
+    }
 
     const dbUrdu = resolveAdhkarUrduTranslation(item);
     const fallbackUrdu = (urduFallbackById[item.id] ?? '').trim();
     const hasUrdu = !!(dbUrdu || fallbackUrdu);
 
-    if (hasUrdu) {
-      setUrduById(prev => ({ ...prev, [item.id]: !prev[item.id] }));
-      return;
+    const rawBenefits = (item.description ?? item.benefits ?? '').trim();
+    const plainBenefits = containsHtml(rawBenefits) ? rawBenefits.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() : rawBenefits;
+    const rawTafsir = (item.tafsir ?? '').trim();
+    const plainTafsir = containsHtml(rawTafsir) ? rawTafsir.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() : rawTafsir;
+
+    if (!hasUrdu) {
+      await prefetchUrduForItem(item);
+    }
+    if (plainBenefits) {
+      await ensureUrduBenefits(item.id, plainBenefits);
+    }
+    if (plainTafsir) {
+      await ensureUrduTafsir(item.id, plainTafsir);
     }
 
-    const translated = await prefetchUrduForItem(item);
-
-    if (!translated) return;
-
     setUrduById(prev => ({ ...prev, [item.id]: true }));
-  }, [prefetchUrduForItem, urduFallbackById]);
+  }, [ensureUrduBenefits, ensureUrduTafsir, prefetchUrduForItem, urduById, urduFallbackById]);
+
+  const handleOpenTafsirOverlay = React.useCallback(async (item: AdhkarRow, plainText: string) => {
+    if (!!urduById[item.id] && plainText) {
+      await ensureUrduTafsir(item.id, plainText);
+    }
+    setTafsirOverlayItemId(item.id);
+  }, [ensureUrduTafsir, urduById]);
+
+  const handleCloseTafsirOverlay = React.useCallback(() => {
+    setTafsirOverlayItemId(null);
+  }, []);
+
+  const handleOpenBenefitsOverlay = React.useCallback(async (item: AdhkarRow, plainText: string) => {
+    if (!!urduById[item.id] && plainText) {
+      await ensureUrduBenefits(item.id, plainText);
+    }
+    setBenefitsOverlayItemId(item.id);
+  }, [ensureUrduBenefits, urduById]);
+
+  const handleCloseBenefitsOverlay = React.useCallback(() => {
+    setBenefitsOverlayItemId(null);
+  }, []);
 
   const meta = groupFilter
     ? (PRAYER_TIME_META[groupFilter] ?? PRAYER_TIME_META[prayerTime] ?? { title: groupFilter, icon: 'auto-awesome', accent: ADHKAR_ACCENT_GREEN })
@@ -443,17 +524,27 @@ export function DbAdhkarScreen({
   // ── Item renderer ─────────────────────────────────────────────────────
   const renderItem = (item: AdhkarRow) => {
     const isOpen = !!expandedById[item.id];
-    const isBenefitsOpen = !!benefitsById[item.id];
+    const isBenefitsOverlayOpen = benefitsOverlayItemId === item.id;
+    const isTafsirOverlayOpen = tafsirOverlayItemId === item.id;
     const isTransliterationOpen = !!transliterationById[item.id];
-    const isTranslationOpen = !!translationById[item.id];
     const arabicFontSize = useEnhancedFont
       ? (isCompactPhone ? 23 : 26)
       : (isCompactPhone ? 22 : 24);
     const arabicLineHeight = useEnhancedFont
-      ? (isCompactPhone ? 50 : 58)
-      : (isCompactPhone ? 46 : 52);
-    const itemBenefits = (item.benefits ?? item.description ?? '').trim();
+      ? (isCompactPhone ? 52 : 60)
+      : (isCompactPhone ? 48 : 54);
+    const itemBenefits = (item.description ?? item.benefits ?? '').trim();
     const hasBenefits = itemBenefits.length > 0;
+    const benefitsIsHtml = hasBenefits && containsHtml(itemBenefits);
+    const itemBenefitsPlain = benefitsIsHtml ? itemBenefits.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() : itemBenefits;
+    const itemTafsir = (item.tafsir ?? '').trim();
+    const hasTafsir = itemTafsir.length > 0;
+    const tafsirIsHtml = hasTafsir && containsHtml(itemTafsir);
+    const itemTafsirPlain = tafsirIsHtml ? itemTafsir.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() : itemTafsir;
+    const urduBenefitsText = (urduBenefitsFallbackById[item.id] ?? '').trim();
+    const isUrduBenefitsLoading = !!urduBenefitsLoadingById[item.id];
+    const urduTafsirText = (urduTafsirFallbackById[item.id] ?? '').trim();
+    const isUrduTafsirLoading = !!urduTafsirLoadingById[item.id];
     const dbUrduTranslation = resolveAdhkarUrduTranslation(item);
     const fallbackUrduTranslation = (urduFallbackById[item.id] ?? '').trim();
     const urduTranslation = dbUrduTranslation || fallbackUrduTranslation;
@@ -464,7 +555,10 @@ export function DbAdhkarScreen({
     const canResolveUrdu = hasUrduTranslation || hasEnglishTranslation;
     const itemBadge = (item.card_badge ?? '').trim();
     const showUrdu = !!urduById[item.id] && hasUrduTranslation;
-    const selectedTranslation = showUrdu ? urduTranslation : item.translation;
+    const showUrduBenefits = showUrdu && urduBenefitsText.length > 0;
+    const showUrduTafsir = showUrdu && urduTafsirText.length > 0;
+    const isLanguageSwitchLoading = isUrduLoading || isUrduBenefitsLoading || isUrduTafsirLoading;
+    const selectedTranslation = showUrdu ? urduTranslation : englishTranslationSource;
     const itemLeadVisual = resolveEntryLeadVisual(groupFilter, item, salawatGroupName);
 
     const arabicParas = useEnhancedFont
@@ -561,43 +655,15 @@ export function DbAdhkarScreen({
             {/* ── Expanded body ── */}
             {isOpen ? (
               <View style={styles.itemBody}>
-                {hasBenefits ? (
-                  <View style={styles.benefitsWrap}>
-                    <TouchableOpacity
-                      style={[
-                        styles.benefitsBtn,
-                        { borderColor: ADHKAR_BENEFITS_GOLD + '99', backgroundColor: ADHKAR_BENEFITS_GOLD_SOFT },
-                        isBenefitsOpen && { backgroundColor: '#F4E1A6', borderColor: ADHKAR_BENEFITS_GOLD },
-                      ]}
-                      onPress={(event) => {
-                        event.stopPropagation();
-                        setBenefitsById(prev => ({ ...prev, [item.id]: !prev[item.id] }));
-                      }}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[styles.benefitsBtnText, { color: ADHKAR_BENEFITS_GOLD }]}>Benefits</Text>
-                      <MaterialIcons
-                        name={isBenefitsOpen ? 'expand-less' : 'expand-more'}
-                        size={16}
-                        color={ADHKAR_BENEFITS_GOLD}
-                      />
-                    </TouchableOpacity>
-                    {isBenefitsOpen ? (
-                      <View style={[styles.benefitsBox, { borderLeftColor: ADHKAR_BENEFITS_GOLD, backgroundColor: ADHKAR_BENEFITS_GOLD_SOFT }, N && { backgroundColor: '#4A3B13' }]}>
-                        <Text style={[styles.benefitsText, N && { color: N.textSub }]}>{itemBenefits}</Text>
-                      </View>
-                    ) : null}
-                  </View>
-                ) : null}
                 {useEnhancedFont ? (
               // Enhanced paragraph-by-paragraph layout
-              <View style={{ gap: 16 }}>
+              <View style={{ gap: 20 }}>
                 <View style={[styles.arabicTopMeta, { borderBottomColor: accent + '25', borderBottomWidth: 1, paddingBottom: 8, marginBottom: 4 }]}>
                   <Text style={[styles.arabicTopMetaText, isCompactPhone && styles.arabicTopMetaTextCompact, { color: accent }]}>{item.arabic_title || item.title}</Text>
                 </View>
                 {arabicParas.map((para, pi) => (
                   <View key={pi} style={styles.paraBlock}>
-                    <View style={[styles.paraArabicBox, { backgroundColor: accent + '0E', borderColor: accent + '28' }, N && { backgroundColor: accent + '18', borderColor: accent + '40' }]}>
+                    <View style={[styles.paraArabicBox, N && { backgroundColor: N.surface, borderColor: N.border }]}>
                       <Text style={[styles.arabicText, { fontSize: arabicFontSize, lineHeight: arabicLineHeight, fontFamily: 'MarwanIndoPak', textAlign: 'right', letterSpacing: 0 }, N && { color: N.text }]}>
                         {para}
                       </Text>
@@ -608,72 +674,63 @@ export function DbAdhkarScreen({
                       </Text>
                     ) : null}
                     {pi === 0 ? (
-                      <View style={styles.translationToggleRow}>
-                        <View style={styles.actionLeftGroup}>
-                          {hasTransliteration ? (
+                      <View style={styles.inlineControlsRow}>
+                        {hasTranslation ? (
+                          <View style={styles.languageSwitch}>
+                            <TouchableOpacity
+                              style={[styles.languageSwitchOption, !showUrdu ? styles.languageOptionActive : styles.languageOptionInactive]}
+                              onPress={(event) => {
+                                event.stopPropagation();
+                                setUrduById(prev => ({ ...prev, [item.id]: false }));
+                              }}
+                              activeOpacity={0.85}
+                            >
+                              <Text style={[styles.languageSwitchText, !showUrdu ? styles.controlTextActive : styles.controlTextInactive]}>ENGLISH</Text>
+                            </TouchableOpacity>
                             <TouchableOpacity
                               style={[
-                                styles.transliterationBtn,
-                                { borderColor: accent + '66' },
-                                isTransliterationOpen && { backgroundColor: accent + '14', borderColor: accent },
+                                styles.languageSwitchOption,
+                                showUrdu ? styles.languageOptionActive : styles.languageOptionInactive,
+                                !canResolveUrdu && styles.languageSwitchOptionDisabled,
                               ]}
                               onPress={(event) => {
                                 event.stopPropagation();
-                                setTransliterationById(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+                                if (!canResolveUrdu || showUrdu) return;
+                                void handleUrduToggle(item);
                               }}
-                              activeOpacity={0.8}
+                              activeOpacity={0.85}
                             >
-                              <Text style={[styles.transliterationBtnText, { color: accent }]}>Transliteration</Text>
-                              <MaterialIcons
-                                name={isTransliterationOpen ? 'expand-less' : 'expand-more'}
-                                size={16}
-                                color={accent}
-                              />
+                              <Text style={[styles.languageSwitchUrduText, showUrdu ? styles.controlTextActive : styles.controlTextInactive]}>
+                                {isLanguageSwitchLoading ? 'اردو...' : 'اردو'}
+                              </Text>
                             </TouchableOpacity>
-                          ) : null}
-                          {hasTranslation ? (
-                            <TouchableOpacity
-                              style={[
-                                styles.translationBtn,
-                                { borderColor: accent + '66' },
-                                isTranslationOpen && { backgroundColor: accent + '14', borderColor: accent },
-                              ]}
-                              onPress={(event) => {
-                                event.stopPropagation();
-                                setTranslationById(prev => ({ ...prev, [item.id]: !prev[item.id] }));
-                              }}
-                              activeOpacity={0.8}
-                            >
-                              <Text style={[styles.translationBtnText, { color: accent }]}>Translation</Text>
-                              <MaterialIcons
-                                name={isTranslationOpen ? 'expand-less' : 'expand-more'}
-                                size={16}
-                                color={accent}
-                              />
-                            </TouchableOpacity>
-                          ) : null}
-                        </View>
-                        <TouchableOpacity
-                          style={[
-                            styles.translationToggleBtn,
-                            { borderColor: accent + '88' },
-                            showUrdu && { backgroundColor: accent + '22', borderColor: accent },
-                            !canResolveUrdu && { opacity: 0.55 },
-                          ]}
-                          onPress={(event) => {
-                            event.stopPropagation();
-                            handleUrduToggle(item);
-                          }}
-                          activeOpacity={0.8}
-                        >
-                          <Text style={[styles.translationToggleText, { color: accent }]}> 
-                            {isUrduLoading ? 'اردو ترجمہ (...)' : (canResolveUrdu ? 'اردو ترجمہ' : 'اردو ترجمہ (N/A)')}
-                          </Text>
-                        </TouchableOpacity>
+                          </View>
+                        ) : null}
+
+                        {hasTransliteration ? (
+                          <TouchableOpacity
+                            style={[
+                              styles.transliterationBtn,
+                              isTransliterationOpen ? styles.controlPillActive : styles.controlPillInactive,
+                            ]}
+                            onPress={(event) => {
+                              event.stopPropagation();
+                              setTransliterationById(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={[styles.transliterationBtnText, isTransliterationOpen ? styles.controlTextActive : styles.controlTextInactive]}>Transliteration</Text>
+                            <MaterialIcons
+                              name={isTransliterationOpen ? 'expand-less' : 'expand-more'}
+                              size={16}
+                              color={isTransliterationOpen ? '#FFFFFF' : '#6B7280'}
+                            />
+                          </TouchableOpacity>
+                        ) : null}
                       </View>
                     ) : null}
-                    {isTranslationOpen && (showUrdu ? (pi === 0 && selectedTranslation) : transParas[pi]) ? (
-                      <View style={[styles.paraTransBox, { borderLeftColor: accent }, N && { backgroundColor: accent + '12' }]}>
+                    {hasTranslation && (showUrdu ? (pi === 0 && selectedTranslation) : transParas[pi]) ? (
+                      <View style={[styles.paraTransBox, N && { backgroundColor: N.surface, borderColor: N.border }]}>
                         <Text style={[styles.translation, { fontSize: 14, lineHeight: 22 }, N && { color: N.text }, showUrdu && styles.translationUrdu]}>
                           {showUrdu ? selectedTranslation : transParas[pi]}
                         </Text>
@@ -691,7 +748,7 @@ export function DbAdhkarScreen({
                 ) : (
               // Standard layout: arabic → transliteration → translation
               <View style={{ gap: 0 }}>
-                <View style={[styles.arabicBox, { backgroundColor: accent + '10', borderColor: accent + '30', marginBottom: 14 }]}>
+                <View style={[styles.arabicBox, { marginBottom: 20 }, N && { backgroundColor: N.surface, borderColor: N.border }]}>
                   <Text style={[styles.arabicText, { fontSize: arabicFontSize, lineHeight: arabicLineHeight }, N && { color: N.text }]}>
                     {item.arabic}
                   </Text>
@@ -704,85 +761,78 @@ export function DbAdhkarScreen({
                         {sec.heading}
                       </Text>
                     ) : null}
-                    <View style={[styles.arabicBox, { backgroundColor: accent + '08', borderColor: accent + '20' }]}>
+                    <View style={[styles.arabicBox, N && { backgroundColor: N.surface, borderColor: N.border }]}>
                       <Text style={[styles.arabicText, { fontSize: 20, lineHeight: 42 }, N && { color: N.text }]}>
                         {sec.arabic}
                       </Text>
                     </View>
                     {isTransliterationOpen && sec.transliteration ? <Text style={[styles.translit, N && { color: N.textSub }]}>{sec.transliteration}</Text> : null}
-                    {isTranslationOpen && sec.translation ? <Text style={[styles.translation, { marginTop: 4 }, N && { color: N.text }]}>{sec.translation}</Text> : null}
+                    {hasTranslation && !showUrdu && sec.translation ? <Text style={[styles.translation, { marginTop: 4 }, N && { color: N.text }]}>{sec.translation}</Text> : null}
                   </View>
                 )) : null}
                 {isTransliterationOpen && item.transliteration ? (
-                  <Text style={[styles.translit, { marginBottom: 8 }, N && { color: N.textSub }]}>{item.transliteration}</Text>
+                  <Text style={[styles.translit, { marginBottom: 20 }, N && { color: N.textSub }]}>{item.transliteration}</Text>
                 ) : null}
-                <View style={styles.translationToggleRow}>
-                  <View style={styles.actionLeftGroup}>
-                    {hasTransliteration ? (
+                <View style={styles.inlineControlsRow}>
+                  {hasTranslation ? (
+                    <View style={styles.languageSwitch}>
+                      <TouchableOpacity
+                        style={[styles.languageSwitchOption, !showUrdu ? styles.languageOptionActive : styles.languageOptionInactive]}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          setUrduById(prev => ({ ...prev, [item.id]: false }));
+                        }}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={[styles.languageSwitchText, !showUrdu ? styles.controlTextActive : styles.controlTextInactive]}>ENGLISH</Text>
+                      </TouchableOpacity>
                       <TouchableOpacity
                         style={[
-                          styles.transliterationBtn,
-                          { borderColor: accent + '66' },
-                          isTransliterationOpen && { backgroundColor: accent + '14', borderColor: accent },
+                          styles.languageSwitchOption,
+                          showUrdu ? styles.languageOptionActive : styles.languageOptionInactive,
+                          !canResolveUrdu && styles.languageSwitchOptionDisabled,
                         ]}
                         onPress={(event) => {
                           event.stopPropagation();
-                          setTransliterationById(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+                          if (!canResolveUrdu || showUrdu) return;
+                          void handleUrduToggle(item);
                         }}
-                        activeOpacity={0.8}
+                        activeOpacity={0.85}
                       >
-                        <Text style={[styles.transliterationBtnText, { color: accent }]}>Transliteration</Text>
-                        <MaterialIcons
-                          name={isTransliterationOpen ? 'expand-less' : 'expand-more'}
-                          size={16}
-                          color={accent}
-                        />
+                        <Text style={[styles.languageSwitchUrduText, showUrdu ? styles.controlTextActive : styles.controlTextInactive]}>
+                          {isLanguageSwitchLoading ? 'اردو...' : 'اردو'}
+                        </Text>
                       </TouchableOpacity>
-                    ) : null}
-                    {hasTranslation ? (
-                      <TouchableOpacity
-                        style={[
-                          styles.translationBtn,
-                          { borderColor: accent + '66' },
-                          isTranslationOpen && { backgroundColor: accent + '14', borderColor: accent },
-                        ]}
-                        onPress={(event) => {
-                          event.stopPropagation();
-                          setTranslationById(prev => ({ ...prev, [item.id]: !prev[item.id] }));
-                        }}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={[styles.translationBtnText, { color: accent }]}>Translation</Text>
-                        <MaterialIcons
-                          name={isTranslationOpen ? 'expand-less' : 'expand-more'}
-                          size={16}
-                          color={accent}
-                        />
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
-                  <TouchableOpacity
-                    style={[
-                      styles.translationToggleBtn,
-                      { borderColor: accent + '88' },
-                      showUrdu && { backgroundColor: accent + '22', borderColor: accent },
-                      !canResolveUrdu && { opacity: 0.55 },
-                    ]}
-                    onPress={(event) => {
-                      event.stopPropagation();
-                      handleUrduToggle(item);
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.translationToggleText, { color: accent }]}> 
-                      {isUrduLoading ? 'اردو ترجمہ (...)' : (canResolveUrdu ? 'اردو ترجمہ' : 'اردو ترجمہ (N/A)')}
-                    </Text>
-                  </TouchableOpacity>
+                    </View>
+                  ) : null}
+
+                  {hasTransliteration ? (
+                    <TouchableOpacity
+                      style={[
+                        styles.transliterationBtn,
+                        isTransliterationOpen ? styles.controlPillActive : styles.controlPillInactive,
+                      ]}
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        setTransliterationById(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.transliterationBtnText, isTransliterationOpen ? styles.controlTextActive : styles.controlTextInactive]}>Transliteration</Text>
+                      <MaterialIcons
+                        name={isTransliterationOpen ? 'expand-less' : 'expand-more'}
+                        size={16}
+                        color={isTransliterationOpen ? '#FFFFFF' : '#6B7280'}
+                      />
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
-                {isTranslationOpen && selectedTranslation ? (
-                  <Text style={[styles.translation, { marginBottom: item.reference ? 10 : 0 }, N && { color: N.text }, showUrdu && styles.translationUrdu]}>
-                    {selectedTranslation}
-                  </Text>
+                {hasTranslation && selectedTranslation ? (
+                  <View style={[styles.translationBox, { marginBottom: item.reference ? 20 : 0 }, N && { backgroundColor: N.surface, borderColor: N.border }]}> 
+                    <Text style={[styles.translation, N && { color: N.text }, showUrdu && styles.translationUrdu]}>
+                      {selectedTranslation}
+                    </Text>
+                  </View>
                 ) : null}
                 {item.reference ? (
                   <View style={[styles.refRow, { paddingTop: 6, borderTopWidth: 1, borderTopColor: N ? N.border : Colors.border + '80' }]}>
@@ -790,8 +840,57 @@ export function DbAdhkarScreen({
                     <Text style={[styles.refLabel, N && { color: N.textMuted }]}>{item.reference}</Text>
                   </View>
                 ) : null}
+
               </View>
                 )}
+
+              {/* ── Secondary accordions: Benefits + Tafsir ── */}
+              {(hasBenefits || hasTafsir) ? (
+                <View style={styles.accordionWrap}>
+                  {hasBenefits ? (
+                    <View style={styles.accordionBlock}>
+                      <TouchableOpacity
+                        style={[
+                          styles.accordionHeader,
+                          { backgroundColor: '#FEF9E7', borderColor: '#FDE68A' },
+                          isBenefitsOverlayOpen && styles.accordionHeaderActive,
+                        ]}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          void handleOpenBenefitsOverlay(item, itemBenefitsPlain);
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        {showUrdu ? <Text style={[styles.accordionHeaderUrdu, { color: ADHKAR_BENEFITS_GOLD }]}>فوائد</Text> : null}
+                        {!showUrdu ? <Text style={[styles.accordionHeaderEn, { color: ADHKAR_BENEFITS_GOLD }]}>Benefits</Text> : null}
+                        <MaterialIcons name="open-in-full" size={18} color={ADHKAR_BENEFITS_GOLD} />
+                      </TouchableOpacity>
+                    </View>
+                  ) : null}
+
+                  {hasTafsir ? (
+                    <View style={styles.accordionBlock}>
+                      <TouchableOpacity
+                        style={[
+                          styles.accordionHeader,
+                          { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' },
+                          isTafsirOverlayOpen && styles.accordionHeaderActive,
+                        ]}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          void handleOpenTafsirOverlay(item, itemTafsirPlain);
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        {showUrdu ? <Text style={[styles.accordionHeaderUrdu, { color: ADHKAR_TAFSIR_TEAL }]}>تفسیر</Text> : null}
+                        {!showUrdu ? <Text style={[styles.accordionHeaderEn, { color: ADHKAR_TAFSIR_TEAL }]}>Tafsir</Text> : null}
+                        <MaterialIcons name="open-in-full" size={18} color={ADHKAR_TAFSIR_TEAL} />
+                      </TouchableOpacity>
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+
               </View>
             ) : null}
           </>
@@ -801,6 +900,25 @@ export function DbAdhkarScreen({
   };
 
   const totalCount = adhkar.length;
+  const benefitsOverlayItem = benefitsOverlayItemId
+    ? (adhkar.find((row) => row.id === benefitsOverlayItemId) ?? null)
+    : null;
+  const overlayBenefits = (benefitsOverlayItem?.description ?? benefitsOverlayItem?.benefits ?? '').trim();
+  const overlayBenefitsIsHtml = containsHtml(overlayBenefits);
+  const overlayUrduBenefits = benefitsOverlayItem ? (urduBenefitsFallbackById[benefitsOverlayItem.id] ?? '').trim() : '';
+  const overlayBenefitsUrduMode = !!(benefitsOverlayItem && urduById[benefitsOverlayItem.id]);
+  const overlayShowUrduBenefits = !!(benefitsOverlayItem && urduById[benefitsOverlayItem.id] && overlayUrduBenefits);
+  const overlayIsUrduBenefitsLoading = !!(benefitsOverlayItem && urduBenefitsLoadingById[benefitsOverlayItem.id]);
+
+  const overlayItem = tafsirOverlayItemId
+    ? (adhkar.find((row) => row.id === tafsirOverlayItemId) ?? null)
+    : null;
+  const overlayTafsir = (overlayItem?.tafsir ?? '').trim();
+  const overlayTafsirIsHtml = containsHtml(overlayTafsir);
+  const overlayUrduTafsir = overlayItem ? (urduTafsirFallbackById[overlayItem.id] ?? '').trim() : '';
+  const overlayTafsirUrduMode = !!(overlayItem && urduById[overlayItem.id]);
+  const overlayShowUrdu = !!(overlayItem && urduById[overlayItem.id] && overlayUrduTafsir);
+  const overlayIsUrduLoading = !!(overlayItem && urduTafsirLoadingById[overlayItem.id]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -865,6 +983,84 @@ export function DbAdhkarScreen({
 
         <View style={{ height: 24 }} />
       </ScrollView>
+
+      <Modal
+        visible={!!benefitsOverlayItem}
+        animationType="slide"
+        transparent
+        onRequestClose={handleCloseBenefitsOverlay}
+      >
+        <View style={styles.overlayBackdrop}>
+          <Pressable style={styles.overlayDismissZone} onPress={handleCloseBenefitsOverlay} />
+          <View style={[styles.overlaySheet, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}>
+            <View style={styles.overlayHeader}>
+              <View style={{ flex: 1 }}>
+                {overlayBenefitsUrduMode ? <Text style={[styles.overlayTitleUrdu, { color: ADHKAR_BENEFITS_GOLD }]}>فوائد</Text> : null}
+                {!overlayBenefitsUrduMode ? <Text style={[styles.overlayTitleEn, N && { color: N.text }]}>Benefits</Text> : null}
+              </View>
+              <TouchableOpacity style={styles.overlayCloseBtn} onPress={handleCloseBenefitsOverlay} activeOpacity={0.85}>
+                <MaterialIcons name="close" size={20} color={N ? N.text : '#334155'} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView nestedScrollEnabled style={styles.overlayScroll} contentContainerStyle={styles.overlayScrollContent}>
+              {overlayShowUrduBenefits ? (
+                <Text style={[styles.insightUrduText, N && { color: N.text }]}>{overlayUrduBenefits}</Text>
+              ) : (benefitsOverlayItem && urduById[benefitsOverlayItem.id] && overlayIsUrduBenefitsLoading) ? (
+                <Text style={[styles.insightUrduText, N && { color: N.textMuted }]}>ترجمہ تیار کیا جا رہا ہے...</Text>
+              ) : overlayBenefitsIsHtml ? (
+                <RenderHtml
+                  contentWidth={Math.max(240, width - 56)}
+                  source={{ html: overlayBenefits }}
+                  baseStyle={{ color: N ? N.textSub : ADHKAR_DESCRIPTION_TEXT, fontSize: 15, lineHeight: 24 }}
+                  tagsStyles={{ p: { marginTop: 0, marginBottom: 8 }, li: { marginBottom: 4 }, ul: { marginTop: 0, marginBottom: 8, paddingLeft: 18 }, ol: { marginTop: 0, marginBottom: 8, paddingLeft: 18 }, strong: { fontWeight: '700' }, em: { fontStyle: 'italic' } }}
+                />
+              ) : (
+                <Text style={[styles.benefitsText, N && { color: N.textSub }]}>{overlayBenefits || 'No benefits available.'}</Text>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={!!overlayItem}
+        animationType="slide"
+        transparent
+        onRequestClose={handleCloseTafsirOverlay}
+      >
+        <View style={styles.overlayBackdrop}>
+          <Pressable style={styles.overlayDismissZone} onPress={handleCloseTafsirOverlay} />
+          <View style={[styles.overlaySheet, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}> 
+            <View style={styles.overlayHeader}>
+              <View style={{ flex: 1 }}>
+                {overlayTafsirUrduMode ? <Text style={[styles.overlayTitleUrdu, { color: ADHKAR_TAFSIR_TEAL }]}>تفسیر</Text> : null}
+                {!overlayTafsirUrduMode ? <Text style={[styles.overlayTitleEn, N && { color: N.text }]}>Tafsir</Text> : null}
+              </View>
+              <TouchableOpacity style={styles.overlayCloseBtn} onPress={handleCloseTafsirOverlay} activeOpacity={0.85}>
+                <MaterialIcons name="close" size={20} color={N ? N.text : '#334155'} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView nestedScrollEnabled style={styles.overlayScroll} contentContainerStyle={styles.overlayScrollContent}>
+              {overlayShowUrdu ? (
+                <Text style={[styles.insightUrduText, N && { color: N.text }]}>{overlayUrduTafsir}</Text>
+              ) : (overlayItem && urduById[overlayItem.id] && overlayIsUrduLoading) ? (
+                <Text style={[styles.insightUrduText, N && { color: N.textMuted }]}>ترجمہ تیار کیا جا رہا ہے...</Text>
+              ) : overlayTafsirIsHtml ? (
+                <RenderHtml
+                  contentWidth={Math.max(240, width - 64)}
+                  source={{ html: overlayTafsir }}
+                  baseStyle={{ color: N ? N.textSub : ADHKAR_DESCRIPTION_TEXT, fontSize: 15, lineHeight: 24 }}
+                  tagsStyles={{ p: { marginTop: 0, marginBottom: 8 }, li: { marginBottom: 4 }, ul: { marginTop: 0, marginBottom: 8, paddingLeft: 18 }, ol: { marginTop: 0, marginBottom: 8, paddingLeft: 18 }, strong: { fontWeight: '700' }, em: { fontStyle: 'italic' } }}
+                />
+              ) : (
+                <Text style={[styles.benefitsText, N && { color: N.textSub }]}>{overlayTafsir || 'No tafsir available.'}</Text>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -939,7 +1135,7 @@ const styles = StyleSheet.create({
   itemHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   itemHeaderBody: { flex: 1, gap: 0, paddingTop: 1, justifyContent: 'center' },
   itemHeaderTopRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
-  itemBody: { marginTop: 16, gap: 12 },
+  itemBody: { marginTop: 20, gap: 20 },
   itemDot: {
     width: 44, height: 44,
     borderRadius: 14,
@@ -965,7 +1161,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     fontSize: 20,
     lineHeight: 30,
-    color: ADHKAR_DESCRIPTION_TEXT,
+    color: '#4B5563',
     marginTop: 8,
   } as any,
   itemArabicTitleCompact: {
@@ -992,7 +1188,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     writingDirection: 'rtl',
     fontFamily: 'MarwanIndoPak',
-    color: Colors.textPrimary,
+    color: '#111827',
     includeFontPadding: false,
   } as any,
 
@@ -1010,49 +1206,85 @@ const styles = StyleSheet.create({
     fontSize: 21,
     lineHeight: 30,
   },
-  paraBlock:         { gap: 8 },
+  paraBlock:         { gap: 10 },
   paraArabicBox: {
     borderWidth: 1,
     borderRadius: Radius.md,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F8FAF9',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
   },
   paraTransBox: {
-    borderLeftWidth: 3,
-    backgroundColor: Colors.primarySoft,
-    borderRadius: Radius.sm,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FAFAFA',
+    borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginTop: 2,
+    paddingVertical: 12,
+    marginTop: 4,
   },
 
   // Transliteration / Translation
-  translit:    { fontSize: 13, fontStyle: 'italic', color: Colors.textSecondary, lineHeight: 20 },
-  translation: { fontSize: 14, color: Colors.textPrimary, lineHeight: 21 },
+  translit:    { fontSize: 13, fontStyle: 'italic', color: '#6B7280', lineHeight: 21 },
+  translation: { fontSize: 14, color: '#374151', lineHeight: 22 },
   translationUrdu: { writingDirection: 'rtl', textAlign: 'right', fontFamily: 'UrduNastaliq', fontSize: 22, lineHeight: 40 } as any,
-  translationToggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 },
-  actionLeftGroup: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
-  translationToggleBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: Radius.full,
-    borderWidth: 1,
+  inlineControlsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 2, marginBottom: 20 },
+  controlPillInactive: {
+    borderColor: '#D1D5DB',
+    backgroundColor: '#FFFFFF',
   },
-  translationToggleText: { fontSize: 11, fontWeight: '700' },
-
-  // Translation toggle
-  translationBtn: {
-    alignSelf: 'flex-start',
+  controlPillActive: {
+    borderColor: '#16A34A',
+    backgroundColor: '#16A34A',
+  },
+  controlTextActive: {
+    color: '#FFFFFF',
+  },
+  controlTextInactive: {
+    color: '#6B7280',
+  },
+  translationBox: {
+    backgroundColor: '#FAFAFA',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    padding: 14,
+    minHeight: 76,
+  },
+  languageSwitch: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
     borderRadius: Radius.full,
     borderWidth: 1,
-    backgroundColor: Colors.surface,
+    borderColor: '#D1D5DB',
+    overflow: 'hidden',
+    backgroundColor: '#F3F4F6',
+    padding: 4,
   },
-  translationBtnText: { fontSize: 11, fontWeight: '700' },
+  languageSwitchOption: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: Radius.full,
+  },
+  languageOptionActive: {
+    backgroundColor: '#16A34A',
+  },
+  languageOptionInactive: {
+    backgroundColor: 'transparent',
+  },
+  languageSwitchOptionDisabled: {
+    opacity: 0.45,
+  },
+  languageSwitchText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  languageSwitchUrduText: {
+    fontFamily: 'UrduNastaliq',
+    fontSize: 15,
+    lineHeight: 20,
+    includeFontPadding: false,
+  } as any,
 
   // Transliteration toggle
   transliterationBtn: {
@@ -1060,35 +1292,140 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: Radius.full,
     borderWidth: 1,
-    backgroundColor: Colors.surface,
+    backgroundColor: '#FFFFFF',
   },
-  transliterationBtnText: { fontSize: 11, fontWeight: '700' },
+  transliterationBtnText: { fontSize: 13, fontWeight: '600' },
 
-  // DB description / benefits
+  // DB benefits / tafsir accordions
   benefitsWrap: { gap: 8 },
-  benefitsBtn: {
-    alignSelf: 'flex-start',
+  benefitsText: { fontSize: 14, lineHeight: 22, color: ADHKAR_DESCRIPTION_TEXT },
+  accordionWrap: {
+    gap: 8,
+    marginTop: 0,
+  },
+  accordionBlock: {
+    borderRadius: Radius.md,
+    overflow: 'hidden',
+  },
+  accordionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-  },
-  benefitsBtnText: { fontSize: 11, fontWeight: '700' },
-  benefitsBox: {
-    borderLeftWidth: 3,
-    backgroundColor: Colors.primarySoft,
-    borderRadius: Radius.sm,
+    gap: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
   },
-  benefitsText: { fontSize: 14, lineHeight: 21, color: ADHKAR_DESCRIPTION_TEXT },
+  accordionHeaderActive: {
+    borderColor: '#16A34A',
+    backgroundColor: '#F0FDF4',
+  },
+  accordionHeaderUrdu: {
+    fontFamily: 'UrduNastaliq',
+    fontSize: 17,
+    lineHeight: 24,
+    includeFontPadding: false,
+    marginTop: -1,
+  } as any,
+  accordionHeaderEn: {
+    fontSize: 14,
+    fontWeight: '600',
+    flex: 1,
+    color: '#4B5563',
+  },
+  accordionPanel: {
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 6,
+    marginTop: 6,
+  },
+  accordionPanelTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginBottom: 6,
+  },
+  accordionScroll: {
+    maxHeight: 200,
+  },
+  accordionScrollContent: {
+    paddingBottom: 6,
+  },
+  insightUrduText: {
+    writingDirection: 'rtl',
+    textAlign: 'right',
+    fontFamily: 'UrduNastaliq',
+    fontSize: 20,
+    lineHeight: 38,
+    color: ADHKAR_DESCRIPTION_TEXT,
+    includeFontPadding: false,
+  } as any,
+
+  // Tafsir overlay
+  overlayBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 20,
+  },
+  overlayDismissZone: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  overlaySheet: {
+    width: '97%',
+    maxHeight: '88%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 18,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 14,
+  },
+  overlayHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  overlayTitleUrdu: {
+    fontFamily: 'UrduNastaliq',
+    fontSize: 20,
+    lineHeight: 30,
+    includeFontPadding: false,
+  } as any,
+  overlayTitleEn: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#4B5563',
+  },
+  overlayCloseBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F1F5F9',
+  },
+  overlayScroll: {
+    maxHeight: 620,
+  },
+  overlayScrollContent: {
+    paddingBottom: 12,
+  },
 
   // Reference rows
   refRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },

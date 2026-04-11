@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Pressable,
   ImageBackground,
+  useWindowDimensions,
 } from 'react-native';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 
@@ -43,6 +44,7 @@ import { DbAdhkarScreen } from '@/components/adhkar/DbAdhkarScreen';
 import { NIGHT_PALETTE as NIGHT } from '@/components/quran_screen/shared';
 import { SurahKahfScreen, SurahSajdahScreen, SurahWaqiahMushafScreen, SurahYaseenScreen } from '@/components/quran_screen';
 import { getPrayerTimesForDate, PrayerTimesData } from '@/services/prayerService';
+import RenderHtml from 'react-native-render-html';
 
 const DUAS_ACCENT_GREEN = '#3FAE5A';
 const DUAS_ACCENT_GREEN_SOFT = '#E7F4EA';
@@ -1111,6 +1113,8 @@ function AdhkarGroupCard({
   onPress: () => void;
 }) {
   const [showDetail, setShowDetail] = React.useState(false);
+  const { width } = useWindowDimensions();
+  const detailIsHtml = !!detail && /<\/?[a-z][\s\S]*>/i.test(detail);
 
   return (
     <Pressable
@@ -1162,7 +1166,31 @@ function AdhkarGroupCard({
                     color={nightPalette ? nightPalette.accent : DUAS_ACCENT_GREEN}
                   />
                 </TouchableOpacity>
-                {showDetail ? <Text style={[fajrSelStyles.detail, nightPalette && { color: nightPalette.text }]}>{detail}</Text> : null}
+                {showDetail ? (
+                  detailIsHtml ? (
+                    <View style={{ marginTop: 12 }}>
+                      <RenderHtml
+                        contentWidth={Math.max(220, width - 96)}
+                        source={{ html: detail ?? '' }}
+                        baseStyle={{
+                          color: nightPalette ? nightPalette.text : ADHKAR_DESCRIPTION_TEXT,
+                          fontSize: 13,
+                          lineHeight: 18.2,
+                        }}
+                        tagsStyles={{
+                          p: { marginTop: 0, marginBottom: 8 },
+                          li: { marginBottom: 4 },
+                          ul: { marginTop: 0, marginBottom: 8, paddingLeft: 18 },
+                          ol: { marginTop: 0, marginBottom: 8, paddingLeft: 18 },
+                          strong: { fontWeight: '700' },
+                          em: { fontStyle: 'italic' },
+                        }}
+                      />
+                    </View>
+                  ) : (
+                    <Text style={[fajrSelStyles.detail, nightPalette && { color: nightPalette.text }]}>{detail}</Text>
+                  )
+                ) : null}
               </>
             ) : null}
           </View>
