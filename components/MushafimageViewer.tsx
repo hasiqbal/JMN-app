@@ -38,26 +38,31 @@ export const KAHF_15LINE_LOCAL:   Partial<Record<number,any>> = {
   303: require('@/assets/images/Quran 15 line indo-pak/Kahf/303.jpg'),
   304: require('@/assets/images/Quran 15 line indo-pak/Kahf/304.jpg')
 };
+export const KAHF_16LINE_LOCAL: Partial<Record<number,any>> = {};
 export const MULK_15LINE_LOCAL:   Partial<Record<number,any>> = {
   562: require('@/assets/images/Quran 15 line indo-pak/Mulk/562.jpg'),
   563: require('@/assets/images/Quran 15 line indo-pak/Mulk/563.jpg'),
   564: require('@/assets/images/Quran 15 line indo-pak/Mulk/564.jpg'),
 };
+export const MULK_16LINE_LOCAL: Partial<Record<number,any>> = {};
 export const LUQMAN_15LINE_LOCAL: Partial<Record<number,any>> = {
   411: require('@/assets/images/Quran 15 line indo-pak/Luqman/411.jpg'),
   412: require('@/assets/images/Quran 15 line indo-pak/Luqman/412.jpg'),
   413: require('@/assets/images/Quran 15 line indo-pak/Luqman/413.jpg'),
   414: require('@/assets/images/Quran 15 line indo-pak/Luqman/414.jpg'),
 };
+export const LUQMAN_16LINE_LOCAL: Partial<Record<number,any>> = {};
 export const IMRAN_15LINE_LOCAL: Partial<Record<number,any>> = {
   75: require('@/assets/images/Quran 15 line indo-pak/Imran/75.jpg'),
   76: require('@/assets/images/Quran 15 line indo-pak/Imran/76.jpg'),
 };
+export const IMRAN_16LINE_LOCAL: Partial<Record<number,any>> = {};
 export const SAJDAH_15LINE_LOCAL: Partial<Record<number,any>> = {
   415: require('@/assets/images/Quran 15 line indo-pak/Sajdah/415.jpg'),
   416: require('@/assets/images/Quran 15 line indo-pak/Sajdah/416.jpg'),
   417: require('@/assets/images/Quran 15 line indo-pak/Sajdah/417.jpg'),
 };
+export const SAJDAH_16LINE_LOCAL: Partial<Record<number,any>> = {};
 
 // ── Translation type ──────────────────────────────────────────────────────
 export interface VerseTranslation { verse: number; text: string; }
@@ -107,6 +112,7 @@ interface ViewerProps {
   nightMode: boolean;
   pageNums: number[];
   localPages: Partial<Record<number, any>>;
+  localPages16?: Partial<Record<number, any>>;
   ayatMap: Record<number, [number,number]>;
   translations?: Record<number, VerseTranslation[]>;
   nameAr: string;
@@ -119,13 +125,14 @@ interface ViewerProps {
 }
 
 function MushafImageViewer({
-  nightMode, pageNums, localPages, ayatMap, translations,
+  nightMode, pageNums, localPages, localPages16, ayatMap, translations,
   nameAr, nameEn, juz,
   accentDay, accentNight, bgNight, hdrBgNight, hdrBorNight, bgDay, hdrBgDay, hdrBorDay,
 }: ViewerProps) {
   const N = nightMode;
   const [pi, setPi] = React.useState(0);
   const [rk, setRk] = React.useState(0);
+  const [layoutStyle, setLayoutStyle] = React.useState<'15line' | '16line'>('15line');
   const [showTrans, setShowTrans] = React.useState(false);
 
   React.useEffect(() => {
@@ -143,10 +150,12 @@ function MushafImageViewer({
   const BG=N?bgNight:bgDay, HDR_BG=N?hdrBgNight:hdrBgDay, HDR_BOR=N?hdrBorNight:hdrBorDay;
   const ACCENT=N?accentNight:accentDay, META=N?'#94A3B8':'#6B7280';
   const hasImages = Object.keys(localPages).length > 0;
+  const has16LineImages = Object.keys(localPages16 ?? {}).length > 0;
   const hasTranslations = !!translations && Object.keys(translations).length > 0;
   const pageNum = pageNums[pi];
-  const range   = ayatMap[pageNum];
-  const src     = localPages[pageNum] ?? null;
+  const src = layoutStyle === '15line'
+    ? (localPages[pageNum] ?? null)
+    : ((localPages16 ?? {})[pageNum] ?? null);
   const pageVerses = translations?.[pageNum] ?? [];
 
   const goTo = (idx: number) => {
@@ -184,22 +193,46 @@ function MushafImageViewer({
       <View style={{ flex:1, backgroundColor:BG }}>
         {/* Header */}
         <View style={[S.topBar, { backgroundColor:HDR_BG, borderBottomColor:HDR_BOR }]}>
-          <Text style={[S.surahName, { color:ACCENT }]}>{nameAr}</Text>
+          <TouchableOpacity
+            style={[S.transBtn, { borderColor:ACCENT }, showTrans && { backgroundColor:ACCENT }]}
+            onPress={() => setShowTrans(v => !v)}
+            activeOpacity={0.8}
+          >
+            <MaterialIcons name="translate" size={14} color={showTrans ? '#fff' : ACCENT} />
+            <Text style={[S.transBtnText, { color: showTrans ? '#fff' : ACCENT }]}>Translation</Text>
+          </TouchableOpacity>
           <View style={{ flex:1 }}/>
-          <Text style={{ fontSize:11, color:META, marginRight:8 }}>{nameEn} · {juz}</Text>
-          {hasTranslations ? (
+          <View style={[S.toggleGroup, { backgroundColor: N ? '#1F2D45' : '#E8E8E0', borderColor: N ? '#2A3F5C' : '#C8C8B8' }]}>
             <TouchableOpacity
-              style={[S.transBtn, { borderColor:ACCENT }, showTrans && { backgroundColor:ACCENT }]}
-              onPress={() => setShowTrans(v => !v)}
+              style={[S.toggleBtn, layoutStyle === '15line' && { backgroundColor: ACCENT }]}
+              onPress={() => setLayoutStyle('15line')}
               activeOpacity={0.8}
             >
-              <MaterialIcons name="translate" size={13} color={showTrans ? '#fff' : ACCENT} />
-              <Text style={[S.transBtnText, { color: showTrans ? '#fff' : ACCENT }]}>Trans</Text>
+              <Text style={[S.toggleBtnText, { color: layoutStyle === '15line' ? '#fff' : META }]}>15L</Text>
             </TouchableOpacity>
-          ) : null}
+            <TouchableOpacity
+              style={[S.toggleBtn, layoutStyle === '16line' && { backgroundColor: ACCENT }]}
+              onPress={() => setLayoutStyle('16line')}
+              activeOpacity={0.8}
+            >
+              <Text style={[S.toggleBtnText, { color: layoutStyle === '16line' ? '#fff' : META }]}>16L</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {!hasImages ? (
+        {layoutStyle === '16line' && !has16LineImages ? (
+          <View style={[S.emptyBox, { backgroundColor:BG }]}>
+            <MaterialIcons name="upload-file" size={48} color={ACCENT} style={{ opacity:0.5 }}/>
+            <Text style={[S.emptyTitle, { color:ACCENT }]}>16-Line Images Not Yet Uploaded</Text>
+            <Text style={[S.emptySub, { color:META }]}>
+              {`Upload pages ${pageNums[0]}–${pageNums[pageNums.length-1]} of the\n16-line Indo-Pak Mushaf as image attachments.`}
+            </Text>
+            <TouchableOpacity style={[S.altBtn, { borderColor: ACCENT, backgroundColor: ACCENT + '18' }]} onPress={() => setLayoutStyle('15line')} activeOpacity={0.8}>
+              <MaterialIcons name="menu-book" size={16} color={ACCENT} />
+              <Text style={[S.altBtnText, { color: ACCENT }]}>Use 15-Line Instead</Text>
+            </TouchableOpacity>
+          </View>
+        ) : !hasImages ? (
           <View style={[S.emptyBox, { backgroundColor:BG }]}>
             <MaterialIcons name="upload-file" size={48} color={ACCENT} style={{ opacity:0.5 }}/>
             <Text style={[S.emptyTitle, { color:ACCENT }]}>Images Coming Soon</Text>
@@ -235,7 +268,7 @@ function MushafImageViewer({
               <View style={{ alignItems:'center', gap:4 }}>
                 <Text style={[S.pageNum, { color:ACCENT }]}>Page {pageNum}</Text>
                 <Text style={{ fontSize:10, color:META, fontWeight:'500' }}>
-                  {pi+1}/{pageNums.length} · Ayat {range ? `${range[0]}–${range[1]}` : ''}
+                  {pi+1}/{pageNums.length}
                 </Text>
                 <View style={{ flexDirection:'row', gap:5 }}>
                   {pageNums.map((_, i) => (
@@ -251,27 +284,33 @@ function MushafImageViewer({
             </View>
 
             {/* Translation overlay */}
-            {showTrans && hasTranslations ? (
+            {showTrans ? (
               <View style={[S.transOverlay, { backgroundColor: N ? 'rgba(10,8,8,0.97)' : 'rgba(255,248,248,0.97)' }]}>
                 <View style={[S.transOverlayHeader, { borderBottomColor: HDR_BOR }]}>
                   <MaterialIcons name="menu-book" size={15} color={ACCENT} />
-                  <Text style={[S.transOverlayTitle, { color:ACCENT, flex:1 }]}>
-                    {range ? `Ayat ${range[0]}–${range[1]}` : ''} · Clear Quran Translation
-                  </Text>
+                  <Text style={[S.transOverlayTitle, { color:ACCENT, flex:1 }]}>Translation</Text>
                   <TouchableOpacity onPress={() => setShowTrans(false)} hitSlop={{ top:10, bottom:10, left:10, right:10 }}>
                     <MaterialIcons name="close" size={20} color={META} />
                   </TouchableOpacity>
                 </View>
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom:16 }}>
-                  {pageVerses.map(v => (
-                    <View key={v.verse} style={[S.transVerseRow, { borderBottomColor: HDR_BOR }]}>
-                      <View style={[S.transVerseNum, { backgroundColor: ACCENT + '22' }]}>
-                        <Text style={[S.transVerseNumText, { color:ACCENT }]}>{v.verse}</Text>
-                      </View>
-                      <Text style={[S.transVerseText, { color: N ? '#EEF3FC' : '#1F2937' }]}>{v.text}</Text>
+                  {hasTranslations ? (
+                    <>
+                      {pageVerses.map(v => (
+                        <View key={v.verse} style={[S.transVerseRow, { borderBottomColor: HDR_BOR }]}>
+                          <View style={[S.transVerseNum, { backgroundColor: ACCENT + '22' }]}>
+                            <Text style={[S.transVerseNumText, { color:ACCENT }]}>{v.verse}</Text>
+                          </View>
+                          <Text style={[S.transVerseText, { color: N ? '#EEF3FC' : '#1F2937' }]}>{v.text}</Text>
+                        </View>
+                      ))}
+                      <Text style={[S.transSource, { color:META }]}>Translation: The Clear Quran — Dr. Mustafa Khattab</Text>
+                    </>
+                  ) : (
+                    <View style={[S.emptyBox, { paddingVertical: 28 }]}> 
+                      <Text style={[S.emptyTitle, { color: ACCENT, fontSize: 14 }]}>Translation coming soon.</Text>
                     </View>
-                  ))}
-                  <Text style={[S.transSource, { color:META }]}>Translation: The Clear Quran — Dr. Mustafa Khattab</Text>
+                  )}
                 </ScrollView>
               </View>
             ) : null}
@@ -285,7 +324,7 @@ function MushafImageViewer({
 // ── Named Surah viewers ───────────────────────────────────────────────────
 export function KahfMushafPlaceholder({ nightMode, onBack }: { nightMode: boolean; onBack: () => void }) {
   return <MushafImageViewer
-    nightMode={nightMode} pageNums={KAHF_PAGE_NUMS} localPages={KAHF_15LINE_LOCAL} ayatMap={KAHF_PAGE_AYAT}
+    nightMode={nightMode} pageNums={KAHF_PAGE_NUMS} localPages={KAHF_15LINE_LOCAL} localPages16={KAHF_16LINE_LOCAL} ayatMap={KAHF_PAGE_AYAT}
     nameAr={'سُورَةُ الْكَهْف'}
     nameEn="Surah Al-Kahf" juz="Juz 15–16 · 110 verses"
     accentDay="#4FE948" accentNight="#4FE948"
@@ -296,7 +335,7 @@ export function KahfMushafPlaceholder({ nightMode, onBack }: { nightMode: boolea
 
 export function MulkMushafPlaceholder({ nightMode, onBack }: { nightMode: boolean; onBack: () => void }) {
   return <MushafImageViewer
-    nightMode={nightMode} pageNums={MULK_PAGE_NUMS} localPages={MULK_15LINE_LOCAL} ayatMap={MULK_PAGE_AYAT}
+    nightMode={nightMode} pageNums={MULK_PAGE_NUMS} localPages={MULK_15LINE_LOCAL} localPages16={MULK_16LINE_LOCAL} ayatMap={MULK_PAGE_AYAT}
     nameAr={'سُورَةُ الْمُلْك'}
     nameEn="Surah Al-Mulk" juz="Juz 29 · 30 verses"
     accentDay="#3730A3" accentNight="#818CF8"
@@ -307,7 +346,7 @@ export function MulkMushafPlaceholder({ nightMode, onBack }: { nightMode: boolea
 
 export function LuqmanMushafPlaceholder({ nightMode, onBack }: { nightMode: boolean; onBack: () => void }) {
   return <MushafImageViewer
-    nightMode={nightMode} pageNums={LUQMAN_PAGE_NUMS} localPages={LUQMAN_15LINE_LOCAL} ayatMap={LUQMAN_PAGE_AYAT}
+    nightMode={nightMode} pageNums={LUQMAN_PAGE_NUMS} localPages={LUQMAN_15LINE_LOCAL} localPages16={LUQMAN_16LINE_LOCAL} ayatMap={LUQMAN_PAGE_AYAT}
     nameAr={'سُورَةُ لُقْمَان'}
     nameEn="Surah Luqman" juz="Juz 21 · 34 verses"
     accentDay="#B8860B" accentNight="#F9C74F"
@@ -318,7 +357,7 @@ export function LuqmanMushafPlaceholder({ nightMode, onBack }: { nightMode: bool
 
 export function ImranMushafPlaceholder({ nightMode, onBack }: { nightMode: boolean; onBack: () => void }) {
   return <MushafImageViewer
-    nightMode={nightMode} pageNums={IMRAN_PAGE_NUMS} localPages={IMRAN_15LINE_LOCAL} ayatMap={IMRAN_PAGE_AYAT}
+    nightMode={nightMode} pageNums={IMRAN_PAGE_NUMS} localPages={IMRAN_15LINE_LOCAL} localPages16={IMRAN_16LINE_LOCAL} ayatMap={IMRAN_PAGE_AYAT}
     nameAr={'سُورَةُ آلِ عِمْرَان'}
     nameEn="Surah Ali 'Imran"
     juz="Juz 3 · excerpt"
@@ -330,7 +369,7 @@ export function ImranMushafPlaceholder({ nightMode, onBack }: { nightMode: boole
 
 export function SajdahMushafPlaceholder({ nightMode, onBack }: { nightMode: boolean; onBack: () => void }) {
   return <MushafImageViewer
-    nightMode={nightMode} pageNums={SAJDAH_PAGE_NUMS} localPages={SAJDAH_15LINE_LOCAL}
+    nightMode={nightMode} pageNums={SAJDAH_PAGE_NUMS} localPages={SAJDAH_15LINE_LOCAL} localPages16={SAJDAH_16LINE_LOCAL}
     ayatMap={SAJDAH_PAGE_AYAT} translations={SAJDAH_TRANSLATIONS}
     nameAr={'سُورَةُ السَّجْدَة'}
     nameEn="Surah As-Sajdah" juz="Juz 21 · 30 verses"
@@ -353,6 +392,31 @@ const S = StyleSheet.create({
   // Translation toggle
   transBtn:  { flexDirection:'row', alignItems:'center', gap:4, paddingHorizontal:10, paddingVertical:5, borderRadius:999, borderWidth:1.5 },
   transBtnText: { fontSize:11, fontWeight:'700' },
+  toggleGroup: {
+    flexDirection:'row',
+    borderRadius:999,
+    borderWidth:1,
+    overflow:'hidden',
+    padding:3,
+    gap:2,
+  },
+  toggleBtn: {
+    paddingHorizontal:16,
+    paddingVertical:6,
+    borderRadius:999,
+  },
+  toggleBtnText: { fontSize:12, fontWeight:'700' },
+  altBtn: {
+    flexDirection:'row',
+    alignItems:'center',
+    gap:8,
+    paddingHorizontal:18,
+    paddingVertical:10,
+    borderRadius:999,
+    borderWidth:1.5,
+    marginTop:8,
+  },
+  altBtnText: { fontSize:13, fontWeight:'700' },
   // Translation overlay
   transOverlay: { position:'absolute', top:0, left:0, right:0, bottom:0, zIndex:10 },
   transOverlayHeader: { flexDirection:'row', alignItems:'center', gap:8, paddingHorizontal:14, paddingVertical:11, borderBottomWidth:1 },

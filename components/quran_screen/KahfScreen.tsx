@@ -148,16 +148,15 @@ function SurahKahfScreen({ nightMode, onBack }: { nightMode: boolean; onBack: ()
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: BG }}>
       <View style={{ flex: 1, backgroundColor: BG }}>
         <View style={[ysPdfSt.topBar, { backgroundColor: HDR_BG, borderBottomColor: HDR_BORDER, paddingVertical: 7 }]}>
-          <Text style={[ysPdfSt.surahNameAr, { color: ACCENT, fontSize: 18 }]}>سُورَةُ الْكَهْف</Text>
-          <View style={{ flex: 1 }} />
           <TouchableOpacity
             style={[ysPdfSt.transBtn, { borderColor: ACCENT }, showTrans && { backgroundColor: ACCENT, borderColor: ACCENT }]}
             onPress={() => setShowTrans((value) => !value)}
             activeOpacity={0.8}
           >
-            <MaterialIcons name="translate" size={13} color={showTrans ? '#fff' : ACCENT} />
-            <Text style={[ysPdfSt.transBtnText, { color: showTrans ? '#fff' : ACCENT, fontSize: 11 }]}>Trans</Text>
+            <MaterialIcons name="translate" size={14} color={showTrans ? '#fff' : ACCENT} />
+            <Text style={[ysPdfSt.transBtnText, { color: showTrans ? '#fff' : ACCENT }]}>Translation</Text>
           </TouchableOpacity>
+          <View style={{ flex: 1 }} />
           <View style={[ysPdfSt.toggleGroup, { backgroundColor: N ? '#112618' : '#DBF1E3', borderColor: N ? '#1A4A25' : '#8BC89E' }]}>
             <TouchableOpacity
               style={[ysPdfSt.toggleBtn, style === '15line' && { backgroundColor: ACCENT }]}
@@ -229,7 +228,7 @@ function SurahKahfScreen({ nightMode, onBack }: { nightMode: boolean; onBack: ()
               <View style={{ alignItems: 'center', gap: 4 }}>
                 <Text style={[ysPdfSt.pageNumCompact, { color: ACCENT }]}>Page {pageNum}</Text>
                 <Text style={{ fontSize: 10, color: META, fontWeight: '500' }}>
-                  {currentPageIdx + 1} / {KAHF_PAGE_NUMS.length}  ·  {range ? `Ayat ${range[0]}-${range[1]}` : ''}
+                  {currentPageIdx + 1} / {KAHF_PAGE_NUMS.length}
                 </Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
                   {KAHF_PAGE_NUMS.map((_, index) => (
@@ -254,7 +253,7 @@ function SurahKahfScreen({ nightMode, onBack }: { nightMode: boolean; onBack: ()
               <View style={[ysPdfSt.transOverlay, { backgroundColor: N ? 'rgba(8,20,8,0.97)' : 'rgba(240,251,244,0.97)' }]}>
                 <View style={[ysPdfSt.transOverlayHeader, { borderBottomColor: HDR_BORDER }]}>
                   <MaterialIcons name="menu-book" size={16} color={ACCENT} />
-                  <Text style={[ysPdfSt.transPanelTitle, { color: ACCENT, flex: 1 }]}>{range ? `Ayat ${range[0]}-${range[1]}` : ''}  ·  Translation</Text>
+                  <Text style={[ysPdfSt.transPanelTitle, { color: ACCENT, flex: 1 }]}>Translation</Text>
                   <TouchableOpacity onPress={() => setShowTrans(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                     <MaterialIcons name="close" size={20} color={META} />
                   </TouchableOpacity>

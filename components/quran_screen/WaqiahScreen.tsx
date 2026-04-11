@@ -85,12 +85,11 @@ function SurahWaqiahMushafScreen({ nightMode, onBack }: { nightMode: boolean; on
         <GestureHandlerRootView style={{ flex: 1, backgroundColor: BG }}>
             <View style={{ flex: 1, backgroundColor: BG }}>
                 <View style={[ysPdfSt.topBar, { backgroundColor: HDR_BG, borderBottomColor: HDR_BORDER, paddingVertical: 7 }]}>
-                    <Text style={[ysPdfSt.surahNameAr, { color: ACCENT, fontSize: 18 }]}>{'\u0633\u064f\u0648\u0631\u064e\u0629\u064f \u0627\u0644\u0652\u0648\u064e\u0627\u0642\u0650\u0639\u064e\u0629'}</Text>
-                    <View style={{ flex: 1 }} />
                     <TouchableOpacity style={[ysPdfSt.transBtn, { borderColor: ACCENT }, wqShowTrans && { backgroundColor: ACCENT, borderColor: ACCENT }]} onPress={() => setWqShowTrans(v => !v)} activeOpacity={0.8}>
-                        <MaterialIcons name="translate" size={13} color={wqShowTrans ? '#fff' : ACCENT} />
-                        <Text style={[ysPdfSt.transBtnText, { color: wqShowTrans ? '#fff' : ACCENT, fontSize: 11 }]}>Trans</Text>
+                        <MaterialIcons name="translate" size={14} color={wqShowTrans ? '#fff' : ACCENT} />
+                        <Text style={[ysPdfSt.transBtnText, { color: wqShowTrans ? '#fff' : ACCENT }]}>Translation</Text>
                     </TouchableOpacity>
+                    <View style={{ flex: 1 }} />
                     <View style={[ysPdfSt.toggleGroup, { backgroundColor: N ? '#2A1500' : '#F5E8DF', borderColor: N ? '#3A2000' : '#D4A080' }]}>
                         {(['15line', '16line'] as const).map(s => (
                             <TouchableOpacity key={s} style={[ysPdfSt.toggleBtn, wqStyle === s && { backgroundColor: ACCENT }]} onPress={() => { setWqStyle(s); setWqErr(false); setWqRefKey(k => k + 1); }} activeOpacity={0.8}>
@@ -134,7 +133,7 @@ function SurahWaqiahMushafScreen({ nightMode, onBack }: { nightMode: boolean; on
                             </TouchableOpacity>
                             <View style={{ alignItems: 'center', gap: 4 }}>
                                 <Text style={[ysPdfSt.pageNumCompact, { color: ACCENT }]}>Page {pageNum}</Text>
-                                <Text style={{ fontSize: 10, color: META, fontWeight: '500' }}>{wqIdx + 1} / {WAQIAH_IMG_PAGE_NUMS.length}  \u00b7  {range ? `Ayat ${range[0]}\u2013${range[1]}` : ''}</Text>
+                                <Text style={{ fontSize: 10, color: META, fontWeight: '500' }}>{wqIdx + 1} / {WAQIAH_IMG_PAGE_NUMS.length}</Text>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
                                     {WAQIAH_IMG_PAGE_NUMS.map((_, i) => (
                                         <TouchableOpacity key={i} onPress={() => wqGoTo(i)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
@@ -151,7 +150,7 @@ function SurahWaqiahMushafScreen({ nightMode, onBack }: { nightMode: boolean; on
                             <View style={[ysPdfSt.transOverlay, { backgroundColor: N ? 'rgba(15,10,0,0.97)' : 'rgba(255,248,244,0.97)' }]}>
                                 <View style={[ysPdfSt.transOverlayHeader, { borderBottomColor: HDR_BORDER }]}>
                                     <MaterialIcons name="menu-book" size={16} color={ACCENT} />
-                                    <Text style={[ysPdfSt.transPanelTitle, { color: ACCENT, flex: 1 }]}>{range ? `Ayat ${range[0]}\u2013${range[1]}` : ''}  \u00b7  Translation</Text>
+                                    <Text style={[ysPdfSt.transPanelTitle, { color: ACCENT, flex: 1 }]}>Translation</Text>
                                     <TouchableOpacity onPress={() => setWqShowTrans(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                                         <MaterialIcons name="close" size={20} color={META} />
                                     </TouchableOpacity>

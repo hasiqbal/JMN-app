@@ -166,17 +166,16 @@ function SurahYaseenScreen({ nightMode, onBack }: { nightMode: boolean; onBack: 
       <View style={{ flex: 1, backgroundColor: BG }}>
         {/* Header — compact single line */}
         <View style={[ysPdfSt.topBar, { backgroundColor: HDR_BG, borderBottomColor: HDR_BORDER, paddingVertical: 7 }]}>
-          <Text style={[ysPdfSt.surahNameAr, { color: ACCENT, fontSize: 18 }]}>سُورَةُ يٰسٓ</Text>
-          <View style={{ flex: 1 }} />
           {/* Translation toggle */}
           <TouchableOpacity
             style={[ysPdfSt.transBtn, { borderColor: ACCENT }, showTrans && { backgroundColor: ACCENT, borderColor: ACCENT }]}
             onPress={() => setShowTrans(v => !v)}
             activeOpacity={0.8}
           >
-            <MaterialIcons name="translate" size={13} color={showTrans ? '#fff' : ACCENT} />
-            <Text style={[ysPdfSt.transBtnText, { color: showTrans ? '#fff' : ACCENT, fontSize: 11 }]}>Trans</Text>
+            <MaterialIcons name="translate" size={14} color={showTrans ? '#fff' : ACCENT} />
+            <Text style={[ysPdfSt.transBtnText, { color: showTrans ? '#fff' : ACCENT }]}>Translation</Text>
           </TouchableOpacity>
+          <View style={{ flex: 1 }} />
           {/* Style toggle */}
           <View style={[ysPdfSt.toggleGroup, { backgroundColor: N ? '#1F2D45' : '#E8E8E0', borderColor: N ? '#2A3F5C' : '#C8C8B8' }]}>
             <TouchableOpacity
@@ -254,7 +253,7 @@ function SurahYaseenScreen({ nightMode, onBack }: { nightMode: boolean; onBack: 
               <View style={{ alignItems: 'center', gap: 4 }}>
                 <Text style={[ysPdfSt.pageNumCompact, { color: ACCENT }]}>Page {pageNum}</Text>
                 <Text style={{ fontSize: 10, color: META, fontWeight: '500' }}>
-                  {currentPageIdx + 1} / {YASEEN_PAGE_NUMS.length}  ·  Ayat {range ? `${range[0]}–${range[1]}` : ''}
+                  {currentPageIdx + 1} / {YASEEN_PAGE_NUMS.length}
                 </Text>
                 {/* Page dots — moved from image overlay to here */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
@@ -285,7 +284,7 @@ function SurahYaseenScreen({ nightMode, onBack }: { nightMode: boolean; onBack: 
               <View style={[ysPdfSt.transOverlay, { backgroundColor: N ? 'rgba(10,15,26,0.97)' : 'rgba(250,250,248,0.97)' }]}>
                 <View style={[ysPdfSt.transOverlayHeader, { borderBottomColor: HDR_BORDER }]}>
                   <MaterialIcons name="menu-book" size={16} color={ACCENT} />
-                  <Text style={[ysPdfSt.transPanelTitle, { color: ACCENT, flex: 1 }]}>Ayat {range ? `${range[0]}–${range[1]}` : ''} · Translation</Text>
+                  <Text style={[ysPdfSt.transPanelTitle, { color: ACCENT, flex: 1 }]}>Translation</Text>
                   <TouchableOpacity onPress={() => setShowTrans(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                     <MaterialIcons name="close" size={20} color={META} />
                   </TouchableOpacity>
