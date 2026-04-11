@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   Pressable,
   StyleSheet,
+  useWindowDimensions,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius } from '@/constants/theme';
@@ -174,6 +175,8 @@ export function DbAdhkarScreen({
   titleOverride,
   onOpenSpecialGroup,
 }: Props) {
+  const { width } = useWindowDimensions();
+  const isCompactPhone = width < 390;
   const N = nightMode ? NIGHT_PALETTE : null;
   const useEnhancedFont = !!(groupFilter && ENHANCED_ARABIC_GROUPS.has(groupFilter));
 
@@ -255,8 +258,12 @@ export function DbAdhkarScreen({
     const isBenefitsOpen = !!benefitsById[item.id];
     const isTransliterationOpen = !!transliterationById[item.id];
     const isTranslationOpen = !!translationById[item.id];
-    const arabicFontSize   = useEnhancedFont ? 26 : 24;
-    const arabicLineHeight = useEnhancedFont ? 58 : 52;
+    const arabicFontSize = useEnhancedFont
+      ? (isCompactPhone ? 23 : 26)
+      : (isCompactPhone ? 22 : 24);
+    const arabicLineHeight = useEnhancedFont
+      ? (isCompactPhone ? 50 : 58)
+      : (isCompactPhone ? 46 : 52);
     const itemBenefits = (item.benefits ?? item.description ?? '').trim();
     const hasBenefits = itemBenefits.length > 0;
     const urduTranslation = resolveAdhkarUrduTranslation(item);
@@ -290,12 +297,14 @@ export function DbAdhkarScreen({
     return (
       <Pressable
         key={item.id}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: isOpen }}
+        accessibilityLabel={`${item.title}. ${isOpen ? 'Collapse details' : 'Expand details'}`}
         style={({ pressed }) => [
           styles.itemCard,
           pressed && styles.itemCardPressed,
           N && { backgroundColor: N.surfaceAlt, borderColor: N.border, shadowColor: '#000' },
           isOpen && styles.itemCardOpen,
-          isOpen && { borderColor: accent },
           useEnhancedFont && isOpen && styles.itemCardEnhanced,
         ]}
         onPress={() => {
@@ -329,7 +338,7 @@ export function DbAdhkarScreen({
                   </View>
                 </View>
                 {item.arabic_title ? (
-                  <Text style={[styles.itemArabicTitle, N && { color: N.textSub }]}>{item.arabic_title}</Text>
+                  <Text style={[styles.itemArabicTitle, isCompactPhone && styles.itemArabicTitleCompact, N && { color: N.textSub }]}>{item.arabic_title}</Text>
                 ) : null}
               </View>
               <View style={[styles.itemChevronWrap, pressed && styles.itemChevronWrapPressed]}>
@@ -376,12 +385,12 @@ export function DbAdhkarScreen({
               // Enhanced paragraph-by-paragraph layout
               <View style={{ gap: 16 }}>
                 <View style={[styles.arabicTopMeta, { borderBottomColor: accent + '25', borderBottomWidth: 1, paddingBottom: 8, marginBottom: 4 }]}>
-                  <Text style={[styles.arabicTopMetaText, { color: accent }]}>{item.arabic_title || item.title}</Text>
+                  <Text style={[styles.arabicTopMetaText, isCompactPhone && styles.arabicTopMetaTextCompact, { color: accent }]}>{item.arabic_title || item.title}</Text>
                 </View>
                 {arabicParas.map((para, pi) => (
                   <View key={pi} style={styles.paraBlock}>
                     <View style={[styles.paraArabicBox, { backgroundColor: accent + '0E', borderColor: accent + '28' }, N && { backgroundColor: accent + '18', borderColor: accent + '40' }]}>
-                      <Text style={[styles.arabicText, { fontSize: arabicFontSize, lineHeight: arabicLineHeight, fontFamily: 'MarwanIndoPak', textAlign: 'right', letterSpacing: 0.5 }, N && { color: N.text }]}>
+                      <Text style={[styles.arabicText, { fontSize: arabicFontSize, lineHeight: arabicLineHeight, fontFamily: 'MarwanIndoPak', textAlign: 'right', letterSpacing: 0 }, N && { color: N.text }]}>
                         {para}
                       </Text>
                     </View>
@@ -589,7 +598,7 @@ export function DbAdhkarScreen({
     <View style={{ flex: 1 }}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: Spacing.md, paddingBottom: 32, gap: 10 }}
+        contentContainerStyle={{ paddingHorizontal: Spacing.md, paddingBottom: 32, gap: 16 }}
       >
         {/* Page header */}
         <View style={[styles.headerBand, N && { backgroundColor: N.surface, borderColor: N.border }]}>
@@ -646,12 +655,6 @@ export function DbAdhkarScreen({
           </>
         )}
 
-        <View style={[styles.tip, N && { backgroundColor: N.surface, borderColor: N.border }]}>
-          <MaterialIcons name="info-outline" size={14} color={N ? N.textMuted : Colors.textSubtle} />
-          <Text style={[styles.tipText, N && { color: N.textMuted }]}>
-            Managed via the masjid database. Add groups and their duas directly in Cloud → Data → adhkar.
-          </Text>
-        </View>
         <View style={{ height: 24 }} />
       </ScrollView>
     </View>
@@ -686,8 +689,8 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     marginBottom: 4,
   },
-  headerTitle: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary },
-  headerSub:   { fontSize: 11, fontWeight: '500', color: Colors.textSubtle, marginTop: 1 },
+  headerTitle: { fontSize: 17, lineHeight: 22, fontWeight: '800', color: Colors.textPrimary },
+  headerSub:   { fontSize: 12, lineHeight: 16, fontWeight: '500', color: Colors.textSubtle, marginTop: 1 },
 
   // Item card
   itemCard: {
@@ -709,7 +712,12 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   itemCardOpen: {
-    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    elevation: 6,
+    transform: [{ scale: 1.01 }],
+    marginVertical: 2,
   },
   itemCardEnhanced: {
     borderWidth: 1.5,
@@ -734,7 +742,21 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   itemTitle:      { fontSize: 17, fontWeight: '700', color: ADHKAR_CARD_TITLE, flexShrink: 1, lineHeight: 22 },
-  itemArabicTitle:{ fontSize: 13, fontWeight: '400', color: ADHKAR_DESCRIPTION_TEXT, lineHeight: 18.2, marginTop: 12 } as any,
+  itemArabicTitle:{
+    fontFamily: 'MarwanIndoPak',
+    writingDirection: 'rtl',
+    textAlign: 'right',
+    includeFontPadding: false,
+    alignSelf: 'flex-end',
+    fontSize: 20,
+    lineHeight: 30,
+    color: ADHKAR_DESCRIPTION_TEXT,
+    marginTop: 8,
+  } as any,
+  itemArabicTitleCompact: {
+    fontSize: 18,
+    lineHeight: 28,
+  },
   itemChevronWrap: { alignSelf: 'center', marginRight: -2, opacity: 0.78, transform: [{ translateX: 0 }] },
   itemChevronWrapPressed: { transform: [{ translateX: 3 }] },
 
@@ -760,8 +782,19 @@ const styles = StyleSheet.create({
   } as any,
 
   // Enhanced paragraph layout
-  arabicTopMeta:     { alignItems: 'center' },
-  arabicTopMetaText: { fontSize: 13, fontWeight: '700', letterSpacing: 0.4, fontStyle: 'italic' },
+  arabicTopMeta:     { alignItems: 'flex-end' },
+  arabicTopMetaText: {
+    fontFamily: 'MarwanIndoPak',
+    writingDirection: 'rtl',
+    textAlign: 'right',
+    includeFontPadding: false,
+    fontSize: 24,
+    lineHeight: 34,
+  } as any,
+  arabicTopMetaTextCompact: {
+    fontSize: 21,
+    lineHeight: 30,
+  },
   paraBlock:         { gap: 8 },
   paraArabicBox: {
     borderWidth: 1,
@@ -779,8 +812,8 @@ const styles = StyleSheet.create({
   },
 
   // Transliteration / Translation
-  translit:    { fontSize: 13, fontStyle: 'italic', color: Colors.textSecondary, lineHeight: 21 },
-  translation: { fontSize: 14, color: Colors.textPrimary, lineHeight: 22 },
+  translit:    { fontSize: 13, fontStyle: 'italic', color: Colors.textSecondary, lineHeight: 20 },
+  translation: { fontSize: 14, color: Colors.textPrimary, lineHeight: 21 },
   translationUrdu: { writingDirection: 'rtl', textAlign: 'right', fontFamily: 'UrduNastaliq', fontSize: 22, lineHeight: 40 } as any,
   translationToggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 },
   actionLeftGroup: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
@@ -840,7 +873,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  benefitsText: { fontSize: 13, lineHeight: 20, color: ADHKAR_DESCRIPTION_TEXT },
+  benefitsText: { fontSize: 14, lineHeight: 21, color: ADHKAR_DESCRIPTION_TEXT },
 
   // Reference rows
   refRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
@@ -877,7 +910,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   groupTitle: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary },
-  groupCount: { fontSize: 11, fontWeight: '500', color: Colors.textSubtle, marginTop: 1 },
+  groupCount: { fontSize: 12, lineHeight: 16, fontWeight: '500', color: Colors.textSubtle, marginTop: 1 },
   groupItems: {
     backgroundColor: Colors.surfaceAlt,
     paddingHorizontal: 10,
@@ -885,17 +918,4 @@ const styles = StyleSheet.create({
     gap: 8,
   },
 
-  // Footer tip
-  tip: {
-    flexDirection: 'row',
-    gap: 6,
-    alignItems: 'flex-start',
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: 10,
-    marginTop: 4,
-  },
-  tipText: { flex: 1, fontSize: 11, lineHeight: 16, color: Colors.textSubtle },
 });

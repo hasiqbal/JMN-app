@@ -38,7 +38,6 @@ import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { useNightMode } from '@/hooks/useNightMode';
 import { fetchAdhkarForPrayerTime, fetchAdhkarGroupsForPrayerTime, AdhkarGroupMeta, AdhkarRow, resolveAdhkarUrduTranslation } from '@/services/contentService';
 import { ImranMushafPlaceholder, LuqmanMushafPlaceholder, MulkMushafPlaceholder, SajdahMushafPlaceholder } from '@/components/MushafimageViewer';
-import { NightModeToggle } from '@/components/adhkar/NightModeToggle';
 import { PrayerTimeChipBar } from '@/components/adhkar/PrayerTimeChipBar';
 import { DbAdhkarScreen } from '@/components/adhkar/DbAdhkarScreen';
 import { NIGHT_PALETTE as NIGHT } from '@/components/quran_screen/shared';
@@ -155,7 +154,7 @@ function resolvePrayerTimeByClock(data: PrayerTimesData, now: Date = new Date())
 
 export default function DuasScreen() {
   const insets = useSafeAreaInsets();
-  const { nightMode, toggleManual } = useNightMode();
+  const { nightMode } = useNightMode();
   const [selectedPrayerTime, setSelectedPrayerTime] = useState<PrayerTimeId>('after-fajr');
   const [autoPrayerSyncEnabled, setAutoPrayerSyncEnabled] = useState(true);
   const [fajrSelection, setFajrSelection] = useState<AdhkarSelection>(null);
@@ -500,9 +499,6 @@ export default function DuasScreen() {
               <Text style={styles.heroMasjidName}>JMN</Text>
               <Text style={styles.heroTitle}>Quran & Duas</Text>
             </View>
-          </View>
-          <View style={styles.headerRight}>
-            <NightModeToggle nightMode={nightMode} onToggle={toggleManual} />
           </View>
         </View>
 

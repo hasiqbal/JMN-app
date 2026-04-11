@@ -29,7 +29,6 @@ import { buildActivePrayerState } from '@/components/prayer/activePrayerState';
 import { buildTodayTableRows } from '@/components/prayer/todayRows';
 import { useNightMode } from '@/hooks/useNightMode';
 import { useLocalSearchParams } from 'expo-router';
-import type { NightModePref } from '@/contexts/NightModeContext';
 
 // ── Hijri Transliteration ─────────────────────────────────────────────────
 const ARABIC_MONTHS: Record<string, string> = {
@@ -110,65 +109,10 @@ function useCurrentTime() {
   return now;
 }
 
-// ── Night Mode Toggle Button ─────────────────────────────────────────────
-function NightModeToggle({
-  modePref, onSelect,
-}: {
-  modePref: NightModePref;
-  onSelect: (p: NightModePref) => void;
-}) {
-  const N_active = modePref === 'night';
-  const options: { pref: NightModePref; icon: string; label: string }[] = [
-    { pref: 'day',   icon: 'wb-sunny',        label: 'Day'  },
-    { pref: 'auto',  icon: 'brightness-auto', label: 'Auto' },
-    { pref: 'night', icon: 'nights-stay',     label: 'Night' },
-  ];
-  return (
-    <View style={[nmToggleStyles.row]}>
-      {options.map(({ pref, icon, label }) => {
-        const active = modePref === pref;
-        return (
-          <TouchableOpacity
-            key={pref}
-            onPress={() => onSelect(pref)}
-            activeOpacity={0.75}
-            style={[nmToggleStyles.btn, active && (N_active ? nmToggleStyles.btnNight : nmToggleStyles.btnActive)]}
-          >
-            <MaterialIcons
-              name={icon as any}
-              size={11}
-              color={active ? '#fff' : Colors.textSubtle}
-            />
-            <Text style={[nmToggleStyles.label, { color: active ? '#fff' : Colors.textSubtle }]}>{label}</Text>
-          </TouchableOpacity>
-        );
-      })}
-    </View>
-  );
-}
-
-const nmToggleStyles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    backgroundColor: Colors.border,
-    borderRadius: 999,
-    padding: 2,
-    gap: 2,
-  },
-  btn: {
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-    paddingHorizontal: 6, paddingVertical: 4,
-    borderRadius: 999,
-  },
-  btnActive: { backgroundColor: PRAYER_HEADER_GREEN },
-  btnNight:  { backgroundColor: '#2A4A7A' },
-  label: { fontSize: 10, fontWeight: '700', letterSpacing: 0.2 },
-});
-
 export default function PrayerScreen() {
   const { width: viewportWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const { nightMode, modePref, setModePref } = useNightMode();
+  const { nightMode } = useNightMode();
   const [data, setData] = useState<PrayerTimesData | null>(null);
   const [loading, setLoading] = useState(true);
   const { view: viewParam } = useLocalSearchParams<{ view?: string }>();
@@ -337,14 +281,12 @@ export default function PrayerScreen() {
             <Text style={[styles.backToTodayText, N && { color: '#69A8FF' }]}>Today</Text>
           </TouchableOpacity>
           <Text style={[styles.headerCompactTitle, N && { color: N.text }]}>Monthly View</Text>
-          <NightModeToggle modePref={modePref} onSelect={setModePref} />
         </View>
       ) : (
         /* ── Full today header ── */
         <View style={[styles.header, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}>
           <View style={styles.headerRowCompact}>
             <Text style={[styles.headerMasjidCompact, N && { color: N.text }]}>Jami&apos; Masjid Noorani</Text>
-            <NightModeToggle modePref={modePref} onSelect={setModePref} />
           </View>
 
           <TouchableOpacity

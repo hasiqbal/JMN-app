@@ -36,36 +36,6 @@ const NIGHT = {
   primary:    '#4FE948',
 };
 
-function NightModeToggle({ nightMode, onToggle }: { nightMode: boolean; onToggle: () => void }) {
-  return (
-    <TouchableOpacity
-      onPress={onToggle}
-      activeOpacity={0.75}
-      style={[nmStyles.btn, nightMode ? nmStyles.btnNight : nmStyles.btnDay]}
-    >
-      <MaterialIcons
-        name={nightMode ? 'nights-stay' : 'wb-sunny'}
-        size={15}
-        color={nightMode ? '#C0D8FF' : Colors.textSubtle}
-      />
-      <Text style={[nmStyles.label, { color: nightMode ? '#C0D8FF' : Colors.textSubtle }]}>
-        {nightMode ? 'Night' : 'Day'}
-      </Text>
-    </TouchableOpacity>
-  );
-}
-
-const nmStyles = StyleSheet.create({
-  btn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 9, paddingVertical: 4,
-    borderRadius: 999, borderWidth: 1,
-  },
-  btnNight: { backgroundColor: '#0D1E3C', borderColor: '#2A4A7A' },
-  btnDay:   { backgroundColor: Colors.primarySoft, borderColor: Colors.border },
-  label: { fontSize: 11, fontWeight: '700', letterSpacing: 0.3 },
-});
-
 // ── Category color for announcements ─────────────────────────────────────
 const CATEGORY_COLORS: Record<string, string> = {
   General:   '#4FE948',
@@ -82,7 +52,7 @@ function getCategoryColor(cat: string) {
 
 export default function EventsScreen() {
   const insets = useSafeAreaInsets();
-  const { nightMode, toggleManual } = useNightMode();
+  const { nightMode } = useNightMode();
   const [activeTab, setActiveTab] = useState<Tab>('events');
 
   // ── Announcements state ─────────────────────────────────────────────
@@ -140,7 +110,6 @@ export default function EventsScreen() {
             <Text style={[styles.headerTitle, N && { color: N.text }]}>Events & Announcements</Text>
           </View>
         </View>
-        <NightModeToggle nightMode={nightMode} onToggle={toggleManual} />
       </View>
 
       {/* Tab Switcher */}

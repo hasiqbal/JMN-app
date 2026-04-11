@@ -21,7 +21,6 @@ import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { APP_CONFIG } from '@/constants/config';
 import { useNightMode } from '@/hooks/useNightMode';
 import { fetchLiveStatus } from '@/services/liveService';
-import type { NightModePref } from '@/contexts/NightModeContext';
 
 type StreamTab = 'video' | 'audio';
 
@@ -66,65 +65,6 @@ const SURAH_NAMES: Record<number, string> = {
   106:'Quraysh',107:'Al-Maun',108:'Al-Kawthar',109:'Al-Kafirun',110:'An-Nasr',
   111:'Al-Masad',112:'Al-Ikhlas',113:'Al-Falaq',114:'An-Nas'
 };
-
-// ── Night Mode 3-way Toggle (Auto / Day / Night) ──────────────────────────
-function NightModeToggle({
-  modePref,
-  onSelect,
-  N
-}: {
-  modePref: NightModePref;
-  onSelect: (p: NightModePref) => void;
-  N: NightPalette;
-}) {
-  const options: { pref: NightModePref; icon: string; label: string }[] = [
-    { pref: 'day',   icon: 'wb-sunny',        label: 'Day'  },
-    { pref: 'auto',  icon: 'brightness-auto', label: 'Auto' },
-    { pref: 'night', icon: 'nights-stay',     label: 'Night' }
-  ];
-  return (
-    <View style={[nmStyles.row, N && { backgroundColor: N.border }]}>
-      {options.map(({ pref, icon, label }) => {
-        const active = modePref === pref;
-        return (
-          <TouchableOpacity
-            key={pref}
-            onPress={() => onSelect(pref)}
-            activeOpacity={0.75}
-            style={[nmStyles.btn, active && (N ? nmStyles.btnActiveNight : nmStyles.btnActive)]}
-          >
-            <MaterialIcons
-              name={icon as any}
-              size={12}
-              color={active ? '#fff' : (N ? N.textMuted : Colors.textSubtle)}
-            />
-            <Text style={[nmStyles.label, { color: active ? '#fff' : (N ? N.textMuted : Colors.textSubtle) }]}>
-              {label}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
-    </View>
-  );
-}
-
-const nmStyles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    backgroundColor: Colors.border,
-    borderRadius: 999,
-    padding: 2,
-    gap: 2
-  },
-  btn: {
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-    paddingHorizontal: 7, paddingVertical: 4,
-    borderRadius: 999
-  },
-  btnActive:      { backgroundColor: Colors.primary },
-  btnActiveNight: { backgroundColor: '#2A4A7A' },
-  label: { fontSize: 10, fontWeight: '700', letterSpacing: 0.2, color: Colors.textSubtle }
-});
 
 // ── Pulse animation ───────────────────────────────────────────────────────
 function PulsingRing({ active, color, size = 58 }: { active: boolean; color?: string; size?: number }) {
@@ -377,7 +317,7 @@ const LIVE_POLL_MS = 30000;
 // ── Main Screen ───────────────────────────────────────────────────────────
 export default function StreamScreen() {
   const insets = useSafeAreaInsets();
-  const { nightMode, modePref, setModePref } = useNightMode();
+  const { nightMode } = useNightMode();
   const [activeStream, setActiveStream]   = useState<StreamTab>('video');
   const [audioPlaying, setAudioPlaying]   = useState(false);
   const [audioLoading, setAudioLoading]   = useState(false);
@@ -553,7 +493,6 @@ export default function StreamScreen() {
             <Text style={[styles.headerSub, N && { color: N.textSub }]}>Halifax, UK</Text>
           </View>
         </View>
-        <NightModeToggle modePref={modePref} onSelect={setModePref} N={N} />
       </View>
 
       {/* Tab Switcher */}
