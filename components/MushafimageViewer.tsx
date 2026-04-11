@@ -10,20 +10,52 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { GestureHandlerRootView, Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
 import { fetchChapterTranslationById, fetchTranslationResources, QuranTranslationResource } from '@/services/quranApiService';
+import { SURAH_WAQIAH, SURAH_YASEEN } from '@/services/quranService';
 import {
   IMRAN_PAGE_AYAT,
   KAHF_PAGE_AYAT,
   LUQMAN_PAGE_AYAT,
   MULK_PAGE_AYAT,
   SAJDAH_PAGE_AYAT,
+  WAQIAH_PAGE_AYAT,
+  YASEEN_PAGE_AYAT,
 } from '@/constants/mushafPageAyat';
 
 const URDU_TRANSLATOR_LABEL_OVERRIDES: Record<number, string> = {
   819: 'مولانا وحید الدین خان',
 };
 
+const DEFAULT_API_TRANSLATION_ID_BY_LANG: Record<'en' | 'ur', number> = {
+  en: 131,
+  ur: 54,
+};
+const DEFAULT_TRANSLATOR_LABEL_BY_LANG: Record<'en' | 'ur', string> = {
+  en: 'Saheeh International',
+  ur: 'اردو ترجمہ',
+};
+
+function buildVerseTranslationsByPage(
+  ayatMap: Record<number, [number, number]>,
+  verses: { ayah: number; translation: string; transliteration?: string }[],
+): Record<number, VerseTranslation[]> {
+  return Object.fromEntries(
+    Object.entries(ayatMap).map(([pageNum, [startAyah, endAyah]]) => [
+      Number(pageNum),
+      verses
+        .filter((verse) => verse.ayah >= startAyah && verse.ayah <= endAyah)
+        .map((verse) => ({
+          verse: verse.ayah,
+          text: verse.translation,
+          transliteration: verse.transliteration,
+        })),
+    ]),
+  );
+}
+
 // ── Page lists & local asset maps ─────────────────────────────────────────
 export const KAHF_PAGE_NUMS   = [293,294,295,296,297,298,299,300,301,302,303,304];
+export const YASEEN_PAGE_NUMS = [440,441,442,443,444,445];
+export const WAQIAH_PAGE_NUMS = [534,535,536,537];
 export const MULK_PAGE_NUMS   = [562,563,564];
 export const LUQMAN_PAGE_NUMS = [411,412,413,414];
 export const IMRAN_PAGE_NUMS  = [75,76];
@@ -44,6 +76,22 @@ export const KAHF_15LINE_LOCAL:   Partial<Record<number,any>> = {
   304: require('@/assets/images/Quran 15 line indo-pak/Kahf/304.jpg')
 };
 export const KAHF_16LINE_LOCAL: Partial<Record<number,any>> = {};
+export const YASEEN_15LINE_LOCAL: Partial<Record<number,any>> = {
+  440: require('@/assets/images/Quran 15 line indo-pak/Yaseen/440.jpg'),
+  441: require('@/assets/images/Quran 15 line indo-pak/Yaseen/441.jpg'),
+  442: require('@/assets/images/Quran 15 line indo-pak/Yaseen/442.jpg'),
+  443: require('@/assets/images/Quran 15 line indo-pak/Yaseen/443.jpg'),
+  444: require('@/assets/images/Quran 15 line indo-pak/Yaseen/444.jpg'),
+  445: require('@/assets/images/Quran 15 line indo-pak/Yaseen/445.jpg'),
+};
+export const YASEEN_16LINE_LOCAL: Partial<Record<number,any>> = {};
+export const WAQIAH_15LINE_LOCAL: Partial<Record<number,any>> = {
+  534: require('@/assets/images/Quran 15 line indo-pak/Waqiah/534.jpg'),
+  535: require('@/assets/images/Quran 15 line indo-pak/Waqiah/535.jpg'),
+  536: require('@/assets/images/Quran 15 line indo-pak/Waqiah/536.jpg'),
+  537: require('@/assets/images/Quran 15 line indo-pak/Waqiah/537.jpg'),
+};
+export const WAQIAH_16LINE_LOCAL: Partial<Record<number,any>> = {};
 export const MULK_15LINE_LOCAL:   Partial<Record<number,any>> = {
   562: require('@/assets/images/Quran 15 line indo-pak/Mulk/562.jpg'),
   563: require('@/assets/images/Quran 15 line indo-pak/Mulk/563.jpg'),
@@ -71,6 +119,17 @@ export const SAJDAH_16LINE_LOCAL: Partial<Record<number,any>> = {};
 
 // ── Translation type ──────────────────────────────────────────────────────
 export interface VerseTranslation { verse: number; text: string; urduText?: string; transliteration?: string; }
+
+const UNIFIED_MUSHAF_THEME = {
+  accentDay: '#3FAE5A',
+  accentNight: '#4FCB70',
+  bgNight: '#0E1C12',
+  hdrBgNight: '#13261A',
+  hdrBorNight: '#2E6E40',
+  bgDay: '#F7FAF8',
+  hdrBgDay: '#E7F4EA',
+  hdrBorDay: '#B7D9C0',
+};
 
 // ── Clear Quran Translation — Surah As-Sajdah ────────────────────────────
 export const SAJDAH_TRANSLATIONS: Record<number, VerseTranslation[]> = {
@@ -131,6 +190,9 @@ export const IMRAN_LAST_AYAH_TRANSLATIONS: Record<number, VerseTranslation[]> = 
   ],
 };
 
+export const YASEEN_TRANSLATIONS = buildVerseTranslationsByPage(YASEEN_PAGE_AYAT, SURAH_YASEEN);
+export const WAQIAH_TRANSLATIONS = buildVerseTranslationsByPage(WAQIAH_PAGE_AYAT, SURAH_WAQIAH);
+
 // ── Shared internal viewer ───────────────────────────────────────────────
 interface ViewerProps {
   nightMode: boolean;
@@ -169,6 +231,7 @@ function MushafImageViewer({
   const [apiMapByVerse, setApiMapByVerse] = React.useState<Record<number, string>>({});
   const [apiMapCache, setApiMapCache] = React.useState<Record<string, Record<number, string>>>({});
   const [isLoadingApiTrans, setIsLoadingApiTrans] = React.useState(false);
+  const [showTranslit, setShowTranslit] = React.useState(false);
   const transLocale: 'en' | 'ur' = transLang === 'ur' ? 'ur' : 'en';
   const apiOptions = apiOptionsByLang[transLocale] ?? [];
   const selectedTranslationId = selectedTranslationIdByLang[transLocale] ?? null;
@@ -208,30 +271,6 @@ function MushafImageViewer({
     return () => { cancelled = true; };
   }, [showTrans, enableApiTranslationPicker, chapterNumber, apiOptions.length, transLocale]);
 
-  React.useEffect(() => {
-    if (!enableApiTranslationPicker || !chapterNumber || !selectedTranslationId) {
-      setApiMapByVerse({});
-      setIsLoadingApiTrans(false);
-      return;
-    }
-    const cacheKey = `${transLocale}:${selectedTranslationId}`;
-    if (apiMapCache[cacheKey]) {
-      setApiMapByVerse(apiMapCache[cacheKey]);
-      setIsLoadingApiTrans(false);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      setIsLoadingApiTrans(true);
-      const map = await fetchChapterTranslationById(chapterNumber, selectedTranslationId, transLocale);
-      if (cancelled) return;
-      setApiMapCache((prev) => ({ ...prev, [cacheKey]: map }));
-      setApiMapByVerse(map);
-      setIsLoadingApiTrans(false);
-    })();
-    return () => { cancelled = true; };
-  }, [enableApiTranslationPicker, chapterNumber, selectedTranslationId, apiMapCache, transLocale]);
-
   const txX = useSharedValue(0);
   const sc   = useSharedValue(1);
   const svSc = useSharedValue(1);
@@ -239,20 +278,37 @@ function MushafImageViewer({
 
   const BG=N?bgNight:bgDay, HDR_BG=N?hdrBgNight:hdrBgDay, HDR_BOR=N?hdrBorNight:hdrBorDay;
   const ACCENT=N?accentNight:accentDay, META=N?'#94A3B8':'#6B7280';
+  const ACCENT_SOFT = ACCENT + '18';
+  const ACCENT_BORDER = ACCENT + '32';
   const hasImages = Object.keys(localPages).length > 0;
   const has16LineImages = Object.keys(localPages16 ?? {}).length > 0;
-  const hasTranslations = !!translations && Object.keys(translations).length > 0;
-  const hasUrduTranslations = !!translations && Object.values(translations).some(list => list.some(v => !!v.urduText));
-  const canChooseApiTranslation = !!enableApiTranslationPicker && !!chapterNumber;
   const pageNum = pageNums[pi];
+  const pageAyahRange = ayatMap[pageNum];
+  const hasTranslations = (!!translations && Object.keys(translations).length > 0) || (!!chapterNumber && !!pageAyahRange);
+  const canChooseApiTranslation = !!enableApiTranslationPicker && !!chapterNumber;
+  const hasUrduTranslations = (!!translations && Object.values(translations).some(list => list.some(v => !!v.urduText))) || canChooseApiTranslation;
   const src = layoutStyle === '15line'
     ? (localPages[pageNum] ?? null)
     : ((localPages16 ?? {})[pageNum] ?? null);
   const basePageVerses = translations?.[pageNum] ?? [];
-  const pageVerses = basePageVerses.map((v) => ({
-    ...v,
-    text: selectedTranslationId && apiMapByVerse[v.verse] ? apiMapByVerse[v.verse] : v.text,
+  const derivedPageVerses: VerseTranslation[] = pageAyahRange
+    ? Array.from({ length: pageAyahRange[1] - pageAyahRange[0] + 1 }, (_, index) => ({
+        verse: pageAyahRange[0] + index,
+        text: '',
+      }))
+    : [];
+  const sourcePageVerses: VerseTranslation[] = basePageVerses.length > 0 ? basePageVerses : derivedPageVerses;
+  const hasLocalCurrentLocaleText = sourcePageVerses.some((verse) => transLocale === 'ur' ? !!verse.urduText : !!verse.text);
+  const effectiveTranslationId = chapterNumber
+    ? (selectedTranslationId ?? (hasLocalCurrentLocaleText ? null : DEFAULT_API_TRANSLATION_ID_BY_LANG[transLocale]))
+    : null;
+  const pageVerses = sourcePageVerses.map((verse) => ({
+    ...verse,
+    text: effectiveTranslationId && apiMapByVerse[verse.verse]
+      ? apiMapByVerse[verse.verse]
+      : (transLocale === 'ur' ? (verse.urduText ?? '') : verse.text),
   }));
+  const hasTransliteration = hasTranslations;
   const shouldExcludeTranslationOption = (option: QuranTranslationResource) => {
     const searchable = `${option.name} ${option.translatedName ?? ''} ${option.authorName ?? ''}`.toLowerCase();
     return /taqi\s*usmani|taqi\s*usman|maududi|tafhim|shaykh\s*al\s*hind|shaikh\s*al\s*hind|mahmud\s*al[-\s]*hasan|mahmood\s*al[-\s]*hasan|tafsir\s*e\s*usmani|tafsir[-\s]*usmani/.test(searchable);
@@ -263,10 +319,37 @@ function MushafImageViewer({
     : option.name;
   const selectedApiOption = visibleApiOptions.find((o) => o.id === selectedTranslationId) ?? null;
   const useApiSelectedTranslation = selectedTranslationId !== null;
+  const defaultTranslatorOpt = visibleApiOptions.find(o => o.id === DEFAULT_API_TRANSLATION_ID_BY_LANG[transLocale]);
   const activeTranslatorLabel = selectedApiOption
     ? getTranslationOptionLabel(selectedApiOption)
-    : (transLocale === 'ur' ? 'ایپ ڈیفالٹ' : 'App Default');
+    : (defaultTranslatorOpt
+      ? getTranslationOptionLabel(defaultTranslatorOpt)
+      : DEFAULT_TRANSLATOR_LABEL_BY_LANG[transLocale]);
   const activeTranslatorCaption = transLocale === 'ur' ? 'منتخب مترجم' : 'Selected translator';
+
+  React.useEffect(() => {
+    if (!chapterNumber || !effectiveTranslationId) {
+      setApiMapByVerse({});
+      setIsLoadingApiTrans(false);
+      return;
+    }
+    const cacheKey = `${transLocale}:${effectiveTranslationId}`;
+    if (apiMapCache[cacheKey]) {
+      setApiMapByVerse(apiMapCache[cacheKey]);
+      setIsLoadingApiTrans(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setIsLoadingApiTrans(true);
+      const map = await fetchChapterTranslationById(chapterNumber, effectiveTranslationId, transLocale);
+      if (cancelled) return;
+      setApiMapCache((prev) => ({ ...prev, [cacheKey]: map }));
+      setApiMapByVerse(map);
+      setIsLoadingApiTrans(false);
+    })();
+    return () => { cancelled = true; };
+  }, [chapterNumber, effectiveTranslationId, apiMapCache, transLocale]);
 
   const goTo = (idx: number) => {
     if (idx < 0 || idx >= pageNums.length) return;
@@ -279,7 +362,6 @@ function MushafImageViewer({
   const goToFromOverlay = (idx: number) => {
     if (idx < 0 || idx >= pageNums.length) return;
     setPi(idx); setRk(k => k + 1);
-    setTransLang('en');
     setShowApiPicker(false);
   };
 
@@ -319,6 +401,7 @@ function MushafImageViewer({
                 const next = !prev;
                 if (next) {
                   setTransLang('en');
+                  setShowTranslit(false);
                   setShowApiPicker(false);
                 }
                 return next;
@@ -330,7 +413,7 @@ function MushafImageViewer({
             <Text style={[S.transBtnText, { color: showTrans ? '#fff' : ACCENT }]}>Translation <Text style={[S.transBtnTextUrdu, { color: showTrans ? '#fff' : ACCENT }]}>اردو ترجمہ</Text></Text>
           </TouchableOpacity>
           <View style={{ flex:1 }}/>
-          <View style={[S.toggleGroup, { backgroundColor: N ? '#1F2D45' : '#E8E8E0', borderColor: N ? '#2A3F5C' : '#C8C8B8' }]}>
+          <View style={[S.toggleGroup, { backgroundColor: ACCENT_SOFT, borderColor: ACCENT_BORDER }]}>
             <TouchableOpacity
               style={[S.toggleBtn, layoutStyle === '15line' && { backgroundColor: ACCENT }]}
               onPress={() => setLayoutStyle('15line')}
@@ -419,9 +502,9 @@ function MushafImageViewer({
                   activeOpacity={1}
                   onPress={() => setShowTrans(false)}
                 />
-                <View style={[S.transPanel, { backgroundColor: N ? 'rgba(10,8,8,0.98)' : '#FFFFFF', borderTopColor: N ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)' }]}>
+                <View style={[S.transPanel, { backgroundColor: N ? 'rgba(10,8,8,0.98)' : '#FFFFFF', borderTopColor: N ? ACCENT_BORDER : ACCENT_SOFT }]}>
                   <View style={S.dragHandleWrap}>
-                    <View style={[S.dragHandle, { backgroundColor: N ? '#64748B' : '#D0D5D2' }]} />
+                    <View style={[S.dragHandle, { backgroundColor: N ? ACCENT_BORDER : ACCENT_BORDER }]} />
                   </View>
                   <View style={[S.transOverlayHeader, { borderBottomColor: N ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)' }]}>
                     <View style={S.transHeaderTopRow}>
@@ -429,7 +512,7 @@ function MushafImageViewer({
                       <Text style={[S.transOverlayTitle, { color:ACCENT, flex:1 }]}>Translation</Text>
                       <View style={S.overlayNavGroup}>
                         <TouchableOpacity
-                          style={[S.overlayNavBtn, pi === 0 && S.overlayNavBtnDisabled]}
+                          style={[S.overlayNavBtn, { backgroundColor: ACCENT_SOFT }, pi === 0 && S.overlayNavBtnDisabled]}
                           onPress={() => goToFromOverlay(pi - 1)}
                           disabled={pi === 0}
                           activeOpacity={0.8}
@@ -438,7 +521,7 @@ function MushafImageViewer({
                         </TouchableOpacity>
                         <Text style={[S.overlayPageText, { color: META }]}>{transLocale === 'ur' ? `صفحہ ${pi + 1}/${pageNums.length}` : `Page ${pi + 1}/${pageNums.length}`}</Text>
                         <TouchableOpacity
-                          style={[S.overlayNavBtn, pi === pageNums.length - 1 && S.overlayNavBtnDisabled]}
+                          style={[S.overlayNavBtn, { backgroundColor: ACCENT_SOFT }, pi === pageNums.length - 1 && S.overlayNavBtnDisabled]}
                           onPress={() => goToFromOverlay(pi + 1)}
                           disabled={pi === pageNums.length - 1}
                           activeOpacity={0.8}
@@ -501,6 +584,15 @@ function MushafImageViewer({
                           >
                             <Text style={[S.langBtnText, S.langBtnTextUrdu, { color: transLang === 'ur' ? '#fff' : ACCENT }]}>اردو</Text>
                           </TouchableOpacity>
+                          {hasTransliteration ? (
+                            <TouchableOpacity
+                              style={[S.langBtn, { borderColor: ACCENT }, showTranslit && { backgroundColor: ACCENT }]}
+                              onPress={() => setShowTranslit(v => !v)}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={[S.langBtnText, { color: showTranslit ? '#fff' : ACCENT }]}>Translit</Text>
+                            </TouchableOpacity>
+                          ) : null}
                         </View>
                       ) : null}
                     </ScrollView>
@@ -509,7 +601,7 @@ function MushafImageViewer({
                     style={[
                       S.activeTranslatorCard,
                       transLocale === 'ur' && S.activeTranslatorCardUrdu,
-                      { backgroundColor: N ? 'rgba(255,255,255,0.05)' : 'rgba(15,118,110,0.06)', borderColor: N ? 'rgba(255,255,255,0.08)' : 'rgba(15,118,110,0.12)' },
+                      { backgroundColor: N ? ACCENT_SOFT : ACCENT + '12', borderColor: N ? ACCENT_BORDER : ACCENT + '28' },
                     ]}
                   >
                     <Text style={[S.activeTranslatorCaption, { color: META }, transLocale === 'ur' && S.activeTranslatorCaptionUrdu]} numberOfLines={1}>
@@ -522,18 +614,6 @@ function MushafImageViewer({
                   {canChooseApiTranslation && showApiPicker ? (
                     <View style={[S.apiPickerWrap, { borderBottomColor: N ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)' }]}>
                       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={S.apiPickerContent}>
-                        <TouchableOpacity
-                          style={[S.apiChip, { borderColor: ACCENT }, selectedTranslationId === null && { backgroundColor: ACCENT }]}
-                          onPress={() => {
-                            setSelectedTranslationIdByLang((prev) => ({ ...prev, [transLocale]: null }));
-                            setShowApiPicker(false);
-                          }}
-                          activeOpacity={0.8}
-                        >
-                          <Text style={[S.apiChipText, transLocale === 'ur' && S.apiChipTextUrdu, { color: selectedTranslationId === null ? '#fff' : ACCENT }]}>
-                            {transLocale === 'ur' ? 'ایپ ڈیفالٹ' : 'App Default'}
-                          </Text>
-                        </TouchableOpacity>
                         {visibleApiOptions.map((opt) => (
                           <TouchableOpacity
                             key={opt.id}
@@ -558,11 +638,10 @@ function MushafImageViewer({
                             <ActivityIndicator size="small" color={ACCENT} />
                             <Text style={[S.loadingTranslationText, { color: META }]}>Loading selected translation...</Text>
                           </View>
-                        ) : null}
-                        {pageVerses.map(v => (
+                        ) : pageVerses.map(v => (
                           <View key={v.verse} style={[S.transVerseRow, { borderBottomColor: N ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
-                            <View style={[S.transVerseNum, { backgroundColor: '#E6F4EA' }]}>
-                              <Text style={[S.transVerseNumText, { color:'#3FAE5A' }]}>{v.verse}</Text>
+                            <View style={[S.transVerseNum, { backgroundColor: ACCENT_SOFT }]}>
+                              <Text style={[S.transVerseNumText, { color: ACCENT }]}>{v.verse}</Text>
                             </View>
                             <View style={{ flex: 1 }}>
                               <Text
@@ -574,6 +653,9 @@ function MushafImageViewer({
                               >
                                 {transLang === 'ur' && !useApiSelectedTranslation && v.urduText ? v.urduText : v.text}
                               </Text>
+                              {showTranslit && v.transliteration ? (
+                                <Text style={[S.transVerseTranslit, { color: META }]}>{v.transliteration}</Text>
+                              ) : null}
                             </View>
                           </View>
                         ))}
@@ -605,33 +687,62 @@ function MushafImageViewer({
 export function KahfMushafPlaceholder({ nightMode, onBack }: { nightMode: boolean; onBack: () => void }) {
   return <MushafImageViewer
     nightMode={nightMode} pageNums={KAHF_PAGE_NUMS} localPages={KAHF_15LINE_LOCAL} localPages16={KAHF_16LINE_LOCAL} ayatMap={KAHF_PAGE_AYAT}
+    chapterNumber={18} enableApiTranslationPicker
     nameAr={'سُورَةُ الْكَهْف'}
     nameEn="Surah Al-Kahf" juz="Juz 15–16 · 110 verses"
-    accentDay="#4FE948" accentNight="#4FE948"
-    bgNight="#081408" hdrBgNight="#04080A" hdrBorNight="#1A4A25"
-    bgDay="#F0FBF4" hdrBgDay="#E8F5EC" hdrBorDay="#5A9A6A"
+    accentDay={UNIFIED_MUSHAF_THEME.accentDay} accentNight={UNIFIED_MUSHAF_THEME.accentNight}
+    bgNight={UNIFIED_MUSHAF_THEME.bgNight} hdrBgNight={UNIFIED_MUSHAF_THEME.hdrBgNight} hdrBorNight={UNIFIED_MUSHAF_THEME.hdrBorNight}
+    bgDay={UNIFIED_MUSHAF_THEME.bgDay} hdrBgDay={UNIFIED_MUSHAF_THEME.hdrBgDay} hdrBorDay={UNIFIED_MUSHAF_THEME.hdrBorDay}
+  />;
+}
+
+export function YaseenMushafPlaceholder({ nightMode, onBack }: { nightMode: boolean; onBack: () => void }) {
+  return <MushafImageViewer
+    nightMode={nightMode} pageNums={YASEEN_PAGE_NUMS} localPages={YASEEN_15LINE_LOCAL} localPages16={YASEEN_16LINE_LOCAL}
+    ayatMap={YASEEN_PAGE_AYAT} translations={YASEEN_TRANSLATIONS}
+    chapterNumber={36} enableApiTranslationPicker
+    nameAr={'سُورَةُ يس'}
+    nameEn="Surah Yaseen" juz="Juz 22–23 · 83 verses"
+    accentDay={UNIFIED_MUSHAF_THEME.accentDay} accentNight={UNIFIED_MUSHAF_THEME.accentNight}
+    bgNight={UNIFIED_MUSHAF_THEME.bgNight} hdrBgNight={UNIFIED_MUSHAF_THEME.hdrBgNight} hdrBorNight={UNIFIED_MUSHAF_THEME.hdrBorNight}
+    bgDay={UNIFIED_MUSHAF_THEME.bgDay} hdrBgDay={UNIFIED_MUSHAF_THEME.hdrBgDay} hdrBorDay={UNIFIED_MUSHAF_THEME.hdrBorDay}
+  />;
+}
+
+export function WaqiahMushafPlaceholder({ nightMode, onBack }: { nightMode: boolean; onBack: () => void }) {
+  return <MushafImageViewer
+    nightMode={nightMode} pageNums={WAQIAH_PAGE_NUMS} localPages={WAQIAH_15LINE_LOCAL} localPages16={WAQIAH_16LINE_LOCAL}
+    ayatMap={WAQIAH_PAGE_AYAT} translations={WAQIAH_TRANSLATIONS}
+    chapterNumber={56} enableApiTranslationPicker
+    nameAr={'سُورَةُ الْوَاقِعَة'}
+    nameEn="Surah Al-Waqiah" juz="Juz 27 · 96 verses"
+    accentDay={UNIFIED_MUSHAF_THEME.accentDay} accentNight={UNIFIED_MUSHAF_THEME.accentNight}
+    bgNight={UNIFIED_MUSHAF_THEME.bgNight} hdrBgNight={UNIFIED_MUSHAF_THEME.hdrBgNight} hdrBorNight={UNIFIED_MUSHAF_THEME.hdrBorNight}
+    bgDay={UNIFIED_MUSHAF_THEME.bgDay} hdrBgDay={UNIFIED_MUSHAF_THEME.hdrBgDay} hdrBorDay={UNIFIED_MUSHAF_THEME.hdrBorDay}
   />;
 }
 
 export function MulkMushafPlaceholder({ nightMode, onBack }: { nightMode: boolean; onBack: () => void }) {
   return <MushafImageViewer
     nightMode={nightMode} pageNums={MULK_PAGE_NUMS} localPages={MULK_15LINE_LOCAL} localPages16={MULK_16LINE_LOCAL} ayatMap={MULK_PAGE_AYAT}
+    chapterNumber={67} enableApiTranslationPicker
     nameAr={'سُورَةُ الْمُلْك'}
     nameEn="Surah Al-Mulk" juz="Juz 29 · 30 verses"
-    accentDay="#3730A3" accentNight="#818CF8"
-    bgNight="#0A0F1A" hdrBgNight="#111827" hdrBorNight="#1F2D45"
-    bgDay="#F5F0FF" hdrBgDay="#EEF0FF" hdrBorDay="#C4B5FD"
+    accentDay={UNIFIED_MUSHAF_THEME.accentDay} accentNight={UNIFIED_MUSHAF_THEME.accentNight}
+    bgNight={UNIFIED_MUSHAF_THEME.bgNight} hdrBgNight={UNIFIED_MUSHAF_THEME.hdrBgNight} hdrBorNight={UNIFIED_MUSHAF_THEME.hdrBorNight}
+    bgDay={UNIFIED_MUSHAF_THEME.bgDay} hdrBgDay={UNIFIED_MUSHAF_THEME.hdrBgDay} hdrBorDay={UNIFIED_MUSHAF_THEME.hdrBorDay}
   />;
 }
 
 export function LuqmanMushafPlaceholder({ nightMode, onBack }: { nightMode: boolean; onBack: () => void }) {
   return <MushafImageViewer
     nightMode={nightMode} pageNums={LUQMAN_PAGE_NUMS} localPages={LUQMAN_15LINE_LOCAL} localPages16={LUQMAN_16LINE_LOCAL} ayatMap={LUQMAN_PAGE_AYAT}
+    chapterNumber={31} enableApiTranslationPicker
     nameAr={'سُورَةُ لُقْمَان'}
     nameEn="Surah Luqman" juz="Juz 21 · 34 verses"
-    accentDay="#B8860B" accentNight="#F9C74F"
-    bgNight="#171106" hdrBgNight="#211606" hdrBorNight="#4A3510"
-    bgDay="#FFF8EA" hdrBgDay="#FFF3D6" hdrBorDay="#D8BF7A"
+    accentDay={UNIFIED_MUSHAF_THEME.accentDay} accentNight={UNIFIED_MUSHAF_THEME.accentNight}
+    bgNight={UNIFIED_MUSHAF_THEME.bgNight} hdrBgNight={UNIFIED_MUSHAF_THEME.hdrBgNight} hdrBorNight={UNIFIED_MUSHAF_THEME.hdrBorNight}
+    bgDay={UNIFIED_MUSHAF_THEME.bgDay} hdrBgDay={UNIFIED_MUSHAF_THEME.hdrBgDay} hdrBorDay={UNIFIED_MUSHAF_THEME.hdrBorDay}
   />;
 }
 
@@ -643,9 +754,9 @@ export function ImranMushafPlaceholder({ nightMode, onBack }: { nightMode: boole
     nameAr={'سُورَةُ آلِ عِمْرَان'}
     nameEn="Surah Ali 'Imran"
     juz="Juz 3 · excerpt"
-    accentDay="#0F766E" accentNight="#5EEAD4"
-    bgNight="#061615" hdrBgNight="#08201E" hdrBorNight="#134E4A"
-    bgDay="#F0FDFA" hdrBgDay="#E6FFFA" hdrBorDay="#99F6E4"
+    accentDay={UNIFIED_MUSHAF_THEME.accentDay} accentNight={UNIFIED_MUSHAF_THEME.accentNight}
+    bgNight={UNIFIED_MUSHAF_THEME.bgNight} hdrBgNight={UNIFIED_MUSHAF_THEME.hdrBgNight} hdrBorNight={UNIFIED_MUSHAF_THEME.hdrBorNight}
+    bgDay={UNIFIED_MUSHAF_THEME.bgDay} hdrBgDay={UNIFIED_MUSHAF_THEME.hdrBgDay} hdrBorDay={UNIFIED_MUSHAF_THEME.hdrBorDay}
   />;
 }
 
@@ -653,11 +764,12 @@ export function SajdahMushafPlaceholder({ nightMode, onBack }: { nightMode: bool
   return <MushafImageViewer
     nightMode={nightMode} pageNums={SAJDAH_PAGE_NUMS} localPages={SAJDAH_15LINE_LOCAL} localPages16={SAJDAH_16LINE_LOCAL}
     ayatMap={SAJDAH_PAGE_AYAT} translations={SAJDAH_TRANSLATIONS}
+    chapterNumber={32} enableApiTranslationPicker
     nameAr={'سُورَةُ السَّجْدَة'}
     nameEn="Surah As-Sajdah" juz="Juz 21 · 30 verses"
-    accentDay="#B91C1C" accentNight="#F87171"
-    bgNight="#0A0808" hdrBgNight="#140505" hdrBorNight="#3A1010"
-    bgDay="#FFF8F8" hdrBgDay="#FFF0F0" hdrBorDay="#D4A0A0"
+    accentDay={UNIFIED_MUSHAF_THEME.accentDay} accentNight={UNIFIED_MUSHAF_THEME.accentNight}
+    bgNight={UNIFIED_MUSHAF_THEME.bgNight} hdrBgNight={UNIFIED_MUSHAF_THEME.hdrBgNight} hdrBorNight={UNIFIED_MUSHAF_THEME.hdrBorNight}
+    bgDay={UNIFIED_MUSHAF_THEME.bgDay} hdrBgDay={UNIFIED_MUSHAF_THEME.hdrBgDay} hdrBorDay={UNIFIED_MUSHAF_THEME.hdrBorDay}
   />;
 }
 
@@ -763,5 +875,6 @@ const S = StyleSheet.create({
   transVerseNumText:  { fontSize:12, fontWeight:'700' },
   transVerseText:     { flex:1, fontSize:13, lineHeight:21, fontWeight:'400' },
   transVerseTextUrdu: { writingDirection:'rtl', textAlign:'right', fontFamily:'UrduNastaliqBold', fontSize:22, lineHeight:40 } as any,
+  transVerseTranslit: { fontSize:11, fontWeight:'400', fontStyle:'italic', lineHeight:17, marginTop:3, letterSpacing:0.2 },
   transSource:        { fontSize:10, textAlign:'center', fontStyle:'italic', paddingVertical:12, paddingHorizontal:16 },
 });

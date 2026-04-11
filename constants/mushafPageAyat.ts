@@ -18,6 +18,22 @@ export const KAHF_PAGE_AYAT: MushafPageAyatMap = {
   304: [99, 110],
 };
 
+export const YASEEN_PAGE_AYAT: MushafPageAyatMap = {
+  440: [1, 12],
+  441: [13, 22],
+  442: [23, 36],
+  443: [37, 50],
+  444: [51, 66],
+  445: [67, 83],
+};
+
+export const WAQIAH_PAGE_AYAT: MushafPageAyatMap = {
+  534: [1, 25],
+  535: [26, 56],
+  536: [57, 82],
+  537: [83, 96],
+};
+
 export const MULK_PAGE_AYAT: MushafPageAyatMap = {
   562: [1, 12],
   563: [13, 22],
