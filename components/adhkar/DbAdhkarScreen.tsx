@@ -437,7 +437,7 @@ export function DbAdhkarScreen({
     const fallbackUrdu = (urduFallbackById[item.id] ?? '').trim();
     const hasUrdu = !!(dbUrdu || fallbackUrdu);
 
-    const rawBenefits = (item.description ?? item.benefits ?? '').trim();
+    const rawBenefits = (item.benefits ?? item.description ?? '').trim();
     const plainBenefits = containsHtml(rawBenefits) ? rawBenefits.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() : rawBenefits;
     const rawTafsir = (item.tafsir ?? '').trim();
     const plainTafsir = containsHtml(rawTafsir) ? rawTafsir.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() : rawTafsir;
@@ -533,7 +533,7 @@ export function DbAdhkarScreen({
     const arabicLineHeight = useEnhancedFont
       ? (isCompactPhone ? 52 : 60)
       : (isCompactPhone ? 48 : 54);
-    const itemBenefits = (item.description ?? item.benefits ?? '').trim();
+    const itemBenefits = (item.benefits ?? item.description ?? '').trim();
     const hasBenefits = itemBenefits.length > 0;
     const benefitsIsHtml = hasBenefits && containsHtml(itemBenefits);
     const itemBenefitsPlain = benefitsIsHtml ? itemBenefits.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() : itemBenefits;
@@ -643,6 +643,18 @@ export function DbAdhkarScreen({
                   <Text style={[styles.itemArabicTitle, isCompactPhone && styles.itemArabicTitleCompact, N && { color: N.textSub }]}>{item.arabic_title}</Text>
                 ) : null}
               </View>
+              {hasBenefits ? (
+                <TouchableOpacity
+                  style={styles.headerBenefitsBtn}
+                  onPress={(event) => {
+                    event.stopPropagation();
+                    void handleOpenBenefitsOverlay(item, itemBenefitsPlain);
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.headerBenefitsBtnText}>Benefits</Text>
+                </TouchableOpacity>
+              ) : null}
               <View style={[styles.itemChevronWrap, pressed && styles.itemChevronWrapPressed]}>
                 <MaterialIcons
                   name={isOpen ? 'expand-less' : 'expand-more'}
@@ -903,7 +915,7 @@ export function DbAdhkarScreen({
   const benefitsOverlayItem = benefitsOverlayItemId
     ? (adhkar.find((row) => row.id === benefitsOverlayItemId) ?? null)
     : null;
-  const overlayBenefits = (benefitsOverlayItem?.description ?? benefitsOverlayItem?.benefits ?? '').trim();
+  const overlayBenefits = (benefitsOverlayItem?.benefits ?? benefitsOverlayItem?.description ?? '').trim();
   const overlayBenefitsIsHtml = containsHtml(overlayBenefits);
   const overlayUrduBenefits = benefitsOverlayItem ? (urduBenefitsFallbackById[benefitsOverlayItem.id] ?? '').trim() : '';
   const overlayBenefitsUrduMode = !!(benefitsOverlayItem && urduById[benefitsOverlayItem.id]);
@@ -1170,6 +1182,20 @@ const styles = StyleSheet.create({
   },
   itemChevronWrap: { alignSelf: 'center', marginRight: -2, opacity: 0.78, transform: [{ translateX: 0 }] },
   itemChevronWrapPressed: { transform: [{ translateX: 3 }] },
+  headerBenefitsBtn: {
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    backgroundColor: ADHKAR_BENEFITS_GOLD_SOFT,
+    borderRadius: Radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginRight: 4,
+  },
+  headerBenefitsBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: ADHKAR_BENEFITS_GOLD,
+  },
 
   // Badge
   badge: {

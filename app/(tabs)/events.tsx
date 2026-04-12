@@ -54,6 +54,7 @@ export default function EventsScreen() {
   const insets = useSafeAreaInsets();
   const { nightMode } = useNightMode();
   const [activeTab, setActiveTab] = useState<Tab>('events');
+  const [refreshing, setRefreshing] = useState(false);
 
   // ── Announcements state ─────────────────────────────────────────────
   const [announcements, setAnnouncements] = useState<AnnouncementRow[]>([]);
@@ -73,6 +74,15 @@ export default function EventsScreen() {
       setLoadingAnn(false);
     }
   }, [lastFetched]);
+
+  const onPullRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadAnnouncements(true);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadAnnouncements]);
 
   // Initial load
   useEffect(() => {
@@ -108,6 +118,9 @@ export default function EventsScreen() {
           <View style={{ flex: 1 }}>
             <Text style={[styles.headerMasjidName, N && { color: '#4FE948' }]}>Jami&apos; Masjid Noorani</Text>
             <Text style={[styles.headerTitle, N && { color: N.text }]}>Events & Announcements</Text>
+            <Text style={[styles.headerSub, N && { color: N.textMuted }]}>
+              Updated {lastFetched ? new Date(lastFetched).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+            </Text>
           </View>
         </View>
       </View>
@@ -141,13 +154,11 @@ export default function EventsScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.content, N && { backgroundColor: N.bg }]}
         refreshControl={
-          activeTab === 'announcements' ? (
-            <RefreshControl
-              refreshing={loadingAnn}
-              onRefresh={() => loadAnnouncements(true)}
-              tintColor={N ? N.primary : Colors.primary}
-            />
-          ) : undefined
+          <RefreshControl
+            refreshing={refreshing || loadingAnn}
+            onRefresh={onPullRefresh}
+            tintColor={N ? N.primary : Colors.primary}
+          />
         }
       >
         {activeTab === 'events' ? (
@@ -304,6 +315,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   headerTitle: { ...Typography.titleLarge, color: Colors.textPrimary },
+  headerSub: { ...Typography.bodySmall, color: Colors.textSubtle, marginTop: 1 },
   tabRow: {
     flexDirection: 'row',
     backgroundColor: Colors.surface,

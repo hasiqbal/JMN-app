@@ -1,8 +1,9 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
   ScrollView,
+  RefreshControl,
   StyleSheet,
   TouchableOpacity,
   ImageBackground,
@@ -74,9 +75,21 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
   const N = nightMode ? NIGHT : null;
   const [expandedGuide, setExpandedGuide] = useState<string | null>(null);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(() => new Date());
   const scrollRef = useRef<ScrollView>(null);
   const sectionYRefs = useRef<Record<string, number>>({});
   const guideYRefs = useRef<Record<string, number>>({});
+
+  const onPullRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      // Static guide content for now; keep gesture for consistency across tabs.
+      setLastUpdated(new Date());
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   const handleSectionToggle = (secKey: string) => {
     const opening = expandedSection !== secKey;
@@ -109,6 +122,13 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
       ref={scrollRef}
       showsVerticalScrollIndicator={false}
       contentContainerStyle={[howToStyles.container, N && { backgroundColor: N.bg }]}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onPullRefresh}
+          tintColor={N ? N.primary : Colors.primary}
+        />
+      }
     >
       {/* Header band */}
       <View style={[howToStyles.headerBand, N && { backgroundColor: N.surface, borderColor: N.border }]}>
@@ -116,6 +136,7 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
         <View style={{ flex: 1 }}>
           <Text style={[howToStyles.headerTitle, N && { color: N.text }]}>Step-by-Step Prayer Guides</Text>
           <Text style={[howToStyles.headerSub, N && { color: N.textSub }]}>Hanafi School · Jami' Masjid Noorani</Text>
+          <Text style={[howToStyles.headerSub, N && { color: N.textMuted }]}>Updated {lastUpdated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</Text>
         </View>
       </View>
 

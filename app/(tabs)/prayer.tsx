@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  RefreshControl,
   useWindowDimensions,
   Animated,
 } from 'react-native';
@@ -97,7 +98,6 @@ const NIGHT = {
   jumuahBord: '#3D2F00',
 };
 
-const PRAYER_HEADER_GREEN = '#3FAE5A';
 const PRAYER_HEADER_GREEN_DARK = '#2F8E47';
 
 function useCurrentTime() {
@@ -118,6 +118,8 @@ export default function PrayerScreen() {
   const { view: viewParam } = useLocalSearchParams<{ view?: string }>();
   const [viewMode, setViewMode] = useState<'today' | 'month'>(viewParam === 'month' ? 'month' : 'today');
   const [monthViewSeed, setMonthViewSeed] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(() => new Date());
 
   const openMonthlyView = React.useCallback(() => {
     setMonthViewSeed((s) => s + 1);
@@ -172,7 +174,10 @@ export default function PrayerScreen() {
     setLoading(true);
     try {
       const result = await getPrayerTimesForDate();
-      if (result) setData(result);
+      if (result) {
+        setData(result);
+        setLastUpdated(new Date());
+      }
     } catch {}
     setLoading(false);
   }, []);
@@ -198,6 +203,15 @@ export default function PrayerScreen() {
 
   // show a subtle source indicator
   const sourceLabel = loading ? 'Syncing with database…' : 'Live · Jami\u2019 Masjid Noorani, Halifax · 2026';
+
+  const onPullRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadTimes();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadTimes]);
 
   const hasPassed = useCallback((prayer: PrayerTime): boolean => {
     return prayer.timeDate <= now;
@@ -287,6 +301,9 @@ export default function PrayerScreen() {
         <View style={[styles.header, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}>
           <View style={styles.headerRowCompact}>
             <Text style={[styles.headerMasjidCompact, N && { color: N.text }]}>Jami&apos; Masjid Noorani</Text>
+            <Text style={{ fontSize: 10, color: N ? N.textMuted : Colors.textSubtle }}>
+              Updated {lastUpdated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+            </Text>
           </View>
 
           <TouchableOpacity
@@ -326,7 +343,16 @@ export default function PrayerScreen() {
         />
       ) : null}
 
-      {viewMode === 'today' ? <ScrollView showsVerticalScrollIndicator={false}>
+      {viewMode === 'today' ? <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onPullRefresh}
+            tintColor={N ? '#69A8FF' : PRAYER_HEADER_GREEN_DARK}
+          />
+        }
+      >
         {/* Prayer Hero Card */}
         <PrayerHeroCard
           visible={!!(forbiddenInfo || nextPrayerName || alertMode)}

@@ -1,8 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   ScrollView,
+  RefreshControl,
   StyleSheet,
   TouchableOpacity,
   Linking,
@@ -325,6 +326,8 @@ export default function StreamScreen() {
   const [playingSurah, setPlayingSurah]   = useState<number | null>(null);
   const [notifyEnabled, setNotifyEnabled] = useState(true);
   const [isLive, setIsLive]               = useState(false);
+  const [refreshing, setRefreshing]       = useState(false);
+  const [lastUpdated, setLastUpdated]     = useState(() => new Date());
   const livePulse                         = useRef(new Animated.Value(0.3)).current;
   const soundRef        = useRef<AudioPlayer | null>(null);
   const playingRef      = useRef(false);
@@ -343,7 +346,10 @@ export default function StreamScreen() {
     let cancelled = false;
     const poll = async () => {
       const live = await fetchLiveStatus();
-      if (!cancelled) setIsLive(live);
+      if (!cancelled) {
+        setIsLive(live);
+        setLastUpdated(new Date());
+      }
     };
     poll();
     const id = setInterval(poll, LIVE_POLL_MS);
@@ -372,6 +378,17 @@ export default function StreamScreen() {
   const setPlaying = (v: boolean) => { playingRef.current = v;  setAudioPlaying(v); };
   const setLoading = (v: boolean) => { loadingRef.current = v;  setAudioLoading(v); };
   const setActiveId = (v: string) => { activeIdRef.current = v; setActiveRadioId(v); };
+
+  const onPullRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const live = await fetchLiveStatus();
+      setIsLive(live);
+      setLastUpdated(new Date());
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   const N: NightPalette = nightMode ? NIGHT : null;
   useEffect(() => {
@@ -491,6 +508,9 @@ export default function StreamScreen() {
             <Text style={[styles.headerMasjidName, N && { color: '#4FE948' }]}>Jami' Masjid Noorani</Text>
             <Text style={[styles.headerTitle, N && { color: N.text }]}>Live Stream</Text>
             <Text style={[styles.headerSub, N && { color: N.textSub }]}>Halifax, UK</Text>
+            <Text style={[styles.headerSub, N && { color: N.textMuted }]}>
+              Updated {lastUpdated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+            </Text>
           </View>
         </View>
       </View>
@@ -526,6 +546,13 @@ export default function StreamScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.content, N && { backgroundColor: N.bg }]}
         keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onPullRefresh}
+            tintColor={N ? N.primary : Colors.primary}
+          />
+        }
       >
         {/* ── VIDEO TAB ──────────────────────────────── */}
         {activeStream === 'video' ? (

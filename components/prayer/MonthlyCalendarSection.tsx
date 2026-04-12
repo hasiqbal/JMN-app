@@ -523,6 +523,7 @@ export default function MonthlyCalendarSection({
   const [pickerYear, setPickerYear] = useState(today.getFullYear());
   const [pickerMonth, setPickerMonth] = useState(today.getMonth());
   const stripRef = useRef<ScrollView>(null);
+  const lastAutoCenteredMonthKeyRef = useRef<string | null>(null);
   const N = nightMode ? nightPalette : null;
 
   const [selectedDay, setSelectedDay] = useState<MonthDay | null>(null);
@@ -652,6 +653,7 @@ export default function MonthlyCalendarSection({
       setSelectedDay(null);
       setDbRows(new Map());
       setHijriRows(new Map());
+      lastAutoCenteredMonthKeyRef.current = null;
       return undefined;
     }, [])
   );
@@ -693,8 +695,19 @@ export default function MonthlyCalendarSection({
     setSelectedDay(todayCell ?? firstCurrent);
   }, [dbRows, currentGrid, selectedDay]);
 
+  // When picker opens, clear the centering guard so that closing it will always
+  // trigger exactly one auto-center on today.
+  useEffect(() => {
+    if (showMonthPicker) {
+      lastAutoCenteredMonthKeyRef.current = null;
+    }
+  }, [showMonthPicker]);
+
   useEffect(() => {
     if (showMonthPicker || stripDays.length === 0) return;
+
+    const monthKey = `${viewYear}-${viewMonth}`;
+    if (lastAutoCenteredMonthKeyRef.current === monthKey) return;
 
     const todayIndex = stripDays.findIndex((d) => d.isToday);
     if (todayIndex < 0) return;
@@ -707,10 +720,11 @@ export default function MonthlyCalendarSection({
 
     const timer = setTimeout(() => {
       stripRef.current?.scrollTo({ x: targetX, y: 0, animated: true });
+      lastAutoCenteredMonthKeyRef.current = monthKey;
     }, 60);
 
     return () => clearTimeout(timer);
-  }, [showMonthPicker, stripDays, screenWidth]);
+  }, [showMonthPicker, stripDays, screenWidth, viewYear, viewMonth]);
 
   const goBack = () => {
     if (viewMonth === 0) {

@@ -3,6 +3,7 @@ import {
   View,
   Text,
   ScrollView,
+  RefreshControl,
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
@@ -2113,20 +2114,28 @@ const toggleStyles = StyleSheet.create({
 export default function HomeScreen() {
   // DB-driven sunnah reminders
   const [dbSunnahs, setDbSunnahs] = useState<SunnahReminderRow[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(() => new Date());
+
+  const loadSunnahReminders = useCallback(async () => {
+    try {
+      const rows = await fetchSunnahReminders();
+      if (rows.length > 0) setDbSunnahs(rows);
+    } catch {}
+  }, []);
 
   useEffect(() => {
-    fetchSunnahReminders().then(rows => {
-      if (rows.length > 0) setDbSunnahs(rows);
-    }).catch(() => {});
+    loadSunnahReminders();
 
     // Yaseen images are bundled as local assets — no preload needed
-  }, []);
+  }, [loadSunnahReminders]);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { nightMode, toggleManual } = useNightMode();
   const {
     data, loading, countdown, nextPrayerName, nextPrayerIqamah,
     forbiddenInfo, jumuahInfo, jumuahCountdown,
+    refresh: refreshPrayerTimes,
   } = usePrayerTimes();
   const [notifCount] = useState(2);
 
@@ -2221,11 +2230,34 @@ export default function HomeScreen() {
   const dtPrimary   = N ? N.accent : Colors.primary;
   const dtBorder    = N ? N.borderStrong : Colors.border;
 
+  const onPullRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([refreshPrayerTimes(), loadSunnahReminders()]);
+      setLastUpdated(new Date());
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshPrayerTimes, loadSunnahReminders]);
+
+  useEffect(() => {
+    if (!loading && data) {
+      setLastUpdated(new Date());
+    }
+  }, [loading, data]);
+
   return (
     <ScrollView
       style={[styles.container, N && { backgroundColor: N.bg }]}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onPullRefresh}
+          tintColor={N ? N.accent : Colors.primary}
+        />
+      }
     >
       {nightMode ? (
         <LinearGradient
@@ -2258,6 +2290,9 @@ export default function HomeScreen() {
             <View style={styles.topNavText}>
               <Text style={styles.topNavName}>Jami' Masjid Noorani</Text>
               <Text style={styles.topNavCity}>Halifax, UK</Text>
+              <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.78)', marginTop: 1 }}>
+                Updated {lastUpdated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+              </Text>
             </View>
           </View>
           <View style={styles.navRight}>

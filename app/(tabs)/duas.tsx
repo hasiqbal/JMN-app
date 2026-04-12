@@ -4,6 +4,7 @@ import {
   View,
   Text,
   ScrollView,
+  RefreshControl,
   StyleSheet,
   TouchableOpacity,
   Pressable,
@@ -390,6 +391,9 @@ export default function DuasScreen() {
     currentIndex: number;
     completed: Set<number>;
   } | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [lastUpdated, setLastUpdated] = useState(() => new Date());
 
   const debugLog = (...parts: any[]) => {
     if (__DEV__) {
@@ -421,6 +425,17 @@ export default function DuasScreen() {
     setSurahFlowContext(null);
     setSurahReturnState(null);
   };
+
+  const onPullRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      resetToMain();
+      setRefreshKey((k) => k + 1);
+      setLastUpdated(new Date());
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   const openSpecialSelection = (selection: AdhkarSelection) => {
     setSurahReturnState({
@@ -487,27 +502,41 @@ export default function DuasScreen() {
   const N = nightMode ? NIGHT : null;
 
   const renderPrayerTimePicker = () => (
-    <View style={{ flex: 1 }}>
-      <PrayerTimeChipBar
-        selected={selectedPrayerTime}
-        onSelect={(t) => {
-          setAutoPrayerSyncEnabled(false);
-          setSelectedPrayerTime(t);
-          setFajrSelection(null);
-          setViewingGroup(null);
-        }}
-        nightMode={nightMode}
-      />
-      <PrayerTimeContent
-        prayerTime={selectedPrayerTime}
-        nightMode={nightMode}
-        onSelectSpecial={(selection) => {
-          debugLog('onSelectSpecial', { selection, selectedPrayerTime });
-          openSpecialSelection(selection);
-        }}
-        onSelectGroup={openGroupOrSpecial}
-      />
-    </View>
+    <ScrollView
+      key={`duas-root-${refreshKey}`}
+      style={{ flex: 1 }}
+      contentContainerStyle={{ flexGrow: 1 }}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onPullRefresh}
+          tintColor={N ? N.accent : Colors.primary}
+        />
+      }
+    >
+      <View style={{ flex: 1 }}>
+        <PrayerTimeChipBar
+          selected={selectedPrayerTime}
+          onSelect={(t) => {
+            setAutoPrayerSyncEnabled(false);
+            setSelectedPrayerTime(t);
+            setFajrSelection(null);
+            setViewingGroup(null);
+          }}
+          nightMode={nightMode}
+        />
+        <PrayerTimeContent
+          prayerTime={selectedPrayerTime}
+          nightMode={nightMode}
+          onSelectSpecial={(selection) => {
+            debugLog('onSelectSpecial', { selection, selectedPrayerTime });
+            openSpecialSelection(selection);
+          }}
+          onSelectGroup={openGroupOrSpecial}
+        />
+      </View>
+    </ScrollView>
   );
 
   const handleOpenSpecialGroupFromFlow = (
@@ -665,6 +694,9 @@ export default function DuasScreen() {
             <View>
               <Text style={styles.heroMasjidName}>JMN</Text>
               <Text style={styles.heroTitle}>Quran & Duas</Text>
+              <Text style={{ fontSize: 10, color: '#5E6D63', marginTop: 1 }}>
+                Updated {lastUpdated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+              </Text>
             </View>
           </View>
         </View>
