@@ -1,4 +1,4 @@
-import type { PrayerTime } from '@/services/prayerService';
+import { formatCountdownHMS, type PrayerTime } from '@/services/prayerService';
 
 const JAMAAT_ONGOING_MS = 7 * 60 * 1000;
 
@@ -62,9 +62,7 @@ export function buildActivePrayerState(prayers: PrayerTime[] | undefined, now: D
     ? Math.max(0, Math.floor((jamaatDate.getTime() - now.getTime()) / 1000))
     : 0;
 
-  const jmm = Math.floor(secondsToJamaat / 60);
-  const jss = secondsToJamaat % 60;
-  const jamaatCountdown = `${String(jmm).padStart(2, '0')}:${String(jss).padStart(2, '0')}`;
+  const jamaatCountdown = formatCountdownHMS(secondsToJamaat);
   const hasJamaat = jamaatDate !== null;
 
   return {

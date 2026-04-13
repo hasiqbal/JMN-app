@@ -8,6 +8,8 @@ export const PRAYER_ICONS: Record<string, string> = {
   Maghrib: 'nights-stay',
   Isha: 'nightlight-round',
   Jumuah: 'star',
+  Eid: 'celebration',
+  EidAdha: 'celebration',
 };
 
 export const PRAYER_GRADIENTS: Record<string, readonly [string, string, ...string[]]> = {
@@ -20,6 +22,8 @@ export const PRAYER_GRADIENTS: Record<string, readonly [string, string, ...strin
   Maghrib: ['rgba(80,10,120,0.80)', 'rgba(180,20,80,0.74)'],
   Isha: ['rgba(8,14,50,0.85)', 'rgba(20,30,100,0.80)'],
   Jumuah: ['rgba(100,60,0,0.82)', 'rgba(160,100,0,0.78)'],
+  Eid: ['rgba(184,134,11,0.85)', 'rgba(218,165,32,0.80)'],
+  EidAdha: ['rgba(184,134,11,0.85)', 'rgba(218,165,32,0.80)'],
 };
 
 export const PRAYER_BG_IMAGES: Record<string, any> = {
@@ -32,4 +36,6 @@ export const PRAYER_BG_IMAGES: Record<string, any> = {
   Maghrib: require('@/assets/images/sky/maghrib.jpg'),
   Isha: require('@/assets/images/sky/isha.jpg'),
   Jumuah: require('@/assets/images/sky/nabwi.jpg'),
+  Eid: require('@/assets/images/sky/nabwi.jpg'),
+  EidAdha: require('@/assets/images/sky/arafat.jpeg'),
 };

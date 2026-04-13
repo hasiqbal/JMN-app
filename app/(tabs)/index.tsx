@@ -24,8 +24,9 @@ import { usePrayerTimes } from '@/hooks/usePrayerTimes';
 import { useNightMode } from '@/hooks/useNightMode';
 import { MOCK_ANNOUNCEMENTS } from '@/services/eventsService';
 import { fetchSunnahReminders, SunnahReminderRow } from '@/services/contentService';
+import { fetchEidUlAdha } from '@/services/eidService';
 import PrayerHeroCard from '@/components/prayer/PrayerHeroCard';
-import { PRAYER_BG_IMAGES, PRAYER_ICONS } from '@/components/prayer/heroConfig';
+import { PRAYER_BG_IMAGES, PRAYER_GRADIENTS, PRAYER_ICONS } from '@/components/prayer/heroConfig';
 import { buildHeroState } from '@/components/prayer/heroState';
 import { buildActivePrayerState } from '@/components/prayer/activePrayerState';
 
@@ -133,6 +134,41 @@ function buildHijriLabel(hijri: string): string {
   return hijri;
 }
 
+function buildEidJamaatNote(jamaatTimes: string[]): string {
+  return jamaatTimes.map((time, index) => `J${index + 1}: ${time}`).join(' · ');
+}
+
+function toOrdinal(value: number): string {
+  const mod10 = value % 10;
+  const mod100 = value % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${value}st`;
+  if (mod10 === 2 && mod100 !== 12) return `${value}nd`;
+  if (mod10 === 3 && mod100 !== 13) return `${value}rd`;
+  return `${value}th`;
+}
+
+function normalizeMonthKey(value: string): string {
+  return value.toLowerCase().replace(/[^a-z]/g, '');
+}
+
+function getHijriMonthFromAnyFormat(hijri: string): string {
+  const arabicMonth = getHijriMonthEnglish(hijri);
+  if (arabicMonth) return arabicMonth;
+
+  const match = hijri.replace(/\bAH\b/gi, '').trim().match(/^\d{1,2}\s+(.+?)\s+\d{4}$/);
+  return match?.[1]?.trim() ?? '';
+}
+
+function isDhulHijjahMonth(hijriMonth: string): boolean {
+  const normalized = normalizeMonthKey(hijriMonth);
+  return (
+    normalized === 'dhulhijjah'
+    || normalized === 'zulhijjah'
+    || normalized === 'dhualhijjah'
+    || normalized === 'dhilhijjah'
+  );
+}
+
 // ── Hadith of the Day ────────────────────────────────────────────────────
 const HADITHS = [
   { text: "The best of you are those who learn the Quran and teach it.", ref: "Sahih al-Bukhari 5027" },
@@ -193,7 +229,6 @@ const SUNNAH_REMINDERS = [
 
 const todayHadith  = HADITHS[DAY_OF_YEAR % HADITHS.length];
 const todayVerse   = QURAN_VERSES[DAY_OF_YEAR % QURAN_VERSES.length];
-const todaySunnah  = SUNNAH_REMINDERS[DAY_OF_YEAR % SUNNAH_REMINDERS.length];
 
 const TICKER_MESSAGES = [
   '🕌  Jumuah Khutbah every Friday at 1:15 PM (BST) / 12:30 PM (GMT)',
@@ -277,7 +312,7 @@ type PrayerCardFace = 'prayer' | 'donate';
 const PRAYER_CARD_FACES: PrayerCardFace[] = ['prayer', 'donate'];
 const PRAYER_CARD_DURATION = 6000;
 
-function SmallFlippingPrayerCard({
+export function SmallFlippingPrayerCard({
   nightMode, nextPrayerName, nextPrayerTime, nextPrayerIqamah, countdown, loading,
   prayers, currentTime,
 }: {
@@ -287,7 +322,7 @@ function SmallFlippingPrayerCard({
   nextPrayerIqamah: string;
   countdown: string;
   loading: boolean;
-  prayers: Array<{ name: string; time: string; timeDate: Date; iqamah: string }>;
+  prayers: { name: string; time: string; timeDate: Date; iqamah: string }[];
   currentTime: Date;
 }) {
   const router = useRouter();
@@ -329,9 +364,7 @@ function SmallFlippingPrayerCard({
   const secondsToJamaat = jamaatDate && !jamaatStarted
     ? Math.max(0, Math.floor((jamaatDate.getTime() - currentTime.getTime()) / 1000))
     : 0;
-  const mmJ = Math.floor(secondsToJamaat / 60);
-  const ssJ = secondsToJamaat % 60;
-  const jamaatCountdown = `${String(mmJ).padStart(2, '0')}:${String(ssJ).padStart(2, '0')}`;
+  const jamaatCountdown = formatCountdownSeconds(secondsToJamaat);
   const hasJamaat = jamaatDate !== null;
 
   // ── Flash loop when jamaat starts ──────────────────────────────────────
@@ -351,7 +384,7 @@ function SmallFlippingPrayerCard({
       flashAnim.setValue(1);
     }
     return () => { flashLoopRef.current?.stop(); };
-  }, [jamaatStarted, jamaatFlashOver]);
+  }, [jamaatStarted, jamaatFlashOver, flashAnim]);
 
   // ── Normal flip (paused during alert mode) ──────────────────────────────
   const flipTo = useCallback((nextIndex: number) => {
@@ -371,8 +404,6 @@ function SmallFlippingPrayerCard({
   }, [flipTo, alertMode]);
 
   const rotateY = rotateAnim.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-90deg', '0deg', '90deg'] });
-  const N = nightMode;
-
   const prayerGrad: readonly [string, string] = PRAYER_CARD_GRADIENTS[nextPrayerName] ?? ['#0A3D88', '#155FBE'];
   const donateGrad: readonly [string, string] = ['#0B3B2C', '#165A40'];
   const alertGrad: readonly [string, string]  = PRAYER_CARD_GRADIENTS[activePrayer?.name ?? ''] ?? ['#0A3D88', '#155FBE'];
@@ -558,7 +589,7 @@ const smallAlertStyles = StyleSheet.create({
 
 type SunnahEntry = { act: string; detail: string; ref: string; icon: string };
 
-function FlippingLogoCard({ nightMode, sunnah }: {
+export function FlippingLogoCard({ nightMode, sunnah }: {
   nightMode: boolean;
   sunnah: SunnahEntry;
 }) {
@@ -667,15 +698,15 @@ function RollingBanner({ nightMode }: { nightMode: boolean }) {
   const translateX = useRef(new Animated.Value(SCREEN_WIDTH)).current;
   const [msgIndex, setMsgIndex] = useState(0);
 
-  const runTicker = (index: number) => {
+  const runTicker = useCallback(function tick(index: number) {
     translateX.setValue(SCREEN_WIDTH);
     Animated.timing(translateX, { toValue: -SCREEN_WIDTH * 1.8, duration: 9000, useNativeDriver: true })
       .start(({ finished }) => {
-        if (finished) { const next = (index + 1) % TICKER_MESSAGES.length; setMsgIndex(next); runTicker(next); }
+        if (finished) { const next = (index + 1) % TICKER_MESSAGES.length; setMsgIndex(next); tick(next); }
       });
-  };
+  }, [translateX]);
 
-  useEffect(() => { runTicker(0); return () => translateX.stopAnimation(); }, []);
+  useEffect(() => { runTicker(0); return () => translateX.stopAnimation(); }, [runTicker, translateX]);
 
   const bgLabel = nightMode ? '#0D3A5C' : Colors.accent;
   const bgWrap  = nightMode ? '#0A2540' : Colors.accent;
@@ -877,7 +908,7 @@ const AYAH_PORTIONS = [
 ];
 
 // ── 1-Page Daily Portions (Level 2) ─────────────────────────────────────
-const PAGE_PORTIONS = Array.from({ length: 60 }, (_, i) => {
+export const PAGE_PORTIONS = Array.from({ length: 60 }, (_, i) => {
   const page = (i * 10 + 1);
   return { page, ref: `Page ${page}`, surahs: `Mushaf page ${page}` };
 });
@@ -889,7 +920,7 @@ const DUROOD_LEVELS = [
   { level: 4, target: 1000, label: 'L4',  color: '#B8860B', bg: '#FFF8E1' },
 ];
 
-const DAILY_QURAN_REMINDERS = [
+export const DAILY_QURAN_REMINDERS = [
   { sub: 'Recite Surah Al-Kahf today — light shines between the two Fridays.' },
   { sub: '"The best of you are those who learn the Quran and teach it." — Bukhari 5027' },
   { sub: 'Read one page of Quran — even a small amount done consistently is beloved to Allah.' },
@@ -902,7 +933,7 @@ const DAILY_QURAN_REMINDERS = [
 const PENDING_OPEN_KEY = 'quran_pending_open_v1';
 
 // ── Juz → first Surah of that Juz (chapter ID) ─────────────────────────
-const JUZ_FIRST_SURAH: Record<number, number> = {
+export const JUZ_FIRST_SURAH: Record<number, number> = {
   1: 1, 2: 2, 3: 2, 4: 3, 5: 4, 6: 4, 7: 5, 8: 6, 9: 7, 10: 8,
   11: 9, 12: 11, 13: 12, 14: 15, 15: 17, 16: 18, 17: 21, 18: 23,
   19: 25, 20: 27, 21: 29, 22: 33, 23: 36, 24: 39, 25: 41,
@@ -1264,7 +1295,7 @@ function IstighfarCounterCard({
       </View>
 
       <Text style={{ fontSize: 9, fontWeight: '500', color: N ? N.textMuted : Colors.textSubtle, textAlign: 'center', lineHeight: 13 }}>
-        "Whoever says Astaghfirullah 100x\nhas all sins forgiven" — Bukhari 6307
+        {'Whoever says Astaghfirullah 100x\nhas all sins forgiven'} - Bukhari 6307
       </Text>
 
       {/* Mark done */}
@@ -1358,7 +1389,6 @@ function DuroodCounterCard({
   const [count, setCount] = useState(0);
   const [levelIdx, setLevelIdx] = useState(0);
   const [loaded, setLoaded] = useState(false);
-  const [flash, setFlash] = useState(false);
   const flashAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -1378,12 +1408,11 @@ function DuroodCounterCard({
   const done = count >= currentLevel.target;
 
   const triggerFlash = () => {
-    setFlash(true);
     flashAnim.setValue(0);
     Animated.sequence([
       Animated.timing(flashAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
       Animated.timing(flashAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
-    ]).start(() => setFlash(false));
+    ]).start();
   };
 
   const tap = () => {
@@ -1503,7 +1532,7 @@ function NextAdhkarCountdownCard({
   nightMode, prayers, currentTime, onOpen,
 }: {
   nightMode: boolean;
-  prayers: Array<{ name: string; timeDate: Date }>;
+  prayers: { name: string; timeDate: Date }[];
   currentTime: Date;
   onOpen: (prayerTab: string) => void;
 }) {
@@ -1520,7 +1549,7 @@ function NextAdhkarCountdownCard({
   const PRAYER_ORDER = ['Tahajjud', 'Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
 
   // Augmented list with Tahajjud virtual entry
-  const augmented: Array<{ name: string; timeDate: Date }> = [
+  const augmented: { name: string; timeDate: Date }[] = [
     ...(tahajjudTime ? [{ name: 'Tahajjud', timeDate: tahajjudTime }] : []),
     ...prayers,
   ];
@@ -1552,12 +1581,7 @@ function NextAdhkarCountdownCard({
 
   const secondsLeft = Math.max(0, Math.floor((nextPrayer.timeDate.getTime() - currentTime.getTime()) / 1000));
   const isAvailable = secondsLeft === 0;
-  const hh = Math.floor(secondsLeft / 3600);
-  const mm = Math.floor((secondsLeft % 3600) / 60);
-  const ss = secondsLeft % 60;
-  const countdown = hh > 0
-    ? `${hh}h ${String(mm).padStart(2, '0')}m`
-    : `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+  const countdown = formatCountdownSeconds(secondsLeft);
 
   // Format prayer time for the alert message
   const prayerTimeStr = nextPrayer.timeDate.toLocaleTimeString('en-GB', {
@@ -1854,7 +1878,7 @@ function ForYouTickerRow({
 function ForYouTodaySection({
   prayers, nightMode, currentTime, hijriDay, todaySunnah,
 }: {
-  prayers: Array<{ name: string; timeDate: Date }>;
+  prayers: { name: string; timeDate: Date }[];
   nightMode: boolean;
   currentTime: Date;
   hijriDay: number;
@@ -1878,7 +1902,7 @@ function ForYouTodaySection({
   useEffect(() => {
     AsyncStorage.getItem(storageKey).then(val => {
       if (val) {
-        try { setDismissed(new Set(JSON.parse(val))); } catch (_) {}
+        try { setDismissed(new Set(JSON.parse(val))); } catch {}
       }
       setLoaded(true);
     }).catch(() => setLoaded(true));
@@ -2133,7 +2157,7 @@ function useCurrentTime() {
 }
 
 // ── Night Mode Toggle Button ──────────────────────────────────────────────
-function NightModeToggle({ nightMode, onToggle }: { nightMode: boolean; onToggle: () => void }) {
+export function NightModeToggle({ nightMode, onToggle }: { nightMode: boolean; onToggle: () => void }) {
   return (
     <TouchableOpacity
       onPress={onToggle}
@@ -2184,6 +2208,7 @@ const toggleStyles = StyleSheet.create({
 export default function HomeScreen() {
   // DB-driven sunnah reminders
   const [dbSunnahs, setDbSunnahs] = useState<SunnahReminderRow[]>([]);
+  const [eidUlAdhaJamaats, setEidUlAdhaJamaats] = useState<string[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(() => new Date());
 
@@ -2199,12 +2224,38 @@ export default function HomeScreen() {
 
     // Yaseen images are bundled as local assets — no preload needed
   }, [loadSunnahReminders]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadEidUlAdha = async () => {
+      try {
+        const eidData = await fetchEidUlAdha();
+        const times = (eidData?.jamaats ?? [])
+          .map((entry) => entry.time)
+          .filter((time): time is string => !!time);
+
+        if (mounted && times.length > 0) {
+          setEidUlAdhaJamaats(times);
+        }
+      } catch (err) {
+        console.error('Error fetching Eid ul Adha times:', err);
+      }
+    };
+
+    loadEidUlAdha();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { nightMode } = useNightMode();
   const {
     data, loading, countdown, nextPrayerName,
-    forbiddenInfo, jumuahInfo, jumuahCountdown,
+    forbiddenInfo,
     refresh: refreshPrayerTimes,
   } = usePrayerTimes();
   const flashAnim = useRef(new Animated.Value(1)).current;
@@ -2218,8 +2269,8 @@ export default function HomeScreen() {
   const stars = useRef(
     Array.from({ length: 68 }, (_, i) => ({
       id: i,
-      left: `${Math.random() * 100}%`,
-      top: `${Math.random() * 55}%`,
+      leftPct: Math.random() * 100,
+      topPct: Math.random() * 55,
       size: 0.8 + Math.random() * 2.4,
       opacity: 0.45 + Math.random() * 0.55,
       tint: Math.random() > 0.83 ? 'rgba(255,238,210,0.96)' : Math.random() > 0.55 ? 'rgba(225,236,255,0.95)' : 'rgba(255,255,255,0.95)',
@@ -2258,7 +2309,7 @@ export default function HomeScreen() {
   ).current;
 
   const currentTime = useCurrentTime();
-  const nextInfo = React.useMemo(() => (data ? getNextPrayer(data.prayers) : null), [data, currentTime]);
+  const nextInfo = React.useMemo(() => (data ? getNextPrayer(data.prayers) : null), [data]);
 
   const {
     activePrayer,
@@ -2554,9 +2605,10 @@ export default function HomeScreen() {
   const heroAmbientGradient = getHeroOverlayGradient(currentTime.getHours(), nightMode);
   const dayName  = currentTime.toLocaleDateString('en-GB', { weekday: 'long' });
   const dateShort= currentTime.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-  const hijriMonthEn = data ? getHijriMonthEnglish(data.hijriDate) : '';
   const hijriDayNum  = data ? getHijriDayNumber(data.hijriDate) : '';
-  const hijriYear    = data ? getHijriYear(data.hijriDate) : '';
+  const rawHijriDayNum = data ? Number.parseInt(getHijriDayNumber(data.hijriDate) || '0', 10) : 0;
+  const rawHijriMonthName = data ? getHijriMonthFromAnyFormat(data.hijriDate) : '';
+  const isDhulHijjahNow = isDhulHijjahMonth(rawHijriMonthName);
   const maghribEntry = data?.prayers.find(p => p.name === 'Maghrib');
   const isPastMaghrib = maghribEntry ? currentTime >= maghribEntry.timeDate : false;
   const hijriSource = (() => {
@@ -2622,6 +2674,136 @@ export default function HomeScreen() {
   ]);
   const sunriseTimeDate = data?.prayers.find(p => p.name === 'Sunrise')?.timeDate;
   const maghribTimeDate = data?.prayers.find(p => p.name === 'Maghrib')?.timeDate;
+  const isEidEveInfoWindow = !!(
+    isDhulHijjahNow
+    && rawHijriDayNum === 9
+    && maghribTimeDate
+    && currentTime >= maghribTimeDate
+  );
+  const isEidDayToZawaalWindow = !!(
+    isDhulHijjahNow
+    && rawHijriDayNum === 10
+    && zawaalPrayer?.timeDate
+    && currentTime < zawaalPrayer.timeDate
+  );
+  const shouldShowEidUlAdhaInfoLine = isEidEveInfoWindow || isEidDayToZawaalWindow;
+
+  const resolvedEidUlAdhaJamaats = React.useMemo(
+    () => (eidUlAdhaJamaats.length > 0 ? eidUlAdhaJamaats : ['06:30']),
+    [eidUlAdhaJamaats]
+  );
+  const eidUlAdhaInfoLine = buildEidJamaatNote(resolvedEidUlAdhaJamaats);
+  const isEidUlAdhaHeroWindow = !!(
+    isDhulHijjahNow
+    && rawHijriDayNum === 10
+    && sunriseTimeDate
+    && currentTime >= sunriseTimeDate
+    && zawaalPrayer?.timeDate
+    && currentTime < zawaalPrayer.timeDate
+  );
+
+  const eidUlAdhaHeroData = React.useMemo(() => {
+    if (!isEidUlAdhaHeroWindow || !sunriseTimeDate || !zawaalPrayer?.timeDate) return null;
+
+    const parseClockToday = (clock: string): Date | null => {
+      const [h, m] = clock.split(':').map(Number);
+      if (Number.isNaN(h) || Number.isNaN(m)) return null;
+      const d = new Date(currentTime);
+      d.setHours(h, m, 0, 0);
+      return d;
+    };
+
+    const jamaatDates = resolvedEidUlAdhaJamaats
+      .map((time) => ({ time, date: parseClockToday(time) }))
+      .filter((entry): entry is { time: string; date: Date } => !!entry.date)
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+    const timelinePoints = [
+      ...jamaatDates.map((entry, index) => ({
+        label: `J${index + 1}`,
+        position: jamaatDates.length === 1 ? 0.2 : 0.12 + ((0.56 / Math.max(1, jamaatDates.length - 1)) * index),
+      })),
+      { label: 'Zawaal', position: 1 },
+    ];
+
+    const firstJamaat = jamaatDates[0]?.date ?? null;
+    const lastJamaat = jamaatDates[jamaatDates.length - 1]?.date ?? null;
+
+    let label = 'Until Zawaal';
+    let value = countdown;
+    let startLabel = 'Sunrise';
+    let startTime = data?.prayers.find((p) => p.name === 'Sunrise')?.time ?? '--:--';
+    let endLabel = 'Zawaal';
+    let endTime = zawaalPrayer.time ?? '--:--';
+    let progressStart = sunriseTimeDate;
+    let progressEnd = zawaalPrayer.timeDate;
+    let isAfterFinalEidJamaat = false;
+
+    if (firstJamaat && currentTime < firstJamaat) {
+      label = `${toOrdinal(1)} Jamaat`;
+      value = formatCountdownSeconds(Math.max(0, Math.floor((firstJamaat.getTime() - currentTime.getTime()) / 1000)));
+      endLabel = `${toOrdinal(1)} Jamaat`;
+      endTime = jamaatDates[0].time;
+      progressEnd = firstJamaat;
+    } else {
+      let betweenIndex = -1;
+      for (let i = 0; i < jamaatDates.length - 1; i++) {
+        if (currentTime >= jamaatDates[i].date && currentTime < jamaatDates[i + 1].date) {
+          betweenIndex = i;
+          break;
+        }
+      }
+
+      if (betweenIndex >= 0) {
+        const currentJamaat = jamaatDates[betweenIndex];
+        const nextJamaat = jamaatDates[betweenIndex + 1];
+        label = `${toOrdinal(betweenIndex + 2)} Jamaat`;
+        value = formatCountdownSeconds(Math.max(0, Math.floor((nextJamaat.date.getTime() - currentTime.getTime()) / 1000)));
+        startLabel = `${toOrdinal(betweenIndex + 1)} Jamaat`;
+        startTime = currentJamaat.time;
+        endLabel = `${toOrdinal(betweenIndex + 2)} Jamaat`;
+        endTime = nextJamaat.time;
+        progressStart = currentJamaat.date;
+        progressEnd = nextJamaat.date;
+      } else if (lastJamaat && currentTime >= lastJamaat) {
+        label = 'Until Zawaal';
+        value = formatCountdownSeconds(Math.max(0, Math.floor((zawaalPrayer.timeDate.getTime() - currentTime.getTime()) / 1000)));
+        startLabel = `${toOrdinal(jamaatDates.length)} Jamaat`;
+        startTime = jamaatDates[jamaatDates.length - 1].time;
+        progressStart = lastJamaat;
+        isAfterFinalEidJamaat = true;
+      }
+    }
+
+    const total = Math.max(1, progressEnd.getTime() - progressStart.getTime());
+    const elapsed = Math.max(0, currentTime.getTime() - progressStart.getTime());
+    const progress = Math.max(0, Math.min(1, elapsed / total));
+
+    return {
+      countdownInfo: {
+        label,
+        value,
+        note: eidUlAdhaInfoLine,
+        flash: false,
+      },
+      progress,
+      startLabel,
+      startTime,
+      endLabel,
+      endTime,
+      timelinePoints,
+      isAfterFinalEidJamaat,
+    };
+  }, [
+    isEidUlAdhaHeroWindow,
+    sunriseTimeDate,
+    zawaalPrayer,
+    resolvedEidUlAdhaJamaats,
+    currentTime,
+    data,
+    countdown,
+    eidUlAdhaInfoLine,
+  ]);
+
   const isFriday = currentTime.getDay() === 5;
   const isThursday = currentTime.getDay() === 4;
 
@@ -2694,14 +2876,6 @@ export default function HomeScreen() {
   const jj1 = jumuahDisplayBST ? '1:30 PM' : '12:45 PM';
   const jj2 = jumuahDisplayBST ? '2:30 PM' : '1:30 PM';
 
-  const jumuahPhaseLabel = (() => {
-    if (!isFriday || !jumuahInfo) return null;
-    if (jumuahInfo.phase === 'before_khutbah') return { text: 'Khutbah in', time: jumuahCountdown };
-    if (jumuahInfo.phase === 'khutbah')  return { text: '2nd Jamaat in', time: formatCountdownSeconds(jumuahInfo.secondsToJamaat2) };
-    if (jumuahInfo.phase === 'between')  return { text: '2nd Jamaat in', time: formatCountdownSeconds(jumuahInfo.secondsToJamaat2) };
-    return null;
-  })();
-
   const parseMeridianToday = (clock12: string): Date => {
     const m = clock12.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
     const d = new Date(currentTime);
@@ -2718,16 +2892,24 @@ export default function HomeScreen() {
     return d;
   };
 
+  const effectiveForbiddenInfo = isEidUlAdhaHeroWindow ? null : forbiddenInfo;
+
   const isFridayPostZawaal = !!(
     isFriday
-    && !forbiddenInfo
+    && !effectiveForbiddenInfo
     && zawaalPrayer?.timeDate
     && asrPrayer?.timeDate
     && currentTime >= zawaalPrayer.timeDate
     && currentTime < asrPrayer.timeDate
   );
 
-  const isFridayZawaalHero = !!(isFriday && forbiddenInfo && heroPrayerName === 'Zawaal');
+  const isNonJumuahEidZawaalHero = !!(
+    isEidUlAdhaHeroWindow
+    && !isFriday
+    && eidUlAdhaHeroData?.isAfterFinalEidJamaat
+  );
+
+  const isFridayZawaalHero = !!(isFriday && effectiveForbiddenInfo && heroPrayerName === 'Zawaal');
 
   const firstJummahAthanTime = dhuhrPrayer?.time ?? heroEndTime;
   const fridayJumuahScheduleNote = `1st Jummah: ${jj1} · 2nd Jummah: ${jj2}`;
@@ -2739,27 +2921,44 @@ export default function HomeScreen() {
     return false;
   })();
 
-  const effectiveHeroImageKey = isFridayPostZawaal ? 'Jumuah' : heroImageKey;
-  const effectiveHeroPrayerName = isFridayPostZawaal ? 'Jumuah' : heroPrayerName;
-  const effectiveHeroStartLabel = isFridayPostZawaal ? 'First Athan' : heroStartLabel;
-  const effectiveHeroStartTime = isFridayPostZawaal
+  const effectiveHeroImageKey = isNonJumuahEidZawaalHero
+    ? 'Zawaal'
+    : isEidUlAdhaHeroWindow
+    ? 'EidAdha'
+    : (isFridayPostZawaal ? 'Jumuah' : heroImageKey);
+  const effectiveHeroPrayerName = isNonJumuahEidZawaalHero
+    ? 'Zawaal'
+    : isEidUlAdhaHeroWindow
+    ? 'Eid Prayer'
+    : (isFridayPostZawaal ? 'Jumuah' : heroPrayerName);
+  const effectiveHeroStartLabel = isEidUlAdhaHeroWindow
+    ? (eidUlAdhaHeroData?.startLabel ?? 'Sunrise')
+    : (isFridayPostZawaal ? 'First Athan' : heroStartLabel);
+  const effectiveHeroStartTime = isEidUlAdhaHeroWindow
+    ? (eidUlAdhaHeroData?.startTime ?? '--:--')
+    : isFridayPostZawaal
     ? (dhuhrPrayer?.time ?? heroStartTime)
     : heroStartTime;
-  const effectiveHeroEndLabel = isFridayPostZawaal
+  const effectiveHeroEndLabel = isEidUlAdhaHeroWindow
+    ? (eidUlAdhaHeroData?.endLabel ?? 'Zawaal')
+    : isFridayPostZawaal
     ? 'Asr'
     : (isFridayZawaalHero ? '1st Jummah Athaan' : heroEndLabel);
-  const effectiveHeroEndTime = isFridayPostZawaal
+  const effectiveHeroEndTime = isEidUlAdhaHeroWindow
+    ? (eidUlAdhaHeroData?.endTime ?? '--:--')
+    : isFridayPostZawaal
     ? (asrPrayer?.time ?? heroEndTime)
     : (isFridayZawaalHero ? firstJummahAthanTime : heroEndTime);
-  const effectiveHeroMidLabel = isFridayPostZawaal ? '' : heroMidLabel;
-  const effectiveHeroMidTime = isFridayPostZawaal ? '' : heroMidTime;
+  const effectiveHeroMidLabel = (isFridayPostZawaal || isEidUlAdhaHeroWindow) ? '' : heroMidLabel;
+  const effectiveHeroMidTime = (isFridayPostZawaal || isEidUlAdhaHeroWindow) ? '' : heroMidTime;
   const currentPrayerIqamah = activePrayer?.iqamah && activePrayer.iqamah !== '-' ? activePrayer.iqamah : null;
   const asrIqamah = asrPrayer?.iqamah && asrPrayer.iqamah !== '-' ? asrPrayer.iqamah : null;
   const endEntrySupportsJamaat = ['Next Prayer', 'Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha', 'Jumuah'].includes(effectiveHeroEndLabel);
   const effectiveHeroJamaatValue = (() => {
+    if (isEidUlAdhaHeroWindow) return '';
     if (isFridayPostZawaal) return '';
+    if (currentPrayerIqamah) return currentPrayerIqamah;
     if (endEntrySupportsJamaat && nextIqamah) return nextIqamah;
-    if (alertMode && hasJamaat && currentPrayerIqamah) return currentPrayerIqamah;
     return '';
   })();
   const effectiveHeroShowJamaat = !!effectiveHeroJamaatValue;
@@ -2771,7 +2970,23 @@ export default function HomeScreen() {
     ? (asrIqamah ?? '')
     : (nextIqamah ?? '');
 
+  const isEidUlAdhaHero = isEidUlAdhaHeroWindow;
+
   const effectiveHeroCountdownInfo = (() => {
+    if (isEidUlAdhaHeroWindow && eidUlAdhaHeroData) {
+      const noteParts: string[] = [];
+      if (eidUlAdhaHeroData.isAfterFinalEidJamaat) {
+        noteParts.push('The final eid prayer has been');
+      }
+      if (shouldShowEidUlAdhaInfoLine) noteParts.push(eidUlAdhaInfoLine);
+      if (isFriday) noteParts.push(fridayJumuahScheduleNote);
+
+      return {
+        ...eidUlAdhaHeroData.countdownInfo,
+        note: noteParts.join(' · '),
+      };
+    }
+
     if (isFridayPostZawaal) {
       const j1Date = parseMeridianToday(jj1);
       const j2Date = parseMeridianToday(jj2);
@@ -2803,25 +3018,49 @@ export default function HomeScreen() {
       }
     }
 
+    let resolvedInfo = heroCountdownInfo;
+
     if (shouldShowFridayJumuahNote) {
-      const prefix = heroCountdownInfo.note ? `${heroCountdownInfo.note} · ` : '';
-      return {
-        ...heroCountdownInfo,
+      const prefix = resolvedInfo.note ? `${resolvedInfo.note} · ` : '';
+      resolvedInfo = {
+        ...resolvedInfo,
         note: `${prefix}${fridayJumuahScheduleNote}`,
       };
     }
 
-    return heroCountdownInfo;
+    if (shouldShowEidUlAdhaInfoLine) {
+      const prefix = resolvedInfo.note ? `${resolvedInfo.note} · ` : '';
+      resolvedInfo = {
+        ...resolvedInfo,
+        note: `${prefix}${eidUlAdhaInfoLine}`,
+      };
+    }
+
+    return resolvedInfo;
   })();
 
-  const effectiveHeroImageOpacity = getHeroImageOpacity(currentTime.getHours(), effectiveHeroPrayerName, !!forbiddenInfo);
+  const effectiveHeroProgress = isEidUlAdhaHeroWindow
+    ? (eidUlAdhaHeroData?.progress ?? heroProgress)
+    : heroProgress;
+  const effectiveHeroTimelinePoints = isEidUlAdhaHeroWindow
+    ? (eidUlAdhaHeroData?.timelinePoints ?? [])
+    : undefined;
+  const effectiveHeroAthanMarker = isEidUlAdhaHeroWindow ? 0 : heroAthanMarker;
+  const effectiveHeroJamaatMarker = isEidUlAdhaHeroWindow ? null : heroJamaatMarker;
+  const effectiveHeroEndMarker = isEidUlAdhaHeroWindow ? null : heroEndMarker;
+  const effectiveHeroMidMarker = isEidUlAdhaHeroWindow ? null : heroMidMarker;
+  const effectiveHeroKicker = isNonJumuahEidZawaalHero
+    ? 'Prayer Pause Window'
+    : isEidUlAdhaHeroWindow
+    ? 'Eid ul Adha'
+    : (effectiveForbiddenInfo ? 'Prayer Pause Window' : (activePrayer ? 'Current Prayer' : 'Up Next Prayer'));
+  const effectiveHeroGradientColors = isNonJumuahEidZawaalHero
+    ? PRAYER_GRADIENTS.Zawaal
+    : isEidUlAdhaHeroWindow
+    ? PRAYER_GRADIENTS.EidAdha
+    : heroGradientColors;
 
-  // Date/time card styles
-  const dtCardBg    = N ? N.surface : '#FFFFFF';
-  const dtTextPrim  = N ? N.text : Colors.textPrimary;
-  const dtTextSub   = N ? N.textSub : Colors.textSubtle;
-  const dtPrimary   = N ? N.accent : Colors.primary;
-  const dtBorder    = N ? N.borderStrong : Colors.border;
+  const effectiveHeroImageOpacity = getHeroImageOpacity(currentTime.getHours(), effectiveHeroPrayerName, !!forbiddenInfo);
 
   const onPullRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -3033,8 +3272,8 @@ export default function HomeScreen() {
                 key={star.id}
                 style={{
                   position: 'absolute',
-                  left: star.left,
-                  top: star.top,
+                  left: `${star.leftPct}%` as `${number}%`,
+                  top: `${star.topPct}%` as `${number}%`,
                   width: star.size,
                   height: star.size,
                   borderRadius: star.size,
@@ -3085,33 +3324,36 @@ export default function HomeScreen() {
         {/* Unified Hero Entity: time/date + prayer as one card */}
         <View style={styles.heroUnifiedEntity}>
           <PrayerHeroCard
-            visible={!!(forbiddenInfo || nextPrayerName || alertMode)}
+            visible={!!(effectiveForbiddenInfo || nextPrayerName || alertMode || isEidUlAdhaHeroWindow)}
             backgroundSource={PRAYER_BG_IMAGES[effectiveHeroImageKey] ?? PRAYER_BG_IMAGES['Dhuhr']}
-            gradientColors={heroGradientColors}
+            gradientColors={effectiveHeroGradientColors}
             ambientColors={heroAmbientGradient}
             backgroundImageOpacity={effectiveHeroImageOpacity}
             heroWide={SCREEN_WIDTH >= 700}
-            kicker={forbiddenInfo ? 'Prayer Pause Window' : (activePrayer ? 'Current Prayer' : 'Up Next Prayer')}
+            kicker={effectiveHeroKicker}
             title={effectiveHeroPrayerName}
-            isForbidden={!!forbiddenInfo}
-            forbiddenEndsAt={forbiddenInfo?.endsAt ?? '--:--'}
+            isForbidden={!!effectiveForbiddenInfo || isNonJumuahEidZawaalHero}
+            forbiddenEndsAt={effectiveForbiddenInfo?.endsAt ?? (isNonJumuahEidZawaalHero ? (zawaalPrayer?.time ?? '--:--') : '--:--')}
             isFridayJumuahHero={isFridayPostZawaal}
+            isEidHero={isEidUlAdhaHero}
             athanValue={activePrayer?.time ?? nextInfo?.prayer.time ?? nextPrayerTime}
-            j1={isFriday ? jj1 : ''}
-            j2={isFriday ? jj2 : ''}
+            j1={isEidUlAdhaHero ? '' : (isFriday ? jj1 : '')}
+            j2={isEidUlAdhaHero ? '' : (isFriday ? jj2 : '')}
+            eidJamaats={isEidUlAdhaHero ? resolvedEidUlAdhaJamaats : []}
             showJamaat={effectiveHeroShowJamaat}
             jamaatValue={effectiveHeroJamaatValue}
             countdownInfo={effectiveHeroCountdownInfo}
             flashAnim={flashAnim}
-            progress={heroProgress}
-            athanMarker={heroAthanMarker}
-            jamaatMarker={heroJamaatMarker}
-            endMarker={heroEndMarker}
-            midMarker={heroMidMarker}
+            progress={effectiveHeroProgress}
+            athanMarker={effectiveHeroAthanMarker}
+            jamaatMarker={effectiveHeroJamaatMarker}
+            endMarker={effectiveHeroEndMarker}
+            midMarker={effectiveHeroMidMarker}
             startLabel={effectiveHeroStartLabel}
             startTime={effectiveHeroStartTime}
             endLabel={effectiveHeroEndLabel}
             endTime={effectiveHeroEndTime}
+            timelinePoints={effectiveHeroTimelinePoints}
             midLabel={effectiveHeroMidLabel}
             midTime={effectiveHeroMidTime}
             hasNext={!!nextInfo}
@@ -3136,17 +3378,17 @@ export default function HomeScreen() {
       <RollingBanner nightMode={nightMode} />
 
       {/* ── Forbidden Time Banner ─────────────────── */}
-      {forbiddenInfo ? (
+      {effectiveForbiddenInfo ? (
         <View style={styles.forbiddenBanner}>
           <MaterialIcons name="do-not-disturb" size={24} color="#fff" />
           <View style={{ flex: 1 }}>
-            <Text style={styles.forbiddenTitle}>{forbiddenInfo.label}</Text>
-            <Text style={styles.forbiddenReason}>{forbiddenInfo.reason}</Text>
+            <Text style={styles.forbiddenTitle}>{effectiveForbiddenInfo.label}</Text>
+            <Text style={styles.forbiddenReason}>{effectiveForbiddenInfo.reason}</Text>
           </View>
           <View style={styles.forbiddenRight}>
             <Text style={styles.forbiddenUntilLabel}>Resumes at</Text>
-            <Text style={styles.forbiddenUntilTime}>{forbiddenInfo.endsAt}</Text>
-            <Text style={styles.forbiddenTimer}>{formatCountdownSeconds(forbiddenInfo.secondsLeft)}</Text>
+            <Text style={styles.forbiddenUntilTime}>{effectiveForbiddenInfo.endsAt}</Text>
+            <Text style={styles.forbiddenTimer}>{formatCountdownSeconds(effectiveForbiddenInfo.secondsLeft)}</Text>
           </View>
         </View>
       ) : null}
@@ -3292,7 +3534,7 @@ const styles = StyleSheet.create({
   heroUnifiedEntity: {
     marginHorizontal: Spacing.md,
     marginTop: 6,
-    marginBottom: Spacing.sm,
+    marginBottom: 0,
     borderRadius: Radius.lg,
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1,
@@ -3301,7 +3543,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.26,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 12 },
-    overflow: 'hidden',
+    overflow: 'visible',
   },
   navBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   notifBadge: {
@@ -3334,6 +3576,12 @@ const styles = StyleSheet.create({
   logoBrandArea: {
     paddingHorizontal: Spacing.md,
     paddingBottom: Spacing.xs,
+  },
+  logoCard: {
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden',
   },
   infoRow: { flexDirection: 'row', gap: Spacing.sm, width: '100%', alignItems: 'stretch' },
   squareCard: {

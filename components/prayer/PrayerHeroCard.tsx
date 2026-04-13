@@ -4,18 +4,32 @@ import {
   Text,
   Animated,
   Image,
+  ScrollView,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Spacing, Radius } from '@/constants/theme';
+
+const EID_FIREWORK_BURSTS = [
+  { top: '16%', left: '14%', color: '#D4B344', delay: 0 },
+  { top: '22%', left: '72%', color: '#7FCFC8', delay: 0.2 },
+  { top: '42%', left: '58%', color: '#E0C870', delay: 0.4 },
+  { top: '54%', left: '24%', color: '#88C888', delay: 0.58 },
+] as const;
+const FIREWORK_ANGLES = [0, 45, 90, 135, 180, 225, 270, 315] as const;
 
 export type HeroCountdownInfo = {
   label: string;
   value: string;
   note: string;
   flash: boolean;
+};
+
+type TimelinePoint = {
+  label: string;
+  position: number;
 };
 
 type Props = {
@@ -31,9 +45,11 @@ type Props = {
   isForbidden: boolean;
   forbiddenEndsAt: string;
   isFridayJumuahHero: boolean;
+  isEidHero?: boolean;
   athanValue: string;
   j1: string;
   j2: string;
+  eidJamaats?: string[];
   showJamaat: boolean;
   jamaatValue: string;
   countdownInfo: HeroCountdownInfo;
@@ -49,6 +65,9 @@ type Props = {
   endTime: string;
   midLabel: string;
   midTime: string;
+  timelinePoints?: TimelinePoint[];
+  eidTomorrowJamaats?: string[];
+  eidTomorrowLabel?: string;
   hasNext: boolean;
   nextPrayerName: string;
   nextPrayerTime: string;
@@ -74,19 +93,13 @@ function formatCountdownFriendly(val: string): string {
   if (parts.some(Number.isNaN)) return val;
   if (parts.length === 3) {
     const [h, m, s] = parts;
-    if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
-    if (m > 0) return `${m}m`;
-    return `${s}s`;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   }
   if (parts.length === 2) {
     const [m, s] = parts;
-    if (m >= 60) {
-      const h2 = Math.floor(m / 60);
-      const m2 = m % 60;
-      return m2 > 0 ? `${h2}h ${m2}m` : `${h2}h`;
-    }
-    if (m > 0) return `${m}m`;
-    return `${s}s`;
+    const h = Math.floor(m / 60);
+    const mm = m % 60;
+    return `${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   }
   return val;
 }
@@ -105,6 +118,71 @@ function parseCountdownSeconds(val: string): number | null {
   return null;
 }
 
+type ParsedScheduleBanner = {
+  eid: string[];
+  jumuah: string[];
+};
+
+function parseScheduleBanner(note: string): ParsedScheduleBanner | null {
+  const text = (note || '').trim();
+  if (!text) return null;
+
+  const lower = text.toLowerCase();
+  const hasEid = lower.includes('eid prayers:');
+  const hasJumuah = lower.includes('jummah times:') || lower.includes('jumuah times:');
+  if (!hasEid && !hasJumuah) return null;
+
+  const splitByDots = text
+    .split('·')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const eid: string[] = [];
+  const jumuah: string[] = [];
+  let mode: 'eid' | 'jumuah' | null = null;
+
+  for (const chunk of splitByDots) {
+    const normalized = chunk.replace(/^\s+|\s+$/g, '');
+    const lowerChunk = normalized.toLowerCase();
+
+    if (lowerChunk.startsWith('eid prayers:')) {
+      mode = 'eid';
+      const first = normalized.replace(/eid prayers:\s*/i, '').trim();
+      if (first) eid.push(first);
+      continue;
+    }
+
+    if (lowerChunk.startsWith('jummah times:') || lowerChunk.startsWith('jumuah times:')) {
+      mode = 'jumuah';
+      const first = normalized.replace(/jum+u?ah times:\s*/i, '').trim();
+      if (first) jumuah.push(first);
+      continue;
+    }
+
+    if (mode === 'eid') {
+      eid.push(normalized);
+    } else if (mode === 'jumuah') {
+      jumuah.push(normalized);
+    }
+  }
+
+  if (eid.length === 0 && jumuah.length === 0) return null;
+  return { eid, jumuah };
+}
+
+function toCompactDayName(dayName: string): string {
+  const trimmed = dayName.trim();
+  return trimmed.length <= 3 ? trimmed : trimmed.slice(0, 3);
+}
+
+function toShortDate(dateShort: string): string {
+  return dateShort.replace(/\s+\d{4}\b/, '').trim();
+}
+
+function toTitleCase(label: string): string {
+  return label.replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
 export default function PrayerHeroCard({
   visible,
   embedded = false,
@@ -118,9 +196,11 @@ export default function PrayerHeroCard({
   isForbidden,
   forbiddenEndsAt,
   isFridayJumuahHero,
+  isEidHero,
   athanValue,
   j1,
   j2,
+  eidJamaats,
   showJamaat,
   jamaatValue,
   countdownInfo,
@@ -136,6 +216,9 @@ export default function PrayerHeroCard({
   endTime,
   midLabel,
   midTime,
+  timelinePoints,
+  eidTomorrowJamaats,
+  eidTomorrowLabel,
   hasNext,
   nextPrayerName,
   nextPrayerTime,
@@ -152,6 +235,7 @@ export default function PrayerHeroCard({
   const [barWidth, setBarWidth] = useState(0);
   const progressAnim = useRef(new Animated.Value(progress)).current;
   const pulseAnim = useRef(new Animated.Value(0)).current;
+  const fireworksAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.timing(progressAnim, {
@@ -171,6 +255,20 @@ export default function PrayerHeroCard({
     loop.start();
     return () => loop.stop();
   }, [pulseAnim]);
+
+  useEffect(() => {
+    if (!isEidHero) return;
+
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(fireworksAnim, { toValue: 1, duration: 1800, useNativeDriver: true }),
+        Animated.timing(fireworksAnim, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ])
+    );
+
+    loop.start();
+    return () => loop.stop();
+  }, [fireworksAnim, isEidHero]);
 
   const fillWidth = useMemo(
     () =>
@@ -242,243 +340,424 @@ export default function PrayerHeroCard({
     ? (nextPrayerTime || endTime || '--:--')
     : (endTime || nextPrayerTime || '--:--');
   const showNextPrayerJamaat = !!nextPrayerJamaatValue && nextPrayerJamaatValue !== '--:--';
+  const resolvedEidJamaats = (eidJamaats ?? []).filter(Boolean);
+  const countdownLabel = countdownInfo.label.trim();
+  const countdownTarget = countdownLabel.replace(/^until\s+/i, '').trim();
+  const parsedScheduleBanner = parseScheduleBanner(countdownInfo.note);
+  const resolvedTimelinePoints = (timelinePoints ?? []).map((point) => ({
+    ...point,
+    position: Math.max(0, Math.min(1, point.position)),
+  }));
+  const cutThroughTimeline = embedded;
+  const compactDayName = toCompactDayName(dayName);
+  const compactDateShort = toShortDate(dateShort);
+  const unifiedDateText = loadingHijri || !hijriLabel
+    ? `${compactDayName} ${compactDateShort}`
+    : `${compactDayName} ${compactDateShort} · ${hijriLabel}`;
+  const timelineStartLabel = startLabel.trim().toLowerCase() === 'start' ? 'Athan' : startLabel;
+  const statusText = (() => {
+    if (isForbidden) return `${title} until ${forbiddenEndsAt}`;
+    if (countdownInfo.flash) return `${title} Jamaat started`;
+    if (isUntilJamaat) return `${title} Jamaat in ${countdownFriendly}`;
+    if ((isEidHero || isFridayJumuahHero) && countdownLabel) {
+      if (/^until\s+/i.test(countdownLabel) && countdownTarget) {
+        return `${title} until ${toTitleCase(countdownTarget)} in ${countdownFriendly}`;
+      }
+      return `${title} ${toTitleCase(countdownLabel)} in ${countdownFriendly}`;
+    }
+    if (isCurrentPrayer) return `${title} ends in ${countdownFriendly}`;
+    return `${title} in ${countdownFriendly}`;
+  })();
 
   const effectiveColors: readonly [string, string, string] = embedded
     ? [ambientColors?.[0] ?? 'rgba(0,0,0,0)', ambientColors?.[1] ?? 'rgba(2,10,26,0.22)', 'rgba(2,10,26,0.74)']
     : (gradientColors as any);
   const effectiveEnd = embedded ? { x: 0, y: 1 } : { x: 1, y: 1 };
 
+  const timesStripContent = isFridayJumuahHero ? (
+    <>
+      <View style={styles.timesStripCol}>
+        <Text numberOfLines={1} style={styles.timesStripLabel}>First Athan</Text>
+        <Text numberOfLines={1} style={styles.timesStripTime}>{startTime || athanValue}</Text>
+      </View>
+      <View style={styles.timesStripDivider} />
+      <View style={styles.timesStripCol}>
+        <Text numberOfLines={1} style={styles.timesStripLabel}>1st Jamaat</Text>
+        <Text numberOfLines={1} style={styles.timesStripTime}>{j1 || '--:--'}</Text>
+      </View>
+      <View style={styles.timesStripDivider} />
+      <View style={styles.timesStripCol}>
+        <Text numberOfLines={1} style={styles.timesStripLabel}>2nd Jamaat</Text>
+        <Text numberOfLines={1} style={styles.timesStripTime}>{j2 || '--:--'}</Text>
+      </View>
+      <View style={styles.timesStripDivider} />
+      <View style={styles.timesStripCol}>
+        <Text numberOfLines={1} style={styles.timesStripLabel}>{rightColumnLabel}</Text>
+        <Text numberOfLines={1} style={styles.timesStripTime}>{rightColumnTime}</Text>
+        {showNextPrayerJamaat ? (
+          <Text numberOfLines={1} style={styles.timesStripMeta}>Jamaat {nextPrayerJamaatValue}</Text>
+        ) : null}
+      </View>
+    </>
+  ) : isEidHero ? (
+    <View style={styles.eidStripColWide}>
+      <Text style={styles.eidStripHeading}>Eid Prayer · Today</Text>
+      <View style={styles.eidJamaatGrid}>
+        {resolvedEidJamaats.map((time, index) => (
+          <View key={`${time}-${index}`} style={styles.eidJamaatPill}>
+            <Text numberOfLines={1} style={styles.eidJamaatPillLabel}>{`Jamaat ${index + 1}`}</Text>
+            <Text numberOfLines={1} style={styles.eidJamaatPillTime}>{time}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  ) : (
+    <>
+      <View style={styles.timesStripCol}>
+        <Text numberOfLines={1} style={styles.timesStripLabel}>{timelineStartLabel}</Text>
+        <Text numberOfLines={1} style={styles.timesStripTime}>{startTime || athanValue}</Text>
+      </View>
+      {showMiddleStrip ? <View style={styles.timesStripDivider} /> : null}
+      {showMiddleStrip ? (
+        <View style={styles.timesStripCol}>
+          <Text numberOfLines={1} style={styles.timesStripLabel}>{stripMiddleLabel || 'Jamaat'}</Text>
+          <Text numberOfLines={1} style={styles.timesStripTime}>{stripMiddleTime || '--:--'}</Text>
+        </View>
+      ) : null}
+      <View style={styles.timesStripDivider} />
+      <View style={styles.timesStripCol}>
+        <Text numberOfLines={1} style={styles.timesStripLabel}>{rightColumnLabel}</Text>
+        <Text numberOfLines={1} style={styles.timesStripTime}>{rightColumnTime}</Text>
+        {showNextPrayerJamaat ? (
+          <Text numberOfLines={1} style={styles.timesStripMeta}>Jamaat {nextPrayerJamaatValue}</Text>
+        ) : null}
+      </View>
+    </>
+  );
+
+  const timelineTrack = (
+    <>
+      {!cutThroughTimeline && resolvedTimelinePoints.length > 0 ? (
+        <View style={cutThroughTimeline ? styles.pointLabelsLayerCutThrough : styles.pointLabelsLayer}>
+          {resolvedTimelinePoints.map((point, index) => {
+            const labelStyle = point.position <= 0.02
+              ? styles.pointLabelStart
+              : point.position >= 0.98
+                ? styles.pointLabelEnd
+                : null;
+
+            return (
+              <View
+                key={`${point.label}-label-${index}`}
+                style={[
+                  styles.pointLabelCol,
+                  labelStyle,
+                  !labelStyle ? { left: `${Math.round(point.position * 100)}%` as any } : null,
+                ]}
+              >
+                <Text numberOfLines={1} style={styles.pointLabelName}>{point.label}</Text>
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
+
+      <View style={cutThroughTimeline ? styles.cutThroughTrackBleed : null}>
+        <View
+          style={[
+            styles.barTrack,
+            cutThroughTimeline && styles.barTrackCutThrough,
+            urgencyLevel === 'orange' && styles.barTrackWarning,
+            urgencyLevel === 'red' && styles.barTrackCritical,
+          ]}
+          onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}
+        >
+          {barWidth > 0 && (
+            <Animated.View style={[styles.barFillWrap, { width: fillWidth, shadowColor: trackerAccent }]}> 
+              <LinearGradient
+                colors={trackerGradientColors}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={[styles.barFillGradient, { width: barWidth }]}
+              />
+            </Animated.View>
+          )}
+
+          {athanMarker !== null && (
+            <View
+              style={[
+                styles.barAthanMark,
+                { left: `${Math.round(athanMarker * 100)}%` as any },
+              ]}
+            />
+          )}
+
+          {jamaatVisualMarker !== null && (
+            <View
+              style={[
+                styles.barJamaatMark,
+                { left: `${Math.round(jamaatVisualMarker * 100)}%` as any },
+              ]}
+            />
+          )}
+
+          {midVisualMarker !== null && (
+            <View
+              style={[
+                styles.barMidMark,
+                { left: `${Math.round(midVisualMarker * 100)}%` as any },
+              ]}
+            />
+          )}
+
+          {jamaatVisualMarker !== null && (
+            <View
+              style={[
+                styles.barJamaatDot,
+                { left: `${Math.round(jamaatVisualMarker * 100)}%` as any },
+              ]}
+            />
+          )}
+
+          {barWidth > 0 && (
+            <Animated.View style={[styles.dotPositioner, { left: dotLeft }]}> 
+              <Animated.View
+                style={[
+                  styles.barPulseRing,
+                  { transform: [{ scale: pulseScale }], opacity: pulseOpacity, borderColor: trackerPulse },
+                ]}
+              />
+              <View style={[styles.barDot, { borderColor: trackerAccent, shadowColor: trackerAccent }]} />
+            </Animated.View>
+          )}
+
+          <View style={styles.barStartDot} />
+          {endMarker !== null && (
+            <View
+              style={[
+                styles.barEndMark,
+                { left: `${Math.round(endMarker * 100)}%` as any },
+              ]}
+            />
+          )}
+
+          {resolvedTimelinePoints.map((point, index) => (
+            <View
+              key={`${point.label}-${index}`}
+              style={[
+                styles.barTimelinePoint,
+                { left: `${Math.round(point.position * 100)}%` as any },
+              ]}
+            />
+          ))}
+        </View>
+      </View>
+    </>
+  );
+
   return (
     <View style={[styles.wrap, embedded && styles.wrapEmbedded]}>
-      <Image
-        source={backgroundSource}
-        style={[
-          styles.bgImage,
-          embedded && styles.bgImageEmbedded,
-          embedded && styles.bgImageAmbient,
-          embedded && isZawaalHero && styles.bgImageZawaalFocus,
-          embedded && isJumuahHero && styles.bgImageJumuahFocus,
-          embedded && { opacity: backgroundImageOpacity },
-        ]}
-        resizeMode="cover"
-      />
-      {embedded ? (
-        <LinearGradient
-          pointerEvents="none"
-          colors={[
-            ambientColors?.[0] ?? 'rgba(24,40,72,0.22)',
-            ambientColors?.[1] ?? 'rgba(7,18,42,0.14)',
-            'rgba(3,10,24,0.10)',
+      <View style={[styles.surfaceShell, embedded && styles.surfaceShellEmbedded]}>
+        <Image
+          source={backgroundSource}
+          style={[
+            styles.bgImage,
+            embedded && styles.bgImageEmbedded,
+            embedded && styles.bgImageAmbient,
+            embedded && isZawaalHero && styles.bgImageZawaalFocus,
+            embedded && isJumuahHero && styles.bgImageJumuahFocus,
+            embedded && { opacity: backgroundImageOpacity },
           ]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.ambientBleed}
+          resizeMode="cover"
         />
-      ) : null}
-      <LinearGradient
-        colors={effectiveColors}
-        start={{ x: 0, y: 0 }}
-        end={effectiveEnd}
-        style={[styles.inner, heroWide && styles.innerWide]}
-      >
+        {isEidHero ? (
+          <View pointerEvents="none" style={styles.fireworksLayer}>
+            {EID_FIREWORK_BURSTS.map((burst, burstIndex) => {
+              const burstOpacity = fireworksAnim.interpolate({
+                inputRange: [0, burst.delay, Math.min(1, burst.delay + 0.18), Math.min(1, burst.delay + 0.45), 1],
+                outputRange: [0, 0, 0.95, 0, 0],
+                extrapolate: 'clamp',
+              });
+              const burstScale = fireworksAnim.interpolate({
+                inputRange: [0, burst.delay, Math.min(1, burst.delay + 0.35), 1],
+                outputRange: [0.2, 0.2, 1.15, 1.15],
+                extrapolate: 'clamp',
+              });
+
+              return (
+                <Animated.View
+                  key={`${burst.left}-${burst.top}-${burstIndex}`}
+                  style={[
+                    styles.fireworkBurst,
+                    {
+                      top: burst.top,
+                      left: burst.left,
+                      opacity: burstOpacity,
+                      transform: [{ scale: burstScale }],
+                    },
+                  ]}
+                >
+                  <View style={[styles.fireworkCore, { backgroundColor: burst.color }]} />
+                  {FIREWORK_ANGLES.map((angle) => (
+                    <View
+                      key={`${burstIndex}-${angle}`}
+                      style={[
+                        styles.fireworkRay,
+                        {
+                          backgroundColor: burst.color,
+                          transform: [{ rotate: `${angle}deg` }, { translateY: -18 }],
+                        },
+                      ]}
+                    />
+                  ))}
+                </Animated.View>
+              );
+            })}
+          </View>
+        ) : null}
         {embedded ? (
           <LinearGradient
             pointerEvents="none"
-            colors={['rgba(255,255,255,0.10)', 'rgba(255,255,255,0.03)', 'rgba(255,255,255,0.00)']}
+            colors={[
+              ambientColors?.[0] ?? 'rgba(24,40,72,0.22)',
+              ambientColors?.[1] ?? 'rgba(7,18,42,0.14)',
+              'rgba(3,10,24,0.10)',
+            ]}
             start={{ x: 0, y: 0 }}
-            end={{ x: 0.9, y: 1 }}
-            style={styles.surfaceSheen}
+            end={{ x: 1, y: 1 }}
+            style={styles.ambientBleed}
           />
         ) : null}
-        {/* ── Clock ── */}
-        <View style={styles.clockRow}>
-          <Text style={styles.clockValue}>{localTime}</Text>
-          <Text style={styles.clockAmpm}>{ampm}</Text>
-        </View>
-
-        {/* ── Date ── */}
-        <TouchableOpacity
-          activeOpacity={onFullTimetable ? 0.7 : 1}
-          onPress={onFullTimetable}
-          style={styles.dateLine}
+        <LinearGradient
+          colors={effectiveColors}
+          start={{ x: 0, y: 0 }}
+          end={effectiveEnd}
+          style={[styles.inner, heroWide && styles.innerWide, cutThroughTimeline && styles.innerCutThrough]}
         >
-          <Text style={styles.dateText}>{dayName}{'  ·  '}{dateShort}</Text>
-        </TouchableOpacity>
+          {embedded ? (
+            <LinearGradient
+              pointerEvents="none"
+              colors={['rgba(255,255,255,0.10)', 'rgba(255,255,255,0.03)', 'rgba(255,255,255,0.00)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0.9, y: 1 }}
+              style={styles.surfaceSheen}
+            />
+          ) : null}
+          <View style={styles.textCluster}>
+            <BlurView
+              pointerEvents="none"
+              intensity={18}
+              tint="dark"
+              style={styles.textClusterBlur}
+            />
 
-        {/* ── Hijri ── */}
-        {loadingHijri ? (
-          <ActivityIndicator
-            color="rgba(255,255,255,0.4)"
-            size="small"
-            style={{ alignSelf: 'flex-start', marginTop: 1 }}
-          />
-        ) : hijriLabel ? (
-          <Text style={styles.hijriText}>{hijriLabel}</Text>
-        ) : null}
+            {/* ── Clock ── */}
+            <View style={styles.clockRow}>
+              <Text style={styles.clockValue}>{localTime}</Text>
+              <Text style={styles.clockAmpm}>{ampm}</Text>
+            </View>
 
-        {/* ── Prayer section ── */}
-        <View style={styles.prayerSection}>
+            {/* ── Date ── */}
+            <TouchableOpacity
+              activeOpacity={onFullTimetable ? 0.7 : 1}
+              onPress={onFullTimetable}
+              style={styles.dateLine}
+            >
+              <Text style={styles.dateText}>{unifiedDateText}</Text>
+            </TouchableOpacity>
+
+            {/* ── Prayer section ── */}
+            <View style={styles.prayerSection}>
           {isForbidden ? (
             <View style={styles.prayerNameRow}>
-              <Text style={styles.prayerName}>{title}</Text>
-              <Text style={[styles.prayerIn, styles.prayerInCritical]}>{'prayer forbidden until '}{forbiddenEndsAt}</Text>
+              <Text style={[styles.prayerIn, styles.prayerInCritical]}>{statusText}</Text>
             </View>
           ) : (
             <>
               <View style={styles.prayerNameRow}>
-                <Text style={styles.prayerName}>{title}</Text>
                 {countdownInfo.flash ? (
                   <Animated.Text style={[styles.prayerIn, styles.prayerInAlert, { opacity: flashAnim }]}>
-                    Jamaat has started
+                    {statusText}
                   </Animated.Text>
                 ) : (
                   <Text style={[styles.prayerIn, prayerInUrgencyStyle]}>
-                    {isCurrentPrayer
-                      ? (isUntilJamaat ? `Jamaat in ${countdownFriendly}` : `ends in ${countdownFriendly}`)
-                      : `in ${countdownFriendly}`}
+                    {statusText}
                   </Text>
                 )}
               </View>
             </>
           )}
 
-          {countdownInfo.note ? (
+          {(eidTomorrowJamaats?.length) ? (
+            <View style={styles.eidTomorrowBanner}>
+              <Text style={styles.eidTomorrowHeading}>{eidTomorrowLabel ?? 'Eid Prayer · Tomorrow'}</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.eidTomorrowPills}
+              >
+                {eidTomorrowJamaats.map((time, i) => (
+                  <View key={`tomorrow-${i}`} style={styles.eidTomorrowPill}>
+                    <Text style={styles.eidTomorrowPillLabel}>J{i + 1}</Text>
+                    <Text style={styles.eidTomorrowPillTime}>{time}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          ) : parsedScheduleBanner ? (
+            <View style={styles.scheduleBanner}>
+              {parsedScheduleBanner.eid.length > 0 ? (
+                <View style={styles.scheduleRow}>
+                  <Text style={styles.scheduleHeading}>Eid</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.schedulePills}
+                  >
+                    {parsedScheduleBanner.eid.map((item, index) => (
+                      <Text key={`eid-pill-${index}`} style={styles.schedulePillText}>{item}</Text>
+                    ))}
+                  </ScrollView>
+                </View>
+              ) : null}
+              {parsedScheduleBanner.jumuah.length > 0 ? (
+                <View style={styles.scheduleRow}>
+                  <Text style={styles.scheduleHeading}>Jummah</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.schedulePills}
+                  >
+                    {parsedScheduleBanner.jumuah.map((item, index) => (
+                      <Text key={`jumuah-pill-${index}`} style={styles.schedulePillText}>{item}</Text>
+                    ))}
+                  </ScrollView>
+                </View>
+              ) : null}
+            </View>
+          ) : countdownInfo.note ? (
             <Text style={styles.phaseNote}>{countdownInfo.note}</Text>
           ) : null}
-
-          {/* ── Animated timeline ── */}
-          <View style={styles.barArea}>
-            <View
-              style={[
-                styles.barTrack,
-                urgencyLevel === 'orange' && styles.barTrackWarning,
-                urgencyLevel === 'red' && styles.barTrackCritical,
-              ]}
-              onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}
-            >
-              {barWidth > 0 && (
-                <Animated.View style={[styles.barFillWrap, { width: fillWidth, shadowColor: trackerAccent }]}>
-                  <LinearGradient
-                    colors={trackerGradientColors}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={[styles.barFillGradient, { width: barWidth }]}
-                  />
-                </Animated.View>
-              )}
-
-              {athanMarker !== null && (
-                <View
-                  style={[
-                    styles.barAthanMark,
-                    { left: `${Math.round(athanMarker * 100)}%` as any },
-                  ]}
-                />
-              )}
-
-              {jamaatVisualMarker !== null && (
-                <View
-                  style={[
-                    styles.barJamaatMark,
-                    { left: `${Math.round(jamaatVisualMarker * 100)}%` as any },
-                  ]}
-                />
-              )}
-
-              {midVisualMarker !== null && (
-                <View
-                  style={[
-                    styles.barMidMark,
-                    { left: `${Math.round(midVisualMarker * 100)}%` as any },
-                  ]}
-                />
-              )}
-
-              {jamaatVisualMarker !== null && (
-                <View
-                  style={[
-                    styles.barJamaatDot,
-                    { left: `${Math.round(jamaatVisualMarker * 100)}%` as any },
-                  ]}
-                />
-              )}
-
-              {barWidth > 0 && (
-                <Animated.View style={[styles.dotPositioner, { left: dotLeft }]}>
-                  <Animated.View
-                    style={[
-                      styles.barPulseRing,
-                      { transform: [{ scale: pulseScale }], opacity: pulseOpacity, borderColor: trackerPulse },
-                    ]}
-                  />
-                  <View style={[styles.barDot, { borderColor: trackerAccent, shadowColor: trackerAccent }]} />
-                </Animated.View>
-              )}
-
-              <View style={styles.barStartDot} />
-              {endMarker !== null && (
-                <View
-                  style={[
-                    styles.barEndMark,
-                    { left: `${Math.round(endMarker * 100)}%` as any },
-                  ]}
-                />
-              )}
-            </View>
-
-            <View style={styles.timesStrip}>
-              {isFridayJumuahHero ? (
-                <>
-                  <View style={styles.timesStripCol}>
-                    <Text numberOfLines={1} style={styles.timesStripLabel}>First Athan</Text>
-                    <Text numberOfLines={1} style={styles.timesStripTime}>{startTime || athanValue}</Text>
-                  </View>
-                  <View style={styles.timesStripDivider} />
-                  <View style={styles.timesStripCol}>
-                    <Text numberOfLines={1} style={styles.timesStripLabel}>1st Jamaat</Text>
-                    <Text numberOfLines={1} style={styles.timesStripTime}>{j1 || '--:--'}</Text>
-                  </View>
-                  <View style={styles.timesStripDivider} />
-                  <View style={styles.timesStripCol}>
-                    <Text numberOfLines={1} style={styles.timesStripLabel}>2nd Jamaat</Text>
-                    <Text numberOfLines={1} style={styles.timesStripTime}>{j2 || '--:--'}</Text>
-                  </View>
-                  <View style={styles.timesStripDivider} />
-                  <View style={styles.timesStripCol}>
-                    <Text numberOfLines={1} style={styles.timesStripLabel}>{rightColumnLabel}</Text>
-                    <Text numberOfLines={1} style={styles.timesStripTime}>{rightColumnTime}</Text>
-                    {showNextPrayerJamaat ? (
-                      <Text numberOfLines={1} style={styles.timesStripMeta}>Jamaat {nextPrayerJamaatValue}</Text>
-                    ) : null}
-                  </View>
-                </>
-              ) : (
-                <>
-                  <View style={styles.timesStripCol}>
-                    <Text numberOfLines={1} style={styles.timesStripLabel}>{startLabel}</Text>
-                    <Text numberOfLines={1} style={styles.timesStripTime}>{startTime || athanValue}</Text>
-                  </View>
-                  {showMiddleStrip ? <View style={styles.timesStripDivider} /> : null}
-                  {showMiddleStrip ? (
-                    <View style={styles.timesStripCol}>
-                      <Text numberOfLines={1} style={styles.timesStripLabel}>{stripMiddleLabel || 'Jamaat'}</Text>
-                      <Text numberOfLines={1} style={styles.timesStripTime}>{stripMiddleTime || '--:--'}</Text>
-                    </View>
-                  ) : null}
-                  <View style={styles.timesStripDivider} />
-                  <View style={styles.timesStripCol}>
-                    <Text numberOfLines={1} style={styles.timesStripLabel}>{rightColumnLabel}</Text>
-                    <Text numberOfLines={1} style={styles.timesStripTime}>{rightColumnTime}</Text>
-                    {showNextPrayerJamaat ? (
-                      <Text numberOfLines={1} style={styles.timesStripMeta}>Jamaat {nextPrayerJamaatValue}</Text>
-                    ) : null}
-                  </View>
-                </>
-              )}
             </View>
           </View>
-        </View>
-      </LinearGradient>
+
+          {cutThroughTimeline ? (
+            <View style={styles.cutThroughContentArea}>
+              {timelineTrack}
+              <View style={[styles.timesStrip, styles.timesStripCutThrough]}>
+                {timesStripContent}
+              </View>
+            </View>
+          ) : (
+            <View style={styles.barArea}>
+              {timelineTrack}
+              <View style={styles.timesStrip}>
+                {timesStripContent}
+              </View>
+            </View>
+          )}
+        </LinearGradient>
+      </View>
     </View>
   );
 }
@@ -488,13 +767,20 @@ const styles = StyleSheet.create({
     marginHorizontal: Spacing.md,
     marginTop: 12,
     borderRadius: Radius.lg,
-    overflow: 'hidden',
+    overflow: 'visible',
   },
   wrapEmbedded: {
     marginHorizontal: 0,
     marginTop: 0,
-    borderRadius: 0,
+    borderRadius: Radius.lg,
+    overflow: 'visible',
+  },
+  surfaceShell: {
+    borderRadius: Radius.lg,
     overflow: 'hidden',
+  },
+  surfaceShellEmbedded: {
+    borderRadius: Radius.lg,
   },
   bgImage: {
     position: 'absolute',
@@ -521,6 +807,34 @@ const styles = StyleSheet.create({
   ambientBleed: {
     ...StyleSheet.absoluteFillObject,
   },
+  fireworksLayer: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  fireworkBurst: {
+    position: 'absolute',
+    width: 44,
+    height: 44,
+    marginLeft: -22,
+    marginTop: -22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fireworkCore: {
+    position: 'absolute',
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    shadowOpacity: 0.85,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  fireworkRay: {
+    position: 'absolute',
+    width: 3,
+    height: 16,
+    borderRadius: 999,
+    opacity: 0.88,
+  },
   inner: {
     paddingHorizontal: 20,
     paddingTop: 14,
@@ -528,8 +842,20 @@ const styles = StyleSheet.create({
     minHeight: 300,
     justifyContent: 'flex-start',
   },
+  innerCutThrough: {
+    paddingBottom: 24,
+  },
   surfaceSheen: {
     ...StyleSheet.absoluteFillObject,
+  },
+  textCluster: {
+    position: 'relative',
+    borderRadius: 18,
+    overflow: 'hidden',
+  },
+  textClusterBlur: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.22,
   },
   innerWide: {
     paddingHorizontal: 26,
@@ -542,24 +868,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 7,
-    marginBottom: 2,
+    marginBottom: 12,
   },
   clockValue: {
-    fontSize: 50,
-    fontWeight: '900',
+    fontSize: 54,
+    fontWeight: '800',
     color: '#FFFFFF',
-    letterSpacing: -2,
-    lineHeight: 54,
+    letterSpacing: -0.8,
+    lineHeight: 52,
     textShadowColor: 'rgba(0,0,0,0.5)',
     textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 10,
+    textShadowRadius: 8,
   },
   clockAmpm: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.82)',
-    marginBottom: 7,
-    letterSpacing: 0.5,
+    fontSize: 21,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 6,
+    letterSpacing: -0.2,
   },
   clockSeconds: {
     fontSize: 20,
@@ -571,27 +897,28 @@ const styles = StyleSheet.create({
 
   // Date / Hijri
   dateLine: {
-    marginBottom: 1,
+    marginBottom: 0,
   },
   dateText: {
     fontSize: 15,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.92)',
-    letterSpacing: 0.1,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.74)',
+    letterSpacing: 0,
   },
   hijriText: {
     fontSize: 14,
     fontWeight: '500',
-    color: 'rgba(255,218,100,0.95)',
+    color: 'rgba(255,255,255,0.74)',
     letterSpacing: 0.1,
   },
 
   // Prayer name + countdown
   prayerSection: {
-    marginTop: 24,
+    marginTop: 20,
   },
   prayerNameRow: {
-    flexDirection: 'column',
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 0,
   },
   prayerName: {
@@ -606,35 +933,42 @@ const styles = StyleSheet.create({
     textShadowRadius: 6,
   },
   prayerIn: {
-    fontSize: 18,
-    fontWeight: '400',
-    color: 'rgba(255,255,255,0.88)',
+    fontSize: 22,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.9)',
     letterSpacing: 0,
-    marginBottom: 16,
+    marginBottom: 24,
+    lineHeight: 26,
   },
   prayerInWarning: {
-    color: '#FFC76F',
+    color: 'rgba(255,255,255,0.9)',
     fontWeight: '500',
   },
   prayerInCritical: {
-    color: '#FF8585',
+    color: 'rgba(255,255,255,0.9)',
     fontWeight: '600',
   },
   prayerInAlert: {
-    color: '#FFE082',
+    color: 'rgba(255,255,255,0.9)',
     fontWeight: '600',
   },
   phaseNote: {
     marginTop: -6,
     marginBottom: 8,
     fontSize: 14,
-    color: 'rgba(255,232,188,0.98)',
+    color: 'rgba(255,255,255,0.72)',
     fontWeight: '500',
   },
 
   // Animated timeline
   barArea: {
-    paddingTop: 12,
+    paddingTop: 0,
+  },
+  cutThroughContentArea: {
+    paddingTop: 0,
+  },
+  cutThroughTrackBleed: {
+    marginHorizontal: 0,
   },
   barTrack: {
     height: TRACK_HEIGHT,
@@ -642,6 +976,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.16)',
     overflow: 'visible',
     marginBottom: 10,
+  },
+  barTrackCutThrough: {
+    height: 6,
+    marginBottom: 0,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    shadowColor: 'rgba(4,18,38,0.45)',
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
   },
   barTrackWarning: {
     backgroundColor: 'rgba(255,186,112,0.25)',
@@ -743,6 +1086,17 @@ const styles = StyleSheet.create({
     shadowRadius: 7,
     shadowOffset: { width: 0, height: 0 },
   },
+  barTimelinePoint: {
+    position: 'absolute',
+    top: -((8 - TRACK_HEIGHT) / 2),
+    marginLeft: -4,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,240,186,0.96)',
+    borderWidth: 1,
+    borderColor: 'rgba(70,44,0,0.55)',
+  },
   barStartDot: {
     position: 'absolute',
     top: -((10 - TRACK_HEIGHT) / 2),
@@ -758,6 +1112,12 @@ const styles = StyleSheet.create({
     position: 'relative',
     height: 20,
     marginTop: 8,
+    marginBottom: 8,
+  },
+  pointLabelsLayerCutThrough: {
+    position: 'relative',
+    height: 18,
+    marginTop: 0,
     marginBottom: 8,
   },
   pointLabelCol: {
@@ -786,42 +1146,178 @@ const styles = StyleSheet.create({
   timesStrip: {
     flexDirection: 'row',
     alignItems: 'stretch',
-    borderRadius: 11,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    backgroundColor: 'rgba(4,16,36,0.44)',
+    marginTop: 16,
+  },
+  timesStripCutThrough: {
+    backgroundColor: 'transparent',
+    borderWidth: 0,
   },
   timesStripCol: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
+    paddingVertical: 0,
     paddingHorizontal: 4,
+  },
+  eidStripColWide: {
+    flex: 1.7,
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+  },
+  eidStripHeading: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: 'rgba(255,245,213,0.96)',
+    textAlign: 'center',
+    marginBottom: 6,
+    letterSpacing: 0.2,
+  },
+  eidStripColCompact: {
+    flex: 0.7,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 6,
   },
   timesStripDivider: {
     width: 1,
-    marginVertical: 6,
-    backgroundColor: 'rgba(255,255,255,0.16)',
+    marginVertical: 4,
+    backgroundColor: 'rgba(255,255,255,0.08)',
   },
   timesStripLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: 'rgba(215,234,255,0.92)',
-    lineHeight: 13,
+    fontSize: 12,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.6)',
+    lineHeight: 14,
   },
   timesStripTime: {
-    marginTop: 2,
+    marginTop: 6,
     fontSize: 16,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    lineHeight: 20,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.9)',
+    lineHeight: 18,
   },
   timesStripMeta: {
     marginTop: 2,
     fontSize: 11,
-    fontWeight: '600',
-    color: 'rgba(215,234,255,0.84)',
-    lineHeight: 14,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.6)',
+    lineHeight: 13,
+  },
+  eidJamaatGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  eidJamaatPill: {
+    minWidth: 72,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,236,169,0.24)',
+    alignItems: 'center',
+  },
+  eidJamaatPillLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(255,245,213,0.95)',
+    lineHeight: 12,
+  },
+  eidJamaatPillTime: {
+    marginTop: 1,
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    lineHeight: 18,
+  },
+  eidTomorrowBanner: {
+    marginTop: 4,
+    marginBottom: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: 'rgba(212,179,68,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,179,68,0.30)',
+  },
+  eidTomorrowHeading: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(228,196,88,0.95)',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 6,
+  },
+  eidTomorrowPills: {
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
+    gap: 4,
+  },
+  eidTomorrowPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,179,68,0.22)',
+    alignItems: 'center',
+    minWidth: 48,
+  },
+  eidTomorrowPillLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: 'rgba(228,196,88,0.88)',
+    letterSpacing: 0.2,
+  },
+  eidTomorrowPillTime: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginTop: 1,
+  },
+  scheduleBanner: {
+    marginTop: -2,
+    marginBottom: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: 'rgba(10,22,45,0.44)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+    gap: 6,
+  },
+  scheduleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  scheduleHeading: {
+    width: 54,
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(255,245,213,0.95)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  schedulePills: {
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
+    gap: 4,
+    flexGrow: 1,
+  },
+  schedulePillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 999,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    overflow: 'hidden',
   },
 });

@@ -342,13 +342,15 @@ export function getNextPrayer(prayers: PrayerTime[]): { prayer: PrayerTime; seco
 // ── Formatting helpers ────────────────────────────────────────────────────
 
 export function formatCountdownSeconds(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  if (h > 0) {
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  }
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return formatCountdownHMS(seconds);
+}
+
+export function formatCountdownHMS(seconds: number): string {
+  const safe = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(safe / 3600);
+  const m = Math.floor((safe % 3600) / 60);
+  const s = safe % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
 export function formatCountdown(minutes: number): string {

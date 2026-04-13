@@ -42,7 +42,7 @@
     <text x="32" y="102" font-family="Segoe UI, Arial" font-size="18" fill="#d7e8ff">Monday  ·  13 Apr 2026</text>
     <text x="32" y="128" font-family="Segoe UI, Arial" font-size="16" fill="#ffe8a3">24 Shawwal 1447 AH</text>
 
-    <text x="32" y="188" font-family="Georgia, Times New Roman" font-size="44" fill="#ffffff" font-weight="700">Zuhr</text>
+    <text x="32" y="188" font-family="Georgia, Times New Roman" font-size="44" fill="#ffffff" font-weight="700">Dhuhr</text>
     <text x="32" y="216" font-family="Segoe UI, Arial" font-size="24" fill="#f0f6ff">Jamaat in 40m</text>
 
     <rect x="24" y="244" width="1160" height="6" rx="3" fill="#ffffff" fill-opacity="0.26"/>

@@ -210,13 +210,35 @@ function nextInfoToTime(nextInfo: { prayer: PrayerTime; secondsLeft: number } | 
   return nextInfo?.prayer?.time ?? null;
 }
 
-function parseClockOnToday(now: Date, clock?: string | null): Date | null {
+function parseClockOnAnchorDay(anchor: Date, clock?: string | null): Date | null {
   if (!clock || clock === '-' || clock === '--:--') return null;
   const [hh, mm] = clock.split(':').map(Number);
   if (Number.isNaN(hh) || Number.isNaN(mm)) return null;
-  const d = new Date(now);
+  const d = new Date(anchor);
   d.setHours(hh, mm, 0, 0);
   return d;
+}
+
+function resolveCurrentPrayerEnd(
+  activePrayer: PrayerTime | null,
+  data: PrayerTimesData | null,
+): Date | null {
+  if (!activePrayer || !data) return null;
+
+  const idx = data.prayers.findIndex((p) => p.name === activePrayer.name);
+  const rawEnd = data.prayers[idx + 1]?.timeDate
+    ?? (activePrayer.name === 'Isha' ? data.prayers[0]?.timeDate : undefined)
+    ?? null;
+
+  if (!rawEnd) return null;
+
+  if (rawEnd.getTime() <= activePrayer.timeDate.getTime()) {
+    const rolledEnd = new Date(rawEnd);
+    rolledEnd.setDate(rolledEnd.getDate() + 1);
+    return rolledEnd;
+  }
+
+  return rawEnd;
 }
 
 function getForbiddenWindowMeta(
@@ -266,17 +288,14 @@ function getCurrentProgressMeta(
 ): { progress: number; athanMarker: number | null; jamaatMarker: number | null } | null {
   if (!activePrayer || !data) return null;
 
-  const idx = data.prayers.findIndex((p) => p.name === activePrayer.name);
   const start = activePrayer.timeDate;
-  // Isha wraps past midnight — use Fajr (first prayer today) as the end boundary
-  const end = data.prayers[idx + 1]?.timeDate
-    ?? (activePrayer.name === 'Isha' ? data.prayers[0]?.timeDate : undefined)
+  const end = resolveCurrentPrayerEnd(activePrayer, data)
     ?? new Date(start.getTime() + 60 * 60 * 1000);
   const total = Math.max(1, end.getTime() - start.getTime());
   const elapsed = Math.max(0, now.getTime() - start.getTime());
   const progress = Math.max(0, Math.min(1, elapsed / total));
 
-  const iqamahDate = parseClockOnToday(now, activePrayer.iqamah);
+  const iqamahDate = parseClockOnAnchorDay(activePrayer.timeDate, activePrayer.iqamah);
   const jamaatMarker = iqamahDate && iqamahDate >= start && iqamahDate <= end
     ? Math.max(0, Math.min(1, (iqamahDate.getTime() - start.getTime()) / total))
     : null;
@@ -298,7 +317,7 @@ function getNextProgressMeta(
 
   const start = activePrayer?.timeDate ?? new Date(now.getTime() - 20 * 60 * 1000);
   const nextAthan = nextInfo.prayer.timeDate;
-  const nextIqamahDate = parseClockOnToday(now, nextInfo.prayer.iqamah);
+  const nextIqamahDate = parseClockOnAnchorDay(nextAthan, nextInfo.prayer.iqamah);
   const hasIqamahAfterAthan = !!(nextIqamahDate && nextIqamahDate > nextAthan);
   const end = hasIqamahAfterAthan ? nextIqamahDate! : nextAthan;
 
@@ -329,9 +348,7 @@ function getCurrentEndsIn(
 ): string {
   if (!activePrayer || !data) return '';
 
-  const idx = data.prayers.findIndex((p) => p.name === activePrayer.name);
-  const end = data.prayers[idx + 1]?.timeDate
-    ?? (activePrayer.name === 'Isha' ? data.prayers[0]?.timeDate : undefined);
+  const end = resolveCurrentPrayerEnd(activePrayer, data);
   if (!end) return '';
 
   const sec = Math.max(0, Math.floor((end.getTime() - now.getTime()) / 1000));

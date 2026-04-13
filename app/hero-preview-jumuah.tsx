@@ -24,6 +24,7 @@ type FridayScenario = {
   nextPrayerJamaatValue?: string;
   j1?: string;
   j2?: string;
+  timelinePoints?: { label: string; position: number }[];
   heroKey: keyof typeof PRAYER_BG_IMAGES;
 };
 
@@ -31,6 +32,12 @@ const FRIDAY_J1 = '1:30';
 const FRIDAY_J2 = '2:30';
 const FRIDAY_FAJR = '05:00';
 const JUMMAH_NOTE = `1st Jummah: ${FRIDAY_J1} · 2nd Jummah: ${FRIDAY_J2}`;
+const JUMUAH_TIMELINE = [
+  { label: 'Athan', position: 0 },
+  { label: 'J1', position: 0.24 },
+  { label: 'J2', position: 0.48 },
+  { label: 'Asr', position: 1 },
+];
 
 const FRIDAY_SCENARIOS: FridayScenario[] = [
   {
@@ -153,6 +160,7 @@ const FRIDAY_SCENARIOS: FridayScenario[] = [
     endTime: '13:10',
     showJamaat: false,
     nextPrayerJamaatValue: '',
+    timelinePoints: [{ label: 'Jummah', position: 1 }],
   },
   {
     id: 'jumuah-pre-j1',
@@ -175,6 +183,7 @@ const FRIDAY_SCENARIOS: FridayScenario[] = [
     nextPrayerJamaatValue: '18:25',
     j1: FRIDAY_J1,
     j2: FRIDAY_J2,
+    timelinePoints: JUMUAH_TIMELINE,
   },
   {
     id: 'jumuah-between',
@@ -197,6 +206,7 @@ const FRIDAY_SCENARIOS: FridayScenario[] = [
     nextPrayerJamaatValue: '18:25',
     j1: FRIDAY_J1,
     j2: FRIDAY_J2,
+    timelinePoints: JUMUAH_TIMELINE,
   },
   {
     id: 'asr-friday',
@@ -263,6 +273,7 @@ export default function HeroPreviewJumuahScreen() {
               endTime={s.endTime}
               midLabel={s.midLabel ?? ''}
               midTime={s.midTime ?? ''}
+              timelinePoints={s.timelinePoints ?? []}
               hasNext
               nextPrayerName='Asr'
               nextPrayerTime='17:56'
