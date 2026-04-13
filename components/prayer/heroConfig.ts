@@ -11,7 +11,7 @@ export const PRAYER_ICONS: Record<string, string> = {
 };
 
 export const PRAYER_GRADIENTS: Record<string, readonly [string, string, ...string[]]> = {
-  Fajr: ['rgba(20,20,80,0.82)', 'rgba(40,40,120,0.75)'],
+  Fajr: ['rgba(58,82,168,0.62)', 'rgba(106,148,232,0.50)'],
   Sunrise: ['rgba(180,80,0,0.78)', 'rgba(220,140,0,0.72)'],
   Ishraq: ['rgba(200,100,0,0.75)', 'rgba(240,190,0,0.68)'],
   Zawaal: ['rgba(112,95,62,0.80)', 'rgba(154,134,94,0.74)'],
@@ -25,11 +25,11 @@ export const PRAYER_GRADIENTS: Record<string, readonly [string, string, ...strin
 export const PRAYER_BG_IMAGES: Record<string, any> = {
   Fajr: require('@/assets/images/sky/fajr.jpg'),
   Sunrise: require('@/assets/images/sky/sunrise.jpg'),
-  Ishraq: require('@/assets/images/sky/sunrise.jpg'),
-  Zawaal: require('@/assets/images/sky/zuhr.jpg'),
+  Ishraq: require('@/assets/images/sky/ishraq.jpg'),
+  Zawaal: require('@/assets/images/sky/zawaal.jpg'),
   Dhuhr: require('@/assets/images/sky/zuhr.jpg'),
   Asr: require('@/assets/images/sky/asr.jpg'),
   Maghrib: require('@/assets/images/sky/maghrib.jpg'),
-  Isha: require('@/assets/images/sky/fajr.jpg'),
-  Jumuah: require('@/assets/images/sky/zuhr.jpg'),
+  Isha: require('@/assets/images/sky/isha.jpg'),
+  Jumuah: require('@/assets/images/sky/nabwi.jpg'),
 };

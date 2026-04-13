@@ -45,6 +45,17 @@ function getHeroOverlayGradient(hour: number, nightMode: boolean): readonly [str
   return ['rgba(4,10,38,0.82)', 'rgba(2,5,24,0.72)'] as const;                                   // night navy
 }
 
+function getHeroImageOpacity(hour: number, prayerName: string, isForbidden: boolean): number {
+  if (isForbidden) return 0.64;
+  if (prayerName === 'Fajr') return 0.9;
+  if (prayerName === 'Sunrise' || prayerName === 'Ishraq') return 0.8;
+  if (prayerName === 'Maghrib') return 0.85;
+  if (prayerName === 'Isha') return 0.66;
+  if (hour >= 22 || hour < 4) return 0.62;
+  if (hour >= 17 && hour < 20) return 0.83;
+  return 0.74;
+}
+
 // ── Night palette (refined) ───────────────────────────────────────────────
 const NIGHT = {
   bg:           '#0B1220',
@@ -2285,20 +2296,46 @@ export default function HomeScreen() {
       currentTime.getSeconds() / 60;
 
     const sunrise = data?.prayers.find(p => p.name === 'Sunrise')?.timeDate;
+    const zawaal = data?.prayers.find(p => p.name === 'Zawaal')?.timeDate;
+    const dhuhr = data?.prayers.find(p => p.name === 'Dhuhr')?.timeDate;
     const maghrib = data?.prayers.find(p => p.name === 'Maghrib')?.timeDate;
 
     let dayProgress = nowMinutes / 1440;
 
     if (sunrise && maghrib) {
       const sunriseMin = sunrise.getHours() * 60 + sunrise.getMinutes();
+      const zawaalMin = zawaal ? (zawaal.getHours() * 60 + zawaal.getMinutes()) : null;
+      const dhuhrMin = dhuhr ? (dhuhr.getHours() * 60 + dhuhr.getMinutes()) : null;
       const maghribMin = maghrib.getHours() * 60 + maghrib.getMinutes();
       const daySpan = Math.max(1, maghribMin - sunriseMin);
       const nightSpan = 1440 - daySpan;
+      const noonPoint = 0.45;
+      const postNoonPoint = 0.48;
 
       if (nowMinutes >= sunriseMin && nowMinutes <= maghribMin) {
-        // Map daylight exactly between sunrise and maghrib.
-        const tDay = (nowMinutes - sunriseMin) / daySpan;
-        dayProgress = 0.26 + tDay * (0.78 - 0.26);
+        const hasNoonAnchors = zawaalMin !== null && dhuhrMin !== null && zawaalMin > sunriseMin && dhuhrMin > zawaalMin && dhuhrMin < maghribMin;
+        if (hasNoonAnchors) {
+          if (nowMinutes <= zawaalMin) {
+            // Sunrise -> Zawaal (sun climbs to exact noon apex)
+            const upSpan = Math.max(1, zawaalMin - sunriseMin);
+            const tUp = (nowMinutes - sunriseMin) / upSpan;
+            dayProgress = 0.26 + tUp * (noonPoint - 0.26);
+          } else if (nowMinutes <= dhuhrMin) {
+            // Zawaal -> Dhuhr (sun begins descending just after apex)
+            const noonSpan = Math.max(1, dhuhrMin - zawaalMin);
+            const tNoon = (nowMinutes - zawaalMin) / noonSpan;
+            dayProgress = noonPoint + tNoon * (postNoonPoint - noonPoint);
+          } else {
+            // Dhuhr -> Maghrib (afternoon decline)
+            const downSpan = Math.max(1, maghribMin - dhuhrMin);
+            const tDown = (nowMinutes - dhuhrMin) / downSpan;
+            dayProgress = postNoonPoint + tDown * (0.78 - postNoonPoint);
+          }
+        } else {
+          // Fallback daylight mapping when noon anchors are unavailable.
+          const tDay = (nowMinutes - sunriseMin) / daySpan;
+          dayProgress = 0.26 + tDay * (0.78 - 0.26);
+        }
       } else {
         // Map night from maghrib -> sunrise across midnight.
         const tNight = nowMinutes > maghribMin
@@ -2420,16 +2457,44 @@ export default function HomeScreen() {
     outputRange: skyPalette,
   });
   const sunTranslateX = dayCycleAnim.interpolate({
-    inputRange: [0, 0.2, 0.28, 0.45, 0.62, 0.78, 1],
-    outputRange: [-140, -140, -70, 40, 150, 280, 280],
+    inputRange: [0, 0.2, 0.28, 0.45, 0.48, 0.62, 0.78, 1],
+    outputRange: [-140, -140, -70, 40, 58, 150, 280, 280],
   });
   const sunTranslateY = dayCycleAnim.interpolate({
-    inputRange: [0, 0.2, 0.28, 0.45, 0.62, 0.78, 1],
-    outputRange: [170, 170, 118, sunNoonY, sunNoonY + 12, 122, 170],
+    inputRange: [0, 0.2, 0.28, 0.45, 0.48, 0.62, 0.78, 1],
+    outputRange: [170, 170, 118, sunNoonY, sunNoonY + 4, sunNoonY + 12, 122, 170],
   });
   const sunOpacity = dayCycleAnim.interpolate({
     inputRange: [0, 0.22, 0.32, 0.7, 0.8, 1],
     outputRange: [0, 0, 0.85, sunPeakOpacity, 0, 0],
+  });
+  const sunCoreColor = dayCycleAnim.interpolate({
+    inputRange: [0.26, 0.4, 0.45, 0.48, 0.62, 0.78],
+    outputRange: ['#F5A64A', '#FFD06B', '#FFF2BE', '#FFE6A8', '#FFC773', '#E49A50'],
+  });
+  const sunHaloOpacity = dayCycleAnim.interpolate({
+    inputRange: [0.26, 0.45, 0.48, 0.7, 0.8],
+    outputRange: [0.38, 0.72, 0.58, 0.4, 0],
+  });
+  const sunHaloScale = dayCycleAnim.interpolate({
+    inputRange: [0.26, 0.45, 0.48, 0.7],
+    outputRange: [1.05, 1.18, 1.1, 1.03],
+  });
+  const sunNoonBoostOpacity = dayCycleAnim.interpolate({
+    inputRange: [0.26, 0.4, 0.45, 0.48, 0.55, 0.7],
+    outputRange: [0, 0.35, 0.65, 0.25, 0, 0],
+  });
+  const sunWarmOverlayOpacity = dayCycleAnim.interpolate({
+    inputRange: [0.26, 0.45, 0.48, 0.62, 0.78],
+    outputRange: [0.2, 0.05, 0.16, 0.42, 0.62],
+  });
+  const sunShadowOpacity = dayCycleAnim.interpolate({
+    inputRange: [0.26, 0.45, 0.48, 0.78],
+    outputRange: [0.48, 0.82, 0.7, 0.4],
+  });
+  const sunShadowRadius = dayCycleAnim.interpolate({
+    inputRange: [0.26, 0.45, 0.48, 0.78],
+    outputRange: [14, 24, 20, 12],
   });
   const starsOpacity = dayCycleAnim.interpolate({
     inputRange: [0, 0.22, 0.35, 0.68, 0.82, 1],
@@ -2486,6 +2551,7 @@ export default function HomeScreen() {
   const timeH    = currentTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
   const secStr   = currentTime.toLocaleTimeString('en-GB', { second: '2-digit' });
   const ampm     = currentTime.getHours() >= 12 ? 'PM' : 'AM';
+  const heroAmbientGradient = getHeroOverlayGradient(currentTime.getHours(), nightMode);
   const dayName  = currentTime.toLocaleDateString('en-GB', { weekday: 'long' });
   const dateShort= currentTime.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   const hijriMonthEn = data ? getHijriMonthEnglish(data.hijriDate) : '';
@@ -2509,6 +2575,9 @@ export default function HomeScreen() {
 
   const nextPrayerTime = data?.prayers.find(p => p.name === nextPrayerName)?.time ?? '';
   const nextIqamah = nextInfo?.prayer.iqamah && nextInfo.prayer.iqamah !== '-' ? nextInfo.prayer.iqamah : null;
+  const zawaalPrayer = data?.prayers.find(p => p.name === 'Zawaal');
+  const dhuhrPrayer = data?.prayers.find(p => p.name === 'Dhuhr');
+  const asrPrayer = data?.prayers.find(p => p.name === 'Asr');
 
   const {
     heroImageKey,
@@ -2609,19 +2678,7 @@ export default function HomeScreen() {
     return currentTime >= lsm && currentTime < lso;
   })();
 
-  const j1 = bst ? '1:30 PM' : '12:45 PM';
-  const j2 = bst ? '2:30 PM' : '1:30 PM';
-
-  // Show Jumuah card: Thursday after Maghrib → Friday before Maghrib
-  const jumuahCardVisible = (() => {
-    const maghribPrayer = data?.prayers.find(p => p.name === 'Maghrib');
-    if (isThursday && maghribPrayer && currentTime >= maghribPrayer.timeDate) return true;
-    if (isFriday) {
-      if (maghribPrayer && currentTime >= maghribPrayer.timeDate) return false;
-      return true;
-    }
-    return false;
-  })();
+  // Jummah info visibility: from Isha Thursday through Friday (except Jummah hero)
 
   // For Thursday: show next Friday's times (Friday itself uses today's BST)
   const jumuahDisplayBST = (() => {
@@ -2644,6 +2701,120 @@ export default function HomeScreen() {
     if (jumuahInfo.phase === 'between')  return { text: '2nd Jamaat in', time: formatCountdownSeconds(jumuahInfo.secondsToJamaat2) };
     return null;
   })();
+
+  const parseMeridianToday = (clock12: string): Date => {
+    const m = clock12.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    const d = new Date(currentTime);
+    if (!m) {
+      d.setHours(0, 0, 0, 0);
+      return d;
+    }
+    let hh = Number(m[1]);
+    const mm = Number(m[2]);
+    const mer = m[3].toUpperCase();
+    if (mer === 'PM' && hh !== 12) hh += 12;
+    if (mer === 'AM' && hh === 12) hh = 0;
+    d.setHours(hh, mm, 0, 0);
+    return d;
+  };
+
+  const isFridayPostZawaal = !!(
+    isFriday
+    && !forbiddenInfo
+    && zawaalPrayer?.timeDate
+    && asrPrayer?.timeDate
+    && currentTime >= zawaalPrayer.timeDate
+    && currentTime < asrPrayer.timeDate
+  );
+
+  const isFridayZawaalHero = !!(isFriday && forbiddenInfo && heroPrayerName === 'Zawaal');
+
+  const firstJummahAthanTime = dhuhrPrayer?.time ?? heroEndTime;
+  const fridayJumuahScheduleNote = `1st Jummah: ${jj1} · 2nd Jummah: ${jj2}`;
+  const shouldShowFridayJumuahNote = (() => {
+    // Show Jummah info strip from Isha Thursday through Friday, but NOT on Jummah hero itself
+    if (isFridayPostZawaal) return false; // Never on Jummah hero
+    if (isFriday) return true; // All Friday cards
+    if (isThursday && heroPrayerName === 'Isha') return true; // Isha Thursday
+    return false;
+  })();
+
+  const effectiveHeroImageKey = isFridayPostZawaal ? 'Jumuah' : heroImageKey;
+  const effectiveHeroPrayerName = isFridayPostZawaal ? 'Jumuah' : heroPrayerName;
+  const effectiveHeroStartLabel = isFridayPostZawaal ? 'First Athan' : heroStartLabel;
+  const effectiveHeroStartTime = isFridayPostZawaal
+    ? (dhuhrPrayer?.time ?? heroStartTime)
+    : heroStartTime;
+  const effectiveHeroEndLabel = isFridayPostZawaal
+    ? 'Asr'
+    : (isFridayZawaalHero ? '1st Jummah Athaan' : heroEndLabel);
+  const effectiveHeroEndTime = isFridayPostZawaal
+    ? (asrPrayer?.time ?? heroEndTime)
+    : (isFridayZawaalHero ? firstJummahAthanTime : heroEndTime);
+  const effectiveHeroMidLabel = isFridayPostZawaal ? '' : heroMidLabel;
+  const effectiveHeroMidTime = isFridayPostZawaal ? '' : heroMidTime;
+  const currentPrayerIqamah = activePrayer?.iqamah && activePrayer.iqamah !== '-' ? activePrayer.iqamah : null;
+  const asrIqamah = asrPrayer?.iqamah && asrPrayer.iqamah !== '-' ? asrPrayer.iqamah : null;
+  const endEntrySupportsJamaat = ['Next Prayer', 'Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha', 'Jumuah'].includes(effectiveHeroEndLabel);
+  const effectiveHeroJamaatValue = (() => {
+    if (isFridayPostZawaal) return '';
+    if (endEntrySupportsJamaat && nextIqamah) return nextIqamah;
+    if (alertMode && hasJamaat && currentPrayerIqamah) return currentPrayerIqamah;
+    return '';
+  })();
+  const effectiveHeroShowJamaat = !!effectiveHeroJamaatValue;
+  const effectiveNextPrayerName = isFridayPostZawaal ? 'Asr' : nextPrayerName;
+  const effectiveNextPrayerTime = isFridayPostZawaal
+    ? (asrPrayer?.time ?? nextPrayerTime)
+    : (nextInfo?.prayer.time ?? nextPrayerTime);
+  const effectiveNextPrayerJamaatValue = isFridayPostZawaal
+    ? (asrIqamah ?? '')
+    : (nextIqamah ?? '');
+
+  const effectiveHeroCountdownInfo = (() => {
+    if (isFridayPostZawaal) {
+      const j1Date = parseMeridianToday(jj1);
+      const j2Date = parseMeridianToday(jj2);
+      const asrDate = asrPrayer?.timeDate ?? null;
+
+      if (currentTime < j1Date) {
+        return {
+          label: '1st Jamaat',
+          value: formatCountdownSeconds(Math.max(0, Math.floor((j1Date.getTime() - currentTime.getTime()) / 1000))),
+          note: fridayJumuahScheduleNote,
+          flash: false,
+        };
+      }
+      if (currentTime < j2Date) {
+        return {
+          label: '2nd Jamaat',
+          value: formatCountdownSeconds(Math.max(0, Math.floor((j2Date.getTime() - currentTime.getTime()) / 1000))),
+          note: fridayJumuahScheduleNote,
+          flash: false,
+        };
+      }
+      if (asrDate) {
+        return {
+          label: 'Asr Start',
+          value: formatCountdownSeconds(Math.max(0, Math.floor((asrDate.getTime() - currentTime.getTime()) / 1000))),
+          note: 'Jumuah completed. Prepare for Asr.',
+          flash: false,
+        };
+      }
+    }
+
+    if (shouldShowFridayJumuahNote) {
+      const prefix = heroCountdownInfo.note ? `${heroCountdownInfo.note} · ` : '';
+      return {
+        ...heroCountdownInfo,
+        note: `${prefix}${fridayJumuahScheduleNote}`,
+      };
+    }
+
+    return heroCountdownInfo;
+  })();
+
+  const effectiveHeroImageOpacity = getHeroImageOpacity(currentTime.getHours(), effectiveHeroPrayerName, !!forbiddenInfo);
 
   // Date/time card styles
   const dtCardBg    = N ? N.surface : '#FFFFFF';
@@ -2794,14 +2965,49 @@ export default function HomeScreen() {
             width: 94,
             height: 94,
             borderRadius: 47,
-            backgroundColor: '#FFD06B',
+            backgroundColor: 'rgba(255,218,126,0.46)',
+            transform: [{ translateX: sunTranslateX }, { translateY: sunTranslateY }, { scale: sunHaloScale }],
+            opacity: Animated.multiply(sunOpacity, sunHaloOpacity),
+          }}
+        />
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            width: 94,
+            height: 94,
+            borderRadius: 47,
+            backgroundColor: sunCoreColor,
             transform: [{ translateX: sunTranslateX }, { translateY: sunTranslateY }],
             opacity: sunOpacity,
             shadowColor: '#FFD06B',
-            shadowOpacity: 0.65,
-            shadowRadius: 18,
+            shadowOpacity: sunShadowOpacity,
+            shadowRadius: sunShadowRadius,
           }}
-        />
+        >
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              StyleSheet.absoluteFillObject,
+              {
+                borderRadius: 47,
+                backgroundColor: 'rgba(255,255,255,0.95)',
+                opacity: sunNoonBoostOpacity,
+              },
+            ]}
+          />
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              StyleSheet.absoluteFillObject,
+              {
+                borderRadius: 47,
+                backgroundColor: 'rgba(255,166,84,0.75)',
+                opacity: sunWarmOverlayOpacity,
+              },
+            ]}
+          />
+        </Animated.View>
         <Animated.View
           pointerEvents="none"
           style={{
@@ -2860,7 +3066,7 @@ export default function HomeScreen() {
               contentFit="contain"
             />
             <View style={styles.topNavText}>
-              <Text numberOfLines={1} style={styles.topNavName}>Jami' Masjid Noorani</Text>
+              <Text numberOfLines={1} style={styles.topNavName}>Jami&apos; Masjid Noorani</Text>
               <View style={styles.topNavCityRow}>
                 <View style={styles.topNavCityDot} />
                 <Text style={styles.topNavCity}>Halifax, UK</Text>
@@ -2880,35 +3086,38 @@ export default function HomeScreen() {
         <View style={styles.heroUnifiedEntity}>
           <PrayerHeroCard
             visible={!!(forbiddenInfo || nextPrayerName || alertMode)}
-            backgroundSource={PRAYER_BG_IMAGES[heroImageKey] ?? PRAYER_BG_IMAGES['Dhuhr']}
+            backgroundSource={PRAYER_BG_IMAGES[effectiveHeroImageKey] ?? PRAYER_BG_IMAGES['Dhuhr']}
             gradientColors={heroGradientColors}
+            ambientColors={heroAmbientGradient}
+            backgroundImageOpacity={effectiveHeroImageOpacity}
             heroWide={SCREEN_WIDTH >= 700}
             kicker={forbiddenInfo ? 'Prayer Pause Window' : (activePrayer ? 'Current Prayer' : 'Up Next Prayer')}
-            title={heroPrayerName}
+            title={effectiveHeroPrayerName}
             isForbidden={!!forbiddenInfo}
             forbiddenEndsAt={forbiddenInfo?.endsAt ?? '--:--'}
-            isFridayJumuahHero={false}
+            isFridayJumuahHero={isFridayPostZawaal}
             athanValue={activePrayer?.time ?? nextInfo?.prayer.time ?? nextPrayerTime}
-            j1={''}
-            j2={''}
-            showJamaat={!!((alertMode && hasJamaat && activePrayer?.iqamah) || (!alertMode && nextIqamah))}
-            jamaatValue={alertMode ? (activePrayer?.iqamah ?? '') : (nextIqamah ?? '')}
-            countdownInfo={heroCountdownInfo}
+            j1={isFriday ? jj1 : ''}
+            j2={isFriday ? jj2 : ''}
+            showJamaat={effectiveHeroShowJamaat}
+            jamaatValue={effectiveHeroJamaatValue}
+            countdownInfo={effectiveHeroCountdownInfo}
             flashAnim={flashAnim}
             progress={heroProgress}
             athanMarker={heroAthanMarker}
             jamaatMarker={heroJamaatMarker}
             endMarker={heroEndMarker}
             midMarker={heroMidMarker}
-            startLabel={heroStartLabel}
-            startTime={heroStartTime}
-            endLabel={heroEndLabel}
-            endTime={heroEndTime}
-            midLabel={heroMidLabel}
-            midTime={heroMidTime}
+            startLabel={effectiveHeroStartLabel}
+            startTime={effectiveHeroStartTime}
+            endLabel={effectiveHeroEndLabel}
+            endTime={effectiveHeroEndTime}
+            midLabel={effectiveHeroMidLabel}
+            midTime={effectiveHeroMidTime}
             hasNext={!!nextInfo}
-            nextPrayerName={nextPrayerName}
-            nextPrayerTime={nextInfo?.prayer.time ?? nextPrayerTime}
+            nextPrayerName={effectiveNextPrayerName}
+            nextPrayerTime={effectiveNextPrayerTime}
+            nextPrayerJamaatValue={effectiveNextPrayerJamaatValue}
             prayerIcons={PRAYER_ICONS}
             embedded
             localTime={timeH}
@@ -2939,59 +3148,6 @@ export default function HomeScreen() {
             <Text style={styles.forbiddenUntilTime}>{forbiddenInfo.endsAt}</Text>
             <Text style={styles.forbiddenTimer}>{formatCountdownSeconds(forbiddenInfo.secondsLeft)}</Text>
           </View>
-        </View>
-      ) : null}
-
-      {/* ── Jumuah Card (Thursday Maghrib → Friday Maghrib) ──── */}
-      {jumuahCardVisible ? (
-        <View style={[
-          styles.jumuahFridayCard,
-          N && { backgroundColor: N.jumuahBg, borderColor: N.jumuahBord },
-        ]}>
-          <View style={styles.jumuahFridayHeader}>
-            <MaterialIcons name="star" size={18} color="#F9A825" />
-            <Text style={[styles.jumuahFridayTitle, N && { color: '#D4B896' }]}>
-              {isThursday ? "Jumuah · Tomorrow" : "Jumuah · Today"}
-            </Text>
-            {isFriday ? (
-              <View style={styles.jumuahTodayBadge}>
-                <Text style={styles.jumuahTodayText}>Friday</Text>
-              </View>
-            ) : (
-              <View style={[styles.jumuahTodayBadge, { backgroundColor: '#8D6E0A' }]}>
-                <Text style={styles.jumuahTodayText}>Tomorrow</Text>
-              </View>
-            )}
-            <Text style={styles.jumuahSeasonLabel}>{jumuahDisplayBST ? 'BST' : 'GMT'}</Text>
-          </View>
-          <View style={[styles.jumuahTimesRow, N && { backgroundColor: '#120D00' }]}>
-            <View style={styles.jumuahTimeItem}>
-              <Text style={styles.jumuahTimeOrder}>1st Jamaat</Text>
-              <Text style={styles.jumuahTimeValue}>{jj1}</Text>
-            </View>
-            <View style={styles.jumuahDividerV} />
-            <View style={styles.jumuahTimeItem}>
-              <Text style={styles.jumuahTimeOrder}>2nd Jamaat</Text>
-              <Text style={styles.jumuahTimeValue}>{jj2}</Text>
-            </View>
-          </View>
-          {isFriday && jumuahPhaseLabel ? (
-            <View style={styles.jumuahCountdownRow}>
-              <View style={styles.jumuahLiveDot} />
-              <Text style={styles.jumuahCountdownPhase}>{jumuahPhaseLabel.text}</Text>
-              <Text style={styles.jumuahCountdownTime}>{jumuahPhaseLabel.time}</Text>
-            </View>
-          ) : isFriday && jumuahInfo?.phase === 'done' ? (
-            <View style={styles.jumuahCountdownRow}>
-              <MaterialIcons name="check-circle" size={14} color={Colors.primary} />
-              <Text style={styles.jumuahDoneText}>Both Jamaats completed · Alhamdulillah</Text>
-            </View>
-          ) : isThursday ? (
-            <View style={styles.jumuahCountdownRow}>
-              <MaterialIcons name="schedule" size={14} color="#F9A825" />
-              <Text style={styles.jumuahCountdownPhase}>Jumuah begins tomorrow</Text>
-            </View>
-          ) : null}
         </View>
       ) : null}
 
@@ -3134,11 +3290,17 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   heroUnifiedEntity: {
-    // ImageBackground fills this — no bg/border, just the clipping boundary
     marginHorizontal: Spacing.md,
     marginTop: 6,
     marginBottom: Spacing.sm,
     borderRadius: Radius.lg,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    shadowColor: '#081427',
+    shadowOpacity: 0.26,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 12 },
     overflow: 'hidden',
   },
   navBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },

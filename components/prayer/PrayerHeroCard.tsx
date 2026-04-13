@@ -23,6 +23,8 @@ type Props = {
   embedded?: boolean;
   backgroundSource: any;
   gradientColors: readonly [string, string, ...string[]];
+  ambientColors?: readonly [string, string];
+  backgroundImageOpacity?: number;
   heroWide: boolean;
   kicker: string;
   title: string;
@@ -50,6 +52,7 @@ type Props = {
   hasNext: boolean;
   nextPrayerName: string;
   nextPrayerTime: string;
+  nextPrayerJamaatValue?: string;
   prayerIcons: Record<string, string>;
   // unified time/date row
   localTime: string;
@@ -107,6 +110,8 @@ export default function PrayerHeroCard({
   embedded = false,
   backgroundSource,
   gradientColors,
+  ambientColors,
+  backgroundImageOpacity = 0.72,
   heroWide,
   kicker,
   title,
@@ -134,6 +139,7 @@ export default function PrayerHeroCard({
   hasNext,
   nextPrayerName,
   nextPrayerTime,
+  nextPrayerJamaatValue,
   localTime,
   seconds,
   ampm,
@@ -220,10 +226,25 @@ export default function PrayerHeroCard({
   const midVisualMarker = midMarker === null
     ? null
     : Math.max(0, Math.min(1, midMarker));
-  const contextualEndLabel = endLabel.toLowerCase() === 'next prayer' ? 'Next' : endLabel;
+  const contextualEndLabel = endLabel.toLowerCase() === 'next prayer'
+    ? `${nextPrayerName || 'Next'}`
+    : (endLabel.toLowerCase() === 'sunrise' ? 'Sunrise' : (endLabel.toLowerCase() === 'jummah athan' ? 'Jummah Athan' : endLabel));
+  const isZawaalHero = title.toLowerCase() === 'zawaal';
+  const isJumuahHero = title.toLowerCase() === 'jumuah';
+  const hasMiddleEvent = (showJamaat && !!jamaatValue) || (!!midLabel && !!midTime);
+  const stripMiddleLabel = (showJamaat && jamaatValue) ? 'Jamaat' : midLabel;
+  const stripMiddleTime = (showJamaat && jamaatValue) ? jamaatValue : midTime;
+  const showMiddleStrip = hasMiddleEvent;
+  const rightColumnLabel = isFridayJumuahHero
+    ? `${nextPrayerName || endLabel || 'Asr'}`
+    : contextualEndLabel;
+  const rightColumnTime = isFridayJumuahHero
+    ? (nextPrayerTime || endTime || '--:--')
+    : (endTime || nextPrayerTime || '--:--');
+  const showNextPrayerJamaat = !!nextPrayerJamaatValue && nextPrayerJamaatValue !== '--:--';
 
   const effectiveColors: readonly [string, string, string] = embedded
-    ? ['rgba(0,0,0,0)', 'rgba(2,10,26,0.2)', 'rgba(2,10,26,0.78)']
+    ? [ambientColors?.[0] ?? 'rgba(0,0,0,0)', ambientColors?.[1] ?? 'rgba(2,10,26,0.22)', 'rgba(2,10,26,0.74)']
     : (gradientColors as any);
   const effectiveEnd = embedded ? { x: 0, y: 1 } : { x: 1, y: 1 };
 
@@ -231,15 +252,44 @@ export default function PrayerHeroCard({
     <View style={[styles.wrap, embedded && styles.wrapEmbedded]}>
       <Image
         source={backgroundSource}
-        style={[styles.bgImage, embedded && styles.bgImageEmbedded]}
+        style={[
+          styles.bgImage,
+          embedded && styles.bgImageEmbedded,
+          embedded && styles.bgImageAmbient,
+          embedded && isZawaalHero && styles.bgImageZawaalFocus,
+          embedded && isJumuahHero && styles.bgImageJumuahFocus,
+          embedded && { opacity: backgroundImageOpacity },
+        ]}
         resizeMode="cover"
       />
+      {embedded ? (
+        <LinearGradient
+          pointerEvents="none"
+          colors={[
+            ambientColors?.[0] ?? 'rgba(24,40,72,0.22)',
+            ambientColors?.[1] ?? 'rgba(7,18,42,0.14)',
+            'rgba(3,10,24,0.10)',
+          ]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.ambientBleed}
+        />
+      ) : null}
       <LinearGradient
         colors={effectiveColors}
         start={{ x: 0, y: 0 }}
         end={effectiveEnd}
         style={[styles.inner, heroWide && styles.innerWide]}
       >
+        {embedded ? (
+          <LinearGradient
+            pointerEvents="none"
+            colors={['rgba(255,255,255,0.10)', 'rgba(255,255,255,0.03)', 'rgba(255,255,255,0.00)']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0.9, y: 1 }}
+            style={styles.surfaceSheen}
+          />
+        ) : null}
         {/* ── Clock ── */}
         <View style={styles.clockRow}>
           <Text style={styles.clockValue}>{localTime}</Text>
@@ -271,7 +321,7 @@ export default function PrayerHeroCard({
           {isForbidden ? (
             <View style={styles.prayerNameRow}>
               <Text style={styles.prayerName}>{title}</Text>
-              <Text style={[styles.prayerIn, styles.prayerInCritical]}>{' forbidden until '}{forbiddenEndsAt}</Text>
+              <Text style={[styles.prayerIn, styles.prayerInCritical]}>{'prayer forbidden until '}{forbiddenEndsAt}</Text>
             </View>
           ) : (
             <>
@@ -279,13 +329,13 @@ export default function PrayerHeroCard({
                 <Text style={styles.prayerName}>{title}</Text>
                 {countdownInfo.flash ? (
                   <Animated.Text style={[styles.prayerIn, styles.prayerInAlert, { opacity: flashAnim }]}>
-                    {' '}now
+                    Jamaat has started
                   </Animated.Text>
                 ) : (
                   <Text style={[styles.prayerIn, prayerInUrgencyStyle]}>
                     {isCurrentPrayer
-                      ? (isUntilJamaat ? ` Jamaat in ${countdownFriendly}` : ` ends in ${countdownFriendly}`)
-                      : ` in ${countdownFriendly}`}
+                      ? (isUntilJamaat ? `Jamaat in ${countdownFriendly}` : `ends in ${countdownFriendly}`)
+                      : `in ${countdownFriendly}`}
                   </Text>
                 )}
               </View>
@@ -376,46 +426,54 @@ export default function PrayerHeroCard({
               )}
             </View>
 
-            <View style={styles.pointLabelsLayer}>
-              <View style={[styles.pointLabelCol, styles.pointLabelStart]}>
-                <Text style={styles.pointLabelName}>{startLabel}</Text>
-                <Text style={styles.pointLabelTime}>{startTime || athanValue}</Text>
-              </View>
-
-              {jamaatVisualMarker !== null && showJamaat ? (
-                <View
-                  style={[
-                    styles.pointLabelCol,
-                    { left: `${Math.round(jamaatVisualMarker * 100)}%` as any },
-                  ]}
-                >
-                  <Text style={styles.pointLabelName}>Jamaat</Text>
-                  <Text style={styles.pointLabelTime}>{jamaatValue}</Text>
-                </View>
-              ) : null}
-
-              {midVisualMarker !== null && midLabel ? (
-                <View
-                  style={[
-                    styles.pointLabelCol,
-                    { left: `${Math.round(midVisualMarker * 100)}%` as any },
-                  ]}
-                >
-                  <Text style={styles.pointLabelName}>{midLabel}</Text>
-                  <Text style={styles.pointLabelTime}>{midTime}</Text>
-                </View>
-              ) : null}
-
-              {isFridayJumuahHero && !isForbidden ? (
-                <View style={[styles.pointLabelCol, styles.pointLabelEnd]}> 
-                  <Text style={styles.pointLabelName}>1st / 2nd</Text>
-                  <Text style={styles.pointLabelTime}>{j1} / {j2}</Text>
-                </View>
+            <View style={styles.timesStrip}>
+              {isFridayJumuahHero ? (
+                <>
+                  <View style={styles.timesStripCol}>
+                    <Text numberOfLines={1} style={styles.timesStripLabel}>First Athan</Text>
+                    <Text numberOfLines={1} style={styles.timesStripTime}>{startTime || athanValue}</Text>
+                  </View>
+                  <View style={styles.timesStripDivider} />
+                  <View style={styles.timesStripCol}>
+                    <Text numberOfLines={1} style={styles.timesStripLabel}>1st Jamaat</Text>
+                    <Text numberOfLines={1} style={styles.timesStripTime}>{j1 || '--:--'}</Text>
+                  </View>
+                  <View style={styles.timesStripDivider} />
+                  <View style={styles.timesStripCol}>
+                    <Text numberOfLines={1} style={styles.timesStripLabel}>2nd Jamaat</Text>
+                    <Text numberOfLines={1} style={styles.timesStripTime}>{j2 || '--:--'}</Text>
+                  </View>
+                  <View style={styles.timesStripDivider} />
+                  <View style={styles.timesStripCol}>
+                    <Text numberOfLines={1} style={styles.timesStripLabel}>{rightColumnLabel}</Text>
+                    <Text numberOfLines={1} style={styles.timesStripTime}>{rightColumnTime}</Text>
+                    {showNextPrayerJamaat ? (
+                      <Text numberOfLines={1} style={styles.timesStripMeta}>Jamaat {nextPrayerJamaatValue}</Text>
+                    ) : null}
+                  </View>
+                </>
               ) : (
-                <View style={[styles.pointLabelCol, styles.pointLabelEnd]}>
-                  <Text style={styles.pointLabelName}>{contextualEndLabel}</Text>
-                  <Text style={styles.pointLabelTime}>{endTime || `${nextPrayerName} ${nextPrayerTime}`}</Text>
-                </View>
+                <>
+                  <View style={styles.timesStripCol}>
+                    <Text numberOfLines={1} style={styles.timesStripLabel}>{startLabel}</Text>
+                    <Text numberOfLines={1} style={styles.timesStripTime}>{startTime || athanValue}</Text>
+                  </View>
+                  {showMiddleStrip ? <View style={styles.timesStripDivider} /> : null}
+                  {showMiddleStrip ? (
+                    <View style={styles.timesStripCol}>
+                      <Text numberOfLines={1} style={styles.timesStripLabel}>{stripMiddleLabel || 'Jamaat'}</Text>
+                      <Text numberOfLines={1} style={styles.timesStripTime}>{stripMiddleTime || '--:--'}</Text>
+                    </View>
+                  ) : null}
+                  <View style={styles.timesStripDivider} />
+                  <View style={styles.timesStripCol}>
+                    <Text numberOfLines={1} style={styles.timesStripLabel}>{rightColumnLabel}</Text>
+                    <Text numberOfLines={1} style={styles.timesStripTime}>{rightColumnTime}</Text>
+                    {showNextPrayerJamaat ? (
+                      <Text numberOfLines={1} style={styles.timesStripMeta}>Jamaat {nextPrayerJamaatValue}</Text>
+                    ) : null}
+                  </View>
+                </>
               )}
             </View>
           </View>
@@ -451,12 +509,27 @@ const styles = StyleSheet.create({
   bgImageEmbedded: {
     borderRadius: 0,
   },
+  bgImageAmbient: {
+    opacity: 0.72,
+  },
+  bgImageZawaalFocus: {
+    transform: [{ translateY: 30 }, { scale: 1.08 }],
+  },
+  bgImageJumuahFocus: {
+    transform: [{ translateY: -140 }, { scale: 1.12 }],
+  },
+  ambientBleed: {
+    ...StyleSheet.absoluteFillObject,
+  },
   inner: {
     paddingHorizontal: 20,
     paddingTop: 14,
     paddingBottom: 18,
     minHeight: 300,
     justifyContent: 'flex-start',
+  },
+  surfaceSheen: {
+    ...StyleSheet.absoluteFillObject,
   },
   innerWide: {
     paddingHorizontal: 26,
@@ -472,11 +545,11 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   clockValue: {
-    fontSize: 54,
+    fontSize: 50,
     fontWeight: '900',
     color: '#FFFFFF',
     letterSpacing: -2,
-    lineHeight: 58,
+    lineHeight: 54,
     textShadowColor: 'rgba(0,0,0,0.5)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 10,
@@ -515,30 +588,29 @@ const styles = StyleSheet.create({
 
   // Prayer name + countdown
   prayerSection: {
-    marginTop: 10,
+    marginTop: 24,
   },
   prayerNameRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    flexWrap: 'wrap',
-    marginBottom: 16,
+    flexDirection: 'column',
+    marginBottom: 0,
   },
   prayerName: {
-    fontSize: 30,
+    fontSize: 36,
     fontWeight: '700',
     fontStyle: 'italic',
     color: '#FFFFFF',
-    letterSpacing: -0.3,
+    letterSpacing: -0.5,
+    marginBottom: 4,
     textShadowColor: 'rgba(0,0,0,0.35)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 6,
   },
   prayerIn: {
-    fontSize: 22,
-    fontWeight: '500',
-    color: 'rgba(255,255,255,0.95)',
-    letterSpacing: -0.1,
-    marginBottom: 3,
+    fontSize: 18,
+    fontWeight: '400',
+    color: 'rgba(255,255,255,0.88)',
+    letterSpacing: 0,
+    marginBottom: 16,
   },
   prayerInWarning: {
     color: '#FFC76F',
@@ -684,14 +756,15 @@ const styles = StyleSheet.create({
   },
   pointLabelsLayer: {
     position: 'relative',
-    height: 48,
+    height: 20,
     marginTop: 8,
+    marginBottom: 8,
   },
   pointLabelCol: {
     position: 'absolute',
     top: 0,
-    width: 96,
-    transform: [{ translateX: -48 }],
+    width: 84,
+    transform: [{ translateX: -42 }],
     alignItems: 'center',
   },
   pointLabelStart: {
@@ -705,16 +778,50 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   pointLabelName: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     color: 'rgba(215,234,255,0.92)',
-    lineHeight: 16,
+    lineHeight: 14,
   },
-  pointLabelTime: {
+  timesStrip: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    borderRadius: 11,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(4,16,36,0.44)',
+  },
+  timesStripCol: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  timesStripDivider: {
+    width: 1,
+    marginVertical: 6,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+  },
+  timesStripLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(215,234,255,0.92)',
+    lineHeight: 13,
+  },
+  timesStripTime: {
     marginTop: 2,
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '800',
     color: '#FFFFFF',
-    lineHeight: 18,
+    lineHeight: 20,
+  },
+  timesStripMeta: {
+    marginTop: 2,
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(215,234,255,0.84)',
+    lineHeight: 14,
   },
 });

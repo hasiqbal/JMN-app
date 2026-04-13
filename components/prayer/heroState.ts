@@ -58,23 +58,21 @@ export function buildHeroState(params: {
     !params.forbiddenInfo
     && !params.activePrayer
     && ishraqPrayer?.timeDate
-    && dhuhrPrayer?.timeDate
+    && (zawaalPrayer?.timeDate || dhuhrPrayer?.timeDate)
     && params.now >= ishraqPrayer.timeDate
-    && params.now < dhuhrPrayer.timeDate
+    && params.now < (zawaalPrayer?.timeDate ?? dhuhrPrayer!.timeDate)
   );
 
   const ishraqToDhuhrProgress = (() => {
-    if (!isIshraqToDhuhrPhase || !ishraqPrayer?.timeDate || !dhuhrPrayer?.timeDate) return null;
-    const total = Math.max(1, dhuhrPrayer.timeDate.getTime() - ishraqPrayer.timeDate.getTime());
+    if (!isIshraqToDhuhrPhase || !ishraqPrayer?.timeDate) return null;
+    const ishraqPhaseEnd = zawaalPrayer?.timeDate ?? dhuhrPrayer?.timeDate;
+    if (!ishraqPhaseEnd) return null;
+    const total = Math.max(1, ishraqPhaseEnd.getTime() - ishraqPrayer.timeDate.getTime());
     const elapsed = Math.max(0, params.now.getTime() - ishraqPrayer.timeDate.getTime());
     return Math.max(0, Math.min(1, elapsed / total));
   })();
 
-  const zawaalMidMarker = (() => {
-    if (!isIshraqToDhuhrPhase || !ishraqPrayer?.timeDate || !dhuhrPrayer?.timeDate || !zawaalPrayer?.timeDate) return null;
-    const total = Math.max(1, dhuhrPrayer.timeDate.getTime() - ishraqPrayer.timeDate.getTime());
-    return Math.max(0, Math.min(1, (zawaalPrayer.timeDate.getTime() - ishraqPrayer.timeDate.getTime()) / total));
-  })();
+  const zawaalMidMarker = null;
 
   const currentPhaseInfo = getCurrentPhaseInfo({
     forbiddenInfo: params.forbiddenInfo,
@@ -180,15 +178,13 @@ export function buildHeroState(params: {
     heroEndTime = ishraqPrayer.time;
   }
 
-  if (isIshraqToDhuhrPhase && ishraqPrayer?.time && dhuhrPrayer?.time) {
+  if (isIshraqToDhuhrPhase && ishraqPrayer?.time) {
     heroStartLabel = 'Ishraq';
     heroStartTime = ishraqPrayer.time;
-    heroEndLabel = 'Dhuhr';
-    heroEndTime = dhuhrPrayer.time;
-    if (zawaalPrayer?.time) {
-      heroMidLabel = 'Zawaal';
-      heroMidTime = zawaalPrayer.time;
-    }
+    heroEndLabel = 'Zawaal';
+    heroEndTime = zawaalPrayer?.time ?? dhuhrPrayer?.time ?? '--:--';
+    heroMidLabel = '';
+    heroMidTime = '';
   }
 
   return {
