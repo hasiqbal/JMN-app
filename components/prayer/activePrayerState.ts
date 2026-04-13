@@ -26,6 +26,15 @@ export function buildActivePrayerState(prayers: PrayerTime[] | undefined, now: D
     }
   }
 
+  // Pre-Fajr window (midnight → first prayer): Isha from yesterday carries forward
+  if (!activePrayer && prayerTimeline.length > 0 && now < prayerTimeline[0].timeDate) {
+    const isha = prayerTimeline.find(p => p.name === 'Isha');
+    if (isha) {
+      const prevIshaDate = new Date(isha.timeDate.getTime() - 24 * 60 * 60 * 1000);
+      activePrayer = { ...isha, timeDate: prevIshaDate };
+    }
+  }
+
   const jamaatDate: Date | null = (() => {
     if (!activePrayer) return null;
     const iq = activePrayer.iqamah;
@@ -33,8 +42,15 @@ export function buildActivePrayerState(prayers: PrayerTime[] | undefined, now: D
     const [h, m] = iq.split(':').map(Number);
     if (Number.isNaN(h) || Number.isNaN(m)) return null;
 
-    const d = new Date(now);
+    // Anchor iqamah to the active prayer's day so overnight carried prayers
+    // (e.g. pre-Fajr still in yesterday's Isha) don't jump to tonight's iqamah.
+    const d = new Date(activePrayer.timeDate);
     d.setHours(h, m, 0, 0);
+
+    // Safety: if parsed iqamah somehow ends up before athan, roll once to next day.
+    if (d < activePrayer.timeDate) {
+      d.setDate(d.getDate() + 1);
+    }
     return d;
   })();
 

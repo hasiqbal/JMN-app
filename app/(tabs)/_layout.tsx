@@ -107,7 +107,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="duas"
         options={{
-          title: 'Adhkar',
+          title: 'Duas',
+          tabBarLabel: 'Duas',
+          href: '/duas',
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="menu-book" size={size} color={color} />
           ),

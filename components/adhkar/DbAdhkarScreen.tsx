@@ -856,30 +856,9 @@ export function DbAdhkarScreen({
               </View>
                 )}
 
-              {/* ── Secondary accordions: Benefits + Tafsir ── */}
-              {(hasBenefits || hasTafsir) ? (
+              {/* ── Secondary accordions: Tafsir only; Benefits stays in the header pill ── */}
+              {hasTafsir ? (
                 <View style={styles.accordionWrap}>
-                  {hasBenefits ? (
-                    <View style={styles.accordionBlock}>
-                      <TouchableOpacity
-                        style={[
-                          styles.accordionHeader,
-                          { backgroundColor: '#FEF9E7', borderColor: '#FDE68A' },
-                          isBenefitsOverlayOpen && styles.accordionHeaderActive,
-                        ]}
-                        onPress={(event) => {
-                          event.stopPropagation();
-                          void handleOpenBenefitsOverlay(item, itemBenefitsPlain);
-                        }}
-                        activeOpacity={0.8}
-                      >
-                        {showUrdu ? <Text style={[styles.accordionHeaderUrdu, { color: ADHKAR_BENEFITS_GOLD }]}>فوائد</Text> : null}
-                        {!showUrdu ? <Text style={[styles.accordionHeaderEn, { color: ADHKAR_BENEFITS_GOLD }]}>Benefits</Text> : null}
-                        <MaterialIcons name="open-in-full" size={18} color={ADHKAR_BENEFITS_GOLD} />
-                      </TouchableOpacity>
-                    </View>
-                  ) : null}
-
                   {hasTafsir ? (
                     <View style={styles.accordionBlock}>
                       <TouchableOpacity

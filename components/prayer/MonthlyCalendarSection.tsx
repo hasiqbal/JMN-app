@@ -380,6 +380,24 @@ function CalendarPrayerPanel({
 
   const { day, dbRow, date, isFriday } = selectedDay;
   const bstFallback = isBST(date);
+  const now = new Date();
+  const selectedStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const isPastDay = selectedStart < todayStart;
+  const isFutureDay = selectedStart > todayStart;
+  const isSelectedToday = !isPastDay && !isFutureDay;
+
+  const parseTimeOnDate = (timeStr: string): Date | null => {
+    const [h, m] = timeStr.split(':').map(Number);
+    if (Number.isNaN(h) || Number.isNaN(m)) return null;
+    const d = new Date(date);
+    d.setHours(h, m, 0, 0);
+    return d;
+  };
+
+  const nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() + 1);
+  const tomorrowLocal = lookupTimetable(nextDate);
 
   const baseRows: {
     label: string;
@@ -387,17 +405,73 @@ function CalendarPrayerPanel({
     icon: string;
     athan: string;
     iqamah: string | null;
+    tomorrowAthan?: string;
+    tomorrowIqamah?: string;
     isJumuah?: boolean;
     jumuahFirst?: string;
     jumuahSecond?: string;
   }[] = [
-    { label: 'Fajr', color: '#3949AB', icon: 'bedtime', athan: day.fajr, iqamah: day.iqFajr },
-    { label: 'Sunrise', color: '#E4A11B', icon: 'wb-sunny', athan: day.sunrise, iqamah: null },
-    { label: 'Ishraq', color: '#0F8D73', icon: 'flare', athan: day.ishraq, iqamah: null },
-    { label: 'Dhuhr', color: '#1B8A5A', icon: 'wb-sunny', athan: day.dhuhr, iqamah: day.iqDhuhr },
-    { label: 'Asr', color: '#E65100', icon: 'wb-cloudy', athan: day.asr, iqamah: day.iqAsr },
-    { label: 'Maghrib', color: '#AD1457', icon: 'nights-stay', athan: day.maghrib, iqamah: day.iqMaghrib },
-    { label: 'Isha', color: '#283593', icon: 'nightlight-round', athan: day.isha, iqamah: day.iqIsha },
+    {
+      label: 'Fajr',
+      color: '#3949AB',
+      icon: 'bedtime',
+      athan: day.fajr,
+      iqamah: day.iqFajr,
+      tomorrowAthan: tomorrowLocal?.fajr,
+      tomorrowIqamah: tomorrowLocal?.iqFajr,
+    },
+    {
+      label: 'Sunrise',
+      color: '#E4A11B',
+      icon: 'wb-sunny',
+      athan: day.sunrise,
+      iqamah: null,
+      tomorrowAthan: tomorrowLocal?.sunrise,
+    },
+    {
+      label: 'Ishraq',
+      color: '#0F8D73',
+      icon: 'flare',
+      athan: day.ishraq,
+      iqamah: null,
+      tomorrowAthan: tomorrowLocal?.ishraq,
+    },
+    {
+      label: 'Dhuhr',
+      color: '#1B8A5A',
+      icon: 'wb-sunny',
+      athan: day.dhuhr,
+      iqamah: day.iqDhuhr,
+      tomorrowAthan: tomorrowLocal?.dhuhr,
+      tomorrowIqamah: tomorrowLocal?.iqDhuhr,
+    },
+    {
+      label: 'Asr',
+      color: '#E65100',
+      icon: 'wb-cloudy',
+      athan: day.asr,
+      iqamah: day.iqAsr,
+      tomorrowAthan: tomorrowLocal?.asr,
+      tomorrowIqamah: tomorrowLocal?.iqAsr,
+    },
+    {
+      label: 'Maghrib',
+      color: '#AD1457',
+      icon: 'nights-stay',
+      athan: day.maghrib,
+      iqamah: day.iqMaghrib,
+      tomorrowAthan: tomorrowLocal?.maghrib,
+      tomorrowIqamah: tomorrowLocal?.iqMaghrib,
+    },
+    {
+      label: 'Isha',
+      color: '#283593',
+      icon: 'nightlight-round',
+      athan: day.isha,
+      iqamah: day.iqIsha,
+      tomorrowAthan: tomorrowLocal?.isha,
+      tomorrowIqamah: tomorrowLocal?.iqIsha,
+    },
   ];
 
   const j1Raw = dbRow?.jumu_ah_1 ?? (bstFallback ? '13:30' : '12:45');
@@ -420,6 +494,19 @@ function CalendarPrayerPanel({
       )
     : baseRows;
 
+  const rowTimes = orderedRows.map((row) => parseTimeOnDate(row.athan));
+  const currentRowIndex = isSelectedToday
+    ? rowTimes.findIndex((time, idx) => {
+        const next = rowTimes[idx + 1];
+        if (!time) return false;
+        if (!next) return now >= time;
+        return now >= time && now < next;
+      })
+    : -1;
+  const nextRowIndex = isSelectedToday
+    ? rowTimes.findIndex((time) => !!time && now < time)
+    : -1;
+
   return (
     <View style={[panelStyles.panel, N && { backgroundColor: N.surface, borderColor: N.border }]}>
       <View style={[panelStyles.colRow, N && { backgroundColor: N.surfaceAlt, borderBottomColor: N.border }]}>
@@ -428,34 +515,78 @@ function CalendarPrayerPanel({
         <Text style={[panelStyles.colLbl, { width: 72, textAlign: 'center' }]}>IQAMAH</Text>
       </View>
 
-      {orderedRows.map((p, idx) => (
+      {orderedRows.map((p, idx) => {
+        const isCompleted = isPastDay || (isSelectedToday && idx < currentRowIndex);
+        const isCurrent = isSelectedToday && idx === currentRowIndex;
+        const isNext = isSelectedToday && idx === nextRowIndex;
+        const showTomorrowAthan = isCompleted && !!p.tomorrowAthan;
+        const showTomorrowIqamah = isCompleted && !!p.tomorrowIqamah && !p.isJumuah;
+
+        return (
         <View
           key={p.label}
           style={[
             panelStyles.prayerRow,
             idx < orderedRows.length - 1 && [panelStyles.prayerRowBorder, N && { borderBottomColor: N.border }],
+            isCurrent && panelStyles.rowCurrent,
+            isNext && panelStyles.rowNext,
             N && { backgroundColor: N.surface },
           ]}
         >
           <View style={[panelStyles.iconBox, { backgroundColor: p.color + '1E' }]}>
             <MaterialIcons name={p.icon as any} size={13} color={p.color} />
           </View>
-          <Text style={[panelStyles.prayerName, N && { color: N.text }]}>{p.label}</Text>
-          <Text style={[panelStyles.athanTime, N && { color: N.textSub }]}>{p.athan}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[panelStyles.prayerName, N && { color: N.text }]}>{p.label}</Text>
+            {p.label === 'Fajr' ? <Text style={panelStyles.prayerGuidance}>Nafl forbidden after you prayed until Ishraq</Text> : null}
+            {p.label === 'Asr' ? <Text style={panelStyles.prayerGuidance}>Forbidden to delay - 20 mins before Maghrib</Text> : null}
+            {p.label === 'Ishraq' ? <Text style={panelStyles.prayerGuidance}>Nafl allowed after sunrise window ends</Text> : null}
+          </View>
+          <View style={{ width: 72, alignItems: 'center' }}>
+            <Text style={[
+              panelStyles.athanTime,
+              isCompleted && panelStyles.timePassed,
+              isCurrent && panelStyles.timeCurrent,
+              isNext && panelStyles.timeNext,
+              N && { color: N.textSub },
+            ]}>{p.athan}</Text>
+            {showTomorrowAthan ? (
+              <View style={[panelStyles.tomorrowBadge, N && { backgroundColor: 'rgba(105,168,255,0.16)' }]}>
+                <Text style={[panelStyles.tomorrowLabel, N && { color: '#9BC2EA' }]}>+24h</Text>
+                <Text style={[panelStyles.tomorrowTime, N && { color: '#D7E8FF' }]}>{p.tomorrowAthan}</Text>
+              </View>
+            ) : null}
+          </View>
           {p.isJumuah ? (
             <View style={panelStyles.jumuahIqamahWrap}>
               <Text style={[panelStyles.jumuahMiniLabel, N && { color: N.textMuted }]}>First</Text>
-              <Text style={[panelStyles.jumuahMiniTime, N && { color: N.text }]}>{p.jumuahFirst ?? '—'}</Text>
+              <Text style={[panelStyles.jumuahMiniTime, isCompleted && panelStyles.timePassed, N && { color: N.text }]}>{p.jumuahFirst ?? '—'}</Text>
               <Text style={[panelStyles.jumuahMiniLabel, panelStyles.jumuahMiniLabelGap, N && { color: N.textMuted }]}>Second</Text>
-              <Text style={[panelStyles.jumuahMiniTime, N && { color: N.text }]}>{p.jumuahSecond ?? '—'}</Text>
+              <Text style={[panelStyles.jumuahMiniTime, isCompleted && panelStyles.timePassed, N && { color: N.text }]}>{p.jumuahSecond ?? '—'}</Text>
             </View>
           ) : (
-            <Text style={[panelStyles.iqamahTime, !p.iqamah && { color: Colors.textSubtle }, N && p.iqamah && { color: N.text }]}>
-              {p.iqamah || '—'}
-            </Text>
+            <View style={{ width: 72, alignItems: 'center' }}>
+              <Text style={[
+                panelStyles.iqamahTime,
+                !p.iqamah && { color: Colors.textSubtle },
+                isCompleted && p.iqamah && panelStyles.timePassed,
+                isCurrent && p.iqamah && panelStyles.timeCurrent,
+                isNext && p.iqamah && panelStyles.timeNext,
+                N && p.iqamah && { color: N.text },
+              ]}>
+                {p.iqamah || '—'}
+              </Text>
+              {showTomorrowIqamah ? (
+                <View style={[panelStyles.tomorrowBadge, N && { backgroundColor: 'rgba(105,168,255,0.16)' }]}>
+                  <Text style={[panelStyles.tomorrowLabel, N && { color: '#9BC2EA' }]}>+24h</Text>
+                  <Text style={[panelStyles.tomorrowTime, N && { color: '#D7E8FF' }]}>{p.tomorrowIqamah}</Text>
+                </View>
+              ) : null}
+            </View>
           )}
         </View>
-      ))}
+      );
+      })}
     </View>
   );
 }
@@ -512,11 +643,21 @@ export default function MonthlyCalendarSection({
   getHijriDayNum: (hijri: string) => string;
   getHijriMonthName: (hijri: string) => string;
 }) {
-  const { width: screenWidth } = useWindowDimensions();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [dbRows, setDbRows] = useState<Map<number, PrayerTimeRow>>(new Map());
   const [hijriRows, setHijriRows] = useState<Map<number, string>>(new Map());
+
+  const pickerHeight = React.useMemo(() => {
+    return Math.min(420, Math.max(300, Math.floor(screenHeight * 0.52)));
+  }, [screenHeight]);
+  const monthButtonWidth = React.useMemo(() => {
+    const horizontalPadding = 24;
+    const gaps = 12;
+    const usable = Math.max(240, screenWidth - horizontalPadding - gaps);
+    return Math.floor(usable / 3);
+  }, [screenWidth]);
   const [dbLoading, setDbLoading] = useState(false);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const [pickerStep, setPickerStep] = useState<'month' | 'day'>('month');
@@ -682,11 +823,15 @@ export default function MonthlyCalendarSection({
     if (selectedDay) {
       const refreshed = currentGrid.find((c) => c.key === selectedDay.key);
       if (refreshed) {
-        setSelectedDay(refreshed);
+        if (refreshed.day !== selectedDay.day || refreshed.dbRow !== selectedDay.dbRow || refreshed.isFriday !== selectedDay.isFriday) {
+          setSelectedDay(refreshed);
+        }
         return;
       }
       const fallback = currentGrid.find((c) => c.isCurrentMonth) ?? null;
-      setSelectedDay(fallback);
+      if (fallback?.key !== selectedDay.key) {
+        setSelectedDay(fallback);
+      }
       return;
     }
 
@@ -761,7 +906,7 @@ export default function MonthlyCalendarSection({
 
   return (
     <View style={[calStyles.splitContainer, N && { backgroundColor: N.bg }]}> 
-      <View style={[calStyles.gridSection, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}> 
+      <View style={[calStyles.gridSection, showMonthPicker && { height: pickerHeight + 12 }, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}> 
         {!showMonthPicker ? (
           <>
             <View style={[calStyles.navRow, { paddingHorizontal: 8 }]}> 
@@ -848,7 +993,7 @@ export default function MonthlyCalendarSection({
             </ScrollView>
           </>
         ) : (
-          <View style={[calStyles.pickerContainer, N && { backgroundColor: N.surface }]}>
+          <View style={[calStyles.pickerContainer, { height: pickerHeight }, N && { backgroundColor: N.surface }]}>
             <View style={[calStyles.pickerHeader, N && { borderBottomColor: N.border }]}>
               <TouchableOpacity
                 onPress={() => {
@@ -884,6 +1029,7 @@ export default function MonthlyCalendarSection({
             {pickerStep === 'month' ? (
               <ScrollView
                 showsVerticalScrollIndicator={true}
+                style={{ flex: 1 }}
                 contentContainerStyle={calStyles.pickerYearsWrap}
               >
                 {pickerSections.map((section) => {
@@ -916,6 +1062,7 @@ export default function MonthlyCalendarSection({
                             }}
                             style={[
                               calStyles.monthButton,
+                              { width: monthButtonWidth },
                               isSelected && calStyles.monthButtonSelected,
                               N && {
                                 backgroundColor: isSelected ? '#2E6CB9' : N.surface,
@@ -1088,8 +1235,7 @@ const calStyles = StyleSheet.create({
     color: Colors.textSubtle,
   },
   pickerContainer: {
-    flex: 1,
-    maxHeight: 360,
+    maxHeight: 420,
     backgroundColor: Colors.surface,
     borderRadius: 12,
     overflow: 'hidden',
@@ -1121,32 +1267,34 @@ const calStyles = StyleSheet.create({
   },
   yearHeaderRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     marginBottom: 8,
     paddingHorizontal: 4,
   },
   yearTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     color: Colors.textPrimary,
   },
   yearHijri: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
     color: Colors.textSubtle,
+    textAlign: 'right',
+    maxWidth: '58%',
   },
   monthGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
+    justifyContent: 'space-between',
+    rowGap: 6,
     marginBottom: 8,
   },
   monthButton: {
-    flex: 1,
-    minWidth: '30%',
-    paddingVertical: 9,
-    paddingHorizontal: 6,
+    minHeight: 52,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -1160,19 +1308,19 @@ const calStyles = StyleSheet.create({
     borderWidth: 2,
   },
   monthButtonText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: Colors.textPrimary,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   monthButtonTextSelected: {
     color: '#F3F8FF',
     fontWeight: '700',
   },
   monthButtonHijri: {
-    marginTop: 2,
-    fontSize: 9,
+    marginTop: 1,
+    fontSize: 8,
     fontWeight: '600',
     color: Colors.textSubtle,
     letterSpacing: 0.1,
@@ -1407,10 +1555,26 @@ const panelStyles = StyleSheet.create({
     justifyContent: 'center',
   },
   prayerName: {
-    flex: 1,
     fontSize: 14,
     fontWeight: '700',
     color: Colors.textPrimary,
+  },
+  prayerGuidance: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#C0392B',
+    marginTop: 2,
+    lineHeight: 13,
+  },
+  rowCurrent: {
+    backgroundColor: '#F3FAF6',
+    borderLeftWidth: 3,
+    borderLeftColor: '#1E6B46',
+  },
+  rowNext: {
+    backgroundColor: '#F5F9FF',
+    borderLeftWidth: 3,
+    borderLeftColor: '#2A5F9A',
   },
   athanTime: {
     fontSize: 13,
@@ -1425,6 +1589,38 @@ const panelStyles = StyleSheet.create({
     color: Colors.textPrimary,
     width: 72,
     textAlign: 'center',
+  },
+  timePassed: {
+    color: Colors.textSubtle,
+    textDecorationLine: 'line-through',
+    opacity: 0.45,
+  },
+  timeCurrent: {
+    color: '#133423',
+  },
+  timeNext: {
+    color: '#173B61',
+  },
+  tomorrowBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: Colors.accent + '30',
+    borderRadius: Radius.full,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginTop: 2,
+  },
+  tomorrowLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: Colors.accent,
+    letterSpacing: 0.5,
+  },
+  tomorrowTime: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.accent,
   },
   jumuahIqamahWrap: {
     width: 72,

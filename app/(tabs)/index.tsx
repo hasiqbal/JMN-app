@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   Animated,
   Dimensions,
-  ImageBackground,
   Linking,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -20,11 +19,15 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { useAlert } from '@/template';
-import { formatCountdownSeconds } from '@/services/prayerService';
+import { formatCountdownSeconds, getNextPrayer, getPrayerTimesFromTimetable } from '@/services/prayerService';
 import { usePrayerTimes } from '@/hooks/usePrayerTimes';
 import { useNightMode } from '@/hooks/useNightMode';
 import { MOCK_ANNOUNCEMENTS } from '@/services/eventsService';
 import { fetchSunnahReminders, SunnahReminderRow } from '@/services/contentService';
+import PrayerHeroCard from '@/components/prayer/PrayerHeroCard';
+import { PRAYER_BG_IMAGES, PRAYER_ICONS } from '@/components/prayer/heroConfig';
+import { buildHeroState } from '@/components/prayer/heroState';
+import { buildActivePrayerState } from '@/components/prayer/activePrayerState';
 
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -98,6 +101,27 @@ function getHijriYear(hijri: string): string {
   return match ? match[1] : '';
 }
 
+/**
+ * Builds a clean hijri label like "24 Shawwal 1447 AH".
+ * Handles both Arabic timetable format (contains Arabic script)
+ * and English DB format (e.g. "24 Shawwal 1447").
+ */
+function buildHijriLabel(hijri: string): string {
+  if (!hijri || hijri === 'Date not available') return '';
+  // Arabic format: contains Arabic Unicode characters
+  if (/[\u0600-\u06FF]/.test(hijri)) {
+    const day = getHijriDayNumber(hijri);
+    const month = getHijriMonthEnglish(hijri);
+    const year = getHijriYear(hijri);
+    const parts = [day, month, year ? `${year} AH` : ''].filter(Boolean);
+    return parts.join(' ');
+  }
+  // English format: already "24 Shawwal 1447" or "24 Shawwal 1447 AH"
+  const withoutAH = hijri.replace(/\s*\bAH\b/gi, '').trim();
+  if (withoutAH) return `${withoutAH} AH`;
+  return hijri;
+}
+
 // ── Hadith of the Day ────────────────────────────────────────────────────
 const HADITHS = [
   { text: "The best of you are those who learn the Quran and teach it.", ref: "Sahih al-Bukhari 5027" },
@@ -167,6 +191,41 @@ const TICKER_MESSAGES = [
   '🤲  Volunteer drivers needed — contact the masjid office',
   '🌙  Sisters Halaqa resumes this Sunday — Topic: Gratitude in Islam',
 ];
+
+const bannerStyles = StyleSheet.create({
+  wrapper: {
+    height: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  labelBox: {
+    minWidth: 92,
+    height: '100%',
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  labelText: {
+    color: Colors.textInverse,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+  },
+  tickerArea: {
+    flex: 1,
+    overflow: 'hidden',
+    justifyContent: 'center',
+  },
+  tickerText: {
+    color: Colors.textInverse,
+    fontSize: 13,
+    fontWeight: '600',
+    paddingLeft: 8,
+  },
+});
 
 // ── Flipping Logo Card ────────────────────────────────────────────────────
 
@@ -2131,17 +2190,298 @@ export default function HomeScreen() {
   }, [loadSunnahReminders]);
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { nightMode, toggleManual } = useNightMode();
+  const { nightMode } = useNightMode();
   const {
-    data, loading, countdown, nextPrayerName, nextPrayerIqamah,
+    data, loading, countdown, nextPrayerName,
     forbiddenInfo, jumuahInfo, jumuahCountdown,
     refresh: refreshPrayerTimes,
   } = usePrayerTimes();
-  const [notifCount] = useState(2);
+  const flashAnim = useRef(new Animated.Value(1)).current;
+  const flashLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+  const dayCycleAnim = useRef(new Animated.Value(0)).current;
+  const twinkleAnim = useRef(new Animated.Value(0)).current;
+  const twinkleSlowAnim = useRef(new Animated.Value(0)).current;
+  const cloudDriftFarAnim = useRef(new Animated.Value(0)).current;
+  const cloudDriftMidAnim = useRef(new Animated.Value(0)).current;
+  const cloudDriftNearAnim = useRef(new Animated.Value(0)).current;
+  const stars = useRef(
+    Array.from({ length: 68 }, (_, i) => ({
+      id: i,
+      left: `${Math.random() * 100}%`,
+      top: `${Math.random() * 55}%`,
+      size: 0.8 + Math.random() * 2.4,
+      opacity: 0.45 + Math.random() * 0.55,
+      tint: Math.random() > 0.83 ? 'rgba(255,238,210,0.96)' : Math.random() > 0.55 ? 'rgba(225,236,255,0.95)' : 'rgba(255,255,255,0.95)',
+      glow: Math.random() > 0.58,
+    }))
+  ).current;
+  const cloudFar = useRef(
+    Array.from({ length: 7 }, (_, i) => ({
+      id: i,
+      top: 40 + Math.random() * 30,
+      width: 120 + Math.random() * 70,
+      height: 28 + Math.random() * 12,
+      alpha: 0.26 + Math.random() * 0.12,
+      seed: Math.random(),
+    }))
+  ).current;
+  const cloudMid = useRef(
+    Array.from({ length: 8 }, (_, i) => ({
+      id: i,
+      top: 58 + Math.random() * 34,
+      width: 95 + Math.random() * 70,
+      height: 24 + Math.random() * 11,
+      alpha: 0.3 + Math.random() * 0.16,
+      seed: Math.random(),
+    }))
+  ).current;
+  const cloudNear = useRef(
+    Array.from({ length: 9 }, (_, i) => ({
+      id: i,
+      top: 78 + Math.random() * 38,
+      width: 105 + Math.random() * 80,
+      height: 26 + Math.random() * 12,
+      alpha: 0.34 + Math.random() * 0.18,
+      seed: Math.random(),
+    }))
+  ).current;
 
   const currentTime = useCurrentTime();
+  const nextInfo = React.useMemo(() => (data ? getNextPrayer(data.prayers) : null), [data, currentTime]);
+
+  const {
+    activePrayer,
+    jamaatStarted,
+    jamaatOngoing,
+    alertMode,
+    jamaatCountdown,
+    hasJamaat,
+  } = React.useMemo(() => buildActivePrayerState(data?.prayers, currentTime), [data, currentTime]);
+
+  useEffect(() => {
+    if (jamaatStarted && jamaatOngoing) {
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(flashAnim, { toValue: 0.15, duration: 400, useNativeDriver: true }),
+          Animated.timing(flashAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+        ])
+      );
+      flashLoopRef.current = loop;
+      loop.start();
+    } else {
+      flashLoopRef.current?.stop();
+      flashLoopRef.current = null;
+      flashAnim.setValue(1);
+    }
+    return () => {
+      flashLoopRef.current?.stop();
+    };
+  }, [jamaatStarted, jamaatOngoing, flashAnim]);
+
+  useEffect(() => {
+    const nowMinutes =
+      currentTime.getHours() * 60 +
+      currentTime.getMinutes() +
+      currentTime.getSeconds() / 60;
+
+    const sunrise = data?.prayers.find(p => p.name === 'Sunrise')?.timeDate;
+    const maghrib = data?.prayers.find(p => p.name === 'Maghrib')?.timeDate;
+
+    let dayProgress = nowMinutes / 1440;
+
+    if (sunrise && maghrib) {
+      const sunriseMin = sunrise.getHours() * 60 + sunrise.getMinutes();
+      const maghribMin = maghrib.getHours() * 60 + maghrib.getMinutes();
+      const daySpan = Math.max(1, maghribMin - sunriseMin);
+      const nightSpan = 1440 - daySpan;
+
+      if (nowMinutes >= sunriseMin && nowMinutes <= maghribMin) {
+        // Map daylight exactly between sunrise and maghrib.
+        const tDay = (nowMinutes - sunriseMin) / daySpan;
+        dayProgress = 0.26 + tDay * (0.78 - 0.26);
+      } else {
+        // Map night from maghrib -> sunrise across midnight.
+        const tNight = nowMinutes > maghribMin
+          ? (nowMinutes - maghribMin) / nightSpan
+          : (nowMinutes + 1440 - maghribMin) / nightSpan;
+        const wrapped = 0.78 + tNight * (1 - 0.78 + 0.26);
+        dayProgress = wrapped > 1 ? wrapped - 1 : wrapped;
+      }
+    }
+
+    Animated.timing(dayCycleAnim, {
+      toValue: dayProgress,
+      duration: 900,
+      useNativeDriver: false,
+    }).start();
+  }, [currentTime, dayCycleAnim, data]);
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(twinkleAnim, {
+          toValue: 1,
+          duration: 1800,
+          useNativeDriver: false,
+        }),
+        Animated.timing(twinkleAnim, {
+          toValue: 0,
+          duration: 2200,
+          useNativeDriver: false,
+        }),
+      ])
+    );
+    loop.start();
+    return () => {
+      loop.stop();
+      twinkleAnim.setValue(0);
+    };
+  }, [twinkleAnim]);
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(twinkleSlowAnim, {
+          toValue: 1,
+          duration: 6200,
+          useNativeDriver: false,
+        }),
+        Animated.timing(twinkleSlowAnim, {
+          toValue: 0,
+          duration: 7400,
+          useNativeDriver: false,
+        }),
+      ])
+    );
+    loop.start();
+    return () => {
+      loop.stop();
+      twinkleSlowAnim.setValue(0);
+    };
+  }, [twinkleSlowAnim]);
+
+  useEffect(() => {
+    const farLoop = Animated.loop(
+      Animated.timing(cloudDriftFarAnim, {
+        toValue: 1,
+        duration: 90000,
+        useNativeDriver: true,
+      })
+    );
+    const midLoop = Animated.loop(
+      Animated.timing(cloudDriftMidAnim, {
+        toValue: 1,
+        duration: 62000,
+        useNativeDriver: true,
+      })
+    );
+    const nearLoop = Animated.loop(
+      Animated.timing(cloudDriftNearAnim, {
+        toValue: 1,
+        duration: 42000,
+        useNativeDriver: true,
+      })
+    );
+
+    farLoop.start();
+    midLoop.start();
+    nearLoop.start();
+    return () => {
+      farLoop.stop();
+      midLoop.stop();
+      nearLoop.stop();
+      cloudDriftFarAnim.setValue(0);
+      cloudDriftMidAnim.setValue(0);
+      cloudDriftNearAnim.setValue(0);
+    };
+  }, [cloudDriftFarAnim, cloudDriftMidAnim, cloudDriftNearAnim]);
 
   const N = nightMode ? NIGHT : null;
+
+  const month = currentTime.getMonth();
+  const isWinterSeason = month === 11 || month <= 1;
+  const isSummerSeason = month >= 5 && month <= 7;
+  const skyPalette = isWinterSeason
+    ? ['#020A18', '#061327', '#CF7B88', '#8FC6EA', '#78B9E0', '#D17B88', '#0D213D', '#020A18']
+    : isSummerSeason
+      ? ['#031225', '#031225', '#F19272', '#8CE4FF', '#72DCF8', '#F69A76', '#132C52', '#031225']
+      : ['#031225', '#031225', '#E57C7A', '#7EDCFF', '#69D8F5', '#F08A7A', '#10233F', '#031225'];
+  const sunPeakOpacity = isWinterSeason ? 0.88 : 1;
+  const sunNoonY = isWinterSeason ? 18 : isSummerSeason ? -6 : 8;
+  const cloudPeakOpacity = isWinterSeason ? 0.36 : isSummerSeason ? 0.56 : 0.5;
+  const starsNightPeak = isWinterSeason ? 1 : 0.95;
+  const horizonGlowColor = isWinterSeason ? 'rgba(255,150,120,0.45)' : 'rgba(255,170,120,0.6)';
+  const cloudColor = isWinterSeason ? 'rgba(225,236,250,0.56)' : 'rgba(255,255,255,0.62)';
+  const cloudShadeColor = isWinterSeason ? 'rgba(185,204,226,0.46)' : 'rgba(201,219,238,0.42)';
+  const cloudHighlightColor = isWinterSeason ? 'rgba(246,250,255,0.6)' : 'rgba(255,255,255,0.7)';
+
+  const skyColor = dayCycleAnim.interpolate({
+    inputRange: [0, 0.2, 0.28, 0.4, 0.55, 0.72, 0.82, 1],
+    outputRange: skyPalette,
+  });
+  const sunTranslateX = dayCycleAnim.interpolate({
+    inputRange: [0, 0.2, 0.28, 0.45, 0.62, 0.78, 1],
+    outputRange: [-140, -140, -70, 40, 150, 280, 280],
+  });
+  const sunTranslateY = dayCycleAnim.interpolate({
+    inputRange: [0, 0.2, 0.28, 0.45, 0.62, 0.78, 1],
+    outputRange: [170, 170, 118, sunNoonY, sunNoonY + 12, 122, 170],
+  });
+  const sunOpacity = dayCycleAnim.interpolate({
+    inputRange: [0, 0.22, 0.32, 0.7, 0.8, 1],
+    outputRange: [0, 0, 0.85, sunPeakOpacity, 0, 0],
+  });
+  const starsOpacity = dayCycleAnim.interpolate({
+    inputRange: [0, 0.22, 0.35, 0.68, 0.82, 1],
+    outputRange: [starsNightPeak, starsNightPeak * 0.9, 0.1, 0, 0.55, starsNightPeak],
+  });
+  const cloudFarOpacity = dayCycleAnim.interpolate({
+    inputRange: [0, 0.22, 0.3, 0.7, 0.82, 1],
+    outputRange: [0, 0.07, cloudPeakOpacity * 0.58, cloudPeakOpacity * 0.52, 0.07, 0],
+  });
+  const cloudMidOpacity = dayCycleAnim.interpolate({
+    inputRange: [0, 0.24, 0.33, 0.7, 0.82, 1],
+    outputRange: [0, 0.1, cloudPeakOpacity * 0.86, cloudPeakOpacity * 0.78, 0.1, 0],
+  });
+  const cloudNearOpacity = dayCycleAnim.interpolate({
+    inputRange: [0, 0.26, 0.36, 0.68, 0.82, 1],
+    outputRange: [0, 0.12, cloudPeakOpacity, cloudPeakOpacity * 0.9, 0.12, 0],
+  });
+  const horizonGlowOpacity = dayCycleAnim.interpolate({
+    inputRange: [0, 0.2, 0.27, 0.34, 0.66, 0.74, 0.82, 1],
+    outputRange: [0.08, 0.16, 0.48, 0.1, 0.1, 0.45, 0.12, 0.08],
+  });
+  const sunsetWarmBandOpacity = dayCycleAnim.interpolate({
+    inputRange: [0.6, 0.68, 0.74, 0.82],
+    outputRange: [0, 0.35, 0.5, 0],
+  });
+  const duskTintOpacity = dayCycleAnim.interpolate({
+    inputRange: [0.68, 0.76, 0.84, 0.9],
+    outputRange: [0, 0.16, 0.2, 0],
+  });
+  const twinkleOpacity = twinkleAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.6, 1],
+  });
+  const twinkleSlowOpacity = twinkleSlowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.78, 1],
+  });
+  const moonPulseScale = twinkleAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.98, 1.02],
+  });
+  const moonTranslateY = twinkleAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -3],
+  });
+  const nightVignetteOpacity = dayCycleAnim.interpolate({
+    inputRange: [0, 0.2, 0.35, 0.68, 0.82, 1],
+    outputRange: [0.45, 0.4, 0.05, 0, 0.3, 0.45],
+  });
+  const cloudFarDrift = cloudDriftFarAnim.interpolate({ inputRange: [0, 1], outputRange: [-220, SCREEN_WIDTH + 220] });
+  const cloudMidDrift = cloudDriftMidAnim.interpolate({ inputRange: [0, 1], outputRange: [SCREEN_WIDTH + 180, -220] });
+  const cloudNearDrift = cloudDriftNearAnim.interpolate({ inputRange: [0, 1], outputRange: [-260, SCREEN_WIDTH + 260] });
 
   const timeH    = currentTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
   const secStr   = currentTime.toLocaleTimeString('en-GB', { second: '2-digit' });
@@ -2151,13 +2491,98 @@ export default function HomeScreen() {
   const hijriMonthEn = data ? getHijriMonthEnglish(data.hijriDate) : '';
   const hijriDayNum  = data ? getHijriDayNumber(data.hijriDate) : '';
   const hijriYear    = data ? getHijriYear(data.hijriDate) : '';
+  const maghribEntry = data?.prayers.find(p => p.name === 'Maghrib');
+  const isPastMaghrib = maghribEntry ? currentTime >= maghribEntry.timeDate : false;
+  const hijriSource = (() => {
+    if (!data) return '';
+    if (isPastMaghrib) {
+      const tomorrow = new Date(currentTime);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      return getPrayerTimesFromTimetable(tomorrow)?.hijriDate ?? data.hijriDate;
+    }
+    return data.hijriDate;
+  })();
+  const hijriDisplayLabel = !loading ? buildHijriLabel(hijriSource) : '';
   // Hijri day as integer (1-30) — drives Full Juz for monthly Quran completion
   // Falls back to Gregorian day-of-year mod 30 until Hijri data loads
   const hijriDayInt  = parseInt(hijriDayNum || '0', 10) || ((DAY_OF_YEAR % 30) + 1);
 
   const nextPrayerTime = data?.prayers.find(p => p.name === nextPrayerName)?.time ?? '';
+  const nextIqamah = nextInfo?.prayer.iqamah && nextInfo.prayer.iqamah !== '-' ? nextInfo.prayer.iqamah : null;
+
+  const {
+    heroImageKey,
+    heroGradientColors,
+    heroProgress,
+    heroAthanMarker,
+    heroJamaatMarker,
+    heroEndMarker,
+    heroMidMarker,
+    heroPrayerName,
+    heroCountdownInfo,
+    heroStartLabel,
+    heroStartTime,
+    heroEndLabel,
+    heroEndTime,
+    heroMidLabel,
+    heroMidTime,
+  } = React.useMemo(() => buildHeroState({
+    forbiddenInfo,
+    data,
+    now: currentTime,
+    activePrayer,
+    nextPrayerName,
+    nextInfo,
+    hasJamaat,
+    jamaatStarted,
+    jamaatOngoing,
+    jamaatCountdown,
+    countdown,
+  }), [
+    forbiddenInfo,
+    data,
+    currentTime,
+    activePrayer,
+    nextPrayerName,
+    nextInfo,
+    hasJamaat,
+    jamaatStarted,
+    jamaatOngoing,
+    jamaatCountdown,
+    countdown,
+  ]);
+  const sunriseTimeDate = data?.prayers.find(p => p.name === 'Sunrise')?.timeDate;
+  const maghribTimeDate = data?.prayers.find(p => p.name === 'Maghrib')?.timeDate;
   const isFriday = currentTime.getDay() === 5;
   const isThursday = currentTime.getDay() === 4;
+
+  const moonVisibility = (() => {
+    // Strict night-only moon: fade in after Maghrib, fade out before Sunrise.
+    const fadeMinutes = 35;
+
+    if (sunriseTimeDate && maghribTimeDate) {
+      const nowMs = currentTime.getTime();
+      const sunriseMs = sunriseTimeDate.getTime();
+      const maghribMs = maghribTimeDate.getTime();
+
+      if (nowMs >= sunriseMs && nowMs < maghribMs) return 0;
+
+      if (nowMs >= maghribMs) {
+        const minsAfterMaghrib = (nowMs - maghribMs) / 60000;
+        return Math.max(0, Math.min(1, minsAfterMaghrib / fadeMinutes));
+      }
+
+      const minsToSunrise = (sunriseMs - nowMs) / 60000;
+      return Math.max(0, Math.min(1, minsToSunrise / fadeMinutes));
+    }
+
+    // Fallback while prayer data loads.
+    const hour = currentTime.getHours() + currentTime.getMinutes() / 60;
+    if (hour >= 20 || hour < 4.5) return 1;
+    if (hour >= 4.5 && hour < 5.5) return Math.max(0, 5.5 - hour);
+    if (hour >= 19 && hour < 20) return Math.max(0, hour - 19);
+    return 0;
+  })();
 
   // Compute today's sunnah from DB (fallback to SUNNAH_REMINDERS)
   const computedTodaySunnah: SunnahEntry = (() => {
@@ -2220,9 +2645,6 @@ export default function HomeScreen() {
     return null;
   })();
 
-  // Night hero overlay gradient — time-of-day aware
-  const heroGradient = getHeroOverlayGradient(currentTime.getHours(), nightMode);
-
   // Date/time card styles
   const dtCardBg    = N ? N.surface : '#FFFFFF';
   const dtTextPrim  = N ? N.text : Colors.textPrimary;
@@ -2259,24 +2681,174 @@ export default function HomeScreen() {
         />
       }
     >
-      {nightMode ? (
-        <LinearGradient
-          colors={['#0B1220', '#0F172A']}
-          style={StyleSheet.absoluteFillObject}
-          pointerEvents="none"
-        />
-      ) : null}
       {/* ── Hero Header ─────────────────────────────── */}
-      <ImageBackground
-        source={nightMode
-          ? require('@/assets/images/sky/isha.jpg')
-          : require('@/assets/images/masjid-building.jpg')}
+      <View
         style={[styles.heroHeader, { paddingTop: insets.top + 8 }]}
-        imageStyle={{ opacity: nightMode ? 0.6 : 1 }}
       >
-        <LinearGradient
-          colors={heroGradient}
-          style={StyleSheet.absoluteFillObject}
+        <Animated.View
+          pointerEvents="none"
+          style={[StyleSheet.absoluteFillObject, { backgroundColor: skyColor }]}
+        />
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 86,
+            backgroundColor: horizonGlowColor,
+            opacity: horizonGlowOpacity,
+          }}
+        />
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 6,
+            height: 58,
+            backgroundColor: 'rgba(255,124,74,0.6)',
+            opacity: sunsetWarmBandOpacity,
+          }}
+        />
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 88,
+            backgroundColor: 'rgba(118,76,170,0.32)',
+            opacity: duskTintOpacity,
+          }}
+        />
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { opacity: cloudFarOpacity }]}>
+          {cloudFar.map((c, i) => (
+            <Animated.View
+              key={`cf-${c.id}`}
+              style={{
+                position: 'absolute',
+                top: c.top,
+                width: c.width,
+                height: c.height,
+                borderRadius: c.height / 2,
+                backgroundColor: cloudShadeColor,
+                opacity: c.alpha,
+                transform: [{ translateX: cloudFarDrift }, { translateY: i % 2 === 0 ? -1 : 1 }],
+              }}
+            >
+              <View style={{ position: 'absolute', width: c.width * 0.58, height: c.height * 1.28, borderRadius: c.height, left: c.width * 0.11, top: -c.height * 0.4, backgroundColor: cloudColor, opacity: 0.92 }} />
+              <View style={{ position: 'absolute', width: c.width * 0.42, height: c.height * 1.1, borderRadius: c.height, left: c.width * 0.5, top: -c.height * 0.26, backgroundColor: cloudHighlightColor, opacity: 0.74 }} />
+            </Animated.View>
+          ))}
+        </Animated.View>
+
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { opacity: cloudMidOpacity }]}>
+          {cloudMid.map((c, i) => (
+            <Animated.View
+              key={`cm-${c.id}`}
+              style={{
+                position: 'absolute',
+                top: c.top,
+                width: c.width,
+                height: c.height,
+                borderRadius: c.height / 2,
+                backgroundColor: cloudShadeColor,
+                opacity: c.alpha,
+                transform: [{ translateX: cloudMidDrift }, { translateY: i % 3 === 0 ? -2 : 2 }],
+              }}
+            >
+              <View style={{ position: 'absolute', width: c.width * 0.52, height: c.height * 1.24, borderRadius: c.height, left: c.width * 0.1, top: -c.height * 0.38, backgroundColor: cloudColor, opacity: 0.93 }} />
+              <View style={{ position: 'absolute', width: c.width * 0.4, height: c.height * 1.06, borderRadius: c.height, left: c.width * 0.5, top: -c.height * 0.24, backgroundColor: cloudHighlightColor, opacity: 0.76 }} />
+            </Animated.View>
+          ))}
+        </Animated.View>
+
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { opacity: cloudNearOpacity }]}>
+          {cloudNear.map((c, i) => (
+            <Animated.View
+              key={`cn-${c.id}`}
+              style={{
+                position: 'absolute',
+                top: c.top,
+                width: c.width,
+                height: c.height,
+                borderRadius: c.height / 2,
+                backgroundColor: cloudShadeColor,
+                opacity: c.alpha,
+                transform: [{ translateX: cloudNearDrift }, { translateY: i % 2 === 0 ? 1 : -1 }],
+              }}
+            >
+              <View style={{ position: 'absolute', width: c.width * 0.54, height: c.height * 1.3, borderRadius: c.height, left: c.width * 0.1, top: -c.height * 0.42, backgroundColor: cloudColor, opacity: 0.95 }} />
+              <View style={{ position: 'absolute', width: c.width * 0.42, height: c.height * 1.1, borderRadius: c.height, left: c.width * 0.5, top: -c.height * 0.27, backgroundColor: cloudHighlightColor, opacity: 0.79 }} />
+            </Animated.View>
+          ))}
+        </Animated.View>
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            width: 94,
+            height: 94,
+            borderRadius: 47,
+            backgroundColor: '#FFD06B',
+            transform: [{ translateX: sunTranslateX }, { translateY: sunTranslateY }],
+            opacity: sunOpacity,
+            shadowColor: '#FFD06B',
+            shadowOpacity: 0.65,
+            shadowRadius: 18,
+          }}
+        />
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            right: 26,
+            top: 30,
+            width: 60,
+            height: 60,
+            borderRadius: 30,
+            backgroundColor: 'rgba(240,248,255,0.9)',
+            opacity: moonVisibility,
+            transform: [{ translateY: moonTranslateY }, { scale: moonPulseScale }],
+            shadowColor: '#EAF3FF',
+            shadowOpacity: 0.6,
+            shadowRadius: 14,
+          }}
+        />
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { opacity: starsOpacity }]}>
+          <Animated.View style={[StyleSheet.absoluteFillObject, { opacity: twinkleSlowOpacity }]}>
+            <Animated.View style={[StyleSheet.absoluteFillObject, { opacity: twinkleOpacity }]}>
+            {stars.map((star) => (
+              <View
+                key={star.id}
+                style={{
+                  position: 'absolute',
+                  left: star.left,
+                  top: star.top,
+                  width: star.size,
+                  height: star.size,
+                  borderRadius: star.size,
+                  opacity: star.opacity,
+                  backgroundColor: star.tint,
+                  shadowColor: star.tint,
+                  shadowOpacity: star.glow ? 0.85 : 0.32,
+                  shadowRadius: star.glow ? 6 : 2,
+                }}
+              />
+            ))}
+            </Animated.View>
+          </Animated.View>
+        </Animated.View>
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFillObject,
+            { backgroundColor: '#030A18', opacity: nightVignetteOpacity },
+          ]}
         />
 
         {/* Top nav bar */}
@@ -2288,117 +2860,68 @@ export default function HomeScreen() {
               contentFit="contain"
             />
             <View style={styles.topNavText}>
-              <Text style={styles.topNavName}>Jami' Masjid Noorani</Text>
-              <Text style={styles.topNavCity}>Halifax, UK</Text>
-              <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.78)', marginTop: 1 }}>
+              <Text numberOfLines={1} style={styles.topNavName}>Jami' Masjid Noorani</Text>
+              <View style={styles.topNavCityRow}>
+                <View style={styles.topNavCityDot} />
+                <Text style={styles.topNavCity}>Halifax, UK</Text>
+              </View>
+            </View>
+          </View>
+          <View style={styles.navRight}>
+            <View style={styles.updatedPill}>
+              <Text style={styles.updatedPillText}>
                 Updated {lastUpdated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
               </Text>
             </View>
           </View>
-          <View style={styles.navRight}>
-            {/* Night mode toggle */}
-            <NightModeToggle nightMode={nightMode} onToggle={toggleManual} />
-            <TouchableOpacity style={styles.navBtn} activeOpacity={0.7}>
-              <MaterialIcons name="notifications" size={24} color={Colors.textInverse} />
-              {notifCount > 0 ? (
-                <View style={styles.notifBadge}>
-                  <Text style={styles.notifBadgeText}>{notifCount}</Text>
-                </View>
-              ) : null}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.navBtn} activeOpacity={0.7}>
-              <MaterialIcons name="mosque" size={24} color={Colors.textInverse} />
-            </TouchableOpacity>
-          </View>
         </View>
 
-        {/* Star field overlay label when night */}
-        {nightMode ? (
-          <View style={styles.nightLabel}>
-            <MaterialIcons name="nights-stay" size={13} color="rgba(180,210,255,0.75)" />
-            <Text style={styles.nightLabelText}>Night Mode · Auto</Text>
-          </View>
-        ) : null}
-
-        {/* Logo + Info Row */}
-        <View style={styles.logoBrandArea}>
-          <FlippingLogoCard
-            nightMode={nightMode}
-            sunnah={computedTodaySunnah}
+        {/* Unified Hero Entity: time/date + prayer as one card */}
+        <View style={styles.heroUnifiedEntity}>
+          <PrayerHeroCard
+            visible={!!(forbiddenInfo || nextPrayerName || alertMode)}
+            backgroundSource={PRAYER_BG_IMAGES[heroImageKey] ?? PRAYER_BG_IMAGES['Dhuhr']}
+            gradientColors={heroGradientColors}
+            heroWide={SCREEN_WIDTH >= 700}
+            kicker={forbiddenInfo ? 'Prayer Pause Window' : (activePrayer ? 'Current Prayer' : 'Up Next Prayer')}
+            title={heroPrayerName}
+            isForbidden={!!forbiddenInfo}
+            forbiddenEndsAt={forbiddenInfo?.endsAt ?? '--:--'}
+            isFridayJumuahHero={false}
+            athanValue={activePrayer?.time ?? nextInfo?.prayer.time ?? nextPrayerTime}
+            j1={''}
+            j2={''}
+            showJamaat={!!((alertMode && hasJamaat && activePrayer?.iqamah) || (!alertMode && nextIqamah))}
+            jamaatValue={alertMode ? (activePrayer?.iqamah ?? '') : (nextIqamah ?? '')}
+            countdownInfo={heroCountdownInfo}
+            flashAnim={flashAnim}
+            progress={heroProgress}
+            athanMarker={heroAthanMarker}
+            jamaatMarker={heroJamaatMarker}
+            endMarker={heroEndMarker}
+            midMarker={heroMidMarker}
+            startLabel={heroStartLabel}
+            startTime={heroStartTime}
+            endLabel={heroEndLabel}
+            endTime={heroEndTime}
+            midLabel={heroMidLabel}
+            midTime={heroMidTime}
+            hasNext={!!nextInfo}
+            nextPrayerName={nextPrayerName}
+            nextPrayerTime={nextInfo?.prayer.time ?? nextPrayerTime}
+            prayerIcons={PRAYER_ICONS}
+            embedded
+            localTime={timeH}
+            ampm={ampm}
+            seconds={secStr}
+            hijriLabel={hijriDisplayLabel}
+            loadingHijri={loading || !data}
+            dayName={dayName}
+            dateShort={dateShort}
+            onFullTimetable={() => router.push('/(tabs)/prayer?view=month' as any)}
           />
-
-          <View style={styles.infoRow}>
-            {/* Date & Time Card — redesigned */}
-            <View
-              style={[styles.squareCard, { padding: 0, overflow: 'hidden', flex: 1, borderWidth: 0 }]}
-            >
-              <LinearGradient
-                colors={N ? ['#0E1F3D', '#182E58'] : ['#1B6B3A', '#2E8B57']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={{ flex: 1, width: '100%', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 8, gap: 1 }}
-              >
-                {/* Time row */}
-                <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
-                  <Text style={{ fontSize: 17, fontWeight: '700', color: '#fff', letterSpacing: 0.8 }}>{timeH}</Text>
-                  <Text style={{ fontSize: 10, fontWeight: '600', color: 'rgba(255,255,255,0.65)' }}>{ampm}</Text>
-                </View>
-
-                {/* Day name */}
-                <Text style={{ fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.68)', letterSpacing: 0.9, textTransform: 'uppercase' }}>
-                  {dayName}
-                </Text>
-
-                {/* Divider */}
-                <View style={{ width: 36, height: 1, backgroundColor: 'rgba(255,255,255,0.22)', marginVertical: 5 }} />
-
-                {/* Hijri date — hero element */}
-                {loading || !data ? (
-                  <ActivityIndicator color="rgba(255,255,255,0.7)" size="small" style={{ marginVertical: 6 }} />
-                ) : (
-                  <View style={{ alignItems: 'center', gap: 1 }}>
-                    <Text style={{ fontSize: 34, fontWeight: '900', color: '#fff', lineHeight: 38, letterSpacing: -0.5 }}>
-                      {hijriDayNum || '—'}
-                    </Text>
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.92)', textAlign: 'center', lineHeight: 14 }}>
-                      {hijriMonthEn || '—'}
-                    </Text>
-                    <Text style={{ fontSize: 9.5, fontWeight: '500', color: 'rgba(255,255,255,0.60)' }}>
-                      {hijriYear ? `${hijriYear} AH` : ''}
-                    </Text>
-                  </View>
-                )}
-
-                {/* Gregorian */}
-                <Text style={{ fontSize: 10, fontWeight: '600', color: 'rgba(255,255,255,0.72)', textAlign: 'center', marginTop: 3 }}>
-                  {dateShort}
-                </Text>
-
-                {/* Open Calendar button */}
-                <TouchableOpacity
-                  onPress={() => router.push('/(tabs)/prayer?view=month' as any)}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 20, paddingHorizontal: 9, paddingVertical: 4, marginTop: 5, borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' }}
-                >
-                  <MaterialIcons name="calendar-month" size={10} color="#fff" />
-                  <Text style={{ fontSize: 9, fontWeight: '700', color: '#fff', letterSpacing: 0.2 }}>Open Calendar</Text>
-                </TouchableOpacity>
-              </LinearGradient>
-            </View>
-
-            {/* Next Prayer Card — shows alert when prayer begun, else next prayer */}
-            <SmallFlippingPrayerCard
-              nightMode={nightMode}
-              nextPrayerName={nextPrayerName}
-              nextPrayerTime={nextPrayerTime}
-              nextPrayerIqamah={nextPrayerIqamah}
-              countdown={countdown}
-              loading={loading}
-              prayers={data?.prayers ?? []}
-              currentTime={currentTime}
-            />
-          </View>
         </View>
-      </ImageBackground>
+      </View>
 
       {/* Rolling News Banner */}
       <RollingBanner nightMode={nightMode} />
@@ -2538,38 +3061,14 @@ export default function HomeScreen() {
   );
 }
 
-// ── Banner Styles ──────────────────────────────────────────────────────────
-const bannerStyles = StyleSheet.create({
-  wrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 38,
-    overflow: 'hidden',
-  },
-  labelBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    height: '100%',
-    minWidth: 64,
-    justifyContent: 'center',
-  },
-  labelText: { ...Typography.labelMedium, color: Colors.textInverse, fontSize: 10, letterSpacing: 1 },
-  tickerArea: { flex: 1, overflow: 'hidden' },
-  tickerText: { ...Typography.bodyMedium, color: '#FFFFFF', fontSize: 13, paddingHorizontal: 8 } as any,
-});
-
-// ── Screen Styles ──────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  content: {},
-
+  content: { paddingBottom: Spacing.xl },
   heroHeader: {
     paddingBottom: 0,
     overflow: 'hidden',
+    minHeight: 171,
   },
-
   topNav: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -2584,16 +3083,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   topNavLogo: {
-    width: 60,
-    height: 60,
-    borderRadius: 12,
-    backgroundColor: '#fff',
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: 'transparent',
   },
   topNavText: {
     flex: 1,
   },
   topNavName: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.2,
@@ -2601,13 +3100,47 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
-  topNavCity: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: 'rgba(255,255,255,0.75)',
-    marginTop: 1,
+  topNavCityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 2,
   },
-  navRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  topNavCityDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.62)',
+  },
+  topNavCity: {
+    fontSize: 8,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.74)',
+    letterSpacing: 0.3,
+  },
+  navRight: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
+  updatedPill: {
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    borderRadius: Radius.full,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.28)',
+  },
+  updatedPillText: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
+  },
+  heroUnifiedEntity: {
+    // ImageBackground fills this — no bg/border, just the clipping boundary
+    marginHorizontal: Spacing.md,
+    marginTop: 6,
+    marginBottom: Spacing.sm,
+    borderRadius: Radius.lg,
+    overflow: 'hidden',
+  },
   navBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   notifBadge: {
     position: 'absolute', top: 4, right: 4,
@@ -2616,42 +3149,30 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   notifBadgeText: { fontSize: 9, fontWeight: '700', color: '#FFF' },
-
   nightLabel: {
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.sm,
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingHorizontal: Spacing.md,
-    paddingBottom: 4,
-    opacity: 0.75,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(180,210,255,0.35)',
+    backgroundColor: 'rgba(8,16,34,0.35)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   nightLabelText: {
-    fontSize: 10, fontWeight: '600',
-    color: 'rgba(180,210,255,0.8)',
-    letterSpacing: 0.6, textTransform: 'uppercase',
+    fontSize: 10,
+    fontWeight: '600',
+    color: 'rgba(180,210,255,0.88)',
+    letterSpacing: 0.3,
   },
-
   logoBrandArea: {
-    alignItems: 'center',
     paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.xs,
-    paddingBottom: Spacing.md,
+    paddingBottom: Spacing.xs,
   },
-  logoCard: {
-    borderRadius: Radius.lg,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.14,
-    shadowRadius: 10,
-    elevation: 6,
-    marginBottom: Spacing.sm,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  masjidLogo: { width: '85%', height: '75%' } as any,
-
   infoRow: { flexDirection: 'row', gap: Spacing.sm, width: '100%', alignItems: 'stretch' },
   squareCard: {
     flex: 1,
@@ -2669,7 +3190,6 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   prayerSquare: { backgroundColor: Colors.accent },
-
   dayLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
   timeRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 4 },
   squareTime: { fontSize: 22, fontWeight: '700', letterSpacing: 1, lineHeight: 26 },

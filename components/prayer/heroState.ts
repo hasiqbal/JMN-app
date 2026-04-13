@@ -18,10 +18,18 @@ export type HeroState = {
   heroImageKey: string;
   heroGradientColors: readonly [string, string, ...string[]];
   heroProgress: number;
+  heroAthanMarker: number | null;
   heroJamaatMarker: number | null;
   heroEndMarker: number | null;
+  heroMidMarker: number | null;
   heroPrayerName: string;
   heroCountdownInfo: HeroCountdownInfo;
+  heroStartLabel: string;
+  heroStartTime: string;
+  heroEndLabel: string;
+  heroEndTime: string;
+  heroMidLabel: string;
+  heroMidTime: string;
 };
 
 export function buildHeroState(params: {
@@ -41,6 +49,32 @@ export function buildHeroState(params: {
   const currentProgressMeta = getCurrentProgressMeta(params.activePrayer, params.data, params.now);
   const nextProgressMeta = getNextProgressMeta(params.nextInfo, params.activePrayer, params.data, params.now);
   const currentEndsIn = getCurrentEndsIn(params.activePrayer, params.data, params.now);
+  const sunrisePrayer = params.data?.prayers.find((p) => p.name === 'Sunrise');
+  const ishraqPrayer = params.data?.prayers.find((p) => p.name === 'Ishraq');
+  const zawaalPrayer = params.data?.prayers.find((p) => p.name === 'Zawaal');
+  const dhuhrPrayer = params.data?.prayers.find((p) => p.name === 'Dhuhr');
+
+  const isIshraqToDhuhrPhase = !!(
+    !params.forbiddenInfo
+    && !params.activePrayer
+    && ishraqPrayer?.timeDate
+    && dhuhrPrayer?.timeDate
+    && params.now >= ishraqPrayer.timeDate
+    && params.now < dhuhrPrayer.timeDate
+  );
+
+  const ishraqToDhuhrProgress = (() => {
+    if (!isIshraqToDhuhrPhase || !ishraqPrayer?.timeDate || !dhuhrPrayer?.timeDate) return null;
+    const total = Math.max(1, dhuhrPrayer.timeDate.getTime() - ishraqPrayer.timeDate.getTime());
+    const elapsed = Math.max(0, params.now.getTime() - ishraqPrayer.timeDate.getTime());
+    return Math.max(0, Math.min(1, elapsed / total));
+  })();
+
+  const zawaalMidMarker = (() => {
+    if (!isIshraqToDhuhrPhase || !ishraqPrayer?.timeDate || !dhuhrPrayer?.timeDate || !zawaalPrayer?.timeDate) return null;
+    const total = Math.max(1, dhuhrPrayer.timeDate.getTime() - ishraqPrayer.timeDate.getTime());
+    return Math.max(0, Math.min(1, (zawaalPrayer.timeDate.getTime() - ishraqPrayer.timeDate.getTime()) / total));
+  })();
 
   const currentPhaseInfo = getCurrentPhaseInfo({
     forbiddenInfo: params.forbiddenInfo,
@@ -53,7 +87,9 @@ export function buildHeroState(params: {
     currentEndsIn,
   });
 
-  const heroImageKey = params.forbiddenInfo
+  const heroImageKey = isIshraqToDhuhrPhase
+    ? 'Ishraq'
+    : params.forbiddenInfo
     ? (forbiddenWindowMeta?.phase === 'Sunrise' ? 'Sunrise' : 'Dhuhr')
     : (params.activePrayer?.name ?? params.nextPrayerName);
 
@@ -61,41 +97,121 @@ export function buildHeroState(params: {
     ? ['rgba(122,40,14,0.82)', 'rgba(179,66,26,0.76)'] as const
     : (PRAYER_GRADIENTS[heroImageKey] ?? ['rgba(27,94,52,0.82)', 'rgba(45,138,79,0.76)'] as const);
 
-  const heroProgress = params.forbiddenInfo
+  const heroProgress = isIshraqToDhuhrPhase
+    ? (ishraqToDhuhrProgress ?? 0)
+    : params.forbiddenInfo
     ? (forbiddenWindowMeta?.progress ?? 0)
     : (currentProgressMeta?.progress ?? nextProgressMeta?.progress ?? 0);
 
-  const heroJamaatMarker = params.forbiddenInfo
+  const heroAthanMarker = params.forbiddenInfo
+    ? null
+    : (currentProgressMeta?.athanMarker ?? nextProgressMeta?.athanMarker ?? null);
+
+  const heroJamaatMarker = (params.forbiddenInfo || isIshraqToDhuhrPhase)
     ? null
     : (currentProgressMeta?.jamaatMarker ?? nextProgressMeta?.jamaatMarker ?? null);
 
-  const heroEndMarker = params.forbiddenInfo ? null : 1;
+  const heroEndMarker = 1;
+  const heroMidMarker = isIshraqToDhuhrPhase ? zawaalMidMarker : null;
 
-  const heroPrayerName = params.forbiddenInfo
+  const heroPrayerName = isIshraqToDhuhrPhase
+    ? 'Ishraq'
+    : params.forbiddenInfo
     ? (forbiddenWindowMeta?.phase ?? 'Zawaal')
     : (params.activePrayer?.name ?? params.nextPrayerName);
 
-  const heroCountdownInfo = getHeroCountdownInfo({
-    forbiddenInfo: params.forbiddenInfo,
-    activePrayer: params.activePrayer,
-    hasJamaat: params.hasJamaat,
-    jamaatStarted: params.jamaatStarted,
-    jamaatOngoing: params.jamaatOngoing,
-    jamaatCountdown: params.jamaatCountdown,
-    currentEndsIn,
-    countdown: params.countdown,
-    currentPhaseInfo,
-  });
+  const heroCountdownInfo = isIshraqToDhuhrPhase
+    ? (() => {
+        if (!zawaalPrayer?.timeDate || !dhuhrPrayer?.timeDate) {
+          return {
+            label: 'Until Dhuhr',
+            value: params.countdown,
+            note: 'Ishraq window active before Dhuhr.',
+            flash: false,
+          };
+        }
+
+        if (params.now < zawaalPrayer.timeDate) {
+          const sec = Math.max(0, Math.floor((zawaalPrayer.timeDate.getTime() - params.now.getTime()) / 1000));
+          return {
+            label: 'Until Zawaal',
+            value: formatCountdownSeconds(sec),
+            note: 'Zawaal is a forbidden prayer window before Dhuhr.',
+            flash: false,
+          };
+        }
+
+        const sec = Math.max(0, Math.floor((dhuhrPrayer.timeDate.getTime() - params.now.getTime()) / 1000));
+        return {
+          label: 'Forbidden Window',
+          value: formatCountdownSeconds(sec),
+          note: 'Zawaal time: prayer is forbidden until Dhuhr starts.',
+          flash: false,
+        };
+      })()
+    : getHeroCountdownInfo({
+        forbiddenInfo: params.forbiddenInfo,
+        activePrayer: params.activePrayer,
+        hasJamaat: params.hasJamaat,
+        jamaatStarted: params.jamaatStarted,
+        jamaatOngoing: params.jamaatOngoing,
+        jamaatCountdown: params.jamaatCountdown,
+        currentEndsIn,
+        countdown: params.countdown,
+        currentPhaseInfo,
+      });
+
+  let heroStartLabel = 'Start';
+  let heroStartTime = params.activePrayer?.time ?? nextInfoToTime(params.nextInfo) ?? '--:--';
+  let heroEndLabel = 'Next Prayer';
+  let heroEndTime = nextInfoToTime(params.nextInfo) ?? '--:--';
+  let heroMidLabel = '';
+  let heroMidTime = '';
+
+  if (params.activePrayer?.name === 'Fajr' && sunrisePrayer?.time) {
+    heroEndLabel = 'Sunrise';
+    heroEndTime = sunrisePrayer.time;
+  }
+
+  if (params.forbiddenInfo && forbiddenWindowMeta?.phase === 'Sunrise' && sunrisePrayer?.time && ishraqPrayer?.time) {
+    heroStartLabel = 'Sunrise';
+    heroStartTime = sunrisePrayer.time;
+    heroEndLabel = 'Ishraq';
+    heroEndTime = ishraqPrayer.time;
+  }
+
+  if (isIshraqToDhuhrPhase && ishraqPrayer?.time && dhuhrPrayer?.time) {
+    heroStartLabel = 'Ishraq';
+    heroStartTime = ishraqPrayer.time;
+    heroEndLabel = 'Dhuhr';
+    heroEndTime = dhuhrPrayer.time;
+    if (zawaalPrayer?.time) {
+      heroMidLabel = 'Zawaal';
+      heroMidTime = zawaalPrayer.time;
+    }
+  }
 
   return {
     heroImageKey,
     heroGradientColors,
     heroProgress,
+    heroAthanMarker,
     heroJamaatMarker,
     heroEndMarker,
+    heroMidMarker,
     heroPrayerName,
     heroCountdownInfo,
+    heroStartLabel,
+    heroStartTime,
+    heroEndLabel,
+    heroEndTime,
+    heroMidLabel,
+    heroMidTime,
   };
+}
+
+function nextInfoToTime(nextInfo: { prayer: PrayerTime; secondsLeft: number } | null): string | null {
+  return nextInfo?.prayer?.time ?? null;
 }
 
 function parseClockOnToday(now: Date, clock?: string | null): Date | null {
@@ -128,12 +244,12 @@ function getForbiddenWindowMeta(
     phase = 'Sunrise';
     start = sunrise;
     end = ishraq;
-    hint = 'Use this pause for dhikr and istighfar until Ishraq begins.';
+    hint = 'Forbidden time: prayer is paused between Sunrise and Ishraq.';
   } else if (zawaal && dhuhr && now >= zawaal && now < dhuhr) {
     phase = 'Zawaal';
     start = zawaal;
     end = dhuhr;
-    hint = 'Use this pause for dhikr and get ready for Dhuhr.';
+    hint = 'Forbidden time: prayer is paused at Zawaal until Dhuhr begins.';
   }
 
   const totalMs = start && end ? Math.max(1, end.getTime() - start.getTime()) : 1;
@@ -151,12 +267,15 @@ function getCurrentProgressMeta(
   activePrayer: PrayerTime | null,
   data: PrayerTimesData | null,
   now: Date,
-): { progress: number; jamaatMarker: number | null } | null {
+): { progress: number; athanMarker: number | null; jamaatMarker: number | null } | null {
   if (!activePrayer || !data) return null;
 
   const idx = data.prayers.findIndex((p) => p.name === activePrayer.name);
   const start = activePrayer.timeDate;
-  const end = data.prayers[idx + 1]?.timeDate ?? new Date(start.getTime() + 60 * 60 * 1000);
+  // Isha wraps past midnight — use Fajr (first prayer today) as the end boundary
+  const end = data.prayers[idx + 1]?.timeDate
+    ?? (activePrayer.name === 'Isha' ? data.prayers[0]?.timeDate : undefined)
+    ?? new Date(start.getTime() + 60 * 60 * 1000);
   const total = Math.max(1, end.getTime() - start.getTime());
   const elapsed = Math.max(0, now.getTime() - start.getTime());
   const progress = Math.max(0, Math.min(1, elapsed / total));
@@ -168,6 +287,7 @@ function getCurrentProgressMeta(
 
   return {
     progress,
+    athanMarker: null, // bar starts at athan — start dot marks it already
     jamaatMarker,
   };
 }
@@ -177,17 +297,23 @@ function getNextProgressMeta(
   activePrayer: PrayerTime | null,
   data: PrayerTimesData | null,
   now: Date,
-): { progress: number; jamaatMarker: number | null } | null {
+): { progress: number; athanMarker: number | null; jamaatMarker: number | null } | null {
   if (!nextInfo || !data) return null;
 
   const start = activePrayer?.timeDate ?? new Date(now.getTime() - 20 * 60 * 1000);
   const nextAthan = nextInfo.prayer.timeDate;
   const nextIqamahDate = parseClockOnToday(now, nextInfo.prayer.iqamah);
-  const end = nextIqamahDate && nextIqamahDate > nextAthan ? nextIqamahDate : nextAthan;
+  const hasIqamahAfterAthan = !!(nextIqamahDate && nextIqamahDate > nextAthan);
+  const end = hasIqamahAfterAthan ? nextIqamahDate! : nextAthan;
 
   const total = Math.max(1, end.getTime() - start.getTime());
   const elapsed = Math.max(0, now.getTime() - start.getTime());
   const progress = Math.max(0, Math.min(1, elapsed / total));
+
+  // Athan marker: only needed when bar extends past athan to iqamah
+  const athanMarker = hasIqamahAfterAthan
+    ? Math.max(0, Math.min(1, (nextAthan.getTime() - start.getTime()) / total))
+    : null;
 
   const jamaatMarker = nextIqamahDate && nextIqamahDate >= start && nextIqamahDate <= end
     ? Math.max(0, Math.min(1, (nextIqamahDate.getTime() - start.getTime()) / total))
@@ -195,6 +321,7 @@ function getNextProgressMeta(
 
   return {
     progress,
+    athanMarker,
     jamaatMarker,
   };
 }
@@ -207,7 +334,8 @@ function getCurrentEndsIn(
   if (!activePrayer || !data) return '';
 
   const idx = data.prayers.findIndex((p) => p.name === activePrayer.name);
-  const end = data.prayers[idx + 1]?.timeDate;
+  const end = data.prayers[idx + 1]?.timeDate
+    ?? (activePrayer.name === 'Isha' ? data.prayers[0]?.timeDate : undefined);
   if (!end) return '';
 
   const sec = Math.max(0, Math.floor((end.getTime() - now.getTime()) / 1000));
