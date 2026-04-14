@@ -56,7 +56,6 @@ export function buildHeroState(params: {
 
   const isIshraqToDhuhrPhase = !!(
     !params.forbiddenInfo
-    && !params.activePrayer
     && ishraqPrayer?.timeDate
     && (zawaalPrayer?.timeDate || dhuhrPrayer?.timeDate)
     && params.now >= ishraqPrayer.timeDate
@@ -181,10 +180,10 @@ export function buildHeroState(params: {
   if (isIshraqToDhuhrPhase && ishraqPrayer?.time) {
     heroStartLabel = 'Ishraq';
     heroStartTime = ishraqPrayer.time;
-    heroEndLabel = 'Zawaal';
-    heroEndTime = zawaalPrayer?.time ?? dhuhrPrayer?.time ?? '--:--';
-    heroMidLabel = '';
-    heroMidTime = '';
+    heroMidLabel = zawaalPrayer?.time ? 'Zawaal' : '';
+    heroMidTime = zawaalPrayer?.time ?? '';
+    heroEndLabel = 'Dhuhr';
+    heroEndTime = dhuhrPrayer?.time ?? zawaalPrayer?.time ?? '--:--';
   }
 
   return {

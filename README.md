@@ -58,6 +58,39 @@ pnpm reset-project
 - Expo Router
 - Supabase
 
+## Stripe Donation Setup (In-App)
+
+The Donate card now opens Stripe Checkout inside the app using a Supabase Edge Function.
+
+### 1. Deploy the function
+
+```bash
+supabase functions deploy create-donation-checkout
+```
+
+### 2. Set required function secrets
+
+Use one of these options:
+
+- Option A (recommended): set a Stripe Payment Link URL only
+- Option B: set Stripe secret key + Stripe price ID to create a new Checkout Session per tap
+
+```bash
+# Option A
+supabase secrets set STRIPE_DONATION_PAYMENT_LINK="https://buy.stripe.com/your_link"
+
+# Option B
+supabase secrets set STRIPE_SECRET_KEY="sk_live_..."
+supabase secrets set STRIPE_DONATION_PRICE_ID="price_..."
+```
+
+Optional redirect URLs (used for Option B):
+
+```bash
+supabase secrets set STRIPE_SUCCESS_URL="https://jmnhalifax.org.uk/"
+supabase secrets set STRIPE_CANCEL_URL="https://jmnhalifax.org.uk/"
+```
+
 ## Notes
 
 - This project is configured as a private application.

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,7 @@ import {
   StyleSheet,
   TouchableOpacity,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Spacing, Radius } from '@/constants/theme';
 
 const EID_FIREWORK_BURSTS = [
   { top: '16%', left: '14%', color: '#D4B344', delay: 0 },
@@ -216,7 +214,6 @@ export default function PrayerHeroCard({
   endTime,
   midLabel,
   midTime,
-  timelinePoints,
   eidTomorrowJamaats,
   eidTomorrowLabel,
   hasNext,
@@ -232,10 +229,10 @@ export default function PrayerHeroCard({
   dateShort,
   onFullTimetable,
 }: Props) {
-  const [barWidth, setBarWidth] = useState(0);
   const progressAnim = useRef(new Animated.Value(progress)).current;
-  const pulseAnim = useRef(new Animated.Value(0)).current;
   const fireworksAnim = useRef(new Animated.Value(0)).current;
+  const logoPulseAnim = useRef(new Animated.Value(0)).current;
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.timing(progressAnim, {
@@ -244,17 +241,6 @@ export default function PrayerHeroCard({
       useNativeDriver: false,
     }).start();
   }, [progress, progressAnim]);
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1100, useNativeDriver: false }),
-        Animated.timing(pulseAnim, { toValue: 0, duration: 1100, useNativeDriver: false }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulseAnim]);
 
   useEffect(() => {
     if (!isEidHero) return;
@@ -270,28 +256,29 @@ export default function PrayerHeroCard({
     return () => loop.stop();
   }, [fireworksAnim, isEidHero]);
 
-  const fillWidth = useMemo(
-    () =>
-      progressAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: [0, Math.max(0, barWidth)],
-        extrapolate: 'clamp',
-      }),
-    [barWidth, progressAnim]
-  );
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(logoPulseAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
+        Animated.timing(logoPulseAnim, { toValue: 0, duration: 1200, useNativeDriver: true }),
+      ])
+    );
 
-  const dotLeft = useMemo(
-    () =>
-      progressAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: [-(DOT_DIAMETER / 2), Math.max(0, barWidth - DOT_DIAMETER / 2)],
-        extrapolate: 'clamp',
-      }),
-    [barWidth, progressAnim]
-  );
+    loop.start();
+    return () => loop.stop();
+  }, [logoPulseAnim]);
 
-  const pulseScale = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 2.6] });
-  const pulseOpacity = pulseAnim.interpolate({ inputRange: [0, 0.35, 1], outputRange: [0.55, 0.2, 0] });
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmerAnim, { toValue: 1, duration: 1800, useNativeDriver: true }),
+        Animated.timing(shimmerAnim, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ])
+    );
+
+    loop.start();
+    return () => loop.stop();
+  }, [shimmerAnim]);
 
   if (!visible) return null;
 
@@ -303,27 +290,10 @@ export default function PrayerHeroCard({
     : isCurrentPrayer && remainingSeconds !== null
       ? (remainingSeconds <= (30 * 60) ? 'red' : (remainingSeconds <= (59 * 60) ? 'orange' : 'normal'))
       : 'normal';
-  const trackerAccent = urgencyLevel === 'red'
-    ? '#FF5A5A'
-    : (urgencyLevel === 'orange' ? '#FFB347' : '#68EDE5');
-  const trackerPulse = urgencyLevel === 'red'
-    ? 'rgba(255,90,90,0.70)'
-    : (urgencyLevel === 'orange' ? 'rgba(255,179,71,0.70)' : 'rgba(104,237,229,0.65)');
-  const trackerGradientColors: readonly [string, string, string] = urgencyLevel === 'red'
-    ? ['rgba(255,90,90,0.45)', '#FF5A5A', '#FFD1D1']
-    : (urgencyLevel === 'orange'
-      ? ['rgba(255,166,61,0.45)', '#FFB347', '#FFE3BD']
-      : ['rgba(100,195,255,0.5)', '#68EDE5', '#C0FAF7']);
   const prayerInUrgencyStyle = urgencyLevel === 'red'
     ? styles.prayerInCritical
     : (urgencyLevel === 'orange' ? styles.prayerInWarning : null);
   const isUntilJamaat = countdownInfo.label.toLowerCase().includes('jamaat') && !countdownInfo.flash;
-  const jamaatVisualMarker = jamaatMarker === null
-    ? null
-    : Math.max(0, Math.min(1, jamaatMarker));
-  const midVisualMarker = midMarker === null
-    ? null
-    : Math.max(0, Math.min(1, midMarker));
   const contextualEndLabel = endLabel.toLowerCase() === 'next prayer'
     ? `${nextPrayerName || 'Next'}`
     : (endLabel.toLowerCase() === 'sunrise' ? 'Sunrise' : (endLabel.toLowerCase() === 'jummah athan' ? 'Jummah Athan' : endLabel));
@@ -339,15 +309,9 @@ export default function PrayerHeroCard({
   const rightColumnTime = isFridayJumuahHero
     ? (nextPrayerTime || endTime || '--:--')
     : (endTime || nextPrayerTime || '--:--');
-  const showNextPrayerJamaat = !!nextPrayerJamaatValue && nextPrayerJamaatValue !== '--:--';
-  const resolvedEidJamaats = (eidJamaats ?? []).filter(Boolean);
   const countdownLabel = countdownInfo.label.trim();
   const countdownTarget = countdownLabel.replace(/^until\s+/i, '').trim();
   const parsedScheduleBanner = parseScheduleBanner(countdownInfo.note);
-  const resolvedTimelinePoints = (timelinePoints ?? []).map((point) => ({
-    ...point,
-    position: Math.max(0, Math.min(1, point.position)),
-  }));
   const cutThroughTimeline = embedded;
   const compactDayName = toCompactDayName(dayName);
   const compactDateShort = toShortDate(dateShort);
@@ -370,186 +334,136 @@ export default function PrayerHeroCard({
   })();
 
   const effectiveColors: readonly [string, string, string] = embedded
-    ? [ambientColors?.[0] ?? 'rgba(0,0,0,0)', ambientColors?.[1] ?? 'rgba(2,10,26,0.22)', 'rgba(2,10,26,0.74)']
+    ? [ambientColors?.[0] ?? 'rgba(0,0,0,0)', ambientColors?.[1] ?? 'rgba(2,10,26,0.12)', 'rgba(2,10,26,0.15)']
     : (gradientColors as any);
   const effectiveEnd = embedded ? { x: 0, y: 1 } : { x: 1, y: 1 };
-
-  const timesStripContent = isFridayJumuahHero ? (
-    <>
-      <View style={styles.timesStripCol}>
-        <Text numberOfLines={1} style={styles.timesStripLabel}>First Athan</Text>
-        <Text numberOfLines={1} style={styles.timesStripTime}>{startTime || athanValue}</Text>
-      </View>
-      <View style={styles.timesStripDivider} />
-      <View style={styles.timesStripCol}>
-        <Text numberOfLines={1} style={styles.timesStripLabel}>1st Jamaat</Text>
-        <Text numberOfLines={1} style={styles.timesStripTime}>{j1 || '--:--'}</Text>
-      </View>
-      <View style={styles.timesStripDivider} />
-      <View style={styles.timesStripCol}>
-        <Text numberOfLines={1} style={styles.timesStripLabel}>2nd Jamaat</Text>
-        <Text numberOfLines={1} style={styles.timesStripTime}>{j2 || '--:--'}</Text>
-      </View>
-      <View style={styles.timesStripDivider} />
-      <View style={styles.timesStripCol}>
-        <Text numberOfLines={1} style={styles.timesStripLabel}>{rightColumnLabel}</Text>
-        <Text numberOfLines={1} style={styles.timesStripTime}>{rightColumnTime}</Text>
-        {showNextPrayerJamaat ? (
-          <Text numberOfLines={1} style={styles.timesStripMeta}>Jamaat {nextPrayerJamaatValue}</Text>
-        ) : null}
-      </View>
-    </>
-  ) : isEidHero ? (
-    <View style={styles.eidStripColWide}>
-      <Text style={styles.eidStripHeading}>Eid Prayer · Today</Text>
-      <View style={styles.eidJamaatGrid}>
-        {resolvedEidJamaats.map((time, index) => (
-          <View key={`${time}-${index}`} style={styles.eidJamaatPill}>
-            <Text numberOfLines={1} style={styles.eidJamaatPillLabel}>{`Jamaat ${index + 1}`}</Text>
-            <Text numberOfLines={1} style={styles.eidJamaatPillTime}>{time}</Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  ) : (
-    <>
-      <View style={styles.timesStripCol}>
-        <Text numberOfLines={1} style={styles.timesStripLabel}>{timelineStartLabel}</Text>
-        <Text numberOfLines={1} style={styles.timesStripTime}>{startTime || athanValue}</Text>
-      </View>
-      {showMiddleStrip ? <View style={styles.timesStripDivider} /> : null}
-      {showMiddleStrip ? (
-        <View style={styles.timesStripCol}>
-          <Text numberOfLines={1} style={styles.timesStripLabel}>{stripMiddleLabel || 'Jamaat'}</Text>
-          <Text numberOfLines={1} style={styles.timesStripTime}>{stripMiddleTime || '--:--'}</Text>
-        </View>
-      ) : null}
-      <View style={styles.timesStripDivider} />
-      <View style={styles.timesStripCol}>
-        <Text numberOfLines={1} style={styles.timesStripLabel}>{rightColumnLabel}</Text>
-        <Text numberOfLines={1} style={styles.timesStripTime}>{rightColumnTime}</Text>
-        {showNextPrayerJamaat ? (
-          <Text numberOfLines={1} style={styles.timesStripMeta}>Jamaat {nextPrayerJamaatValue}</Text>
-        ) : null}
-      </View>
-    </>
-  );
+  const timelineLogoMotionStyle = {
+    left: progressAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: ['0%', '100%'],
+      extrapolate: 'clamp',
+    }),
+    transform: [
+      {
+        scale: logoPulseAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [1, 1.02],
+        }),
+      },
+    ],
+  };
 
   const timelineTrack = (
     <>
-      {!cutThroughTimeline && resolvedTimelinePoints.length > 0 ? (
-        <View style={cutThroughTimeline ? styles.pointLabelsLayerCutThrough : styles.pointLabelsLayer}>
-          {resolvedTimelinePoints.map((point, index) => {
-            const labelStyle = point.position <= 0.02
-              ? styles.pointLabelStart
-              : point.position >= 0.98
-                ? styles.pointLabelEnd
-                : null;
+      <View style={styles.horizontalTimelineContainer}>
+        <View style={styles.glowingLineWrapper}>
+          <View style={styles.glowingLineBase} />
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.glowingLineAura,
+              {
+                opacity: logoPulseAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.28, 0.62],
+                }),
+              },
+            ]}
+          />
+          <Animated.View
+            style={[
+              styles.glowingLineFill,
+              {
+                width: progressAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: ['0%', '100%'],
+                  extrapolate: 'clamp',
+                }),
+              },
+            ]}
+          />
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.glowingLineShimmerClip,
+              {
+                width: progressAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: ['0%', '100%'],
+                  extrapolate: 'clamp',
+                }),
+              },
+            ]}
+          >
+            <Animated.View
+              style={[
+                styles.glowingLineShimmer,
+                {
+                  opacity: shimmerAnim.interpolate({
+                    inputRange: [0, 0.15, 0.8, 1],
+                    outputRange: [0, 0.95, 0.42, 0],
+                  }),
+                  transform: [
+                    {
+                      translateX: shimmerAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [-90, 280],
+                      }),
+                    },
+                    { rotate: '8deg' },
+                  ],
+                },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.glowingLineShimmerSecondary,
+                {
+                  opacity: shimmerAnim.interpolate({
+                    inputRange: [0, 0.35, 1],
+                    outputRange: [0, 0.65, 0],
+                  }),
+                  transform: [
+                    {
+                      translateX: shimmerAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [-130, 230],
+                      }),
+                    },
+                    { rotate: '8deg' },
+                  ],
+                },
+              ]}
+            />
+          </Animated.View>
 
-            return (
-              <View
-                key={`${point.label}-label-${index}`}
-                style={[
-                  styles.pointLabelCol,
-                  labelStyle,
-                  !labelStyle ? { left: `${Math.round(point.position * 100)}%` as any } : null,
-                ]}
-              >
-                <Text numberOfLines={1} style={styles.pointLabelName}>{point.label}</Text>
-              </View>
-            );
-          })}
+          <Animated.Image
+            source={require('@/assets/images/masjid-logo.png')}
+            resizeMode="contain"
+            style={[
+              styles.timelineLogoPointerImage,
+              timelineLogoMotionStyle,
+            ]}
+          />
         </View>
-      ) : null}
 
-      <View style={cutThroughTimeline ? styles.cutThroughTrackBleed : null}>
-        <View
-          style={[
-            styles.barTrack,
-            cutThroughTimeline && styles.barTrackCutThrough,
-            urgencyLevel === 'orange' && styles.barTrackWarning,
-            urgencyLevel === 'red' && styles.barTrackCritical,
-          ]}
-          onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}
-        >
-          {barWidth > 0 && (
-            <Animated.View style={[styles.barFillWrap, { width: fillWidth, shadowColor: trackerAccent }]}> 
-              <LinearGradient
-                colors={trackerGradientColors}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={[styles.barFillGradient, { width: barWidth }]}
-              />
-            </Animated.View>
-          )}
+        <View style={styles.timelinePointsRow}>
+          <View style={styles.timelinePointColumn}>
+            <Text style={styles.timelineLabel}>{timelineStartLabel}</Text>
+            <Text style={styles.timelineTime}>{startTime || athanValue}</Text>
+          </View>
 
-          {athanMarker !== null && (
-            <View
-              style={[
-                styles.barAthanMark,
-                { left: `${Math.round(athanMarker * 100)}%` as any },
-              ]}
-            />
-          )}
+          {showMiddleStrip ? (
+            <View style={styles.timelinePointColumn}>
+              <Text style={styles.timelineLabelCenter}>{stripMiddleLabel || 'Jamaat'}</Text>
+              <Text style={styles.timelineTimeCenter}>{stripMiddleTime || '--:--'}</Text>
+            </View>
+          ) : null}
 
-          {jamaatVisualMarker !== null && (
-            <View
-              style={[
-                styles.barJamaatMark,
-                { left: `${Math.round(jamaatVisualMarker * 100)}%` as any },
-              ]}
-            />
-          )}
-
-          {midVisualMarker !== null && (
-            <View
-              style={[
-                styles.barMidMark,
-                { left: `${Math.round(midVisualMarker * 100)}%` as any },
-              ]}
-            />
-          )}
-
-          {jamaatVisualMarker !== null && (
-            <View
-              style={[
-                styles.barJamaatDot,
-                { left: `${Math.round(jamaatVisualMarker * 100)}%` as any },
-              ]}
-            />
-          )}
-
-          {barWidth > 0 && (
-            <Animated.View style={[styles.dotPositioner, { left: dotLeft }]}> 
-              <Animated.View
-                style={[
-                  styles.barPulseRing,
-                  { transform: [{ scale: pulseScale }], opacity: pulseOpacity, borderColor: trackerPulse },
-                ]}
-              />
-              <View style={[styles.barDot, { borderColor: trackerAccent, shadowColor: trackerAccent }]} />
-            </Animated.View>
-          )}
-
-          <View style={styles.barStartDot} />
-          {endMarker !== null && (
-            <View
-              style={[
-                styles.barEndMark,
-                { left: `${Math.round(endMarker * 100)}%` as any },
-              ]}
-            />
-          )}
-
-          {resolvedTimelinePoints.map((point, index) => (
-            <View
-              key={`${point.label}-${index}`}
-              style={[
-                styles.barTimelinePoint,
-                { left: `${Math.round(point.position * 100)}%` as any },
-              ]}
-            />
-          ))}
+          <View style={styles.timelinePointColumn}>
+            <Text style={styles.timelineLabel}>{rightColumnLabel}</Text>
+            <Text style={styles.timelineTime}>{rightColumnTime}</Text>
+          </View>
         </View>
       </View>
     </>
@@ -619,9 +533,9 @@ export default function PrayerHeroCard({
           <LinearGradient
             pointerEvents="none"
             colors={[
-              ambientColors?.[0] ?? 'rgba(24,40,72,0.22)',
-              ambientColors?.[1] ?? 'rgba(7,18,42,0.14)',
-              'rgba(3,10,24,0.10)',
+              ambientColors?.[0] ?? 'rgba(24,40,72,0.14)',
+              ambientColors?.[1] ?? 'rgba(7,18,42,0.08)',
+              'rgba(3,10,24,0.04)',
             ]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
@@ -637,19 +551,13 @@ export default function PrayerHeroCard({
           {embedded ? (
             <LinearGradient
               pointerEvents="none"
-              colors={['rgba(255,255,255,0.10)', 'rgba(255,255,255,0.03)', 'rgba(255,255,255,0.00)']}
+              colors={['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.015)', 'rgba(255,255,255,0.00)']}
               start={{ x: 0, y: 0 }}
               end={{ x: 0.9, y: 1 }}
               style={styles.surfaceSheen}
             />
           ) : null}
           <View style={styles.textCluster}>
-            <BlurView
-              pointerEvents="none"
-              intensity={18}
-              tint="dark"
-              style={styles.textClusterBlur}
-            />
 
             {/* ── Clock ── */}
             <View style={styles.clockRow}>
@@ -744,16 +652,10 @@ export default function PrayerHeroCard({
           {cutThroughTimeline ? (
             <View style={styles.cutThroughContentArea}>
               {timelineTrack}
-              <View style={[styles.timesStrip, styles.timesStripCutThrough]}>
-                {timesStripContent}
-              </View>
             </View>
           ) : (
             <View style={styles.barArea}>
               {timelineTrack}
-              <View style={styles.timesStrip}>
-                {timesStripContent}
-              </View>
             </View>
           )}
         </LinearGradient>
@@ -764,23 +666,23 @@ export default function PrayerHeroCard({
 
 const styles = StyleSheet.create({
   wrap: {
-    marginHorizontal: Spacing.md,
-    marginTop: 12,
-    borderRadius: Radius.lg,
+    marginHorizontal: 0,
+    marginTop: 0,
+    borderRadius: 0,
     overflow: 'visible',
   },
   wrapEmbedded: {
     marginHorizontal: 0,
     marginTop: 0,
-    borderRadius: Radius.lg,
+    borderRadius: 0,
     overflow: 'visible',
   },
   surfaceShell: {
-    borderRadius: Radius.lg,
+    borderRadius: 0,
     overflow: 'hidden',
   },
   surfaceShellEmbedded: {
-    borderRadius: Radius.lg,
+    borderRadius: 0,
   },
   bgImage: {
     position: 'absolute',
@@ -790,13 +692,13 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: '100%' as any,
     height: '100%' as any,
-    borderRadius: Radius.lg,
+    borderRadius: 0,
   },
   bgImageEmbedded: {
     borderRadius: 0,
   },
   bgImageAmbient: {
-    opacity: 0.72,
+    opacity: 0.82,
   },
   bgImageZawaalFocus: {
     transform: [{ translateY: 30 }, { scale: 1.08 }],
@@ -850,12 +752,6 @@ const styles = StyleSheet.create({
   },
   textCluster: {
     position: 'relative',
-    borderRadius: 18,
-    overflow: 'hidden',
-  },
-  textClusterBlur: {
-    ...StyleSheet.absoluteFillObject,
-    opacity: 0.22,
   },
   innerWide: {
     paddingHorizontal: 26,
@@ -960,15 +856,181 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // Animated timeline
-  barArea: {
-    paddingTop: 0,
+  // Horizontal timeline
+  horizontalTimelineContainer: {
+    position: 'relative',
+    paddingTop: 40,
+    paddingBottom: 18,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  glowingLineWrapper: {
+    position: 'relative',
+    width: '100%',
+    height: 16,
+    marginBottom: 14,
+    overflow: 'visible',
+  },
+  glowingLineBase: {
+    position: 'absolute',
+    top: 6,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: 'rgba(96, 225, 154, 0.16)',
+    borderRadius: 2,
+    shadowColor: 'rgba(54,214,125,0.24)',
+    shadowOpacity: 0.6,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  glowingLineAura: {
+    position: 'absolute',
+    top: 3,
+    left: 0,
+    right: 0,
+    height: 9,
+    borderRadius: 999,
+    backgroundColor: 'rgba(54,214,125,0.14)',
+  },
+  glowingLineFill: {
+    position: 'absolute',
+    top: 6,
+    left: 0,
+    height: 3,
+    backgroundColor: '#2FC878',
+    borderRadius: 2,
+    shadowColor: '#36D67D',
+    shadowOpacity: 0.95,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  glowingLineShimmerClip: {
+    position: 'absolute',
+    top: 3,
+    left: 0,
+    right: 0,
+    height: 10,
+    overflow: 'hidden',
+    borderRadius: 999,
+  },
+  glowingLineShimmer: {
+    position: 'absolute',
+    top: -8,
+    width: 86,
+    height: 24,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.34)',
+    shadowColor: '#DFFFF0',
+    shadowOpacity: 0.7,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  glowingLineShimmerSecondary: {
+    position: 'absolute',
+    top: -5,
+    width: 46,
+    height: 18,
+    borderRadius: 999,
+    backgroundColor: 'rgba(141,255,209,0.28)',
+    shadowColor: '#9BFFD8',
+    shadowOpacity: 0.55,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  timelineLogoPointer: {
+    position: 'absolute',
+    top: -12,
+    width: 0,
+    height: 0,
+    marginLeft: 0,
+    borderRadius: 0,
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 5,
+    elevation: 5,
+  },
+  timelineLogoPointerImage: {
+    position: 'absolute',
+    top: -25,
+    width: 58,
+    height: 58,
+    marginLeft: -29,
+    tintColor: '#36D67D',
+    opacity: 1,
+    zIndex: 6,
+    elevation: 6,
+  },
+  timelinePointsRow: {
+    flexDirection: 'row',
+    width: '100%',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: 4,
+  },
+  timelinePointColumn: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 6,
+  },
+  timelineDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: 'rgba(255,255,255,0.35)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.55)',
+  },
+  timelineDotActive: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#4FE948',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#4FE948',
+    shadowOpacity: 0.9,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  timelineLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.65)',
+    lineHeight: 13,
+    letterSpacing: 0.2,
+  },
+  timelineLabelCenter: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    lineHeight: 14,
+    letterSpacing: 0.2,
+    textTransform: 'uppercase',
+  },
+  timelineTime: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.75)',
+    lineHeight: 16,
+  },
+  timelineTimeCenter: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    lineHeight: 22,
+    textShadowColor: 'rgba(79,233,72,0.4)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 8,
   },
   cutThroughContentArea: {
     paddingTop: 0,
   },
-  cutThroughTrackBleed: {
-    marginHorizontal: 0,
+  barArea: {
+    paddingTop: 0,
   },
   barTrack: {
     height: TRACK_HEIGHT,
@@ -1191,12 +1253,33 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.6)',
     lineHeight: 14,
   },
+  timesStripLabelActive: {
+    opacity: 1,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.96)',
+  },
+  timesStripLabelInactive: {
+    opacity: 0.56,
+    fontWeight: '400',
+  },
   timesStripTime: {
     marginTop: 6,
     fontSize: 16,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.9)',
     lineHeight: 18,
+  },
+  timesStripTimeActive: {
+    opacity: 1,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(255,255,255,0.35)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 6,
+  },
+  timesStripTimeInactive: {
+    opacity: 0.56,
+    fontWeight: '400',
   },
   timesStripMeta: {
     marginTop: 2,

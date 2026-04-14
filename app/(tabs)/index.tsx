@@ -9,7 +9,9 @@ import {
   ActivityIndicator,
   Animated,
   Dimensions,
-  Linking,
+  Alert,
+  Modal,
+  Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,6 +31,8 @@ import PrayerHeroCard from '@/components/prayer/PrayerHeroCard';
 import { PRAYER_BG_IMAGES, PRAYER_GRADIENTS, PRAYER_ICONS } from '@/components/prayer/heroConfig';
 import { buildHeroState } from '@/components/prayer/heroState';
 import { buildActivePrayerState } from '@/components/prayer/activePrayerState';
+import { createDonationCheckoutUrl } from '@/services/donationService';
+import WebView from 'react-native-webview';
 
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -300,7 +304,6 @@ const PRAYER_ICONS_HOME: Record<string, string> = {
 };
 
 // ── Small Next Prayer Flipping Card ──────────────────────────────────────
-const DONATE_URL = 'https://jmnhalifax.org.uk/';
 const JAMAAT_FLASH_DURATION_MS = 60 * 1000;
 
 const PRAYER_ALERT_ICONS_MAP: Record<string, string> = {
@@ -314,7 +317,7 @@ const PRAYER_CARD_DURATION = 6000;
 
 export function SmallFlippingPrayerCard({
   nightMode, nextPrayerName, nextPrayerTime, nextPrayerIqamah, countdown, loading,
-  prayers, currentTime,
+  prayers, currentTime, onDonatePress,
 }: {
   nightMode: boolean;
   nextPrayerName: string;
@@ -324,6 +327,7 @@ export function SmallFlippingPrayerCard({
   loading: boolean;
   prayers: { name: string; time: string; timeDate: Date; iqamah: string }[];
   currentTime: Date;
+  onDonatePress: () => void;
 }) {
   const router = useRouter();
   const [faceIndex, setFaceIndex] = useState(0);
@@ -489,9 +493,13 @@ export function SmallFlippingPrayerCard({
               </View>
             ) : (
               <View style={[smallFlipStyles.face, { gap: 5, paddingHorizontal: 8, paddingVertical: 6 }]}>
-                {/* Gold dome icon */}
+                {/* JMN logo in gold ring */}
                 <View style={rebuildStyles.iconRing}>
-                  <MaterialIcons name="mosque" size={18} color="#D4AF37" />
+                  <Image
+                    source={require('../../assets/images/masjid-logo.png')}
+                    style={rebuildStyles.logoImg}
+                    contentFit="contain"
+                  />
                 </View>
                 <View style={{ alignItems: 'center', gap: 1 }}>
                   <Text style={rebuildStyles.label}>PROJECT</Text>
@@ -501,7 +509,7 @@ export function SmallFlippingPrayerCard({
                 <Text style={rebuildStyles.tagline}>Jami{"'"}  Masjid Noorani</Text>
                 <Text style={rebuildStyles.sub}>Halifax, UK</Text>
                 <TouchableOpacity
-                  onPress={() => Linking.openURL(DONATE_URL)}
+                  onPress={onDonatePress}
                   style={rebuildStyles.btn}
                 >
                   <MaterialIcons name="volunteer-activism" size={10} color="#0B3B2C" />
@@ -528,10 +536,14 @@ export function SmallFlippingPrayerCard({
 const rebuildStyles = StyleSheet.create({
   iconRing: {
     width: 38, height: 38, borderRadius: 19,
-    backgroundColor: 'rgba(212,175,55,0.18)',
-    borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.50)',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.80)',
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 1,
+    overflow: 'hidden',
+  },
+  logoImg: {
+    width: 34, height: 34,
   },
   label: {
     fontSize: 8, fontWeight: '900', color: 'rgba(212,175,55,0.75)',
@@ -2150,6 +2162,295 @@ function QuickLinkCard({
   );
 }
 
+// ── Masjid photo assets for donation card rotation ────────────────────────
+const MASJID_IMAGES = [
+  require('@/assets/images/masjid/JMN_page_2.png'),
+  require('@/assets/images/masjid/JMN_page_3.png'),
+  require('@/assets/images/masjid/JMN_page_5 (1).png'),
+  require('@/assets/images/masjid/JMN_page_7.png'),
+];
+// Sequence: donate(even step), photo(odd step) — total = 2 × photo count
+const DONATE_TOTAL_STEPS = MASJID_IMAGES.length * 2;
+const DONATE_STEP_MS = [4500, 3500]; // [donate face duration, photo face duration]
+
+// ── Zawaal Section Row: Donation (rotating) + Daily Sunnah/Verse card ────
+type RemFace = 'sunnah' | 'verse';
+const REM_FACES: RemFace[] = ['sunnah', 'verse'];
+const REM_DURATION = 5000;
+
+function ZawaalSectionRow({ nightMode, todaySunnah, onDonatePress }: {
+  nightMode: boolean;
+  todaySunnah: SunnahEntry;
+  onDonatePress: () => void;
+}) {
+  const N = nightMode ? NIGHT : null;
+
+  // ── Sunnah/Verse flip (right card) ──────────────────────────────────
+  const [faceIndex, setFaceIndex] = useState(0);
+  const [displayFace, setDisplayFace] = useState<RemFace>('sunnah');
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+
+  const flipTo = useCallback((nextIndex: number) => {
+    Animated.timing(rotateAnim, { toValue: 1, duration: 320, useNativeDriver: true }).start(() => {
+      setDisplayFace(REM_FACES[nextIndex]);
+      rotateAnim.setValue(-1);
+      Animated.timing(rotateAnim, { toValue: 0, duration: 320, useNativeDriver: true }).start();
+    });
+  }, [rotateAnim]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setFaceIndex(prev => { const next = (prev + 1) % REM_FACES.length; flipTo(next); return next; });
+    }, REM_DURATION);
+    return () => clearInterval(id);
+  }, [flipTo]);
+
+  // ── Donation card rotation (left card) ──────────────────────────────
+  const [donateStep, setDonateStep] = useState(0);
+  const [donateDisplayStep, setDonateDisplayStep] = useState(0);
+  const donateOpacity = useRef(new Animated.Value(1)).current;
+
+  const isDonateInfoFace = donateDisplayStep % 2 === 0;
+  const photoIndex = Math.floor(donateDisplayStep / 2) % MASJID_IMAGES.length;
+
+  const advanceDonate = useCallback((current: number) => {
+    Animated.timing(donateOpacity, { toValue: 0, duration: 380, useNativeDriver: true }).start(() => {
+      const next = (current + 1) % DONATE_TOTAL_STEPS;
+      setDonateDisplayStep(next);
+      setDonateStep(next);
+      Animated.timing(donateOpacity, { toValue: 1, duration: 380, useNativeDriver: true }).start();
+    });
+  }, [donateOpacity]);
+
+  useEffect(() => {
+    const duration = DONATE_STEP_MS[donateStep % 2];
+    const id = setTimeout(() => advanceDonate(donateStep), duration);
+    return () => clearTimeout(id);
+  }, [donateStep, advanceDonate]);
+
+  const rotateY = rotateAnim.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-90deg', '0deg', '90deg'] });
+  const sunnahColor = N ? NIGHT.accent : Colors.primary;
+  const verseColor  = N ? '#4FE948'   : Colors.primary;
+  const cardBg  = N ? NIGHT.surface     : '#FFFFFF';
+  const borderC = N ? NIGHT.borderStrong : Colors.border;
+  const textCol = N ? NIGHT.text         : Colors.textPrimary;
+  const subCol  = N ? NIGHT.textSub      : Colors.textSubtle;
+
+  return (
+    <View style={zawaalRowStyles.row}>
+      {/* ── Donation Card (rotates: info ↔ masjid photos) ───────────── */}
+      <TouchableOpacity
+        onPress={onDonatePress}
+        style={zawaalRowStyles.donateCard}
+        activeOpacity={0.85}
+      >
+        <Animated.View style={[StyleSheet.absoluteFillObject, { opacity: donateOpacity }]}>
+          {isDonateInfoFace ? (
+            <View style={zawaalRowStyles.donateInfoFace}>
+              <View style={zawaalRowStyles.donateIconRing}>
+                <Image
+                  source={require('../../assets/images/masjid-logo.png')}
+                  style={zawaalRowStyles.donateLogoImg}
+                  contentFit="contain"
+                />
+              </View>
+              <View style={{ alignItems: 'center' }}>
+                <Text style={zawaalRowStyles.donateProjectLabel}>PROJECT</Text>
+                <Text style={zawaalRowStyles.donateProjectTitle}>Rebuild</Text>
+              </View>
+              <View style={zawaalRowStyles.donateDivider} />
+              <Text style={zawaalRowStyles.donateName}>Jami{"'"} Masjid Noorani</Text>
+              <Text style={zawaalRowStyles.donateLocation}>Halifax, UK</Text>
+              <View style={zawaalRowStyles.donateBtn}>
+                <MaterialIcons name="volunteer-activism" size={11} color="#0B3B2C" />
+                <Text style={zawaalRowStyles.donateBtnText}>Donate Now</Text>
+              </View>
+            </View>
+          ) : (
+            <View style={StyleSheet.absoluteFillObject}>
+              <Image
+                source={MASJID_IMAGES[photoIndex]}
+                style={StyleSheet.absoluteFillObject}
+                contentFit="cover"
+                blurRadius={7}
+              />
+              <Image
+                source={MASJID_IMAGES[photoIndex]}
+                style={StyleSheet.absoluteFillObject}
+                contentFit="contain"
+              />
+              <LinearGradient
+                colors={['transparent', 'rgba(0,0,0,0.72)']}
+                start={{ x: 0, y: 0.45 }}
+                end={{ x: 0, y: 1 }}
+                style={StyleSheet.absoluteFillObject}
+              />
+              <View style={zawaalRowStyles.photoOverlay}>
+                <Text style={zawaalRowStyles.photoTitle}>Support the Rebuild</Text>
+                <View style={zawaalRowStyles.photoBtn}>
+                  <MaterialIcons name="volunteer-activism" size={10} color="#0B3B2C" />
+                  <Text style={zawaalRowStyles.photoBtnText}>Donate →</Text>
+                </View>
+              </View>
+            </View>
+          )}
+        </Animated.View>
+      </TouchableOpacity>
+
+      {/* ── Sunnah / Verse flipping card ──────────────────────────────── */}
+      <View style={[zawaalRowStyles.flipCard, { backgroundColor: cardBg, borderColor: borderC }]}>
+        <Animated.View style={[zawaalRowStyles.flipCardInner, { transform: [{ rotateY }] }]}>
+          {displayFace === 'sunnah' ? (
+            <View style={zawaalRowStyles.flipFace}>
+              <View style={zawaalRowStyles.flipHeader}>
+                <MaterialIcons name="star" size={13} color={sunnahColor} />
+                <Text style={[zawaalRowStyles.flipLabel, { color: sunnahColor }]}>Daily Sunnah</Text>
+              </View>
+              <View style={[zawaalRowStyles.flipActBox, { backgroundColor: sunnahColor + '15', borderColor: sunnahColor + '40' }]}>
+                <Text style={[zawaalRowStyles.flipActText, { color: textCol }]} numberOfLines={2}>{todaySunnah.act}</Text>
+              </View>
+              <Text style={[zawaalRowStyles.flipDetailText, { color: subCol }]} numberOfLines={3}>{todaySunnah.detail}</Text>
+              <Text style={[zawaalRowStyles.flipRef, { color: sunnahColor }]}>{todaySunnah.ref}</Text>
+            </View>
+          ) : (
+            <View style={zawaalRowStyles.flipFace}>
+              <View style={zawaalRowStyles.flipHeader}>
+                <MaterialIcons name="menu-book" size={13} color={verseColor} />
+                <Text style={[zawaalRowStyles.flipLabel, { color: verseColor }]}>Verse of the Day</Text>
+              </View>
+              <View style={[zawaalRowStyles.flipActBox, { backgroundColor: verseColor + '15', borderColor: verseColor + '40' }]}>
+                <Text style={[zawaalRowStyles.arabicText, { color: verseColor }]} numberOfLines={2}>{todayVerse.arabic}</Text>
+              </View>
+              <Text style={[zawaalRowStyles.flipDetailText, { color: textCol }]} numberOfLines={3}>{todayVerse.translation}</Text>
+              <Text style={[zawaalRowStyles.flipRef, { color: verseColor }]}>{todayVerse.ref}</Text>
+            </View>
+          )}
+        </Animated.View>
+        <View style={[zawaalRowStyles.dots, { borderTopColor: borderC }]}>
+          {REM_FACES.map((_, i) => (
+            <View
+              key={i}
+              style={[
+                zawaalRowStyles.dot,
+                { backgroundColor: borderC },
+                i === faceIndex && { backgroundColor: N ? '#69A8FF' : Colors.primary, width: 14 },
+              ]}
+            />
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+
+const zawaalRowStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    gap: 10,
+    marginHorizontal: Spacing.md,
+    marginTop: 12,
+    marginBottom: 2,
+  },
+  donateCard: {
+    flex: 1,
+    borderRadius: Radius.lg,
+    borderWidth: 1.5,
+    borderColor: 'rgba(212,175,55,0.38)',
+    backgroundColor: '#0B3B2C',
+    overflow: 'hidden',
+    minHeight: 200,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  donateInfoFace: {
+    ...StyleSheet.absoluteFillObject,
+    padding: 11,
+    gap: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  donateIconRing: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.80)',
+    alignItems: 'center', justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  donateLogoImg: {
+    width: 34, height: 34,
+  },
+  donateProjectLabel: {
+    fontSize: 8, fontWeight: '900', color: 'rgba(212,175,55,0.75)',
+    letterSpacing: 2, textTransform: 'uppercase',
+  },
+  donateProjectTitle: {
+    fontSize: 19, fontWeight: '900', color: '#E8D48B',
+    textTransform: 'uppercase', lineHeight: 21,
+  },
+  donateDivider: {
+    width: 38, height: 1.5, backgroundColor: 'rgba(212,175,55,0.35)', borderRadius: 1,
+  },
+  donateName: {
+    fontSize: 9.5, fontWeight: '700', color: 'rgba(255,255,255,0.90)', textAlign: 'center',
+  },
+  donateLocation: {
+    fontSize: 8.5, fontWeight: '500', color: 'rgba(255,255,255,0.50)', textAlign: 'center', marginTop: -3,
+  },
+  donateBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#D4AF37',
+    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5,
+    marginTop: 2,
+  },
+  donateBtnText: { fontSize: 10, fontWeight: '900', color: '#0B3B2C', letterSpacing: 0.2 },
+  photoOverlay: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    padding: 10, gap: 6, alignItems: 'center',
+  },
+  photoTitle: {
+    fontSize: 11, fontWeight: '800', color: '#fff', textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4,
+  },
+  photoBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#D4AF37', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4,
+  },
+  photoBtnText: { fontSize: 10, fontWeight: '900', color: '#0B3B2C' },
+  flipCard: {
+    flex: 1,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  flipCardInner: { flex: 1 },
+  flipFace: { padding: 11, gap: 5, flex: 1 },
+  flipHeader: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  flipLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3, flex: 1 },
+  flipActBox: {
+    borderRadius: Radius.sm, borderWidth: 1,
+    paddingHorizontal: 7, paddingVertical: 5,
+  },
+  flipActText: { fontSize: 11, fontWeight: '700', lineHeight: 15 },
+  flipDetailText: { fontSize: 10, fontWeight: '400', lineHeight: 14 },
+  arabicText: {
+    fontSize: 13, fontWeight: '700', textAlign: 'center', lineHeight: 19, letterSpacing: 0.3,
+  },
+  flipRef: { fontSize: 9, fontWeight: '700', marginTop: 1 },
+  dots: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 5, paddingVertical: 7, borderTopWidth: 1,
+  },
+  dot: { width: 5, height: 5, borderRadius: 2.5 },
+});
 function useCurrentTime() {
   const [time, setTime] = useState(() => new Date());
   useEffect(() => { const id = setInterval(() => setTime(new Date()), 1000); return () => clearInterval(id); }, []);
@@ -2211,6 +2512,11 @@ export default function HomeScreen() {
   const [eidUlAdhaJamaats, setEidUlAdhaJamaats] = useState<string[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(() => new Date());
+  const [donationLoading, setDonationLoading] = useState(false);
+  const [donationModalVisible, setDonationModalVisible] = useState(false);
+  const [donationCheckoutUrl, setDonationCheckoutUrl] = useState<string | null>(null);
+  const [showDonationOptions, setShowDonationOptions] = useState(true);
+  const [donationStatusMessage, setDonationStatusMessage] = useState<string | null>(null);
 
   const loadSunnahReminders = useCallback(async () => {
     try {
@@ -2953,11 +3259,16 @@ export default function HomeScreen() {
   const effectiveHeroMidTime = (isFridayPostZawaal || isEidUlAdhaHeroWindow) ? '' : heroMidTime;
   const currentPrayerIqamah = activePrayer?.iqamah && activePrayer.iqamah !== '-' ? activePrayer.iqamah : null;
   const asrIqamah = asrPrayer?.iqamah && asrPrayer.iqamah !== '-' ? asrPrayer.iqamah : null;
+  const hasExplicitHeroMidEvent = !!effectiveHeroMidLabel && !!effectiveHeroMidTime;
+  const isSpecialHeroPhase = ['Sunrise', 'Ishraq', 'Zawaal'].includes(effectiveHeroPrayerName);
+  const heroPrayerSupportsJamaat = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha', 'Jumuah'].includes(effectiveHeroPrayerName);
   const endEntrySupportsJamaat = ['Next Prayer', 'Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha', 'Jumuah'].includes(effectiveHeroEndLabel);
   const effectiveHeroJamaatValue = (() => {
     if (isEidUlAdhaHeroWindow) return '';
     if (isFridayPostZawaal) return '';
-    if (currentPrayerIqamah) return currentPrayerIqamah;
+    if (isSpecialHeroPhase) return '';
+    if (hasExplicitHeroMidEvent) return '';
+    if (heroPrayerSupportsJamaat && currentPrayerIqamah) return currentPrayerIqamah;
     if (endEntrySupportsJamaat && nextIqamah) return nextIqamah;
     return '';
   })();
@@ -3072,6 +3383,42 @@ export default function HomeScreen() {
     }
   }, [refreshPrayerTimes, loadSunnahReminders]);
 
+  const startDonationCheckout = useCallback(async (priceSlot: 1 | 2) => {
+    if (donationLoading) return;
+
+    try {
+      setDonationLoading(true);
+      setDonationStatusMessage('Preparing secure checkout...');
+      setShowDonationOptions(false);
+
+      const checkoutUrl = await createDonationCheckoutUrl(priceSlot);
+
+      if (Platform.OS === 'web') {
+        setShowDonationOptions(true);
+        setDonationStatusMessage('Embedded Stripe checkout is only available in the mobile app. Use Android or iPhone for in-app payment.');
+        return;
+      }
+
+      setDonationStatusMessage(null);
+      setDonationCheckoutUrl(checkoutUrl);
+    } catch (error) {
+      console.error('[Donate] error:', error);
+      const message = error instanceof Error ? error.message : String(error);
+      setDonationStatusMessage(message);
+      Alert.alert('Donation error', message);
+      setShowDonationOptions(true);
+    } finally {
+      setDonationLoading(false);
+    }
+  }, [donationLoading]);
+
+  const openDonationCheckout = useCallback(() => {
+    setDonationCheckoutUrl(null);
+    setShowDonationOptions(true);
+    setDonationStatusMessage(null);
+    setDonationModalVisible(true);
+  }, []);
+
   useEffect(() => {
     if (!loading && data) {
       setLastUpdated(new Date());
@@ -3079,6 +3426,7 @@ export default function HomeScreen() {
   }, [loading, data]);
 
   return (
+    <>
     <ScrollView
       style={[styles.container, N && { backgroundColor: N.bg }]}
       contentContainerStyle={styles.content}
@@ -3393,6 +3741,13 @@ export default function HomeScreen() {
         </View>
       ) : null}
 
+      {/* ── Donation + Daily Reminders Row ───────── */}
+      <ZawaalSectionRow
+        nightMode={nightMode}
+        todaySunnah={computedTodaySunnah}
+        onDonatePress={openDonationCheckout}
+      />
+
       {/* ── Body ──────────────────────────────────── */}
       <View style={[styles.body, N && { backgroundColor: N.bg }]}>
         {/* Quick Links */}
@@ -3456,12 +3811,234 @@ export default function HomeScreen() {
         <View style={{ height: Spacing.xl }} />
       </View>
     </ScrollView>
+
+    <Modal
+      visible={donationModalVisible}
+      animationType="slide"
+      presentationStyle="fullScreen"
+      onRequestClose={() => {
+        setDonationModalVisible(false);
+        setDonationCheckoutUrl(null);
+        setShowDonationOptions(true);
+        setDonationStatusMessage(null);
+      }}
+    >
+      <View style={styles.donationModalRoot}>
+        <View style={styles.donationModalHeader}>
+          <Text style={styles.donationModalTitle}>Secure Donation</Text>
+          <TouchableOpacity
+            onPress={() => {
+              setDonationModalVisible(false);
+              setDonationCheckoutUrl(null);
+              setShowDonationOptions(true);
+              setDonationStatusMessage(null);
+            }}
+            style={styles.donationModalCloseBtn}
+            activeOpacity={0.85}
+          >
+            <MaterialIcons name="close" size={20} color="#123524" />
+            <Text style={styles.donationModalCloseText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+
+        {showDonationOptions ? (
+          <View style={styles.donationOptionsWrap}>
+            <Text style={styles.donationOptionsTitle}>Choose Donation Type</Text>
+
+            {Platform.OS === 'web' ? (
+              <View style={styles.donationWebNotice}>
+                <Text style={styles.donationWebNoticeText}>
+                  In-app Stripe checkout is only supported in the mobile app. Web cannot embed Stripe Checkout.
+                </Text>
+              </View>
+            ) : null}
+
+            {donationStatusMessage ? (
+              <View style={styles.donationStatusNotice}>
+                <Text style={styles.donationStatusNoticeText}>{donationStatusMessage}</Text>
+              </View>
+            ) : null}
+
+            <TouchableOpacity
+              style={styles.donationOptionBtn}
+              activeOpacity={0.9}
+              onPress={() => startDonationCheckout(1)}
+              disabled={donationLoading}
+            >
+              <Text style={styles.donationOptionTitle}>Masjid Donation</Text>
+              <Text style={styles.donationOptionSub}>General donation for the masjid.</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.donationOptionBtn}
+              activeOpacity={0.9}
+              onPress={() => startDonationCheckout(2)}
+              disabled={donationLoading}
+            >
+              <Text style={styles.donationOptionTitle}>Project Donation</Text>
+              <Text style={styles.donationOptionSub}>Donate to the additional project fund.</Text>
+            </TouchableOpacity>
+
+            {donationLoading ? (
+              <View style={{ marginTop: 16, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color="#0B6B45" />
+                <Text style={styles.donationWebviewLoadingText}>Preparing checkout...</Text>
+              </View>
+            ) : null}
+          </View>
+        ) : donationCheckoutUrl ? (
+          <WebView
+            source={{ uri: donationCheckoutUrl }}
+            startInLoadingState
+            renderLoading={() => (
+              <View style={styles.donationWebviewLoadingOverlay}>
+                <ActivityIndicator size="large" color="#0B6B45" />
+                <Text style={styles.donationWebviewLoadingText}>Opening Stripe checkout...</Text>
+              </View>
+            )}
+            onShouldStartLoadWithRequest={(request) => {
+              if (request.url.includes('jmn://donation-success') || request.url.startsWith('jmn://donation-success')) {
+                setDonationModalVisible(false);
+                setDonationCheckoutUrl(null);
+                setShowDonationOptions(true);
+                setDonationStatusMessage(null);
+                Alert.alert('JazakAllahu Khayran', 'Your donation was successful. May Allah accept it from you.');
+                return false;
+              }
+              if (request.url.includes('jmn://donation-cancel') || request.url.startsWith('jmn://donation-cancel')) {
+                setDonationModalVisible(false);
+                setDonationCheckoutUrl(null);
+                setShowDonationOptions(true);
+                setDonationStatusMessage(null);
+                return false;
+              }
+              return true;
+            }}
+            onError={() => {
+              Alert.alert('Checkout error', 'Unable to load Stripe checkout. Please try again.');
+            }}
+          />
+        ) : (
+          <View style={styles.donationWebviewLoadingOverlay}>
+            <ActivityIndicator size="large" color="#0B6B45" />
+          </View>
+        )}
+      </View>
+    </Modal>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   content: { paddingBottom: Spacing.xl },
+  donationModalRoot: {
+    flex: 1,
+    backgroundColor: '#F4F9F6',
+  },
+  donationModalHeader: {
+    paddingTop: 54,
+    paddingBottom: 10,
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(9,52,31,0.15)',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  donationModalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0A2A1B',
+    letterSpacing: 0.2,
+  },
+  donationModalCloseBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: '#E6F3EC',
+  },
+  donationModalCloseText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#123524',
+  },
+  donationWebviewLoadingOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: '#F4F9F6',
+  },
+  donationWebviewLoadingText: {
+    fontSize: 14,
+    color: '#2C4A3D',
+    fontWeight: '600',
+  },
+  donationOptionsWrap: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+  },
+  donationOptionsTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0A2A1B',
+    marginBottom: 14,
+  },
+  donationWebNotice: {
+    backgroundColor: '#FFF7E8',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F0D8A8',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  donationWebNoticeText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#6A4A11',
+    fontWeight: '600',
+  },
+  donationStatusNotice: {
+    backgroundColor: '#EAF4EE',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(11,107,69,0.16)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  donationStatusNoticeText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#29533F',
+    fontWeight: '600',
+  },
+  donationOptionBtn: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(9,52,31,0.15)',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    marginBottom: 10,
+  },
+  donationOptionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#123524',
+  },
+  donationOptionSub: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#466858',
+  },
   heroHeader: {
     paddingBottom: 0,
     overflow: 'hidden',

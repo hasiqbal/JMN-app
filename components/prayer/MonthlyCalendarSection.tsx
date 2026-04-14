@@ -519,8 +519,15 @@ function CalendarPrayerPanel({
         const isCompleted = isPastDay || (isSelectedToday && idx < currentRowIndex);
         const isCurrent = isSelectedToday && idx === currentRowIndex;
         const isNext = isSelectedToday && idx === nextRowIndex;
-        const showTomorrowAthan = isCompleted && !!p.tomorrowAthan;
-        const showTomorrowIqamah = isCompleted && !!p.tomorrowIqamah && !p.isJumuah;
+        const athanDate = parseTimeOnDate(p.athan);
+        const iqamahDate = p.iqamah ? parseTimeOnDate(p.iqamah) : null;
+        const isIshaAthanPassed = p.label === 'Isha' && isSelectedToday && !!athanDate && now >= athanDate;
+        const isIshaIqamahPassed = p.label === 'Isha' && isSelectedToday && !!iqamahDate && now >= iqamahDate;
+        const shouldCrossAthan = isCompleted || isIshaAthanPassed;
+        const shouldCrossIqamah = (isCompleted && !!p.iqamah) || isIshaIqamahPassed;
+        const shouldPreviewTomorrowIsha = p.label === 'Isha' && (isIshaAthanPassed || isIshaIqamahPassed);
+        const showTomorrowAthan = !!p.tomorrowAthan && (isCompleted || shouldPreviewTomorrowIsha);
+        const showTomorrowIqamah = !!p.tomorrowIqamah && !p.isJumuah && (isCompleted || shouldPreviewTomorrowIsha);
 
         return (
         <View
@@ -545,7 +552,7 @@ function CalendarPrayerPanel({
           <View style={{ width: 72, alignItems: 'center' }}>
             <Text style={[
               panelStyles.athanTime,
-              isCompleted && panelStyles.timePassed,
+              shouldCrossAthan && panelStyles.timePassed,
               isCurrent && panelStyles.timeCurrent,
               isNext && panelStyles.timeNext,
               N && { color: N.textSub },
@@ -569,7 +576,7 @@ function CalendarPrayerPanel({
               <Text style={[
                 panelStyles.iqamahTime,
                 !p.iqamah && { color: Colors.textSubtle },
-                isCompleted && p.iqamah && panelStyles.timePassed,
+                shouldCrossIqamah && panelStyles.timePassed,
                 isCurrent && p.iqamah && panelStyles.timeCurrent,
                 isNext && p.iqamah && panelStyles.timeNext,
                 N && p.iqamah && { color: N.text },
