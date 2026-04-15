@@ -26,6 +26,8 @@ type Scenario = {
   midMarker?: number | null;
 };
 
+const JUMMAH_STRIP_NOTE = 'Jummah Prayers: 1st: 1:30 · 2nd: 2:30';
+
 const SCENARIOS: Scenario[] = [
   {
     key: 'Fajr',
@@ -102,7 +104,7 @@ const SCENARIOS: Scenario[] = [
     key: 'Dhuhr',
     title: 'Dhuhr',
     kicker: 'Current Prayer',
-    countdownInfo: { label: 'Jamaat', value: '00:40:00', note: '', flash: false },
+    countdownInfo: { label: 'Jamaat', value: '00:19:40', note: '', flash: false },
     progress: 0.36,
     showJamaat: true,
     startLabel: 'Start',
@@ -118,7 +120,7 @@ const SCENARIOS: Scenario[] = [
     key: 'Asr',
     title: 'Asr',
     kicker: 'Current Prayer',
-    countdownInfo: { label: 'Ends In', value: '01:12:00', note: '', flash: false },
+    countdownInfo: { label: 'Ends In', value: '00:18:20', note: '', flash: false },
     progress: 0.65,
     showJamaat: true,
     startLabel: 'Start',
@@ -134,7 +136,7 @@ const SCENARIOS: Scenario[] = [
     key: 'Maghrib',
     title: 'Maghrib',
     kicker: 'Current Prayer',
-    countdownInfo: { label: 'Jamaat', value: '00:10:00', note: '', flash: false },
+    countdownInfo: { label: 'Jamaat', value: '00:07:20', note: '', flash: false },
     progress: 0.22,
     showJamaat: true,
     startLabel: 'Start',
@@ -151,7 +153,7 @@ const SCENARIOS: Scenario[] = [
     title: 'Jumuah',
     kicker: 'Current Prayer',
     isFridayJumuahHero: true,
-    countdownInfo: { label: '2nd Jamaat', value: '00:18:00', note: '', flash: false },
+    countdownInfo: { label: '2nd Jummah', value: '00:18:00', note: JUMMAH_STRIP_NOTE, flash: false },
     progress: 0.54,
     showJamaat: true,
     startLabel: 'Start',
@@ -170,7 +172,7 @@ const SCENARIOS: Scenario[] = [
     key: 'Isha',
     title: 'Isha',
     kicker: 'Current Prayer',
-    countdownInfo: { label: 'Ends In', value: '02:14:00', note: '', flash: false },
+    countdownInfo: { label: 'Ends In', value: '00:08:40', note: '', flash: false },
     progress: 0.4,
     showJamaat: true,
     startLabel: 'Start',
@@ -192,7 +194,7 @@ export default function HeroPreviewScreen() {
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>Hero Preview Test</Text>
-        <Text style={styles.subtitle}>All prayer-time hero states in one scroll</Text>
+        <Text style={styles.subtitle}>All prayer-time hero states + urgency thresholds in one scroll</Text>
 
         {cards.map((s) => (
           <View key={`${s.key}-${s.title}`} style={styles.cardWrap}>
@@ -201,7 +203,7 @@ export default function HeroPreviewScreen() {
               visible
               backgroundSource={PRAYER_BG_IMAGES[s.key]}
               gradientColors={PRAYER_GRADIENTS[s.key]}
-              ambientColors={['rgba(5,24,54,0.55)', 'rgba(8,18,40,0.45)']}
+
               backgroundImageOpacity={0.8}
               heroWide={false}
               kicker={s.kicker}
@@ -239,6 +241,13 @@ export default function HeroPreviewScreen() {
               loadingHijri={false}
               dayName="Monday"
               dateShort="13 Apr 2026"
+              allPrayers={[
+                { name: 'Fajr', time: '03:49', iqamah: '05:15' },
+                { name: 'Dhuhr', time: '13:10', iqamah: '14:00' },
+                { name: 'Asr', time: '17:57', iqamah: '19:00' },
+                { name: 'Maghrib', time: '20:09', iqamah: '20:09' },
+                { name: 'Isha', time: '22:01', iqamah: '22:30' },
+              ]}
             />
           </View>
         ))}

@@ -39,7 +39,7 @@ const JUMUAH_TIMELINE = [
 ];
 
 function buildEidNote(jamaatTimes: string[]): string {
-  return `Eid Prayers: ${jamaatTimes.map((time, index) => `J${index + 1}: ${time}`).join(' · ')}`;
+  return `Eid Prayers: ${jamaatTimes.map((time, index) => `${toOrdinal(index + 1)}: ${time}`).join(' · ')}`;
 }
 
 function toOrdinal(value: number): string {
@@ -55,7 +55,7 @@ function buildCombinedScenarios(eidJamaats: string[]): CombinedScenario[] {
   const resolvedEidJamaats = eidJamaats.length > 0 ? eidJamaats : ['07:00', '08:00'];
   const firstEidJamaat = resolvedEidJamaats[0] ?? '07:00';
   const eidNote = buildEidNote(resolvedEidJamaats);
-  const jummahNote = `Jummah times: J1 ${FRIDAY_J1} · J2 ${FRIDAY_J2}`;
+  const jummahNote = `Jummah Prayers: 1st: ${FRIDAY_J1} · 2nd: ${FRIDAY_J2}`;
   const sharedNote = `${eidNote} · ${jummahNote}`;
   const eidTimelinePoints = [
     ...resolvedEidJamaats.map((time, index) => ({
@@ -72,15 +72,15 @@ function buildCombinedScenarios(eidJamaats: string[]): CombinedScenario[] {
     heroKey: 'Eid',
     isEidHero: true,
     countdownInfo: {
-      label: `${toOrdinal(index + 1)} Jamaat`,
+      label: `${toOrdinal(index + 1)} Eid`,
       value: index < resolvedEidJamaats.length - 1 ? '00:20:00' : '01:20:00',
-      note: '',
+      note: sharedNote,
       flash: false,
     },
     progress: Math.min(0.18 + (index * 0.18), 0.78),
-    startLabel: `${toOrdinal(index + 1)} Jamaat`,
+    startLabel: `${toOrdinal(index + 1)} Eid`,
     startTime: time,
-    endLabel: index < resolvedEidJamaats.length - 1 ? `${toOrdinal(index + 2)} Jamaat` : 'Zawaal',
+    endLabel: index < resolvedEidJamaats.length - 1 ? `${toOrdinal(index + 2)} Eid` : 'Zawaal',
     endTime: index < resolvedEidJamaats.length - 1 ? resolvedEidJamaats[index + 1] : '12:58',
     showJamaat: false,
     nextPrayerJamaatValue: '',
@@ -147,7 +147,7 @@ function buildCombinedScenarios(eidJamaats: string[]): CombinedScenario[] {
       countdownInfo: {
         label: 'Until Jummah',
         value: '00:12:00',
-        note: `Jummah times: J1 ${FRIDAY_J1} · J2 ${FRIDAY_J2}`,
+        note: `The final eid prayer has been · ${jummahNote}`,
         flash: false,
       },
       progress: 0.93,
@@ -165,7 +165,7 @@ function buildCombinedScenarios(eidJamaats: string[]): CombinedScenario[] {
       kicker: 'After Eid on Friday',
       heroKey: 'Jumuah',
       isFridayJumuahHero: true,
-      countdownInfo: { label: '1st Jamaat', value: '00:18:00', note: '', flash: false },
+      countdownInfo: { label: '1st Jummah', value: '00:18:00', note: jummahNote, flash: false },
       progress: 0.24,
       startLabel: 'First Athan',
       startTime: '13:10',
@@ -183,7 +183,7 @@ function buildCombinedScenarios(eidJamaats: string[]): CombinedScenario[] {
       kicker: 'After Eid on Friday',
       heroKey: 'Jumuah',
       isFridayJumuahHero: true,
-      countdownInfo: { label: '2nd Jamaat', value: '00:22:00', note: '', flash: false },
+      countdownInfo: { label: '2nd Jummah', value: '00:22:00', note: jummahNote, flash: false },
       progress: 0.48,
       startLabel: 'First Athan',
       startTime: '13:10',
@@ -226,7 +226,7 @@ export default function HeroPreviewEidJumuahScreen() {
               visible
               backgroundSource={PRAYER_BG_IMAGES[scenario.heroKey]}
               gradientColors={PRAYER_GRADIENTS[scenario.heroKey]}
-              ambientColors={['rgba(8,24,52,0.56)', 'rgba(6,14,34,0.45)']}
+
               backgroundImageOpacity={0.82}
               heroWide={false}
               kicker={scenario.kicker}
@@ -267,6 +267,13 @@ export default function HeroPreviewEidJumuahScreen() {
               loadingHijri={false}
               dayName="Friday"
               dateShort="20 Apr 2026"
+              allPrayers={[
+                { name: 'Fajr', time: '03:49', iqamah: '05:15' },
+                { name: 'Dhuhr', time: '13:10', iqamah: '14:00' },
+                { name: 'Asr', time: '17:57', iqamah: '19:00' },
+                { name: 'Maghrib', time: '20:09', iqamah: '20:09' },
+                { name: 'Isha', time: '22:01', iqamah: '22:30' },
+              ]}
             />
           </View>
         ))}

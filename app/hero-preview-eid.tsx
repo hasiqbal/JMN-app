@@ -34,7 +34,7 @@ type EidScenario = {
 const EID_DATE = '1st Shawaal';
 
 function buildEidNote(jamaatTimes: string[]): string {
-  return jamaatTimes.map((time, index) => `J${index + 1}: ${time}`).join(' · ');
+  return jamaatTimes.map((time, index) => `${toOrdinal(index + 1)}: ${time}`).join(' · ');
 }
 
 function toOrdinal(value: number): string {
@@ -57,8 +57,8 @@ function buildEidScenarios(jamaatTimes: string[]): EidScenario[] {
     { label: 'Zawaal', position: 1 },
   ];
   const eidHeroScenarios = resolvedJamaats.map((time, index) => {
-    const currentLabel = `${toOrdinal(index + 1)} Jamaat`;
-    const nextLabel = `${toOrdinal(index + 2)} Jamaat`;
+    const currentLabel = `${toOrdinal(index + 1)} Eid`;
+    const nextLabel = `${toOrdinal(index + 2)} Eid`;
 
     return {
       id: `eid-jamaat-${index + 1}`,
@@ -189,7 +189,7 @@ function buildEidScenarios(jamaatTimes: string[]): EidScenario[] {
     countdownInfo: {
       label: 'Until Zawaal',
       value: '00:45:00',
-      note: `The final eid prayer has been · Eid Prayers: ${buildEidNote(resolvedJamaats)}`,
+      note: 'The final eid prayer has been',
       flash: false,
     },
     progress: 0.94,
@@ -208,7 +208,7 @@ function buildEidScenarios(jamaatTimes: string[]): EidScenario[] {
     heroKey: 'Dhuhr',
     countdownInfo: {
       label: 'Jamaat',
-      value: '00:50:00',
+      value: '00:08:25',
       note: '',
       flash: false,
     },
@@ -271,7 +271,7 @@ export default function HeroPreviewEidScreen() {
               visible
               backgroundSource={PRAYER_BG_IMAGES[s.heroKey]}
               gradientColors={PRAYER_GRADIENTS[s.heroKey]}
-              ambientColors={['rgba(8,24,52,0.56)', 'rgba(6,14,34,0.45)']}
+
               backgroundImageOpacity={0.82}
               heroWide={false}
               kicker={s.kicker}
@@ -314,6 +314,13 @@ export default function HeroPreviewEidScreen() {
               loadingHijri={false}
               dayName='Saturday'
               dateShort='20 Apr 2026'
+              allPrayers={[
+                { name: 'Fajr', time: '03:49', iqamah: '05:15' },
+                { name: 'Dhuhr', time: '13:10', iqamah: '14:00' },
+                { name: 'Asr', time: '17:57', iqamah: '19:00' },
+                { name: 'Maghrib', time: '20:09', iqamah: '20:09' },
+                { name: 'Isha', time: '22:01', iqamah: '22:30' },
+              ]}
             />
           </View>
         ))}
