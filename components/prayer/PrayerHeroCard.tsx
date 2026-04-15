@@ -126,6 +126,27 @@ function parseCountdownSeconds(val: string): number | null {
   return null;
 }
 
+function parseClockToDate(clock: string, anchor: Date): Date | null {
+  const m = clock.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+
+  const hh = Number(m[1]);
+  const mm = Number(m[2]);
+  if (Number.isNaN(hh) || Number.isNaN(mm) || hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
+
+  const d = new Date(anchor);
+  d.setHours(hh, mm, 0, 0);
+  return d;
+}
+
+function formatSecondsAsHMS(totalSeconds: number): string {
+  const safe = Math.max(0, totalSeconds);
+  const h = Math.floor(safe / 3600);
+  const m = Math.floor((safe % 3600) / 60);
+  const s = safe % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
 type ParsedScheduleBanner = {
   eid: string[];
   jumuah: string[];
@@ -263,43 +284,6 @@ function RollingSchedulePills({
   );
 }
 
-function buildDockPrayers(params: {
-  prayers: { name: string; time: string; iqamah: string }[];
-  isFriday: boolean;
-  j1?: string;
-  j2?: string;
-}): { name: string; time: string; iqamah: string }[] {
-  const filtered = params.prayers.filter((prayer) => !['Sunrise', 'Ishraq', 'Zawaal', 'Eid', 'Eid Prayer'].includes(prayer.name));
-
-  if (!params.isFriday) {
-    const regularOrder = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
-    return regularOrder.map((name) => filtered.find((prayer) => prayer.name === name) ?? {
-      name,
-      time: '--:--',
-      iqamah: '--:--',
-    });
-  }
-
-  const dhuhrRow = filtered.find((prayer) => prayer.name === 'Dhuhr');
-  const existingJumuah = filtered.find((prayer) => prayer.name === 'Jumuah');
-  const jumuahRow = existingJumuah ?? {
-    name: 'Jumuah',
-    time: dhuhrRow?.time ?? params.j1 ?? '--:--',
-    iqamah: params.j2 || dhuhrRow?.iqamah || '--:--',
-  };
-  const fridayRows = filtered.filter((prayer) => prayer.name !== 'Dhuhr' && prayer.name !== 'Jumuah');
-  const fridayOrder = ['Fajr', 'Jumuah', 'Asr', 'Maghrib', 'Isha'];
-
-  return fridayOrder.map((name) => {
-    if (name === 'Jumuah') return jumuahRow;
-    return fridayRows.find((prayer) => prayer.name === name) ?? {
-      name,
-      time: '--:--',
-      iqamah: '--:--',
-    };
-  });
-}
-
 export default function PrayerHeroCard({
   visible,
   embedded = false,
@@ -431,36 +415,6 @@ export default function PrayerHeroCard({
   const stripMiddleLabel = (showJamaat && jamaatValue) ? 'Jamaat' : midLabel;
   const stripMiddleTime = (showJamaat && jamaatValue) ? jamaatValue : midTime;
   const showMiddleStrip = hasMiddleEvent;
-  const tomorrowJamaatRows = (() => {
-    if (!allPrayers || allPrayers.length === 0) return [] as { name: string; time: string }[];
-
-    const order = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
-    return order
-      .map((name) => {
-        const prayer = allPrayers.find((entry) => entry.name === name);
-        const time = prayer?.tomorrowIqamah;
-        if (!time || time === '-' || time === '--:--') return null;
-        return { name, time };
-      })
-      .filter((entry): entry is { name: string; time: string } => !!entry);
-  })();
-  const isAfterIshaJamaat = (() => {
-    if (!allPrayers || allPrayers.length === 0) return false;
-
-    const isha = allPrayers.find((entry) => entry.name === 'Isha');
-    if (!isha?.iqamah || isha.iqamah === '-' || isha.iqamah === '--:--') return false;
-
-    const [hours, minutes] = isha.iqamah.split(':').map(Number);
-    if (Number.isNaN(hours) || Number.isNaN(minutes)) return false;
-
-    const base = isha.timeDate ? new Date(isha.timeDate) : new Date();
-    base.setHours(hours, minutes, 0, 0);
-    return new Date() >= base;
-  })();
-  const showTomorrowJamaatBanner = !isEidHero
-    && !countdownInfo.flash
-    && isAfterIshaJamaat
-    && tomorrowJamaatRows.length > 0;
   const rightColumnLabel = isFridayJumuahHero
     ? `${nextPrayerName || endLabel || 'Asr'}`
     : contextualEndLabel;
@@ -480,7 +434,7 @@ export default function PrayerHeroCard({
   const statusText = (() => {
     const isOrdinalCountdown = /^\d+(st|nd|rd|th)\b/i.test(countdownLabel);
     if (isForbidden) return `${title} until ${forbiddenEndsAt}`;
-    if (countdownInfo.flash) return `${title} Jamaat started`;
+    if (countdownInfo.flash) return countdownLabel || `${title} Jamaat started`;
     if (isUntilJamaat) return `${title} Jamaat in ${countdownFriendly}`;
     if ((isEidHero || isFridayJumuahHero) && countdownLabel) {
       if (isOrdinalCountdown) {
@@ -494,7 +448,7 @@ export default function PrayerHeroCard({
     if (isCurrentPrayer) return `${title} in progress`;
     return `${title} in ${countdownFriendly}`;
   })();
-  const showLiveStatus = !countdownInfo.flash && !/jamaat\s+is\s+now/i.test(`${countdownInfo.label} ${countdownInfo.note}`);
+  const showLiveStatus = !/jamaat\s+is\s+now/i.test(`${countdownInfo.label} ${countdownInfo.note}`);
   const liveStatusColor = (() => {
     if (isForbidden) return '#FFD2D2';
     if (urgencyLevel === 'red') return '#FFD2D2';
@@ -502,9 +456,27 @@ export default function PrayerHeroCard({
     if (isCurrentPrayer) return '#A7E8C5';
     return '#F7FBFF';
   })();
-  const liveStatusEndsText = (isCurrentPrayer && !countdownInfo.flash)
-    ? `Ends in ${countdownFriendly}`
-    : null;
+  const liveStatusEndsText = (() => {
+    if (!isCurrentPrayer || countdownInfo.flash) return null;
+    if (isUntilJamaat) {
+      if (!rightColumnTime || rightColumnTime === '--:--') return null;
+
+      const now = new Date();
+      const endAt = parseClockToDate(rightColumnTime, now);
+      if (!endAt) {
+        if (rightColumnLabel) return `Ends at ${rightColumnLabel} ${rightColumnTime}`;
+        return `Ends at ${rightColumnTime}`;
+      }
+
+      if (endAt.getTime() <= now.getTime()) {
+        endAt.setDate(endAt.getDate() + 1);
+      }
+
+      const secondsToEnd = Math.max(0, Math.floor((endAt.getTime() - now.getTime()) / 1000));
+      return `Ends in ${formatSecondsAsHMS(secondsToEnd)}`;
+    }
+    return `Ends in ${countdownFriendly}`;
+  })();
 
   const timelineLogoTranslateX = timelineLineWidth > 0
     ? progressAnim.interpolate({
@@ -656,97 +628,6 @@ export default function PrayerHeroCard({
     </>
   );
 
-  const renderCompartmentLayout = () => {
-    if (!allPrayers) return null;
-
-    const mainPrayers = buildDockPrayers({
-      prayers: allPrayers,
-      isFriday: dayName.trim().toLowerCase().startsWith('fri'),
-      j1,
-      j2,
-    });
-
-    return (
-      <View style={[styles.compartmentsDock, embedded && styles.compartmentsDockEmbedded]}>
-        {/* Prayer compartments */}
-        <View style={styles.compartmentsRow}>
-          {mainPrayers.map((prayer, index) => {
-            const isActive = title === prayer.name;
-            return (
-              <View
-                key={`${prayer.name}-${index}`}
-                style={[
-                  styles.compartment,
-                  isActive && styles.compartmentActive,
-                  !isActive && styles.compartmentInactive,
-                  index === mainPrayers.length - 1 && styles.compartmentLast,
-                ]}
-              >
-                <Text style={[styles.compPrayerName, isActive && styles.compPrayerNameActive]}>{prayer.name}</Text>
-                <Text style={[styles.compStartTime, isActive && styles.compStartTimeActive]}>{prayer.time}</Text>
-                <Text style={[styles.compJamaatLabel, isActive && styles.compJamaatLabelActive]}>Jamaat</Text>
-                <Text style={[styles.compJamaatTime, isActive && styles.compJamaatTimeActive]}>{prayer.iqamah}</Text>
-              </View>
-            );
-          })}
-        </View>
-
-        {/* Progress seam between dock and ticker */}
-        <View style={styles.progressBarContainer}>
-          <LinearGradient
-            pointerEvents="none"
-            colors={['rgba(4,14,30,0.52)', 'rgba(7,24,42,0.34)']}
-            start={{ x: 0.5, y: 0 }}
-            end={{ x: 0.5, y: 1 }}
-            style={styles.progressBarBackdrop}
-          />
-          <View
-            style={styles.glowingLineWrapper}
-            onLayout={(event) => setTimelineLineWidth(event.nativeEvent.layout.width)}
-          >
-            <View style={styles.glowingLineBase} />
-            <Animated.View
-              pointerEvents="none"
-              style={[
-                styles.glowingLineAura,
-                {
-                  opacity: logoPulseAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.28, 0.62],
-                  }),
-                },
-              ]}
-            />
-            <Animated.View
-              style={[
-                styles.glowingLineFill,
-                {
-                  width: progressFillWidth,
-                },
-              ]}
-            />
-            <Animated.View
-              pointerEvents="none"
-              style={[
-                styles.timelineLogoPointerTrack,
-                { transform: [{ translateX: timelineLogoTranslateX }] },
-              ]}
-            >
-              <Animated.Image
-                source={require('@/assets/images/masjid-logo.png')}
-                resizeMode="contain"
-                style={[
-                  styles.timelineLogoPointerImage,
-                  { transform: [{ scale: timelineLogoScale }] },
-                ]}
-              />
-            </Animated.View>
-          </View>
-        </View>
-      </View>
-    );
-  };
-
   return (
     <View style={[styles.wrap, embedded && styles.wrapEmbedded]}>
       <View style={[styles.surfaceShell, embedded && styles.surfaceShellEmbedded]}>
@@ -861,24 +742,6 @@ export default function PrayerHeroCard({
           </View>
           ) : null}
 
-          {showTomorrowJamaatBanner ? (
-            <View style={styles.tomorrowJamaatBanner}>
-              <Text style={styles.tomorrowJamaatHeading}>Tomorrow Jamaat Times</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.tomorrowJamaatPills}
-              >
-                {tomorrowJamaatRows.map((entry) => (
-                  <View key={`tomorrow-jamaat-${entry.name}`} style={styles.tomorrowJamaatPill}>
-                    <Text style={styles.tomorrowJamaatPillLabel}>{entry.name}</Text>
-                    <Text style={styles.tomorrowJamaatPillTime}>{entry.time}</Text>
-                  </View>
-                ))}
-              </ScrollView>
-            </View>
-          ) : null}
-
           {(eidTomorrowJamaats?.length) ? (
             <View style={styles.eidTomorrowBanner}>
               <Text style={styles.eidTomorrowHeading}>{eidTomorrowLabel ?? 'Eid Prayer · Tomorrow'}</Text>
@@ -918,16 +781,15 @@ export default function PrayerHeroCard({
 
           {cutThroughTimeline ? (
             <View style={styles.cutThroughContentArea}>
-              {allPrayers ? null : timelineTrack}
+              {timelineTrack}
             </View>
           ) : (
             <View style={styles.barArea}>
-              {allPrayers ? null : timelineTrack}
+              {timelineTrack}
             </View>
           )}
         </View>
 
-        {allPrayers ? renderCompartmentLayout() : null}
       </View>
     </View>
   );
@@ -1130,51 +992,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0,
     marginBottom: 12,
     lineHeight: 28,
-  },
-  tomorrowJamaatBanner: {
-    marginTop: 4,
-    marginBottom: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: 'rgba(79,233,72,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(79,233,72,0.28)',
-  },
-  tomorrowJamaatHeading: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: 'rgba(169,255,204,0.96)',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    marginBottom: 6,
-  },
-  tomorrowJamaatPills: {
-    flexDirection: 'row',
-    flexWrap: 'nowrap',
-    gap: 4,
-  },
-  tomorrowJamaatPill: {
-    paddingHorizontal: 7,
-    paddingVertical: 4,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(79,233,72,0.24)',
-    alignItems: 'center',
-    minWidth: 54,
-  },
-  tomorrowJamaatPillLabel: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: 'rgba(169,255,204,0.88)',
-    letterSpacing: 0.2,
-  },
-  tomorrowJamaatPillTime: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginTop: 1,
   },
   prayerInWarning: {
     color: '#FFD29A',
@@ -1779,136 +1596,4 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 
-  /* Compartment Styles */
-  compartmentsDock: {
-    position: 'relative',
-    backgroundColor: 'transparent',
-    borderWidth: 0,
-    borderRadius: 0,
-    overflow: 'hidden',
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  compartmentsDockEmbedded: {
-    marginTop: -4,
-    marginBottom: -4,
-    zIndex: 6,
-  },
-  compartmentsPanel: {
-    backgroundColor: 'rgba(18,55,92,0.34)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.20)',
-    borderTopWidth: 0.5,
-    borderTopColor: 'rgba(255,255,255,0.08)',
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#020814',
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 10,
-  },
-  compartmentsRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    width: '100%',
-    paddingHorizontal: 6,
-    paddingTop: 8,
-    paddingBottom: 8,
-    backgroundColor: 'rgba(5,20,38,0.56)',
-  },
-  compartment: {
-    flex: 1,
-    paddingHorizontal: 5,
-    paddingVertical: 8,
-    borderLeftWidth: 1,
-    borderLeftColor: 'rgba(204,228,255,0.34)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  compartmentLast: {
-    borderRightWidth: 1,
-    borderRightColor: 'rgba(204,228,255,0.34)',
-  },
-  compartmentActive: {
-    borderLeftColor: 'rgba(121,217,166,0.98)',
-    backgroundColor: 'rgba(25,112,76,0.52)',
-  },
-  compartmentInactive: {
-    opacity: 1,
-    backgroundColor: 'rgba(11,40,70,0.42)',
-  },
-  compPrayerName: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#EAF4FF',
-    marginBottom: 4,
-    lineHeight: 15,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-  },
-  compPrayerNameActive: {
-    color: '#FFFFFF',
-    fontWeight: '900',
-  },
-  compStartTime: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#F7FBFF',
-    marginBottom: 4,
-    letterSpacing: -0.1,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-  },
-  compStartTimeActive: {
-    color: '#FFFFFF',
-    fontWeight: '900',
-    fontSize: 17,
-  },
-  compJamaatLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#DDEBFB',
-    marginBottom: 2,
-    letterSpacing: 0,
-  },
-  compJamaatLabelActive: {
-    color: '#E6FFF0',
-  },
-  compJamaatTime: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#7FD7A8',
-    letterSpacing: 0,
-    textShadowColor: 'rgba(95,255,159,0.35)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-  },
-  compJamaatTimeActive: {
-    color: '#BCEFD5',
-    fontWeight: '900',
-    fontSize: 15,
-    textShadowColor: 'rgba(141,255,187,0.55)',
-    textShadowRadius: 6,
-  },
-  progressBarContainer: {
-    marginTop: 0,
-    paddingHorizontal: 6,
-    paddingTop: 5,
-    paddingBottom: 4,
-    position: 'relative',
-    overflow: 'hidden',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.12)',
-    backgroundColor: 'rgba(7,20,38,0.18)',
-    zIndex: 7,
-  },
-  progressBarBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-  },
 });

@@ -256,32 +256,6 @@ const QURAN_VERSES = [
   { arabic: "فِي بُيُوتٍ أَذِنَ اللَّهُ أَن تُرْفَعَ وَيُذْكَرَ فِيهَا اسْمُهُ", translation: "In houses which Allah has ordered to be raised and that His name be mentioned therein.", ref: "An-Nur 24:36" },
 ];
 
-// ── Daily Sunnah Reminders ────────────────────────────────────────────────
-const SUNNAH_REMINDERS = [
-  { act: "Pray 2 Sunnah before Fajr", detail: "The two rakaat before Fajr are better than the world and all it contains.", ref: "Sahih Muslim 725", icon: "wb-twilight" },
-  { act: "Say Bismillah before eating", detail: "If you forget, say: Bismillah awwalahu wa akhirahu — at any point during the meal.", ref: "Abu Dawud 3767", icon: "restaurant" },
-  { act: "Use the Miswak (or toothbrush)", detail: "The Prophet would use the Miswak upon waking, before prayer, and before reciting Quran.", ref: "Sahih al-Bukhari 245", icon: "self-improvement" },
-  { act: "Recite Ayat al-Kursi after each prayer", detail: "Whoever recites it after every obligatory prayer, nothing prevents him from entering Paradise.", ref: "An-Nasai, Sahih chain", icon: "menu-book" },
-  { act: "Say SubhanAllah 33x after prayer", detail: "Say SubhanAllah 33×, Alhamdulillah 33×, Allahu Akbar 34× after each prayer.", ref: "Sahih Muslim 597", icon: "loop" },
-  { act: "Pray 4 Sunnah before Dhuhr", detail: "Whoever prays four before Dhuhr and four after, Allah forbids the Fire for him.", ref: "Tirmidhi 428", icon: "wb-sunny" },
-  { act: "Visit the Masjid in congregation", detail: "The prayer in congregation is twenty-seven degrees superior to the prayer offered alone.", ref: "Sahih al-Bukhari 645", icon: "mosque" },
-  { act: "Make Dhikr in the morning", detail: "Say: SubhanAllahi wa bihamdihi 100 times in the morning — all sins are forgiven.", ref: "Sahih al-Bukhari 6405", icon: "brightness-5" },
-  // Al-Kahf moved to Friday-specific Jumuah card only
-  { act: "Give Salaam first when entering", detail: "The best of the two people is the one who begins with the Salaam.", ref: "Tirmidhi 2694", icon: "waving-hand" },
-  { act: "Pray 2 rakaat Tahiyyat al-Masjid", detail: "When any of you enters the Masjid, let him not sit until he prays two rakaat.", ref: "Sahih al-Bukhari 444", icon: "mosque" },
-  { act: "Fast on Mondays and Thursdays", detail: "Deeds are presented to Allah on Mondays and Thursdays, so I love for my deeds to be presented while I am fasting.", ref: "Tirmidhi 747", icon: "no-food" },
-  { act: "Give in charity, even if a little", detail: "Protect yourself from the Fire even with half a date. If you cannot, then with a good word.", ref: "Sahih al-Bukhari 1413", icon: "volunteer-activism" },
-  { act: "Make Istighfar 100 times daily", detail: "The Prophet would seek Allah's forgiveness more than 70 times a day.", ref: "Sahih al-Bukhari 6307", icon: "refresh" },
-  { act: "Pray Duha (Forenoon prayer)", detail: "Whoever prays Duha with 12 rakaat, Allah will build a palace of gold for him in Paradise.", ref: "Tirmidhi 473", icon: "flare" },
-  { act: "Recite 3 Quls before sleeping", detail: "The Prophet would recite Surah Al-Ikhlas, Al-Falaq, and An-Nas and blow over his body before sleeping.", ref: "Sahih al-Bukhari 5017", icon: "nights-stay" },
-  { act: "Make Du'a between Adhan and Iqamah", detail: "Du'a made between the Adhan and Iqamah is not rejected.", ref: "Tirmidhi 212", icon: "access-time" },
-  { act: "Read Quran after Fajr", detail: "Recite the Quran at Fajr — indeed the recitation of Fajr is witnessed (by angels).", ref: "Al-Isra 17:78", icon: "wb-twilight" },
-  { act: "Send Salawat upon the Prophet", detail: "Whoever sends blessings upon me once, Allah sends blessings upon him tenfold.", ref: "Sahih Muslim 408", icon: "star" },
-  { act: "Keep ties of kinship", detail: "Whoever would like his provision to be expanded and his lifespan extended, let him maintain the ties of kinship.", ref: "Sahih al-Bukhari 5985", icon: "people" },
-  { act: "Pray Witr before sleeping", detail: "Make Witr your last prayer at night.", ref: "Sahih al-Bukhari 998", icon: "bedtime" },
-  { act: "Enter the Masjid with right foot", detail: "When entering the Masjid, step in with the right foot and say: Allahumma iftah li abwaba rahmatik.", ref: "Ibn Majah 771", icon: "login" },
-];
-
 const todayHadith  = HADITHS[DAY_OF_YEAR % HADITHS.length];
 const todayVerse   = QURAN_VERSES[DAY_OF_YEAR % QURAN_VERSES.length];
 
@@ -2117,10 +2091,10 @@ const fyStyles = StyleSheet.create({
     padding: 10,
     gap: 7,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 4,
   },
   duroodHeader: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   duroodTitle: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3, flex: 1 },
@@ -2164,10 +2138,10 @@ const fyStyles = StyleSheet.create({
     borderColor: Colors.border,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 4,
   },
   colorBar: { height: 3 },
   cardBody: { padding: 9, gap: 4 },
@@ -2514,19 +2488,6 @@ const MASJID_IMAGES = [
 const DONATE_TOTAL_STEPS = MASJID_IMAGES.length * 2;
 const DONATE_STEP_MS = [4500, 3500]; // [donate face duration, photo face duration]
 
-function formatMoneyFromMinorUnits(amountMinor: number, currencyCode: string): string {
-  const safeCurrency = (currencyCode || 'gbp').toUpperCase();
-  try {
-    return new Intl.NumberFormat('en-GB', {
-      style: 'currency',
-      currency: safeCurrency,
-      maximumFractionDigits: 0,
-    }).format(amountMinor / 100);
-  } catch {
-    return `GBP ${(amountMinor / 100).toFixed(0)}`;
-  }
-}
-
 // ── Zawaal Section Row: Donation (rotating) + Daily Sunnah/Verse card ────
 type RemFace = 'sunnah' | 'verse';
 const REM_FACES: RemFace[] = ['sunnah', 'verse'];
@@ -2585,10 +2546,10 @@ function ZawaalSectionRow({ nightMode, todaySunnah, onDonatePress }: {
   const rotateZ = rotateAnim.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-90deg', '0deg', '90deg'] });
   const sunnahColor = N ? NIGHT.accent : Colors.primary;
   const verseColor  = N ? '#4FE948'   : Colors.primary;
-  const cardBg  = N ? NIGHT.surface     : '#FFFFFF';
-  const borderC = N ? NIGHT.borderStrong : Colors.border;
-  const textCol = N ? NIGHT.text         : Colors.textPrimary;
-  const subCol  = N ? NIGHT.textSub      : Colors.textSubtle;
+  const cardBg  = N ? '#102131' : '#F2F8F3';
+  const borderC = N ? '#2C4A62' : '#BDD8C4';
+  const textCol = N ? '#EAF5FF' : '#14251E';
+  const subCol  = N ? '#B7CAD8' : '#587165';
   return (
     <View style={zawaalRowStyles.row}>
       {/* ── Donation Card (rotates: info ↔ masjid photos) ───────────── */}
@@ -2685,36 +2646,101 @@ function ZawaalSectionRow({ nightMode, todaySunnah, onDonatePress }: {
 
       {/* ── Sunnah / Verse flipping card ──────────────────────────────── */}
       <View style={[zawaalRowStyles.flipCard, { backgroundColor: cardBg, borderColor: borderC }]}>
+        <LinearGradient
+          pointerEvents="none"
+          colors={N ? ['rgba(17,36,52,0.18)', 'rgba(17,36,52,0)'] : ['rgba(122,170,132,0.22)', 'rgba(122,170,132,0)']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0.9, y: 0.2 }}
+          style={zawaalRowStyles.flipBackdropFade}
+        />
+        <View pointerEvents="none" style={[zawaalRowStyles.flipDecorBlob, { backgroundColor: (displayFace === 'sunnah' ? sunnahColor : verseColor) + '14' }]} />
+        <View pointerEvents="none" style={[zawaalRowStyles.flipDecorBlobSoft, { backgroundColor: (displayFace === 'sunnah' ? sunnahColor : verseColor) + '0E' }]} />
+        <Image
+          pointerEvents="none"
+          source={require('../../assets/images/sky/nabwi.jpg')}
+          style={zawaalRowStyles.flipDecorNabwiImage}
+          contentFit="cover"
+        />
+
         <Animated.View style={[zawaalRowStyles.flipCardInner, { transform: [{ rotateZ }] }]}>
           {displayFace === 'sunnah' ? (
-            <View style={zawaalRowStyles.flipFace}>
-              <View style={zawaalRowStyles.flipHeader}>
-                <MaterialIcons name="star" size={13} color={sunnahColor} />
-                <Text style={[zawaalRowStyles.flipLabel, { color: sunnahColor }]}>Daily Sunnah</Text>
-                <View style={[zawaalRowStyles.flipBadge, { borderColor: sunnahColor + '45' }]}>
-                  <Text style={[zawaalRowStyles.flipBadgeText, { color: sunnahColor }]}>Today</Text>
+            <View style={zawaalRowStyles.flipHeroFace}>
+              <View style={zawaalRowStyles.flipHeroTopRow}>
+                <View style={[zawaalRowStyles.flipHeroIconWrap, { backgroundColor: sunnahColor + '1C' }]}>
+                  <Image
+                    source={require('../../assets/images/sky/nabwi.jpg')}
+                    style={zawaalRowStyles.flipHeroIconImage}
+                    contentFit="cover"
+                  />
+                </View>
+                <View style={zawaalRowStyles.flipHeroHeaderTextWrap}>
+                  <Text style={[zawaalRowStyles.flipHeroEyebrow, { color: sunnahColor }]}>Daily Sunnah</Text>
+                  <Text style={[zawaalRowStyles.flipHeroHeading, { color: textCol }]}>Daily Sunnah</Text>
+                  <Text style={[zawaalRowStyles.flipHeroSub, { color: subCol }]}>Practice it before the day ends.</Text>
+                </View>
+                <View style={[zawaalRowStyles.flipHeroTodayPill, { backgroundColor: sunnahColor + '1A' }]}>
+                  <MaterialIcons name="calendar-today" size={10} color={sunnahColor} />
+                  <Text style={[zawaalRowStyles.flipHeroTodayText, { color: sunnahColor }]}>Today</Text>
                 </View>
               </View>
-              <View style={[zawaalRowStyles.flipActBox, { backgroundColor: sunnahColor + '15', borderColor: sunnahColor + '40' }]}>
-                <Text style={[zawaalRowStyles.flipActText, { color: textCol }]} numberOfLines={2}>{todaySunnah.act}</Text>
-              </View>
-              <Text style={[zawaalRowStyles.flipDetailText, { color: subCol }]} numberOfLines={3}>{todaySunnah.detail}</Text>
-              <Text style={[zawaalRowStyles.flipRef, { color: sunnahColor }]}>{todaySunnah.ref}</Text>
+
+              <Text style={[zawaalRowStyles.flipHeroAct, { color: textCol }]} numberOfLines={2}>{todaySunnah.act}</Text>
+              {!!todaySunnah.detail && (
+                <Text style={[zawaalRowStyles.flipHeroDetail, { color: subCol }]} numberOfLines={3}>{todaySunnah.detail}</Text>
+              )}
+
+              {!!todaySunnah.ref && (
+                <View style={zawaalRowStyles.flipHeroRefRow}>
+                  <MaterialIcons name="book" size={11} color={sunnahColor} />
+                  <Text style={[zawaalRowStyles.flipHeroRefText, { color: sunnahColor }]}>{todaySunnah.ref}</Text>
+                </View>
+              )}
+
+              <LinearGradient
+                colors={N ? ['#2E7B5D', '#0F5A43'] : ['#1D9A61', '#0F6A52']}
+                start={{ x: 0, y: 0.5 }}
+                end={{ x: 1, y: 0.5 }}
+                style={zawaalRowStyles.flipHeroCtaBtn}
+              >
+                <MaterialIcons name="book" size={12} color="#EAF9F0" />
+                <Text style={zawaalRowStyles.flipHeroCtaText}>Open Sunnah</Text>
+                <MaterialIcons name="arrow-forward" size={12} color="#EAF9F0" />
+              </LinearGradient>
             </View>
           ) : (
-            <View style={zawaalRowStyles.flipFace}>
-              <View style={zawaalRowStyles.flipHeader}>
-                <MaterialIcons name="menu-book" size={13} color={verseColor} />
-                <Text style={[zawaalRowStyles.flipLabel, { color: verseColor }]}>Verse of the Day</Text>
-                <View style={[zawaalRowStyles.flipBadge, { borderColor: verseColor + '45' }]}>
-                  <Text style={[zawaalRowStyles.flipBadgeText, { color: verseColor }]}>Daily</Text>
+            <View style={zawaalRowStyles.flipHeroFace}>
+              <View style={zawaalRowStyles.flipHeroTopRow}>
+                <View style={[zawaalRowStyles.flipHeroIconWrap, { backgroundColor: verseColor + '1C' }]}>
+                  <MaterialIcons name="menu-book" size={15} color={verseColor} />
+                </View>
+                <View style={zawaalRowStyles.flipHeroHeaderTextWrap}>
+                  <Text style={[zawaalRowStyles.flipHeroEyebrow, { color: verseColor }]}>Verse of the Day</Text>
+                  <Text style={[zawaalRowStyles.flipHeroHeading, { color: textCol }]}>Daily Verse</Text>
+                  <Text style={[zawaalRowStyles.flipHeroSub, { color: subCol }]}>Reflect and carry it with you.</Text>
+                </View>
+                <View style={[zawaalRowStyles.flipHeroTodayPill, { backgroundColor: verseColor + '1A' }]}>
+                  <MaterialIcons name="calendar-today" size={10} color={verseColor} />
+                  <Text style={[zawaalRowStyles.flipHeroTodayText, { color: verseColor }]}>Today</Text>
                 </View>
               </View>
-              <View style={[zawaalRowStyles.flipActBox, { backgroundColor: verseColor + '15', borderColor: verseColor + '40' }]}>
-                <Text style={[zawaalRowStyles.arabicText, { color: verseColor }]} numberOfLines={2}>{todayVerse.arabic}</Text>
+
+              <Text style={[zawaalRowStyles.flipHeroArabic, { color: verseColor }]} numberOfLines={2}>{todayVerse.arabic}</Text>
+              <Text style={[zawaalRowStyles.flipHeroDetail, { color: textCol }]} numberOfLines={3}>{todayVerse.translation}</Text>
+              <View style={zawaalRowStyles.flipHeroRefRow}>
+                <MaterialIcons name="book" size={11} color={verseColor} />
+                <Text style={[zawaalRowStyles.flipHeroRefText, { color: verseColor }]}>{todayVerse.ref}</Text>
               </View>
-              <Text style={[zawaalRowStyles.flipDetailText, { color: textCol }]} numberOfLines={3}>{todayVerse.translation}</Text>
-              <Text style={[zawaalRowStyles.flipRef, { color: verseColor }]}>{todayVerse.ref}</Text>
+
+              <LinearGradient
+                colors={N ? ['#355F92', '#254A74'] : ['#3E7DBA', '#2F6494']}
+                start={{ x: 0, y: 0.5 }}
+                end={{ x: 1, y: 0.5 }}
+                style={zawaalRowStyles.flipHeroCtaBtn}
+              >
+                <MaterialIcons name="menu-book" size={12} color="#ECF5FF" />
+                <Text style={zawaalRowStyles.flipHeroCtaText}>Open Verse</Text>
+                <MaterialIcons name="arrow-forward" size={12} color="#ECF5FF" />
+              </LinearGradient>
             </View>
           )}
         </Animated.View>
@@ -2739,10 +2765,10 @@ function ZawaalSectionRow({ nightMode, todaySunnah, onDonatePress }: {
 const zawaalRowStyles = StyleSheet.create({
   row: {
     flexDirection: 'column',
-    gap: 10,
+    gap: 16,
     marginHorizontal: Spacing.md,
-    marginTop: 12,
-    marginBottom: 6,
+    marginTop: 6,
+    marginBottom: 16,
   },
   donateCard: {
     borderRadius: Radius.lg,
@@ -2752,9 +2778,9 @@ const zawaalRowStyles = StyleSheet.create({
     overflow: 'hidden',
     minHeight: 188,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
     elevation: 6,
   },
   donateInfoFace: {
@@ -2919,44 +2945,170 @@ const zawaalRowStyles = StyleSheet.create({
     borderRadius: Radius.lg,
     borderWidth: 1,
     overflow: 'hidden',
-    minHeight: 188,
+    width: '80%',
+    maxWidth: 360,
+    alignSelf: 'center',
+    aspectRatio: 1,
+    minHeight: 276,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 6,
+    position: 'relative',
+  },
+  flipBackdropFade: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 128,
+  },
+  flipDecorBlob: {
+    position: 'absolute',
+    top: 42,
+    right: -30,
+    width: 124,
+    height: 124,
+    borderRadius: 62,
+  },
+  flipDecorBlobSoft: {
+    position: 'absolute',
+    bottom: -48,
+    right: -52,
+    width: 152,
+    height: 152,
+    borderRadius: 76,
+  },
+  flipDecorNabwiImage: {
+    position: 'absolute',
+    right: -4,
+    bottom: 14,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    opacity: 0.2,
   },
   flipCardInner: { flex: 1 },
-  flipFace: { padding: 13, gap: 7, flex: 1 },
-  flipHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  flipLabel: { fontSize: 12, fontWeight: '800', letterSpacing: 0.3, flex: 1 },
-  flipBadge: {
-    borderWidth: 1,
+  flipHeroFace: {
+    flex: 1,
+    paddingHorizontal: 13,
+    paddingTop: 11,
+    paddingBottom: 9,
+    gap: 7,
+  },
+  flipHeroTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  flipHeroIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+    overflow: 'hidden',
+  },
+  flipHeroIconImage: {
+    width: '100%',
+    height: '100%',
+  },
+  flipHeroHeaderTextWrap: { flex: 1, paddingTop: 1 },
+  flipHeroEyebrow: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1.1,
+    textTransform: 'uppercase',
+    marginBottom: 1,
+  },
+  flipHeroHeading: {
+    fontSize: 15,
+    fontWeight: '900',
+    lineHeight: 19,
+  },
+  flipHeroSub: {
+    fontSize: 11,
+    fontWeight: '500',
+    lineHeight: 15,
+    marginTop: 1,
+  },
+  flipHeroTodayPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     borderRadius: 999,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    backgroundColor: 'rgba(255,255,255,0.35)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginTop: 0,
   },
-  flipBadgeText: {
-    fontSize: 9,
+  flipHeroTodayText: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
+  flipHeroAct: {
+    marginTop: 3,
+    fontSize: 24,
+    fontWeight: '900',
+    lineHeight: 30,
+    maxWidth: '72%',
+  },
+  flipHeroDetail: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 17,
+    maxWidth: '68%',
+  },
+  flipHeroArabic: {
+    marginTop: 2,
+    fontSize: 16,
+    fontWeight: '700',
+    lineHeight: 22,
+    letterSpacing: 0.1,
+    maxWidth: '72%',
+  },
+  flipHeroRefRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  flipHeroRefText: {
+    fontSize: 12,
     fontWeight: '800',
-    letterSpacing: 0.2,
+    lineHeight: 16,
   },
-  flipActBox: {
-    borderRadius: Radius.sm, borderWidth: 1,
-    paddingHorizontal: 9, paddingVertical: 7,
+  flipHeroCtaBtn: {
+    marginTop: 'auto',
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minWidth: 132,
+    shadowColor: '#0A4B37',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.14,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  flipActText: { fontSize: 13, fontWeight: '800', lineHeight: 17 },
-  flipDetailText: { fontSize: 11, fontWeight: '400', lineHeight: 16 },
-  arabicText: {
-    fontSize: 15, fontWeight: '700', textAlign: 'center', lineHeight: 22, letterSpacing: 0.3,
+  flipHeroCtaText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#EAF9F0',
+    letterSpacing: 0.3,
   },
-  flipRef: { fontSize: 10, fontWeight: '700', marginTop: 2 },
   dots: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 5, paddingVertical: 8, borderTopWidth: 1,
+    gap: 5, paddingVertical: 5, borderTopWidth: 0,
   },
-  dot: { width: 5, height: 5, borderRadius: 2.5 },
+  dot: { width: 5, height: 5, borderRadius: 3, opacity: 0.55 },
 });
 function useCurrentTime() {
   const [time, setTime] = useState(() => new Date());
@@ -3089,20 +3241,6 @@ export default function HomeScreen() {
   } = usePrayerTimes();
   const flashAnim = useRef(new Animated.Value(1)).current;
   const flashLoopRef = useRef<Animated.CompositeAnimation | null>(null);
-  const dayCycleAnim = useRef(new Animated.Value(0)).current;
-  const twinkleAnim = useRef(new Animated.Value(0)).current;
-  const twinkleSlowAnim = useRef(new Animated.Value(0)).current;
-  const stars = useRef(
-    Array.from({ length: 68 }, (_, i) => ({
-      id: i,
-      leftPct: Math.random() * 100,
-      topPct: Math.random() * 55,
-      size: 0.8 + Math.random() * 2.4,
-      opacity: 0.45 + Math.random() * 0.55,
-      tint: Math.random() > 0.83 ? 'rgba(255,238,210,0.96)' : Math.random() > 0.55 ? 'rgba(225,236,255,0.95)' : 'rgba(255,255,255,0.95)',
-      glow: Math.random() > 0.58,
-    }))
-  ).current;
 
   const currentTime = useCurrentTime();
   const nextInfo = React.useMemo(() => (data ? getNextPrayer(data.prayers) : null), [data]);
@@ -3136,154 +3274,7 @@ export default function HomeScreen() {
     };
   }, [jamaatStarted, jamaatOngoing, flashAnim]);
 
-  useEffect(() => {
-    const nowMinutes =
-      currentTime.getHours() * 60 +
-      currentTime.getMinutes() +
-      currentTime.getSeconds() / 60;
-
-    const sunrise = data?.prayers.find(p => p.name === 'Sunrise')?.timeDate;
-    const zawaal = data?.prayers.find(p => p.name === 'Zawaal')?.timeDate;
-    const dhuhr = data?.prayers.find(p => p.name === 'Dhuhr')?.timeDate;
-    const maghrib = data?.prayers.find(p => p.name === 'Maghrib')?.timeDate;
-
-    let dayProgress = nowMinutes / 1440;
-
-    if (sunrise && maghrib) {
-      const sunriseMin = sunrise.getHours() * 60 + sunrise.getMinutes();
-      const zawaalMin = zawaal ? (zawaal.getHours() * 60 + zawaal.getMinutes()) : null;
-      const dhuhrMin = dhuhr ? (dhuhr.getHours() * 60 + dhuhr.getMinutes()) : null;
-      const maghribMin = maghrib.getHours() * 60 + maghrib.getMinutes();
-      const daySpan = Math.max(1, maghribMin - sunriseMin);
-      const nightSpan = 1440 - daySpan;
-      const noonPoint = 0.45;
-      const postNoonPoint = 0.48;
-
-      if (nowMinutes >= sunriseMin && nowMinutes <= maghribMin) {
-        const hasNoonAnchors = zawaalMin !== null && dhuhrMin !== null && zawaalMin > sunriseMin && dhuhrMin > zawaalMin && dhuhrMin < maghribMin;
-        if (hasNoonAnchors) {
-          if (nowMinutes <= zawaalMin) {
-            // Sunrise -> Zawaal (sun climbs to exact noon apex)
-            const upSpan = Math.max(1, zawaalMin - sunriseMin);
-            const tUp = (nowMinutes - sunriseMin) / upSpan;
-            dayProgress = 0.26 + tUp * (noonPoint - 0.26);
-          } else if (nowMinutes <= dhuhrMin) {
-            // Zawaal -> Dhuhr (sun begins descending just after apex)
-            const noonSpan = Math.max(1, dhuhrMin - zawaalMin);
-            const tNoon = (nowMinutes - zawaalMin) / noonSpan;
-            dayProgress = noonPoint + tNoon * (postNoonPoint - noonPoint);
-          } else {
-            // Dhuhr -> Maghrib (afternoon decline)
-            const downSpan = Math.max(1, maghribMin - dhuhrMin);
-            const tDown = (nowMinutes - dhuhrMin) / downSpan;
-            dayProgress = postNoonPoint + tDown * (0.78 - postNoonPoint);
-          }
-        } else {
-          // Fallback daylight mapping when noon anchors are unavailable.
-          const tDay = (nowMinutes - sunriseMin) / daySpan;
-          dayProgress = 0.26 + tDay * (0.78 - 0.26);
-        }
-      } else {
-        // Map night from maghrib -> sunrise across midnight.
-        const tNight = nowMinutes > maghribMin
-          ? (nowMinutes - maghribMin) / nightSpan
-          : (nowMinutes + 1440 - maghribMin) / nightSpan;
-        const wrapped = 0.78 + tNight * (1 - 0.78 + 0.26);
-        dayProgress = wrapped > 1 ? wrapped - 1 : wrapped;
-      }
-    }
-
-    Animated.timing(dayCycleAnim, {
-      toValue: dayProgress,
-      duration: 900,
-      useNativeDriver: false,
-    }).start();
-  }, [currentTime, dayCycleAnim, data]);
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(twinkleAnim, {
-          toValue: 1,
-          duration: 1800,
-          useNativeDriver: false,
-        }),
-        Animated.timing(twinkleAnim, {
-          toValue: 0,
-          duration: 2200,
-          useNativeDriver: false,
-        }),
-      ])
-    );
-    loop.start();
-    return () => {
-      loop.stop();
-      twinkleAnim.setValue(0);
-    };
-  }, [twinkleAnim]);
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(twinkleSlowAnim, {
-          toValue: 1,
-          duration: 6200,
-          useNativeDriver: false,
-        }),
-        Animated.timing(twinkleSlowAnim, {
-          toValue: 0,
-          duration: 7400,
-          useNativeDriver: false,
-        }),
-      ])
-    );
-    loop.start();
-    return () => {
-      loop.stop();
-      twinkleSlowAnim.setValue(0);
-    };
-  }, [twinkleSlowAnim]);
-
   const N = nightMode ? NIGHT : null;
-
-  const month = currentTime.getMonth();
-  const isWinterSeason = month === 11 || month <= 1;
-  const isSummerSeason = month >= 5 && month <= 7;
-  const starsNightPeak = isWinterSeason ? 1 : 0.95;
-  const horizonGlowColor = isWinterSeason ? 'rgba(156,196,246,0.34)' : 'rgba(176,214,255,0.4)';
-
-  const starsOpacity = dayCycleAnim.interpolate({
-    inputRange: [0, 0.22, 0.35, 0.68, 0.82, 1],
-    outputRange: [starsNightPeak, starsNightPeak * 0.9, 0.1, 0, 0.55, starsNightPeak],
-  });
-  const horizonGlowOpacity = dayCycleAnim.interpolate({
-    inputRange: [0, 0.2, 0.27, 0.34, 0.66, 0.74, 0.82, 1],
-    outputRange: [0.08, 0.16, 0.48, 0.1, 0.1, 0.45, 0.12, 0.08],
-  });
-  const duskTintOpacity = dayCycleAnim.interpolate({
-    inputRange: [0.68, 0.76, 0.84, 0.9],
-    outputRange: [0, 0.16, 0.2, 0],
-  });
-  const twinkleOpacity = twinkleAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.6, 1],
-  });
-  const twinkleSlowOpacity = twinkleSlowAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.78, 1],
-  });
-  const moonPulseScale = twinkleAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.98, 1.02],
-  });
-  const moonTranslateY = twinkleAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -3],
-  });
-  const nightVignetteOpacity = dayCycleAnim.interpolate({
-    inputRange: [0, 0.2, 0.35, 0.68, 0.82, 1],
-    outputRange: [0.45, 0.4, 0.05, 0, 0.3, 0.45],
-  });
   const timeH    = currentTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
   const secStr   = currentTime.toLocaleTimeString('en-GB', { second: '2-digit' });
   const ampm     = currentTime.getHours() >= 12 ? 'PM' : 'AM';
@@ -3357,8 +3348,6 @@ export default function HomeScreen() {
     jamaatCountdown,
     countdown,
   ]);
-  const sunriseTimeDate = data?.prayers.find(p => p.name === 'Sunrise')?.timeDate;
-  const maghribTimeDate = data?.prayers.find(p => p.name === 'Maghrib')?.timeDate;
   const isEidUlFitrDay = isShawwalNow && rawHijriDayNum === 1;
   const isEidUlAdhaDay = isDhulHijjahNow && rawHijriDayNum === 10;
   const activeEidType: 'eid_al_fitr' | 'eid_al_adha' | null = isEidUlFitrDay
@@ -3488,47 +3477,17 @@ export default function HomeScreen() {
   const isFriday = currentTime.getDay() === 5;
   const isThursday = currentTime.getDay() === 4;
 
-  const moonVisibility = (() => {
-    // Strict night-only moon: fade in after Maghrib, fade out before Sunrise.
-    const fadeMinutes = 35;
-
-    if (sunriseTimeDate && maghribTimeDate) {
-      const nowMs = currentTime.getTime();
-      const sunriseMs = sunriseTimeDate.getTime();
-      const maghribMs = maghribTimeDate.getTime();
-
-      if (nowMs >= sunriseMs && nowMs < maghribMs) return 0;
-
-      if (nowMs >= maghribMs) {
-        const minsAfterMaghrib = (nowMs - maghribMs) / 60000;
-        return Math.max(0, Math.min(1, minsAfterMaghrib / fadeMinutes));
-      }
-
-      const minsToSunrise = (sunriseMs - nowMs) / 60000;
-      return Math.max(0, Math.min(1, minsToSunrise / fadeMinutes));
-    }
-
-    // Fallback while prayer data loads.
-    const hour = currentTime.getHours() + currentTime.getMinutes() / 60;
-    if (hour >= 20 || hour < 4.5) return 1;
-    if (hour >= 4.5 && hour < 5.5) return Math.max(0, 5.5 - hour);
-    if (hour >= 19 && hour < 20) return Math.max(0, hour - 19);
-    return 0;
-  })();
-
   // Compute today's sunnah from DB (fallback to SUNNAH_REMINDERS)
   const computedTodaySunnah: SunnahEntry = (() => {
-    const pool: SunnahReminderRow[] = dbSunnahs.length > 0
-      ? dbSunnahs
-      : SUNNAH_REMINDERS.map((s, i) => ({
-          id: s.act, title: s.act, detail: s.detail, reference: s.ref,
-          icon: s.icon, friday_only: false, display_order: i * 10, is_active: true,
-        }));
-    const filtered = isFriday ? pool : pool.filter(s => !s.friday_only);
-    const row = filtered[DAY_OF_YEAR % Math.max(1, filtered.length)] ?? pool[0];
+    if (dbSunnahs.length === 0) {
+      return { act: 'Adhkar coming soon.', detail: '', ref: '', icon: 'star' };
+    }
+    const filtered = isFriday ? dbSunnahs : dbSunnahs.filter(s => !s.friday_only);
+    const pool = filtered.length > 0 ? filtered : dbSunnahs;
+    const row = pool[DAY_OF_YEAR % pool.length];
     return {
       act: row?.title ?? '',
-      detail: row?.detail ?? '',
+      detail: row?.description ?? '',
       ref: row?.reference ?? '',
       icon: row?.icon ?? 'star',
     };
@@ -3839,78 +3798,6 @@ export default function HomeScreen() {
           style={StyleSheet.absoluteFillObject}
           contentFit="cover"
         />
-        <Animated.View
-          pointerEvents="none"
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: 86,
-            backgroundColor: horizonGlowColor,
-            opacity: horizonGlowOpacity,
-          }}
-        />
-        <Animated.View
-          pointerEvents="none"
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: 88,
-            backgroundColor: 'rgba(118,76,170,0.32)',
-            opacity: duskTintOpacity,
-          }}
-        />
-        <Animated.View
-          pointerEvents="none"
-          style={{
-            position: 'absolute',
-            right: 26,
-            top: 30,
-            width: 60,
-            height: 60,
-            borderRadius: 30,
-            backgroundColor: 'rgba(240,248,255,0.9)',
-            opacity: moonVisibility,
-            transform: [{ translateY: moonTranslateY }, { scale: moonPulseScale }],
-            shadowColor: '#EAF3FF',
-            shadowOpacity: 0.6,
-            shadowRadius: 14,
-          }}
-        />
-        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { opacity: starsOpacity }]}>
-          <Animated.View style={[StyleSheet.absoluteFillObject, { opacity: twinkleSlowOpacity }]}>
-            <Animated.View style={[StyleSheet.absoluteFillObject, { opacity: twinkleOpacity }]}>
-            {stars.map((star) => (
-              <View
-                key={star.id}
-                style={{
-                  position: 'absolute',
-                  left: `${star.leftPct}%` as `${number}%`,
-                  top: `${star.topPct}%` as `${number}%`,
-                  width: star.size,
-                  height: star.size,
-                  borderRadius: star.size,
-                  opacity: star.opacity,
-                  backgroundColor: star.tint,
-                  shadowColor: star.tint,
-                  shadowOpacity: star.glow ? 0.85 : 0.32,
-                  shadowRadius: star.glow ? 6 : 2,
-                }}
-              />
-            ))}
-            </Animated.View>
-          </Animated.View>
-        </Animated.View>
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            StyleSheet.absoluteFillObject,
-            { backgroundColor: '#030A18', opacity: nightVignetteOpacity },
-          ]}
-        />
 
         {/* Top nav bar */}
         <View style={styles.topNav}>
@@ -3987,31 +3874,58 @@ export default function HomeScreen() {
             allPrayers={data?.prayers}
             onFullTimetable={() => router.push('/(tabs)/prayer?view=month' as any)}
           />
-          <RollingBanner
-            nightMode={nightMode}
-            messages={heroTickerMessages}
-            embedded
-            announcementLabel={getTickerLabel(
-              currentTime,
-              dayName,
-              activePrayer,
-              nextPrayerName,
-              jamaatCountdown,
-              hasJamaat,
-            )}
-          />
         </View>
+        <RollingBanner
+          nightMode={nightMode}
+          messages={heroTickerMessages}
+          announcementLabel={getTickerLabel(
+            currentTime,
+            dayName,
+            activePrayer,
+            nextPrayerName,
+            jamaatCountdown,
+            hasJamaat,
+          )}
+        />
       </View>
 
-      {/* ── Donation + Daily Reminders Row ───────── */}
-      <ZawaalSectionRow
-        nightMode={nightMode}
-        todaySunnah={computedTodaySunnah}
-        onDonatePress={openDonationCheckout}
-      />
+      <View style={[styles.dayCanvas, N && { backgroundColor: N.bg, marginTop: 0, paddingTop: 0 }]}>
+        {!N ? (
+          <View pointerEvents="none" style={styles.dayCanvasAtmosphere}>
+            <LinearGradient
+              colors={['rgba(242,245,243,0)', 'rgba(242,245,243,0.68)', '#F2F5F3']}
+              locations={[0, 0.36, 1]}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              style={styles.dayCanvasFade}
+            />
+            <LinearGradient
+              colors={['rgba(11,107,69,0.06)', 'rgba(11,107,69,0.02)', 'rgba(11,107,69,0)']}
+              locations={[0, 0.28, 1]}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              style={styles.dayCanvasTint}
+            />
+            <LinearGradient
+              colors={['rgba(255,255,255,0.34)', 'rgba(255,255,255,0)']}
+              start={{ x: 1, y: 0 }}
+              end={{ x: 0, y: 1 }}
+              style={styles.dayCanvasGlow}
+            />
+          </View>
+        ) : null}
 
-      {/* ── Body ──────────────────────────────────── */}
-      <View style={[styles.body, N && { backgroundColor: N.bg }]}>
+        <View style={styles.dayCanvasContent}>
+          {/* ── Donation + Daily Reminders Row ───────── */}
+          <ZawaalSectionRow
+            nightMode={nightMode}
+            todaySunnah={computedTodaySunnah}
+            onDonatePress={openDonationCheckout}
+          />
+
+          {/* ── Body ──────────────────────────────────── */}
+          <View style={[styles.body, N && { backgroundColor: 'transparent' }]}>
+
         {/* Quick Links */}
         <Text style={[styles.sectionTitle, N && { color: N.text }]}>Quick Access</Text>
         <View style={styles.quickLinks}>
@@ -4024,13 +3938,25 @@ export default function HomeScreen() {
         </View>
 
         {/* For You Today */}
-        <ForYouTodaySection
-          prayers={data?.prayers ?? []}
-          nightMode={nightMode}
-          currentTime={currentTime}
-          hijriDay={hijriDayInt}
-          todaySunnah={computedTodaySunnah}
-        />
+        <View style={styles.forYouFadeZone}>
+          {!N ? (
+            <LinearGradient
+              pointerEvents="none"
+              colors={['rgba(243,247,245,0.28)', 'rgba(243,247,245,0.78)', '#F3F7F5', '#F3F7F5']}
+              locations={[0, 0.24, 0.62, 1]}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              style={styles.forYouFadeOverlay}
+            />
+          ) : null}
+          <ForYouTodaySection
+            prayers={data?.prayers ?? []}
+            nightMode={nightMode}
+            currentTime={currentTime}
+            hijriDay={hijriDayInt}
+            todaySunnah={computedTodaySunnah}
+          />
+        </View>
 
         {/* Events & Announcements combined */}
         <View style={styles.sectionHeader}>
@@ -4070,7 +3996,9 @@ export default function HomeScreen() {
           </View>
         </TouchableOpacity>
 
-        <View style={{ height: Spacing.xl }} />
+            <View style={{ height: Spacing.xl }} />
+          </View>
+        </View>
       </View>
     </ScrollView>
 
@@ -4192,8 +4120,8 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  content: { paddingBottom: Spacing.xl },
+  container: { flex: 1, backgroundColor: '#F3F7F5' },
+  content: { paddingBottom: Spacing.xl, backgroundColor: '#F3F7F5' },
   donationModalRoot: {
     flex: 1,
     backgroundColor: '#F4F9F6',
@@ -4340,9 +4268,37 @@ const styles = StyleSheet.create({
     color: '#466858',
   },
   heroHeader: {
-    paddingBottom: 0,
+    paddingBottom: 6,
     overflow: 'hidden',
     minHeight: 154,
+    backgroundColor: '#0E2E52',
+  },
+  dayCanvas: {
+    position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: '#F2F5F3',
+    marginTop: -2,
+    paddingTop: 0,
+  },
+  dayCanvasAtmosphere: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 760,
+  },
+  dayCanvasFade: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  dayCanvasTint: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  dayCanvasGlow: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  dayCanvasContent: {
+    position: 'relative',
+    zIndex: 1,
   },
   topNav: {
     flexDirection: 'row',
@@ -4412,6 +4368,7 @@ const styles = StyleSheet.create({
     marginHorizontal: Spacing.md,
     marginTop: 2,
     marginBottom: 0,
+    gap: 12,
     borderRadius: Radius.lg,
     overflow: 'visible',
   },
@@ -4519,7 +4476,15 @@ const styles = StyleSheet.create({
   jumuahDoneText: { fontSize: 12, fontWeight: '600', color: Colors.primary },
 
   // ── Body ──
-  body: { paddingHorizontal: Spacing.md, paddingTop: Spacing.md },
+  body: { paddingHorizontal: Spacing.md, paddingTop: 2, backgroundColor: 'transparent' },
+  forYouFadeZone: {
+    position: 'relative',
+    marginTop: 2,
+    marginBottom: 2,
+  },
+  forYouFadeOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   sectionTitle: { ...Typography.titleSmall, color: Colors.textPrimary, marginBottom: Spacing.sm, marginTop: Spacing.sm },
   seeAll: { ...Typography.labelMedium, color: Colors.primary },
@@ -4528,8 +4493,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface, borderRadius: Radius.md,
     width: '100%', padding: Spacing.sm, alignItems: 'center',
     borderWidth: 1, borderColor: Colors.border,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04, shadowRadius: 3, elevation: 1,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06, shadowRadius: 12, elevation: 3,
     paddingVertical: 9,
   },
   quickLinkIcon: {
@@ -4566,8 +4531,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface, borderRadius: Radius.lg,
     borderWidth: 1, borderColor: Colors.border,
     marginBottom: Spacing.sm,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06, shadowRadius: 12, elevation: 4,
   },
   eaCardInner: {
     flexDirection: 'row', alignItems: 'center', gap: 14,

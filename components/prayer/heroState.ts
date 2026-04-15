@@ -462,7 +462,7 @@ function getHeroCountdownInfo(params: {
 
     if (params.hasJamaat && params.jamaatStarted && params.jamaatOngoing) {
       return {
-        label: 'Jamaat On Going',
+        label: 'Jamaat in progress',
         value: 'ON GOING',
         note: 'Run to the masjid now',
         flash: true,

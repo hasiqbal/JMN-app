@@ -582,10 +582,11 @@ export async function fetchAllActiveAdhkarGroupsForWarmup(): Promise<AdhkarGroup
 export interface SunnahReminderRow {
   id: string;
   title: string;
-  detail: string | null;
+  description: string | null;
   reference: string | null;
   icon: string | null;
   friday_only: boolean;
+  category?: string | null;
   display_order: number;
   is_active: boolean;
 }
@@ -595,11 +596,30 @@ export async function fetchSunnahReminders(): Promise<SunnahReminderRow[]> {
     const supabase = getSupabaseClient();
     const { data, error } = await supabase
       .from('sunnah_reminders')
-      .select('id, title, detail, reference, icon, friday_only, display_order, is_active')
+      .select('id, title, description, reference, category, display_order, is_active')
       .eq('is_active', true)
       .order('display_order', { ascending: true });
     if (error || !data || data.length === 0) return [];
-    return data as SunnahReminderRow[];
+    return (data as Array<{
+      id: string;
+      title: string;
+      description: string | null;
+      reference: string | null;
+      category: string | null;
+      display_order: number;
+      is_active: boolean;
+    }>).map((row) => ({
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      reference: row.reference,
+      // Current schema doesn't provide card icon in this table, keep a safe default path.
+      icon: null,
+      friday_only: (row.category ?? '').toLowerCase() === 'friday',
+      category: row.category,
+      display_order: row.display_order,
+      is_active: row.is_active,
+    }));
   } catch {
     return [];
   }

@@ -13,6 +13,12 @@ interface PreviewItem {
 
 const PREVIEW_ITEMS: PreviewItem[] = [
   {
+    route: 'compartment-hero-preview',
+    title: 'Donation Hero Redesign',
+    description: 'Two modern nonprofit donation hero mockups — impact banner vs story panel',
+    icon: 'volunteer-activism',
+  },
+  {
     route: 'hero-preview',
     title: 'Prayer Hero Preview',
     description: 'All daily prayer times and hero card states',
@@ -23,6 +29,12 @@ const PREVIEW_ITEMS: PreviewItem[] = [
     title: 'Jummah Preview',
     description: 'Thursday Asr through Friday Asr with Jummah info strip',
     icon: 'star',
+  },
+  {
+    route: 'home-preview-jumuah',
+    title: 'Homepage Jummah Preview',
+    description: 'Full homepage states from Thursday Asr through Friday Asr',
+    icon: 'home',
   },
   {
     route: 'hero-preview-eid',
@@ -43,10 +55,22 @@ const PREVIEW_ITEMS: PreviewItem[] = [
     icon: 'auto-awesome',
   },
   {
+    route: 'home-preview-eid-jumuah',
+    title: 'Homepage Eid + Jummah',
+    description: 'Full homepage preview when Eid ul Fitr falls on Friday',
+    icon: 'home-filled',
+  },
+  {
     route: 'hero-preview-eid-adha-jumuah',
     title: 'Eid ul Adha + Jummah Preview',
     description: 'Preview when 10th Dhul Hijjah falls on Friday',
     icon: 'mosque',
+  },
+  {
+    route: 'home-preview-eid-adha-jumuah',
+    title: 'Homepage Eid ul Adha + Jummah',
+    description: 'Full homepage preview when 10th Dhul Hijjah falls on Friday',
+    icon: 'home-filled',
   },
 ];
 
@@ -63,7 +87,7 @@ export default function DevPreviewScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <Text style={styles.title}>Preview Viewer</Text>
-          <Text style={styles.subtitle}>Hero Card Development & Testing</Text>
+          <Text style={styles.subtitle}>Hero and homepage development previews</Text>
         </View>
 
         <View style={styles.previewList}>
@@ -88,7 +112,7 @@ export default function DevPreviewScreen() {
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            Tap any preview to view live hero card development screens
+            Tap any preview to view the live hero-only or full-homepage scenario screens
           </Text>
         </View>
       </ScrollView>
