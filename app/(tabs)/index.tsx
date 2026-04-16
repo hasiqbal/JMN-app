@@ -4017,9 +4017,9 @@ const styles = StyleSheet.create({
     color: '#466858',
   },
   heroHeader: {
-    paddingBottom: 20,
+    paddingBottom: 8,
     overflow: 'hidden',
-    minHeight: 560,
+    minHeight: 575,
     backgroundColor: '#0E2E52',
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
@@ -4038,7 +4038,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 760,
+    height: 640,
   },
   dayCanvasFade: {
     ...StyleSheet.absoluteFillObject,
@@ -4223,7 +4223,7 @@ const styles = StyleSheet.create({
   },
   dualStatsRow: {
     marginTop: 34,
-    marginHorizontal: Spacing.md,
+    marginHorizontal: 0,
     flexDirection: 'row',
   },
   prayerFlipShell: {
@@ -4233,7 +4233,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   prayerFlipFacesWrap: {
-    height: 350,
+    height: 430,
     position: 'relative',
     overflow: 'hidden',
     borderTopLeftRadius: 28,
