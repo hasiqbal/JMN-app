@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Concept 06 — Dawn Sky Gradient</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #141414;
+    display: flex; justify-content: center; align-items: flex-start;
+    min-height: 100vh; padding: 40px 20px;
+    font-family: 'Inter', sans-serif;
+  }
+  .phone {
+    width: 390px; height: 844px;
+    border-radius: 48px; overflow: hidden; position: relative;
+    box-shadow: 0 40px 100px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,255,255,0.08);
+    background: #EEF0EC;
+  }
+  .hero {
+    height: 420px; position: relative; overflow: hidden;
+    background: linear-gradient(175deg, #0A1F2E 0%, #0F3545 20%, #1A5A50 50%, #236A5A 70%, #2A7560 100%);
+  }
+  .aurora {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse at 30% 0%, rgba(40,130,100,0.5) 0%, transparent 55%),
+      radial-gradient(ellipse at 85% 25%, rgba(15,60,80,0.6) 0%, transparent 45%),
+      radial-gradient(ellipse at 50% 100%, rgba(10,30,25,0.9) 0%, transparent 55%);
+  }
+  .horizon {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 180px;
+    background: linear-gradient(0deg, rgba(30,90,75,0.7) 0%, transparent 100%);
+  }
+  .bottom-curve {
+    position: absolute; bottom: -1px; left: 0; right: 0;
+  }
+  .hero-inner {
+    position: relative; z-index: 5; padding: 50px 26px 0;
+  }
+  .toprow {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 32px;
+  }
+  .mname { font-family: 'DM Serif Display', serif; font-size: 22px; color: rgba(255,255,255,0.96); }
+  .mloc { font-size: 13px; color: rgba(200,235,220,0.6); margin-top: 3px; }
+  .upd-tag { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18); border-radius: 20px; padding: 6px 13px; font-size: 12px; color: rgba(220,250,240,0.8); }
+  .prayer-pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: rgba(80,220,170,0.15); border: 1px solid rgba(80,220,170,0.3);
+    border-radius: 24px; padding: 7px 16px; margin-bottom: 14px;
+  }
+  .pdot { width: 7px; height: 7px; border-radius: 50%; background: #5DFFB4; box-shadow: 0 0 10px #5DFFB4; animation: pp 2s infinite; }
+  @keyframes pp { 0%,100%{opacity:1} 50%{opacity:0.35} }
+  .ptext { font-size: 14px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #5DFFB4; }
+  .clk { font-family: 'Inter', sans-serif; font-size: 94px; font-weight: 800; color: #fff; letter-spacing: -4px; line-height: 1; }
+  .clk-ampm { font-size: 30px; font-weight: 300; color: rgba(200,240,225,0.65); letter-spacing: 0; }
+  .clk-date { font-size: 15px; color: rgba(200,235,220,0.6); margin-top: 6px; font-weight: 300; }
+  .body-pad { padding: 0 18px 90px; overflow-y: auto; height: 424px; }
+  .main-card {
+    background: #FFFFFF; border-radius: 28px; padding: 24px 22px;
+    margin-bottom: 12px;
+    box-shadow: 0 8px 36px rgba(10,50,40,0.11), 0 1px 4px rgba(0,0,0,0.04);
+  }
+  .mc-eye { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #0E7A5F; margin-bottom: 8px; }
+  .mc-count { font-family: 'Inter', sans-serif; font-size: 60px; font-weight: 800; color: #0C2E25; letter-spacing: -2px; line-height: 1; }
+  .mc-sub { font-size: 14px; color: #94A8A0; margin-top: 4px; }
+  .mc-sep { border: none; border-top: 1px solid #EDF1EE; margin: 16px 0; }
+  .mc-next { display: flex; justify-content: space-between; align-items: center; }
+  .mn-lbl { font-size: 12px; color: #A0B0AA; margin-bottom: 3px; }
+  .mn-name { font-family: 'DM Serif Display', serif; font-size: 22px; color: #102920; }
+  .mn-athan { font-size: 28px; font-weight: 700; color: #0C2E25; text-align: right; }
+  .mn-iqamah { font-size: 13px; color: #0E7A5F; font-weight: 600; text-align: right; }
+  .duo-row { display: flex; gap: 12px; margin-bottom: 12px; }
+  .du { flex: 1; border-radius: 22px; padding: 20px 16px; box-shadow: 0 4px 20px rgba(0,60,40,0.08); }
+  .du-gr { background: linear-gradient(140deg, #0E7A5F, #0A5E49); }
+  .du-wh { background: #FFFFFF; border: 1px solid #E2EDEA; }
+  .du-tag { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 6px; }
+  .du-gr .du-tag { color: rgba(200,255,230,0.7); }
+  .du-wh .du-tag { color: #0E7A5F; }
+  .du-ttl { font-family: 'DM Serif Display', serif; font-size: 22px; }
+  .du-gr .du-ttl { color: #fff; }
+  .du-wh .du-ttl { color: #0C2E25; }
+  .night-card { background: #fff; border-radius: 20px; padding: 17px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 16px rgba(0,60,40,0.05); }
+  .nc-l { display: flex; align-items: center; gap: 14px; }
+  .nc-ic { width: 42px; height: 42px; border-radius: 13px; background: linear-gradient(135deg, #E6F3ED, #D2EBE2); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .nc-ttl { font-size: 15px; font-weight: 600; color: #152420; }
+  .nc-sub { font-size: 13px; color: #8FA9A0; margin-top: 2px; }
+  .nc-arr { font-size: 22px; color: #C8D4CF; }
+  .tab-bar {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: rgba(240,242,240,0.96); backdrop-filter: blur(20px);
+    border-top: 1px solid #DADED8; padding: 12px 0 24px; display: flex; z-index: 100;
+  }
+  .tib { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .tibw { width: 36px; height: 28px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 17px; }
+  .tib.active .tibw { background: #E0F0EA; }
+  .tibl { font-size: 11px; font-weight: 500; color: #A0ACA8; }
+  .tib.active .tibl { color: #0E7A5F; font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="hero">
+    <div class="aurora"></div>
+    <div class="horizon"></div>
+    <div class="bottom-curve">
+      <svg viewBox="0 0 390 60" width="390" height="60" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+        <path d="M0,30 C100,60 280,0 390,40 L390,60 L0,60 Z" fill="#EEF0EC"/>
+      </svg>
+    </div>
+    <div class="hero-inner">
+      <div class="toprow">
+        <div><div class="mname">Jami' Masjid Noorani</div><div class="mloc">Halifax, UK</div></div>
+        <div class="upd-tag">Updated 00:21</div>
+      </div>
+      <div class="prayer-pill"><div class="pdot"></div><span class="ptext">Isha in progress</span></div>
+      <div class="clk">00:26<span class="clk-ampm"> AM</span></div>
+      <div class="clk-date">Thu 16 Apr &nbsp;·&nbsp; 27 Shawwāl 1447 AH</div>
+    </div>
+  </div>
+  <div class="body-pad">
+    <div class="main-card">
+      <div class="mc-eye">Live Iqamah Countdown</div>
+      <div class="mc-count">03:14:54</div>
+      <div class="mc-sub">Isha ends in 3 hours, 14 minutes</div>
+      <hr class="mc-sep"/>
+      <div class="mc-next">
+        <div><div class="mn-lbl">Next prayer</div><div class="mn-name">Fajr</div></div>
+        <div><div class="mn-athan">03:41</div><div class="mn-iqamah">Iqamah 05:15</div></div>
+      </div>
+    </div>
+    <div class="duo-row">
+      <div class="du du-gr"><div class="du-tag">Full Schedule</div><div class="du-ttl">Prayer Times</div></div>
+      <div class="du du-wh"><div class="du-tag">Priority Appeal</div><div class="du-ttl">Donate Now</div></div>
+    </div>
+    <div class="night-card">
+      <div class="nc-l">
+        <div class="nc-ic">🌙</div>
+        <div><div class="nc-ttl">Night Digest</div><div class="nc-sub">Hadith &amp; dua for tonight</div></div>
+      </div>
+      <div class="nc-arr">›</div>
+    </div>
+  </div>
+  <div class="tab-bar">
+    <div class="tib active"><div class="tibw">⌂</div><div class="tibl">Home</div></div>
+    <div class="tib"><div class="tibw">◷</div><div class="tibl">Prayer</div></div>
+    <div class="tib"><div class="tibw">☽</div><div class="tibl">Duas</div></div>
+    <div class="tib"><div class="tibw">📖</div><div class="tibl">Quran</div></div>
+    <div class="tib"><div class="tibw">▶</div><div class="tibl">Live</div></div>
+  </div>
+</div>
+</body>
+</html>

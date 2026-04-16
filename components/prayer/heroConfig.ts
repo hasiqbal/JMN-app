@@ -13,17 +13,17 @@ export const PRAYER_ICONS: Record<string, string> = {
 };
 
 export const PRAYER_GRADIENTS: Record<string, readonly [string, string, ...string[]]> = {
-  Fajr: ['rgba(58,82,168,0.62)', 'rgba(106,148,232,0.50)'],
-  Sunrise: ['rgba(180,80,0,0.78)', 'rgba(220,140,0,0.72)'],
-  Ishraq: ['rgba(200,100,0,0.75)', 'rgba(240,190,0,0.68)'],
-  Zawaal: ['rgba(112,95,62,0.80)', 'rgba(154,134,94,0.74)'],
-  Dhuhr: ['rgba(10,70,160,0.78)', 'rgba(20,130,220,0.72)'],
-  Asr: ['rgba(150,40,0,0.78)', 'rgba(220,90,30,0.72)'],
-  Maghrib: ['rgba(80,10,120,0.80)', 'rgba(180,20,80,0.74)'],
-  Isha: ['rgba(8,14,50,0.85)', 'rgba(20,30,100,0.80)'],
-  Jumuah: ['rgba(100,60,0,0.82)', 'rgba(160,100,0,0.78)'],
-  Eid: ['rgba(184,134,11,0.85)', 'rgba(218,165,32,0.80)'],
-  EidAdha: ['rgba(184,134,11,0.85)', 'rgba(218,165,32,0.80)'],
+  Fajr: ['rgba(34,58,122,0.64)', 'rgba(110,154,224,0.48)'],
+  Sunrise: ['rgba(150,70,10,0.76)', 'rgba(215,140,40,0.70)'],
+  Ishraq: ['rgba(166,86,16,0.74)', 'rgba(233,174,70,0.66)'],
+  Zawaal: ['rgba(95,92,70,0.78)', 'rgba(136,130,102,0.72)'],
+  Dhuhr: ['rgba(12,80,130,0.78)', 'rgba(20,138,178,0.70)'],
+  Asr: ['rgba(130,66,18,0.78)', 'rgba(198,112,45,0.70)'],
+  Maghrib: ['rgba(62,25,95,0.80)', 'rgba(135,54,96,0.72)'],
+  Isha: ['rgba(12,22,58,0.84)', 'rgba(36,46,98,0.78)'],
+  Jumuah: ['rgba(44,84,66,0.82)', 'rgba(92,136,116,0.74)'],
+  Eid: ['rgba(150,114,28,0.84)', 'rgba(203,163,70,0.78)'],
+  EidAdha: ['rgba(126,105,34,0.84)', 'rgba(182,156,74,0.78)'],
 };
 
 export const PRAYER_BG_IMAGES: Record<string, any> = {

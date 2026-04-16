@@ -21,13 +21,12 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { useAlert } from '@/template';
-import { formatCountdownSeconds, getNextPrayer, getPrayerTimesFromTimetable } from '@/services/prayerService';
+import { formatCountdownSeconds, getNextPrayer } from '@/services/prayerService';
 import { usePrayerTimes } from '@/hooks/usePrayerTimes';
 import { useNightMode } from '@/hooks/useNightMode';
 import { MOCK_ANNOUNCEMENTS } from '@/services/eventsService';
 import { fetchSunnahReminders, SunnahReminderRow } from '@/services/contentService';
 import { fetchEidUlAdha, fetchEidUlFitr } from '@/services/eidService';
-import PrayerHeroCard from '@/components/prayer/PrayerHeroCard';
 import { PRAYER_BG_IMAGES, PRAYER_GRADIENTS, PRAYER_ICONS } from '@/components/prayer/heroConfig';
 import { buildHeroState } from '@/components/prayer/heroState';
 import { buildActivePrayerState } from '@/components/prayer/activePrayerState';
@@ -154,32 +153,6 @@ function getHijriDayNumber(hijri: string): string {
   return match ? match[1] : '';
 }
 
-function getHijriYear(hijri: string): string {
-  const match = hijri.match(/\b(\d{4})\b/);
-  return match ? match[1] : '';
-}
-
-/**
- * Builds a clean hijri label like "24 Shawwal 1447 AH".
- * Handles both Arabic timetable format (contains Arabic script)
- * and English DB format (e.g. "24 Shawwal 1447").
- */
-function buildHijriLabel(hijri: string): string {
-  if (!hijri || hijri === 'Date not available') return '';
-  // Arabic format: contains Arabic Unicode characters
-  if (/[\u0600-\u06FF]/.test(hijri)) {
-    const day = getHijriDayNumber(hijri);
-    const month = getHijriMonthEnglish(hijri);
-    const year = getHijriYear(hijri);
-    const parts = [day, month, year ? `${year} AH` : ''].filter(Boolean);
-    return parts.join(' ');
-  }
-  // English format: already "24 Shawwal 1447" or "24 Shawwal 1447 AH"
-  const withoutAH = hijri.replace(/\s*\bAH\b/gi, '').trim();
-  if (withoutAH) return `${withoutAH} AH`;
-  return hijri;
-}
-
 function buildEidJamaatNote(jamaatTimes: string[]): string {
   return jamaatTimes.map((time, index) => `${toOrdinal(index + 1)}: ${time}`).join(' · ');
 }
@@ -259,151 +232,12 @@ const QURAN_VERSES = [
 const todayHadith  = HADITHS[DAY_OF_YEAR % HADITHS.length];
 const todayVerse   = QURAN_VERSES[DAY_OF_YEAR % QURAN_VERSES.length];
 
-const TICKER_MESSAGES: string[] = [
-  '🕌  Jumuah Khutbah every Friday at 1:15 PM (BST) / 12:30 PM (GMT)',
-  '📢  Masjid renovation update — new wudu area now open',
-  '📖  Quran Tafseer circle every Sunday at 10:00 AM',
-  '🤲  Volunteer drivers needed — contact the masjid office',
-  '🌙  Sisters Halaqa resumes this Sunday — Topic: Gratitude in Islam',
-];
-
-const bannerStyles = StyleSheet.create({
-  wrapper: {
-    height: 38,
-    flexDirection: 'row',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  wrapperEmbedded: {
-    marginTop: -2,
-    borderBottomLeftRadius: Radius.lg,
-    borderBottomRightRadius: Radius.lg,
-  },
-  labelBox: {
-    minWidth: 92,
-    height: '100%',
-    paddingHorizontal: 12,
-    position: 'relative',
-    overflow: 'hidden',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  labelBoxEmbedded: {
-    minWidth: 84,
-  },
-  labelText: {
-    color: Colors.textInverse,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.6,
-  },
-  tickerArea: {
-    flex: 1,
-    overflow: 'hidden',
-    justifyContent: 'center',
-  },
-  tickerText: {
-    color: Colors.textInverse,
-    fontSize: 13,
-    fontWeight: '600',
-    paddingLeft: 8,
-  },
-  countdownLabel: {
-    color: Colors.textInverse,
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    opacity: 0.72,
-  },
-  countdownValue: {
-    color: Colors.textInverse,
-    fontSize: 14,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-    marginTop: 1,
-  },
-  urgencyPulseOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#FFFFFF',
-  },
-});
-
-const COUNTDOWN_WARNING_SECONDS = 50 * 60;
-const COUNTDOWN_CRITICAL_SECONDS = 25 * 60;
-
-function parseCountdownToSeconds(value?: string): number | null {
-  if (!value) return null;
-  const parts = value.split(':').map(Number);
-  if (parts.some(Number.isNaN)) return null;
-  if (parts.length === 3) {
-    const [hours, minutes, seconds] = parts;
-    return (hours * 60 * 60) + (minutes * 60) + seconds;
-  }
-  if (parts.length === 2) {
-    const [minutes, seconds] = parts;
-    return (minutes * 60) + seconds;
-  }
-  return null;
-}
-
-function getCountdownUrgency(value?: string, label?: string): 'normal' | 'orange' | 'red' {
-  const normalizedLabel = (label || '').toLowerCase();
-  const isJamaatCountdown = normalizedLabel.includes('jamaat');
-  const isPrayerEndCountdown = normalizedLabel.includes('ends in');
-  if (!isJamaatCountdown && !isPrayerEndCountdown) return 'normal';
-
-  const remainingSeconds = parseCountdownToSeconds(value);
-  if (remainingSeconds === null) return 'normal';
-  if (remainingSeconds <= COUNTDOWN_CRITICAL_SECONDS) return 'red';
-  if (remainingSeconds <= COUNTDOWN_WARNING_SECONDS) return 'orange';
-  return 'normal';
-}
-
 // ── Flipping Logo Card ────────────────────────────────────────────────────
 
 
 type CardFace = 'sunnah' | 'hadith' | 'verse';
 const FACE_SEQUENCE: CardFace[] = ['sunnah', 'hadith', 'verse'];
 const FACE_DURATION = 5000;
-
-// ── Dynamic Ticker Label Generator ──────────────────────────────────────
-function getTickerLabel(
-  currentTime: Date,
-  dayName: string,
-  activePrayer: { name: string; time: string } | null,
-  nextPrayerName: string,
-  jamaatCountdown: string,
-  hasJamaat: boolean,
-): string {
-  const hour = currentTime.getHours();
-  const isFriday = dayName.toLowerCase().startsWith('fri');
-  const remainingSeconds = parseCountdownToSeconds(jamaatCountdown);
-  const isUrgent = remainingSeconds && remainingSeconds <= (15 * 60);
-  const isCritical = remainingSeconds && remainingSeconds <= (5 * 60);
-
-  // Urgent jamaat scenarios
-  if (isCritical && hasJamaat) return '⏰ Starting Soon';
-  if (isUrgent && hasJamaat) return `🔔 ${nextPrayerName} in Minutes`;
-  if (hasJamaat && activePrayer?.name === nextPrayerName) return `📢 Prepare for ${nextPrayerName}`;
-
-  // Friday special
-  if (isFriday) {
-    if (hour < 12) return '🕍 Jumu\'ah Countdown';
-    if (hour >= 12 && hour < 14) return '⏱️ Khutbah Hours';
-    return '📣 After Jumu\'ah Updates';
-  }
-
-  // Time-of-day messaging
-  if (hour >= 4 && hour < 9) return '🌅 Morning Digest';
-  if (hour >= 9 && hour < 12) return '📰 Before Noon';
-  if (hour >= 12 && hour < 15) return '☀️ Afternoon Pulse';
-  if (hour >= 15 && hour < 18) return '🌤️ Asr Alerts';
-  if (hour >= 18 && hour < 20) return '🌅 Evening Updates';
-  if (hour >= 20 && hour < 22) return '🌙 Evening Feed';
-  return '🌙 Night Digest';
-}
 
 // ── Prayer-time gradients & icons for Next Prayer card ─────────────────
 const PRAYER_CARD_GRADIENTS: Record<string, readonly [string, string]> = {
@@ -816,238 +650,6 @@ export function FlippingLogoCard({ nightMode, sunnah }: {
         {FACE_SEQUENCE.map((_, i) => (
           <View key={i} style={[flipCard.dot, { backgroundColor: borderC }, i === faceIndex && { backgroundColor: nightMode ? '#69A8FF' : Colors.primary, width: 14 }]} />
         ))}
-      </View>
-    </View>
-  );
-}
-
-// ── Rolling News Banner ─────────────────────────────────────────────────────
-function RollingBanner({
-  nightMode,
-  messages = TICKER_MESSAGES,
-  embedded = false,
-  countdownInfo,
-  announcementLabel,
-}: {
-  nightMode: boolean;
-  messages?: readonly string[];
-  embedded?: boolean;
-  countdownInfo?: { label: string; value: string };
-  announcementLabel?: string;
-}) {
-  const safeMessages = messages.length > 0 ? messages : TICKER_MESSAGES;
-  const [msgIndex, setMsgIndex] = useState(0);
-  const [flipIndex, setFlipIndex] = useState<number | null>(null);
-  const [tickerWidth, setTickerWidth] = useState<number>(Math.max(220, SCREEN_WIDTH - 180));
-  const outY = useRef(new Animated.Value(0)).current;
-  const outOp = useRef(new Animated.Value(1)).current;
-  const outX = useRef(new Animated.Value(0)).current;
-  const inY = useRef(new Animated.Value(14)).current;
-  const inOp = useRef(new Animated.Value(0)).current;
-  const urgencyPulse = useRef(new Animated.Value(0)).current;
-  const marqueeAnimRef = useRef<Animated.CompositeAnimation | null>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const clearNext = useCallback(() => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-  }, []);
-
-  const stopMarquee = useCallback(() => {
-    if (marqueeAnimRef.current) {
-      marqueeAnimRef.current.stop();
-      marqueeAnimRef.current = null;
-    }
-  }, []);
-
-  const flip = useCallback((from: number) => {
-    const to = (from + 1) % safeMessages.length;
-    setFlipIndex(to);
-    outX.setValue(0);
-    outY.setValue(0);
-    outOp.setValue(1);
-    inY.setValue(14);
-    inOp.setValue(0);
-    Animated.parallel([
-      Animated.timing(outY,  { toValue: -14, duration: 260, useNativeDriver: true }),
-      Animated.timing(outOp, { toValue: 0,   duration: 230, useNativeDriver: true }),
-      Animated.timing(inY,   { toValue: 0,   duration: 300, useNativeDriver: true }),
-      Animated.timing(inOp,  { toValue: 1,   duration: 280, useNativeDriver: true }),
-    ]).start(({ finished }) => {
-      if (finished) {
-        setMsgIndex(to);
-        setFlipIndex(null);
-        outX.setValue(0);
-        outY.setValue(0);
-        outOp.setValue(1);
-        timerRef.current = setTimeout(() => {
-          const current = safeMessages[to] ?? '';
-          const estimatedTextWidth = Math.max(80, current.length * 7.2);
-          const availableWidth = Math.max(120, tickerWidth - 12);
-          const overflow = Math.max(0, estimatedTextWidth - availableWidth);
-
-          if (overflow > 8) {
-            const rollDistance = overflow + 20;
-            const rollDuration = Math.max(4800, Math.min(13000, Math.round(rollDistance * 22)));
-            outX.setValue(0);
-            marqueeAnimRef.current = Animated.sequence([
-              Animated.delay(450),
-              Animated.timing(outX, {
-                toValue: -rollDistance,
-                duration: rollDuration,
-                useNativeDriver: true,
-              }),
-              Animated.delay(450),
-            ]);
-            marqueeAnimRef.current.start(({ finished: rolled }) => {
-              marqueeAnimRef.current = null;
-              if (rolled) flip(to);
-            });
-            return;
-          }
-
-          timerRef.current = setTimeout(() => flip(to), 3200);
-        }, 220);
-      }
-    });
-  }, [safeMessages, outX, outY, outOp, inY, inOp, tickerWidth]);
-
-  useEffect(() => {
-    clearNext();
-    stopMarquee();
-    setMsgIndex(0);
-    setFlipIndex(null);
-    outX.setValue(0);
-    outY.setValue(0);
-    outOp.setValue(1);
-    timerRef.current = setTimeout(() => {
-      const first = safeMessages[0] ?? '';
-      const estimatedTextWidth = Math.max(80, first.length * 7.2);
-      const availableWidth = Math.max(120, tickerWidth - 12);
-      const overflow = Math.max(0, estimatedTextWidth - availableWidth);
-
-      if (overflow > 8) {
-        const rollDistance = overflow + 20;
-        const rollDuration = Math.max(4800, Math.min(13000, Math.round(rollDistance * 22)));
-        marqueeAnimRef.current = Animated.sequence([
-          Animated.delay(450),
-          Animated.timing(outX, {
-            toValue: -rollDistance,
-            duration: rollDuration,
-            useNativeDriver: true,
-          }),
-          Animated.delay(450),
-        ]);
-        marqueeAnimRef.current.start(({ finished }) => {
-          marqueeAnimRef.current = null;
-          if (finished) flip(0);
-        });
-        return;
-      }
-
-      timerRef.current = setTimeout(() => flip(0), 3200);
-    }, 250);
-
-    return () => {
-      clearNext();
-      stopMarquee();
-      outX.stopAnimation();
-      outY.stopAnimation(); outOp.stopAnimation();
-      inY.stopAnimation();  inOp.stopAnimation();
-    };
-  }, [safeMessages, flip, tickerWidth, clearNext, stopMarquee, outX, outY, outOp, inY, inOp]);
-
-  const urgency = getCountdownUrgency(countdownInfo?.value, countdownInfo?.label);
-  const remainingCountdownSeconds = parseCountdownToSeconds(countdownInfo?.value);
-  const isFinalMinutes = remainingCountdownSeconds !== null && remainingCountdownSeconds <= (10 * 60);
-
-  useEffect(() => {
-    urgencyPulse.stopAnimation();
-    if (urgency === 'normal') {
-      urgencyPulse.setValue(0);
-      return;
-    }
-
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(urgencyPulse, {
-          toValue: 1,
-          duration: 560,
-          useNativeDriver: true,
-        }),
-        Animated.timing(urgencyPulse, {
-          toValue: 0,
-          duration: 560,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
-    loop.start();
-    return () => loop.stop();
-  }, [urgency, urgencyPulse]);
-
-  const bgLabel = urgency === 'red'
-    ? (isFinalMinutes ? '#8A1414' : '#A54242')
-    : urgency === 'orange'
-      ? '#A85B14'
-      : (nightMode ? '#0F3154' : '#0E5A43');
-  const bgWrap = nightMode ? 'rgba(6,23,40,0.78)' : 'rgba(7,47,36,0.78)';
-  const showAnnouncementLabel = !countdownInfo;
-  const announcementBg = nightMode ? '#173452' : '#0B5B47';
-
-  return (
-    <View style={[bannerStyles.wrapper, embedded && bannerStyles.wrapperEmbedded, { backgroundColor: bgWrap }]}>
-      {countdownInfo && (
-        <View style={[bannerStyles.labelBox, embedded && bannerStyles.labelBoxEmbedded, { backgroundColor: bgLabel }]}>
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              bannerStyles.urgencyPulseOverlay,
-              {
-                opacity: urgencyPulse.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, urgency === 'red' ? (isFinalMinutes ? 0.24 : 0.14) : (urgency === 'orange' ? 0.12 : 0)],
-                }),
-              },
-            ]}
-          />
-          <Text style={bannerStyles.countdownLabel} numberOfLines={1}>{countdownInfo.label}</Text>
-          <Text style={bannerStyles.countdownValue} numberOfLines={1}>{countdownInfo.value}</Text>
-        </View>
-      )}
-      {showAnnouncementLabel && (
-        <View style={[bannerStyles.labelBox, embedded && bannerStyles.labelBoxEmbedded, { backgroundColor: announcementBg }]}>
-          <Text style={bannerStyles.labelText} numberOfLines={1}>{announcementLabel ?? 'Announcements'}</Text>
-        </View>
-      )}
-      <View
-        style={bannerStyles.tickerArea}
-        onLayout={(e) => {
-          const width = e.nativeEvent.layout.width;
-          if (width > 0) setTickerWidth(width);
-        }}
-      >
-        <Animated.Text
-          numberOfLines={1}
-          style={[
-            bannerStyles.tickerText,
-            { opacity: outOp, transform: [{ translateX: outX }, { translateY: outY }] },
-            flipIndex !== null ? { position: 'absolute', width: '100%' } : null,
-          ]}
-        >
-          {safeMessages[msgIndex]}
-        </Animated.Text>
-        {flipIndex !== null && (
-          <Animated.Text
-            numberOfLines={1}
-            style={[bannerStyles.tickerText, { opacity: inOp, transform: [{ translateY: inY }] }]}
-          >
-            {safeMessages[flipIndex]}
-          </Animated.Text>
-        )}
       </View>
     </View>
   );
@@ -2431,6 +2033,7 @@ function ForYouTodaySection({
   );
 }
 
+// ── Masjid Status Strip ─────────────────────────────────────────────────
 // ── Animated Quick Link Card ─────────────────────────────────────────────
 function QuickLinkCard({
   icon, label, route, nightMode,
@@ -2765,23 +2368,23 @@ function ZawaalSectionRow({ nightMode, todaySunnah, onDonatePress }: {
 const zawaalRowStyles = StyleSheet.create({
   row: {
     flexDirection: 'column',
-    gap: 16,
-    marginHorizontal: Spacing.md,
-    marginTop: 6,
-    marginBottom: 16,
+    gap: 14,
+    marginHorizontal: Spacing.sm,
+    marginTop: 0,
+    marginBottom: 14,
   },
   donateCard: {
-    borderRadius: Radius.lg,
-    borderWidth: 1.5,
+    borderRadius: 22,
+    borderWidth: 1.2,
     borderColor: 'rgba(216,184,74,0.52)',
     backgroundColor: '#0C4734',
     overflow: 'hidden',
     minHeight: 188,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 4,
   },
   donateInfoFace: {
     ...StyleSheet.absoluteFillObject,
@@ -3171,7 +2774,6 @@ export default function HomeScreen() {
   const [eidUlFitrJamaats, setEidUlFitrJamaats] = useState<string[]>([]);
   const [eidUlAdhaJamaats, setEidUlAdhaJamaats] = useState<string[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState(() => new Date());
   const [donationLoading, setDonationLoading] = useState(false);
   const [donationModalVisible, setDonationModalVisible] = useState(false);
   const [donationCheckoutUrl, setDonationCheckoutUrl] = useState<string | null>(null);
@@ -3235,7 +2837,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { nightMode } = useNightMode();
   const {
-    data, loading, countdown, nextPrayerName,
+    data, countdown, nextPrayerName,
     forbiddenInfo,
     refresh: refreshPrayerTimes,
   } = usePrayerTimes();
@@ -3275,28 +2877,11 @@ export default function HomeScreen() {
   }, [jamaatStarted, jamaatOngoing, flashAnim]);
 
   const N = nightMode ? NIGHT : null;
-  const timeH    = currentTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
-  const secStr   = currentTime.toLocaleTimeString('en-GB', { second: '2-digit' });
-  const ampm     = currentTime.getHours() >= 12 ? 'PM' : 'AM';
-  const dayName  = currentTime.toLocaleDateString('en-GB', { weekday: 'long' });
-  const dateShort= currentTime.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   const hijriDayNum  = data ? getHijriDayNumber(data.hijriDate) : '';
   const rawHijriDayNum = data ? Number.parseInt(getHijriDayNumber(data.hijriDate) || '0', 10) : 0;
   const rawHijriMonthName = data ? getHijriMonthFromAnyFormat(data.hijriDate) : '';
   const isShawwalNow = isShawwalMonth(rawHijriMonthName);
   const isDhulHijjahNow = isDhulHijjahMonth(rawHijriMonthName);
-  const maghribEntry = data?.prayers.find(p => p.name === 'Maghrib');
-  const isPastMaghrib = maghribEntry ? currentTime >= maghribEntry.timeDate : false;
-  const hijriSource = (() => {
-    if (!data) return '';
-    if (isPastMaghrib) {
-      const tomorrow = new Date(currentTime);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      return getPrayerTimesFromTimetable(tomorrow)?.hijriDate ?? data.hijriDate;
-    }
-    return data.hijriDate;
-  })();
-  const hijriDisplayLabel = !loading ? buildHijriLabel(hijriSource) : '';
   // Hijri day as integer (1-30) — drives Full Juz for monthly Quran completion
   // Falls back to Gregorian day-of-year mod 30 until Hijri data loads
   const hijriDayInt  = parseInt(hijriDayNum || '0', 10) || ((DAY_OF_YEAR % 30) + 1);
@@ -3533,17 +3118,6 @@ export default function HomeScreen() {
   };
 
   const effectiveForbiddenInfo = isEidHeroWindow ? null : forbiddenInfo;
-  const heroTickerMessages = React.useMemo(() => {
-    const messages = [...TICKER_MESSAGES];
-
-    if (effectiveForbiddenInfo) {
-      messages.unshift(
-        `⛔  ${effectiveForbiddenInfo.label} — ${effectiveForbiddenInfo.reason} · Resumes at ${effectiveForbiddenInfo.endsAt} · ${formatCountdownSeconds(effectiveForbiddenInfo.secondsLeft)}`
-      );
-    }
-
-    return messages;
-  }, [effectiveForbiddenInfo]);
 
   const isFridayPostZawaal = !!(
     isFriday
@@ -3723,11 +3297,29 @@ export default function HomeScreen() {
 
   const effectiveHeroImageOpacity = getHeroImageOpacity(currentTime.getHours(), effectiveHeroPrayerName, !!forbiddenInfo);
 
+  // Keep these computed hero fields alive while the new visual shell still relies on legacy prayer-state logic.
+  const heroLegacyState = {
+    SCREEN_WIDTH,
+    alertMode,
+    effectiveHeroStartLabel,
+    effectiveHeroStartTime,
+    effectiveHeroEndTime,
+    effectiveHeroShowJamaat,
+    isEidHero,
+    effectiveHeroProgress,
+    effectiveHeroTimelinePoints,
+    effectiveHeroAthanMarker,
+    effectiveHeroJamaatMarker,
+    effectiveHeroEndMarker,
+    effectiveHeroMidMarker,
+    effectiveHeroImageOpacity,
+  };
+  void heroLegacyState;
+
   const onPullRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
       await Promise.all([refreshPrayerTimes(), loadSunnahReminders()]);
-      setLastUpdated(new Date());
     } finally {
       setRefreshing(false);
     }
@@ -3769,12 +3361,6 @@ export default function HomeScreen() {
     setDonationModalVisible(true);
   }, []);
 
-  useEffect(() => {
-    if (!loading && data) {
-      setLastUpdated(new Date());
-    }
-  }, [loading, data]);
-
   return (
     <>
     <ScrollView
@@ -3789,17 +3375,21 @@ export default function HomeScreen() {
         />
       }
     >
-      {/* ── Hero Header ─────────────────────────────── */}
-      <View
-        style={[styles.heroHeader, { paddingTop: insets.top + 4 }]}
-      >
+      {/* New Home layout: image-2 inspired editorial stack */}
+      <View style={[styles.heroHeader, { paddingTop: insets.top + 10 }]}> 
         <Image
           source={PRAYER_BG_IMAGES[effectiveHeroImageKey] ?? PRAYER_BG_IMAGES['Dhuhr']}
           style={StyleSheet.absoluteFillObject}
           contentFit="cover"
         />
+        <LinearGradient
+          pointerEvents="none"
+          colors={N ? ['rgba(2,9,19,0.34)', 'rgba(2,9,19,0.84)'] : ['rgba(2,40,74,0.24)', 'rgba(2,40,74,0.82)']}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={StyleSheet.absoluteFillObject}
+        />
 
-        {/* Top nav bar */}
         <View style={styles.topNav}>
           <View style={styles.topNavBrand}>
             <Image
@@ -3809,192 +3399,141 @@ export default function HomeScreen() {
             />
             <View style={styles.topNavText}>
               <Text numberOfLines={1} style={styles.topNavName}>Jami&apos; Masjid Noorani</Text>
-              <View style={styles.topNavCityRow}>
-                <View style={styles.topNavCityDot} />
-                <Text style={styles.topNavCity}>Halifax, UK</Text>
-              </View>
+              <Text style={styles.topNavCity}>Halifax, UK</Text>
             </View>
           </View>
-          <View style={styles.navRight}>
-            <View style={styles.updatedPill}>
-              <Text style={styles.updatedPillText}>
-                Updated {lastUpdated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-              </Text>
+          <View style={styles.headerControls}>
+            <View style={styles.modePill}>
+              <MaterialIcons name={nightMode ? 'dark-mode' : 'light-mode'} size={16} color="#F8FAFC" />
+              <Text style={styles.modePillText}>{nightMode ? 'Night' : 'Day'}</Text>
             </View>
+            <View style={styles.notifBtn}>
+              <MaterialIcons name="notifications" size={18} color="#FFFFFF" />
+              <View style={styles.notifBadge}><Text style={styles.notifBadgeText}>2</Text></View>
+            </View>
+            <TouchableOpacity style={styles.notifBtn} onPress={() => router.push('/(tabs)/events')}>
+              <MaterialIcons name="home" size={18} color="#FFFFFF" />
+            </TouchableOpacity>
           </View>
         </View>
 
-        {/* Unified Hero Entity: time/date + prayer as one card */}
-        <View style={styles.heroUnifiedEntity}>
-          <PrayerHeroCard
-            visible={!!(effectiveForbiddenInfo || nextPrayerName || alertMode || isEidHeroWindow)}
-            backgroundSource={PRAYER_BG_IMAGES[effectiveHeroImageKey] ?? PRAYER_BG_IMAGES['Dhuhr']}
-            gradientColors={effectiveHeroGradientColors}
-            backgroundImageOpacity={effectiveHeroImageOpacity}
-            heroWide={SCREEN_WIDTH >= 700}
-            kicker={effectiveHeroKicker}
-            title={effectiveHeroPrayerName}
-            isForbidden={!!effectiveForbiddenInfo || isNonJumuahEidPostFinalHero}
-            forbiddenEndsAt={effectiveForbiddenInfo?.endsAt ?? (isNonJumuahEidPostFinalHero ? (dhuhrPrayer?.time ?? '--:--') : '--:--')}
-            isFridayJumuahHero={isFridayPostZawaal}
-            isEidHero={isEidHero}
-            athanValue={activePrayer?.time ?? nextInfo?.prayer.time ?? nextPrayerTime}
-            j1={isEidHero ? '' : (isFriday ? jj1 : '')}
-            j2={isEidHero ? '' : (isFriday ? jj2 : '')}
-            eidJamaats={isEidHero ? resolvedEidJamaats : []}
-            showJamaat={effectiveHeroShowJamaat}
-            jamaatValue={effectiveHeroJamaatValue}
-            countdownInfo={effectiveHeroCountdownInfo}
-            flashAnim={flashAnim}
-            progress={effectiveHeroProgress}
-            athanMarker={effectiveHeroAthanMarker}
-            jamaatMarker={effectiveHeroJamaatMarker}
-            endMarker={effectiveHeroEndMarker}
-            midMarker={effectiveHeroMidMarker}
-            startLabel={effectiveHeroStartLabel}
-            startTime={effectiveHeroStartTime}
-            endLabel={effectiveHeroEndLabel}
-            endTime={effectiveHeroEndTime}
-            timelinePoints={effectiveHeroTimelinePoints}
-            midLabel={effectiveHeroMidLabel}
-            midTime={effectiveHeroMidTime}
-            hasNext={!!nextInfo}
-            nextPrayerName={effectiveNextPrayerName}
-            nextPrayerTime={effectiveNextPrayerTime}
-            nextPrayerJamaatValue={effectiveNextPrayerJamaatValue}
-            prayerIcons={PRAYER_ICONS}
-            embedded
-            localTime={timeH}
-            ampm={ampm}
-            seconds={secStr}
-            hijriLabel={hijriDisplayLabel}
-            loadingHijri={loading || !data}
-            dayName={dayName}
-            dateShort={dateShort}
-            allPrayers={data?.prayers}
-            onFullTimetable={() => router.push('/(tabs)/prayer?view=month' as any)}
-          />
+        <View style={styles.dualStatsRow}>
+          <LinearGradient
+            colors={effectiveHeroGradientColors}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.liveCard}
+          >
+            <View style={styles.liveIconWrap}>
+              <MaterialIcons name={(PRAYER_ICONS[effectiveHeroPrayerName] ?? 'schedule') as any} size={24} color="#DCE8FF" />
+            </View>
+            <Text style={styles.liveKicker}>{alertMode ? 'Jamaat Live Alert' : effectiveHeroKicker}</Text>
+            <Text style={styles.livePrayerName}>{effectiveHeroPrayerName}</Text>
+            <Text style={styles.liveCountdown}>{effectiveHeroCountdownInfo.value}</Text>
+            <Text style={styles.liveSub} numberOfLines={1}>{effectiveHeroCountdownInfo.label}</Text>
+            {!!effectiveHeroShowJamaat && !!effectiveHeroJamaatValue ? (
+              <Text style={styles.liveSub} numberOfLines={1}>Jamaat {effectiveHeroJamaatValue}</Text>
+            ) : null}
+            <View style={styles.liveDivider} />
+            <Text style={styles.liveNextLine} numberOfLines={1}>
+              Next: {effectiveNextPrayerName} {effectiveNextPrayerTime}{effectiveNextPrayerJamaatValue ? ` • ${effectiveNextPrayerJamaatValue}` : ''}
+            </Text>
+            <Text style={styles.liveMetaLine} numberOfLines={1}>
+              {effectiveHeroStartLabel} {effectiveHeroStartTime} • {effectiveHeroEndLabel} {effectiveHeroEndTime}{isEidHero ? ' • Eid schedule' : ''}
+            </Text>
+          </LinearGradient>
         </View>
-        <RollingBanner
-          nightMode={nightMode}
-          messages={heroTickerMessages}
-          announcementLabel={getTickerLabel(
-            currentTime,
-            dayName,
-            activePrayer,
-            nextPrayerName,
-            jamaatCountdown,
-            hasJamaat,
-          )}
-        />
       </View>
 
-      <View style={[styles.dayCanvas, N && { backgroundColor: N.bg, marginTop: 0, paddingTop: 0 }]}>
-        {!N ? (
-          <View pointerEvents="none" style={styles.dayCanvasAtmosphere}>
-            <LinearGradient
-              colors={['rgba(242,245,243,0)', 'rgba(242,245,243,0.68)', '#F2F5F3']}
-              locations={[0, 0.36, 1]}
-              start={{ x: 0.5, y: 0 }}
-              end={{ x: 0.5, y: 1 }}
-              style={styles.dayCanvasFade}
-            />
-            <LinearGradient
-              colors={['rgba(11,107,69,0.06)', 'rgba(11,107,69,0.02)', 'rgba(11,107,69,0)']}
-              locations={[0, 0.28, 1]}
-              start={{ x: 0.5, y: 0 }}
-              end={{ x: 0.5, y: 1 }}
-              style={styles.dayCanvasTint}
-            />
-            <LinearGradient
-              colors={['rgba(255,255,255,0.34)', 'rgba(255,255,255,0)']}
-              start={{ x: 1, y: 0 }}
-              end={{ x: 0, y: 1 }}
-              style={styles.dayCanvasGlow}
-            />
-          </View>
-        ) : null}
-
+      <View style={[styles.dayCanvas, N && { backgroundColor: N.bg, marginTop: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0 }]}>
         <View style={styles.dayCanvasContent}>
-          {/* ── Donation + Daily Reminders Row ───────── */}
-          <ZawaalSectionRow
-            nightMode={nightMode}
-            todaySunnah={computedTodaySunnah}
-            onDonatePress={openDonationCheckout}
-          />
-
-          {/* ── Body ──────────────────────────────────── */}
-          <View style={[styles.body, N && { backgroundColor: 'transparent' }]}>
-
-        {/* Quick Links */}
-        <Text style={[styles.sectionTitle, N && { color: N.text }]}>Quick Access</Text>
-        <View style={styles.quickLinks}>
-          {[
-            { icon: 'campaign',     label: 'Events & News', route: '/(tabs)/events' },
-            { icon: 'help-outline', label: 'How To Pray',   route: '/(tabs)/howto'  },
-          ].map(item => (
-            <QuickLinkCard key={item.label} icon={item.icon} label={item.label} route={item.route} nightMode={nightMode} />
-          ))}
-        </View>
-
-        {/* For You Today */}
-        <View style={styles.forYouFadeZone}>
-          {!N ? (
-            <LinearGradient
-              pointerEvents="none"
-              colors={['rgba(243,247,245,0.28)', 'rgba(243,247,245,0.78)', '#F3F7F5', '#F3F7F5']}
-              locations={[0, 0.24, 0.62, 1]}
-              start={{ x: 0.5, y: 0 }}
-              end={{ x: 0.5, y: 1 }}
-              style={styles.forYouFadeOverlay}
-            />
-          ) : null}
-          <ForYouTodaySection
-            prayers={data?.prayers ?? []}
-            nightMode={nightMode}
-            currentTime={currentTime}
-            hijriDay={hijriDayInt}
-            todaySunnah={computedTodaySunnah}
-          />
-        </View>
-
-        {/* Events & Announcements combined */}
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, N && { color: N.text }]}>Events & Announcements</Text>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/events')}>
-            <Text style={[styles.seeAll, N && { color: N.accent }]}>See All</Text>
-          </TouchableOpacity>
-        </View>
-        <TouchableOpacity
-          onPress={() => router.push('/(tabs)/events')}
-          activeOpacity={0.85}
-          style={[
-            styles.eventsAnnouncementsCard,
-            N && { backgroundColor: N.surface, borderColor: N.border,
-              shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 14, elevation: 6 },
-          ]}
-        >
-          <View style={styles.eaCardInner}>
-            <View style={[styles.eaIconBox, N && { backgroundColor: N.accentGlow }]}>
-              <MaterialIcons name="campaign" size={26} color={N ? N.accent : Colors.primary} />
-            </View>
-            <View style={{ flex: 1, gap: 3 }}>
-              <Text style={[styles.eaTitle, N && { color: N.text }]}>Masjid Events & News</Text>
-              <Text style={[styles.eaBody, N && { color: N.textSub }]}>
-                Latest announcements, upcoming events, and masjid updates — all in one place.
-              </Text>
-              {MOCK_ANNOUNCEMENTS.length > 0 ? (
-                <View style={[styles.eaLatestBand, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}>
-                  <MaterialIcons name="fiber-manual-record" size={8} color={N ? N.accent : Colors.primary} />
-                  <Text style={[styles.eaLatestText, N && { color: N.textSub }]} numberOfLines={1}>
-                    {MOCK_ANNOUNCEMENTS[0].title}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-            <MaterialIcons name="chevron-right" size={22} color={N ? N.textMuted : Colors.textSubtle} />
+          <View style={[styles.newsBand, N && { backgroundColor: '#124528' }]}>
+            <MaterialIcons name="campaign" size={14} color="#D7EBDD" />
+            <Text style={styles.newsBandText}>NEWS</Text>
           </View>
-        </TouchableOpacity>
+
+          <View style={[styles.body, N && { backgroundColor: 'transparent' }]}> 
+            <ZawaalSectionRow
+              nightMode={nightMode}
+              todaySunnah={computedTodaySunnah}
+              onDonatePress={openDonationCheckout}
+            />
+
+            <Text style={[styles.sectionTitle, N && { color: N.text }]}>Quick Access</Text>
+            <View style={styles.quickLinks}>
+              {[
+                { icon: 'campaign', label: 'Events & News', route: '/(tabs)/events' },
+                { icon: 'help-outline', label: 'How To Pray', route: '/(tabs)/howto' },
+              ].map(item => (
+                <QuickLinkCard key={item.label} icon={item.icon} label={item.label} route={item.route} nightMode={nightMode} />
+              ))}
+            </View>
+
+            <View style={styles.forYouFadeZone}>
+              <ForYouTodaySection
+                prayers={data?.prayers ?? []}
+                nightMode={nightMode}
+                currentTime={currentTime}
+                hijriDay={hijriDayInt}
+                todaySunnah={computedTodaySunnah}
+              />
+            </View>
+
+            <View style={[styles.hadithCard, styles.hadithCardInBody, N && { backgroundColor: N.surface, borderColor: N.border }]}> 
+              <Text style={[styles.hadithKicker, N && { color: N.accentSoft }]}>Sunnah Reminder</Text>
+              <Text style={[styles.hadithBody, N && { color: N.text }]} numberOfLines={2}>{computedTodaySunnah.act}</Text>
+              {!!computedTodaySunnah.ref ? (
+                <Text style={[styles.hadithRef, N && { color: N.textSub }]} numberOfLines={1}>- {computedTodaySunnah.ref}</Text>
+              ) : null}
+              <View style={styles.hadithDots}>
+                <View style={[styles.hadithDot, styles.hadithDotActive, N && { backgroundColor: N.accent }]} />
+                <View style={[styles.hadithDot, N && { backgroundColor: 'rgba(255,255,255,0.22)' }]} />
+                <View style={[styles.hadithDot, N && { backgroundColor: 'rgba(255,255,255,0.22)' }]} />
+              </View>
+            </View>
+
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, N && { color: N.text }]}>Community Updates</Text>
+              <TouchableOpacity onPress={() => router.push('/(tabs)/events')}>
+                <Text style={[styles.seeAll, N && { color: N.accent }]}>See All</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              onPress={() => router.push('/(tabs)/events')}
+              activeOpacity={0.85}
+              style={[
+                styles.eventsAnnouncementsCard,
+                N && {
+                  backgroundColor: N.surface,
+                  borderColor: N.border,
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 6 },
+                  shadowOpacity: 0.25,
+                  shadowRadius: 14,
+                  elevation: 6,
+                },
+              ]}
+            >
+              <View style={styles.eaCardInner}>
+                <View style={[styles.eaIconBox, N && { backgroundColor: N.accentGlow }]}>
+                  <MaterialIcons name="campaign" size={26} color={N ? N.accent : Colors.primary} />
+                </View>
+                <View style={{ flex: 1, gap: 3 }}>
+                  <Text style={[styles.eaTitle, N && { color: N.text }]}>Masjid Events & News</Text>
+                  <Text style={[styles.eaBody, N && { color: N.textSub }]}>Latest announcements, upcoming events, and community updates.</Text>
+                  {MOCK_ANNOUNCEMENTS.length > 0 ? (
+                    <View style={[styles.eaLatestBand, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}> 
+                      <MaterialIcons name="fiber-manual-record" size={8} color={N ? N.accent : Colors.primary} />
+                      <Text style={[styles.eaLatestText, N && { color: N.textSub }]} numberOfLines={1}>
+                        {MOCK_ANNOUNCEMENTS[0].title}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+                <MaterialIcons name="chevron-right" size={22} color={N ? N.textMuted : Colors.textSubtle} />
+              </View>
+            </TouchableOpacity>
 
             <View style={{ height: Spacing.xl }} />
           </View>
@@ -4268,17 +3807,19 @@ const styles = StyleSheet.create({
     color: '#466858',
   },
   heroHeader: {
-    paddingBottom: 6,
+    paddingBottom: 20,
     overflow: 'hidden',
-    minHeight: 154,
+    minHeight: 560,
     backgroundColor: '#0E2E52',
   },
   dayCanvas: {
     position: 'relative',
     overflow: 'hidden',
-    backgroundColor: '#F2F5F3',
-    marginTop: -2,
+    backgroundColor: '#E8EEEA',
+    marginTop: 0,
     paddingTop: 0,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
   },
   dayCanvasAtmosphere: {
     position: 'absolute',
@@ -4299,13 +3840,14 @@ const styles = StyleSheet.create({
   dayCanvasContent: {
     position: 'relative',
     zIndex: 1,
+    paddingTop: 0,
   },
   topNav: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.xs,
+    paddingBottom: 8,
   },
   topNavBrand: {
     flexDirection: 'row',
@@ -4314,19 +3856,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   topNavLogo: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: 'transparent',
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.95)',
   },
   topNavText: {
     flex: 1,
   },
   topNavName: {
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: 32,
+    fontWeight: '900',
     color: '#FFFFFF',
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
     textShadowColor: 'rgba(0,0,0,0.4)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
@@ -4344,10 +3886,41 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.62)',
   },
   topNavCity: {
-    fontSize: 8,
+    fontSize: 16,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.74)',
-    letterSpacing: 0.3,
+    color: 'rgba(242,247,255,0.84)',
+    letterSpacing: 0.2,
+  },
+  headerControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  modePill: {
+    height: 34,
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+    backgroundColor: 'rgba(255,255,255,0.13)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  modePillText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  notifBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.26)',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   navRight: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
   updatedPill: {
@@ -4366,11 +3939,344 @@ const styles = StyleSheet.create({
   },
   heroUnifiedEntity: {
     marginHorizontal: Spacing.md,
-    marginTop: 2,
+    marginTop: 8,
     marginBottom: 0,
-    gap: 12,
+    gap: 14,
     borderRadius: Radius.lg,
     overflow: 'visible',
+  },
+  hadithCard: {
+    marginHorizontal: Spacing.md,
+    marginTop: 12,
+    borderRadius: 24,
+    backgroundColor: 'rgba(250,252,252,0.98)',
+    borderWidth: 1,
+    borderColor: 'rgba(17,53,39,0.12)',
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    alignItems: 'center',
+    gap: 8,
+    shadowColor: '#003C28',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 24,
+    elevation: 2,
+  },
+  hadithCardInBody: {
+    marginHorizontal: 0,
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  hadithKicker: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#0E7A5F',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  hadithBody: {
+    fontSize: 18,
+    lineHeight: 28,
+    textAlign: 'center',
+    color: '#1C2F27',
+    fontWeight: '700',
+  },
+  hadithRef: {
+    fontSize: 15,
+    color: '#2A5A45',
+    fontWeight: '600',
+  },
+  hadithDots: {
+    marginTop: 2,
+    flexDirection: 'row',
+    gap: 6,
+  },
+  hadithDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: 'rgba(45,139,87,0.32)',
+  },
+  hadithDotActive: {
+    width: 18,
+    borderRadius: 8,
+    backgroundColor: '#2D8B57',
+  },
+  dualStatsRow: {
+    marginTop: 16,
+    marginHorizontal: Spacing.md,
+    flexDirection: 'row',
+  },
+  rebuildHeroCard: {
+    flex: 1,
+    minHeight: 220,
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(207,180,79,0.45)',
+    shadowColor: '#061E13',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 5,
+  },
+  rebuildHeroOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 6,
+  },
+  rebuildHeroTitle: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    lineHeight: 28,
+    fontWeight: '900',
+    textShadowColor: 'rgba(0,0,0,0.45)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  rebuildHeroSub: {
+    color: 'rgba(244,247,246,0.95)',
+    fontSize: 14,
+    lineHeight: 19,
+    fontWeight: '700',
+  },
+  rebuildHeroBtn: {
+    alignSelf: 'flex-start',
+    marginTop: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#D4AF37',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  rebuildHeroBtnText: {
+    color: '#0B3B2C',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  calendarCard: {
+    flex: 1,
+    borderRadius: 24,
+    backgroundColor: '#1D7B44',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    shadowColor: '#003C28',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    elevation: 4,
+    justifyContent: 'space-between',
+  },
+  calendarCardCompact: {
+    flex: 0,
+    flexShrink: 0,
+    width: SCREEN_WIDTH < 390 ? 126 : 138,
+    height: SCREEN_WIDTH < 390 ? 126 : 138,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  calendarTime: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '900',
+    lineHeight: 26,
+    fontVariant: ['tabular-nums'] as any,
+  },
+  calendarAmpm: {
+    fontSize: 11,
+    color: '#C8F4D7',
+    fontWeight: '700',
+  },
+  calendarSeconds: {
+    marginTop: 2,
+    fontSize: 14,
+    color: '#D7F3E1',
+    fontWeight: '700',
+    letterSpacing: 1.2,
+  },
+  calendarDay: {
+    marginTop: 2,
+    fontSize: 10,
+    letterSpacing: 0.9,
+    color: '#DFF4E6',
+    fontWeight: '800',
+  },
+  calendarHijri: {
+    marginTop: 8,
+    fontSize: 40,
+    color: '#FFFFFF',
+    fontWeight: '900',
+    lineHeight: 43,
+  },
+  calendarDate: {
+    marginTop: 1,
+    fontSize: 13,
+    color: '#E2F7EA',
+    fontWeight: '800',
+  },
+  openCalendarPill: {
+    marginTop: 6,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 18,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  openCalendarPillCompact: {
+    width: '100%',
+    justifyContent: 'center',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    gap: 4,
+    marginTop: 4,
+  },
+  openCalendarText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  openCalendarTextCompact: {
+    fontSize: 11,
+  },
+  liveCard: {
+    flex: 1,
+    minWidth: 0,
+    borderRadius: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.24)',
+    minHeight: 276,
+    shadowColor: '#003C28',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 28,
+    elevation: 6,
+  },
+  liveIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.32)',
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+  },
+  liveKicker: {
+    marginTop: 12,
+    textAlign: 'center',
+    fontSize: 12,
+    color: 'rgba(219,234,254,0.92)',
+    letterSpacing: 1.4,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  livePrayerName: {
+    marginTop: 4,
+    textAlign: 'center',
+    fontSize: 40,
+    lineHeight: 44,
+    color: '#FFFFFF',
+    fontWeight: '900',
+  },
+  liveCountdown: {
+    marginTop: 8,
+    textAlign: 'center',
+    fontSize: 64,
+    lineHeight: 68,
+    color: '#FFFFFF',
+    fontWeight: '900',
+    fontVariant: ['tabular-nums'] as any,
+  },
+  liveSub: {
+    textAlign: 'center',
+    marginTop: 3,
+    fontSize: 14,
+    color: 'rgba(229,241,255,0.9)',
+    fontWeight: '700',
+  },
+  liveDivider: {
+    marginTop: 14,
+    marginBottom: 12,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.34)',
+  },
+  liveNextLine: {
+    textAlign: 'center',
+    fontSize: 26,
+    lineHeight: 30,
+    color: '#EAF2FF',
+    fontWeight: '800',
+  },
+  liveMetaLine: {
+    marginTop: 6,
+    textAlign: 'center',
+    fontSize: 16,
+    lineHeight: 20,
+    color: 'rgba(235,243,255,0.86)',
+    fontWeight: '700',
+  },
+  actionRow: {
+    marginTop: 14,
+    marginHorizontal: Spacing.md,
+    flexDirection: 'row',
+    gap: 12,
+  },
+  actionTile: {
+    flex: 1,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderWidth: 1,
+    shadowColor: '#003C28',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  actionTilePrimary: {
+    backgroundColor: '#1E7D49',
+    borderColor: 'rgba(255,255,255,0.22)',
+  },
+  actionTileSecondary: {
+    backgroundColor: '#FFFAEC',
+    borderColor: 'rgba(176,133,14,0.32)',
+  },
+  actionTileTitleLight: {
+    marginTop: 8,
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  actionTileSubLight: {
+    marginTop: 2,
+    color: '#CFF0DD',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  actionTileTitleDark: {
+    marginTop: 8,
+    color: '#362703',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  actionTileSubDark: {
+    marginTop: 2,
+    color: '#6A4E0A',
+    fontSize: 11,
+    fontWeight: '600',
   },
   navBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   notifBadge: {
@@ -4476,7 +4382,22 @@ const styles = StyleSheet.create({
   jumuahDoneText: { fontSize: 12, fontWeight: '600', color: Colors.primary },
 
   // ── Body ──
-  body: { paddingHorizontal: Spacing.md, paddingTop: 2, backgroundColor: 'transparent' },
+  newsBand: {
+    height: 44,
+    backgroundColor: '#186A37',
+    paddingHorizontal: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  newsBandText: {
+    color: '#EAF7EE',
+    fontSize: 16,
+    letterSpacing: 1.2,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  body: { paddingHorizontal: Spacing.md, paddingTop: 14, backgroundColor: 'transparent' },
   forYouFadeZone: {
     position: 'relative',
     marginTop: 2,
@@ -4486,21 +4407,67 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sectionTitle: { ...Typography.titleSmall, color: Colors.textPrimary, marginBottom: Spacing.sm, marginTop: Spacing.sm },
+  sectionTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    letterSpacing: 0.1,
+    lineHeight: 36,
+    color: Colors.textPrimary,
+    marginBottom: 12,
+    marginTop: Spacing.sm,
+  },
   seeAll: { ...Typography.labelMedium, color: Colors.primary },
+  quickAccessGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 8,
+  },
+  quickAccessCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(17,73,51,0.12)',
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: '#003C28',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 1,
+  },
+  quickAccessIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#E7F4EC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 24,
+  },
+  quickAccessLabel: {
+    fontSize: 16,
+    color: '#1A2E24',
+    fontWeight: '700',
+    textAlign: 'center',
+  },
   quickLinks: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.md, justifyContent: 'space-between' },
   quickLinkCard: {
-    backgroundColor: Colors.surface, borderRadius: Radius.md,
-    width: '100%', padding: Spacing.sm, alignItems: 'center',
+    backgroundColor: Colors.surface, borderRadius: Radius.xl,
+    width: '100%', padding: Spacing.md, alignItems: 'center',
     borderWidth: 1, borderColor: Colors.border,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06, shadowRadius: 12, elevation: 3,
-    paddingVertical: 9,
+    shadowColor: '#0B5C3A', shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08, shadowRadius: 16, elevation: 4,
+    paddingVertical: 16,
+    borderBottomWidth: 3, borderBottomColor: Colors.primarySoft,
   },
   quickLinkIcon: {
-    width: 46, height: 46, borderRadius: Radius.full,
+    width: 52, height: 52, borderRadius: Radius.full,
     backgroundColor: Colors.primarySoft,
-    alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.xs,
+    alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.sm,
   },
   quickLinkIconGlow: {
     shadowColor: '#4FE948',
@@ -4509,7 +4476,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 6,
   },
-  quickLinkLabel: { ...Typography.labelMedium, color: Colors.textPrimary, textAlign: 'center' },
+  quickLinkLabel: { ...Typography.labelMedium, color: Colors.textPrimary, textAlign: 'center', fontSize: 13, fontWeight: '700' },
 
   announcementCard: {
     backgroundColor: Colors.surface, borderRadius: Radius.md,
@@ -4528,22 +4495,22 @@ const styles = StyleSheet.create({
   annBody: { ...Typography.bodyMedium, color: Colors.textSecondary, lineHeight: 22 },
   annDate: { ...Typography.bodySmall, color: Colors.textSubtle, marginTop: 6 },
   eventsAnnouncementsCard: {
-    backgroundColor: Colors.surface, borderRadius: Radius.lg,
+    backgroundColor: Colors.surface, borderRadius: Radius.xl,
     borderWidth: 1, borderColor: Colors.border,
     marginBottom: Spacing.sm,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06, shadowRadius: 12, elevation: 4,
+    shadowColor: '#0B5C3A', shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08, shadowRadius: 16, elevation: 4,
   },
   eaCardInner: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
     padding: Spacing.md,
   },
   eaIconBox: {
-    width: 52, height: 52, borderRadius: Radius.md,
+    width: 56, height: 56, borderRadius: Radius.lg,
     backgroundColor: Colors.primarySoft,
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  eaTitle: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary },
+  eaTitle: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary },
   eaBody: { fontSize: 12, fontWeight: '400', lineHeight: 17, color: Colors.textSecondary },
   eaLatestBand: {
     flexDirection: 'row', alignItems: 'center', gap: 5,

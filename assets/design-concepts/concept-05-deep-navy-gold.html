@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Concept 05 — Deep Navy Gold</title>
+<link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@300;400;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0a;
+    display: flex; justify-content: center; align-items: flex-start;
+    min-height: 100vh; padding: 40px 20px;
+    font-family: 'Inter', sans-serif;
+  }
+  .phone {
+    width: 390px; height: 844px;
+    border-radius: 48px; overflow: hidden; position: relative;
+    box-shadow: 0 40px 100px rgba(0,0,0,0.9), 0 0 0 1px rgba(200,170,80,0.2);
+    background: #060F1A;
+  }
+  .bg-base {
+    position: absolute; inset: 0;
+    background: 
+      radial-gradient(ellipse at 50% 0%, rgba(30,65,90,0.9) 0%, transparent 50%),
+      radial-gradient(ellipse at 100% 100%, rgba(10,30,50,0.8) 0%, transparent 50%),
+      linear-gradient(180deg, #081625 0%, #0A1E35 25%, #0C2540 55%, #0A1C30 80%, #06111E 100%);
+  }
+  .gold-glow {
+    position: absolute; top: 0; left: 0; right: 0; height: 200px;
+    background: radial-gradient(ellipse at 50% 0%, rgba(210,170,50,0.2) 0%, transparent 60%);
+  }
+  .mosque-sil {
+    position: absolute; bottom: 86px; left: 0; right: 0; height: 220px; opacity: 0.1;
+    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 220"><path d="M0,220 L0,140 L20,140 L20,110 L40,110 L40,90 L60,90 L60,60 L70,60 L70,30 L73,10 L76,30 L76,60 L96,60 L96,90 L116,90 L116,140 L150,140 L150,115 L170,115 L170,80 L183,80 L183,50 L190,25 L197,5 L204,25 L210,50 L210,80 L223,80 L223,115 L243,115 L243,140 L275,140 L275,90 L295,90 L295,60 L315,60 L315,30 L318,10 L321,30 L321,60 L341,60 L341,90 L361,90 L361,140 L390,140 L390,220 Z" fill="white"/></svg>') no-repeat bottom center;
+    background-size: cover;
+  }
+  .lower-fade {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 350px;
+    background: linear-gradient(0deg, rgba(6,17,30,0.97) 0%, rgba(6,17,30,0.7) 40%, transparent 100%);
+  }
+  .content { position: relative; z-index: 10; height: 100%; display: flex; flex-direction: column; }
+  .topbar {
+    padding: 52px 26px 0;
+    display: flex; justify-content: space-between; align-items: flex-start;
+  }
+  .masjid-name {
+    font-family: 'Crimson Pro', serif;
+    font-size: 22px; font-weight: 600; color: rgba(255,255,255,0.95); letter-spacing: 0.02em;
+  }
+  .loc { font-size: 13px; color: rgba(180,210,230,0.55); margin-top: 3px; }
+  .upd {
+    background: rgba(200,170,50,0.15); border: 1px solid rgba(200,170,50,0.3);
+    border-radius: 20px; padding: 6px 14px;
+    font-size: 12px; color: rgba(220,195,120,0.85);
+  }
+  .mid {
+    flex: 1; display: flex; flex-direction: column; justify-content: center;
+    align-items: center; padding: 0 26px; margin-top: -30px;
+  }
+  .live-badge {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(200,170,50,0.15); border: 1px solid rgba(200,170,50,0.25);
+    border-radius: 24px; padding: 7px 18px; margin-bottom: 20px;
+  }
+  .ldot { width: 7px; height: 7px; border-radius: 50%; background: #D4AA35; animation: gf 2s infinite; }
+  @keyframes gf { 0%,100%{box-shadow:0 0 6px #D4AA35} 50%{box-shadow:0 0 14px #D4AA35} }
+  .live-badge span { font-size: 14px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #D4AA35; }
+  .clock {
+    font-family: 'Inter', sans-serif;
+    font-size: 104px; font-weight: 800;
+    color: #FFFFFF; letter-spacing: -5px; line-height: 1; text-align: center;
+  }
+  .ampm { font-size: 32px; font-weight: 300; color: rgba(200,225,240,0.6); letter-spacing: 0; }
+  .hijri { font-size: 15px; color: rgba(180,210,230,0.55); margin-top: 8px; font-weight: 300; letter-spacing: 0.03em; }
+  .bottom { padding: 0 18px 96px; }
+  .iqamah-card {
+    background: rgba(255,255,255,0.06);
+    backdrop-filter: blur(24px);
+    border: 1px solid rgba(200,170,50,0.18);
+    border-radius: 26px; padding: 22px 24px; margin-bottom: 12px;
+  }
+  .ic-label { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(200,170,50,0.7); margin-bottom: 8px; }
+  .ic-num {
+    font-family: 'Inter', sans-serif;
+    font-size: 58px; font-weight: 800; color: #FFFFFF; letter-spacing: -2px; line-height: 1;
+  }
+  .ic-sub { font-size: 14px; color: rgba(180,210,230,0.5); margin-top: 4px; }
+  .ic-sep { border: none; border-top: 1px solid rgba(255,255,255,0.08); margin: 14px 0; }
+  .ic-next { display: flex; justify-content: space-between; align-items: center; }
+  .icn-lbl { font-size: 12px; color: rgba(160,190,210,0.55); }
+  .icn-name { font-family: 'Crimson Pro', serif; font-size: 24px; font-weight: 600; color: #FFFFFF; }
+  .icn-athan { font-size: 28px; font-weight: 700; color: #FFFFFF; text-align: right; }
+  .icn-iqamah { font-size: 13px; color: #D4AA35; font-weight: 600; text-align: right; }
+  .row2 { display: flex; gap: 12px; }
+  .btn { flex: 1; border-radius: 20px; padding: 18px 16px; }
+  .btn-gold { background: linear-gradient(135deg, rgba(180,140,30,0.9), rgba(150,110,20,0.9)); border: 1px solid rgba(220,185,80,0.4); }
+  .btn-ghost { background: rgba(255,255,255,0.07); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); }
+  .btn-tag { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,240,200,0.7); margin-bottom: 5px; }
+  .btn-title { font-family: 'Crimson Pro', serif; font-size: 24px; font-weight: 700; color: #FFFFFF; }
+  .tab-bar {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: rgba(6,12,22,0.9); backdrop-filter: blur(30px);
+    border-top: 1px solid rgba(200,170,50,0.12);
+    padding: 14px 0 28px; display: flex; z-index: 100;
+  }
+  .ti { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .ti-ic { font-size: 18px; }
+  .ti-lb { font-size: 11px; font-weight: 500; color: rgba(150,180,200,0.45); }
+  .ti.active .ti-lb { color: #D4AA35; font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="bg-base"></div>
+  <div class="gold-glow"></div>
+  <div class="mosque-sil"></div>
+  <div class="lower-fade"></div>
+  <div class="content">
+    <div class="topbar">
+      <div>
+        <div class="masjid-name">Jami' Masjid Noorani</div>
+        <div class="loc">Halifax, UK</div>
+      </div>
+      <div class="upd">Updated 00:21</div>
+    </div>
+    <div class="mid">
+      <div class="live-badge"><div class="ldot"></div><span>Isha in progress</span></div>
+      <div class="clock">00:26<span class="ampm"> AM</span></div>
+      <div class="hijri">Thu 16 Apr &nbsp;·&nbsp; 27 Shawwāl 1447 AH</div>
+    </div>
+    <div class="bottom">
+      <div class="iqamah-card">
+        <div class="ic-label">Live Iqamah Countdown</div>
+        <div class="ic-num">03:14:54</div>
+        <div class="ic-sub">Isha ends in 3 hrs 14 min</div>
+        <hr class="ic-sep"/>
+        <div class="ic-next">
+          <div><div class="icn-lbl">Coming up</div><div class="icn-name">Fajr</div></div>
+          <div><div class="icn-athan">03:41</div><div class="icn-iqamah">Iqamah 05:15</div></div>
+        </div>
+      </div>
+      <div class="row2">
+        <div class="btn btn-gold"><div class="btn-tag">Full Schedule</div><div class="btn-title">Prayer Times</div></div>
+        <div class="btn btn-ghost"><div class="btn-tag">Priority Appeal</div><div class="btn-title">Donate Now</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="tab-bar">
+    <div class="ti active"><div class="ti-ic">⌂</div><div class="ti-lb">Home</div></div>
+    <div class="ti"><div class="ti-ic">◷</div><div class="ti-lb">Prayer</div></div>
+    <div class="ti"><div class="ti-ic">☽</div><div class="ti-lb">Duas</div></div>
+    <div class="ti"><div class="ti-ic">📖</div><div class="ti-lb">Quran</div></div>
+    <div class="ti"><div class="ti-ic">▶</div><div class="ti-lb">Live</div></div>
+  </div>
+</div>
+</body>
+</html>

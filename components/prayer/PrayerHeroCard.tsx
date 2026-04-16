@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { MaterialIcons } from '@expo/vector-icons';
 
 const EID_FIREWORK_BURSTS = [
   { top: '16%', left: '14%', color: '#D4B344', delay: 0 },
@@ -90,8 +91,6 @@ type Props = {
 const DOT_DIAMETER = 14;
 const TRACK_HEIGHT = 5;
 const DOT_OFFSET_TOP = -((DOT_DIAMETER - TRACK_HEIGHT) / 2);
-const TIMELINE_LOGO_HALF_WIDTH = 29;
-const TIMELINE_PULL_GAP = 0;
 const COUNTDOWN_WARNING_SECONDS = 50 * 60;
 const COUNTDOWN_CRITICAL_SECONDS = 25 * 60;
 const SCHEDULE_ROLL_GAP = 10;
@@ -216,6 +215,12 @@ function toTitleCase(label: string): string {
   return label.replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
+function extractDisplayTime(raw: string): string {
+  const match = raw.match(/(\d{1,2}:\d{2}\s*(?:AM|PM)?)/i);
+  if (match?.[1]) return match[1].toUpperCase();
+  return raw.trim();
+}
+
 function RollingSchedulePills({
   items,
   prefix,
@@ -332,20 +337,8 @@ export default function PrayerHeroCard({
   allPrayers,
   onFullTimetable,
 }: Props) {
-  const progressAnim = useRef(new Animated.Value(progress)).current;
   const fireworksAnim = useRef(new Animated.Value(0)).current;
-  const logoPulseAnim = useRef(new Animated.Value(0)).current;
-  const shimmerAnim = useRef(new Animated.Value(0)).current;
   const liveDotAnim = useRef(new Animated.Value(0)).current;
-  const [timelineLineWidth, setTimelineLineWidth] = useState(0);
-
-  useEffect(() => {
-    Animated.timing(progressAnim, {
-      toValue: progress,
-      duration: 1400,
-      useNativeDriver: false,
-    }).start();
-  }, [progress, progressAnim]);
 
   useEffect(() => {
     if (!isEidHero) return;
@@ -360,30 +353,6 @@ export default function PrayerHeroCard({
     loop.start();
     return () => loop.stop();
   }, [fireworksAnim, isEidHero]);
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(logoPulseAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
-        Animated.timing(logoPulseAnim, { toValue: 0, duration: 1200, useNativeDriver: true }),
-      ])
-    );
-
-    loop.start();
-    return () => loop.stop();
-  }, [logoPulseAnim]);
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(shimmerAnim, { toValue: 1, duration: 1800, useNativeDriver: true }),
-        Animated.timing(shimmerAnim, { toValue: 0, duration: 0, useNativeDriver: true }),
-      ])
-    );
-
-    loop.start();
-    return () => loop.stop();
-  }, [shimmerAnim]);
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -411,10 +380,6 @@ export default function PrayerHeroCard({
   const contextualEndLabel = endLabel.toLowerCase() === 'next prayer'
     ? `${nextPrayerName || 'Next'}`
     : (endLabel.toLowerCase() === 'sunrise' ? 'Sunrise' : (endLabel.toLowerCase() === 'jummah athan' ? 'Jummah Athan' : endLabel));
-  const hasMiddleEvent = (showJamaat && !!jamaatValue) || (!!midLabel && !!midTime);
-  const stripMiddleLabel = (showJamaat && jamaatValue) ? 'Jamaat' : midLabel;
-  const stripMiddleTime = (showJamaat && jamaatValue) ? jamaatValue : midTime;
-  const showMiddleStrip = hasMiddleEvent;
   const rightColumnLabel = isFridayJumuahHero
     ? `${nextPrayerName || endLabel || 'Asr'}`
     : contextualEndLabel;
@@ -424,13 +389,13 @@ export default function PrayerHeroCard({
   const countdownLabel = countdownInfo.label.trim();
   const countdownTarget = countdownLabel.replace(/^until\s+/i, '').trim();
   const parsedScheduleBanner = parseScheduleBanner(countdownInfo.note);
-  const cutThroughTimeline = embedded;
+  const jumuahTimes = parsedScheduleBanner?.jumuah?.map(extractDisplayTime) ?? [];
+  const jumuahTimesLine = jumuahTimes.join(' • ');
   const compactDayName = toCompactDayName(dayName);
   const compactDateShort = toShortDate(dateShort);
   const unifiedDateText = loadingHijri || !hijriLabel
     ? `${compactDayName} ${compactDateShort}`
     : `${compactDayName} ${compactDateShort} · ${hijriLabel}`;
-  const timelineStartLabel = startLabel.trim().toLowerCase() === 'start' ? 'Athan' : startLabel;
   const statusText = (() => {
     const isOrdinalCountdown = /^\d+(st|nd|rd|th)\b/i.test(countdownLabel);
     if (isForbidden) return `${title} until ${forbiddenEndsAt}`;
@@ -477,156 +442,6 @@ export default function PrayerHeroCard({
     }
     return `Ends in ${countdownFriendly}`;
   })();
-
-  const timelineLogoTranslateX = timelineLineWidth > 0
-    ? progressAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0, timelineLineWidth],
-      extrapolate: 'clamp',
-    })
-    : 0;
-  const timelineLogoScale = logoPulseAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 1.02],
-  });
-
-  const fillAnchorOffset = Math.max(0, TIMELINE_LOGO_HALF_WIDTH - TIMELINE_PULL_GAP);
-  const maxFillWidth = Math.max(0, timelineLineWidth - fillAnchorOffset);
-  const progressFillWidth = timelineLineWidth > 0
-    ? Animated.subtract(
-      Animated.multiply(progressAnim, timelineLineWidth),
-      fillAnchorOffset
-    ).interpolate({
-      inputRange: [0, Math.max(1, maxFillWidth)],
-      outputRange: [0, Math.max(1, maxFillWidth)],
-      extrapolate: 'clamp',
-    })
-    : 0;
-
-  const timelineTrack = (
-
-
-    <>
-      <View style={styles.horizontalTimelineContainer}>
-        <View
-          style={styles.glowingLineWrapper}
-          onLayout={(event) => setTimelineLineWidth(event.nativeEvent.layout.width)}
-        >
-          <View style={styles.glowingLineBase} />
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.glowingLineAura,
-              {
-                opacity: logoPulseAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.28, 0.62],
-                }),
-              },
-            ]}
-          />
-          <Animated.View
-            style={[
-              styles.glowingLineFill,
-              {
-                width: progressFillWidth,
-              },
-            ]}
-          />
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.glowingLineShimmerClip,
-              {
-                width: progressAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: ['0%', '100%'],
-                  extrapolate: 'clamp',
-                }),
-              },
-            ]}
-          >
-            <Animated.View
-              style={[
-                styles.glowingLineShimmer,
-                {
-                  opacity: shimmerAnim.interpolate({
-                    inputRange: [0, 0.15, 0.8, 1],
-                    outputRange: [0, 0.95, 0.42, 0],
-                  }),
-                  transform: [
-                    {
-                      translateX: shimmerAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [-90, 280],
-                      }),
-                    },
-                    { rotate: '8deg' },
-                  ],
-                },
-              ]}
-            />
-            <Animated.View
-              style={[
-                styles.glowingLineShimmerSecondary,
-                {
-                  opacity: shimmerAnim.interpolate({
-                    inputRange: [0, 0.35, 1],
-                    outputRange: [0, 0.65, 0],
-                  }),
-                  transform: [
-                    {
-                      translateX: shimmerAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [-130, 230],
-                      }),
-                    },
-                    { rotate: '8deg' },
-                  ],
-                },
-              ]}
-            />
-          </Animated.View>
-
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.timelineLogoPointerTrack,
-              { transform: [{ translateX: timelineLogoTranslateX }] },
-            ]}
-          >
-            <Animated.Image
-              source={require('@/assets/images/masjid-logo.png')}
-              resizeMode="contain"
-              style={[
-                styles.timelineLogoPointerImage,
-                { transform: [{ scale: timelineLogoScale }] },
-              ]}
-            />
-          </Animated.View>
-        </View>
-
-        <View style={styles.timelinePointsRow}>
-          <View style={styles.timelinePointColumn}>
-            <Text style={styles.timelineLabel}>{timelineStartLabel}</Text>
-            <Text style={styles.timelineTime}>{startTime || athanValue}</Text>
-          </View>
-
-          {showMiddleStrip ? (
-            <View style={styles.timelinePointColumn}>
-              <Text style={styles.timelineLabelCenter}>{stripMiddleLabel || 'Jamaat'}</Text>
-              <Text style={styles.timelineTimeCenter}>{stripMiddleTime || '--:--'}</Text>
-            </View>
-          ) : null}
-
-          <View style={styles.timelinePointColumn}>
-            <Text style={styles.timelineLabel}>{rightColumnLabel}</Text>
-            <Text style={styles.timelineTime}>{rightColumnTime}</Text>
-          </View>
-        </View>
-      </View>
-    </>
-  );
 
   return (
     <View style={[styles.wrap, embedded && styles.wrapEmbedded]}>
@@ -687,7 +502,7 @@ export default function PrayerHeroCard({
         ) : null}
 
         <View
-          style={[styles.inner, heroWide && styles.innerWide, cutThroughTimeline && styles.innerCutThrough]}
+          style={[styles.inner, heroWide && styles.innerWide]}
         >
           {embedded ? (
             <LinearGradient
@@ -767,9 +582,24 @@ export default function PrayerHeroCard({
                 </View>
               ) : null}
               {parsedScheduleBanner.jumuah.length > 0 ? (
-                <View style={styles.scheduleRow}>
-                  <Text style={styles.scheduleHeading}>Jummah Prayers</Text>
-                  <RollingSchedulePills items={parsedScheduleBanner.jumuah} prefix="jumuah" />
+                <View style={styles.jummahBannerRow}>
+                  <MaterialIcons
+                    name="calendar-today"
+                    size={17}
+                    color="#2E8B69"
+                    style={styles.jummahBannerIcon}
+                  />
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.jummahBannerScroll}
+                    contentContainerStyle={styles.jummahBannerScrollContent}
+                  >
+                    <Text style={styles.jummahBannerTextLine}>
+                      <Text style={styles.jummahBannerLabel}>Jummah Prayers: </Text>
+                      <Text style={styles.jummahBannerTime}>{jumuahTimesLine}</Text>
+                    </Text>
+                  </ScrollView>
                 </View>
               ) : null}
             </View>
@@ -778,16 +608,6 @@ export default function PrayerHeroCard({
           ) : null}
             </View>
           </View>
-
-          {cutThroughTimeline ? (
-            <View style={styles.cutThroughContentArea}>
-              {timelineTrack}
-            </View>
-          ) : (
-            <View style={styles.barArea}>
-              {timelineTrack}
-            </View>
-          )}
         </View>
 
       </View>
@@ -869,11 +689,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 14,
     paddingBottom: 12,
-    minHeight: 248,
+    minHeight: 214,
     justifyContent: 'flex-start',
-  },
-  innerCutThrough: {
-    paddingBottom: 14,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
@@ -887,7 +704,7 @@ const styles = StyleSheet.create({
   innerWide: {
     paddingHorizontal: 22,
     paddingTop: 12,
-    minHeight: 268,
+    minHeight: 232,
   },
 
   // Clock
@@ -1543,19 +1360,50 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   scheduleBanner: {
-    marginTop: -2,
+    marginTop: -1,
     marginBottom: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: 'rgba(10,22,45,0.44)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(7,13,28,0.62)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
+    borderColor: 'rgba(164,186,214,0.22)',
     gap: 6,
   },
   scheduleRow: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  jummahBannerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'nowrap',
+  },
+  jummahBannerIcon: {
+    marginRight: 6,
+  },
+  jummahBannerScroll: {
+    flex: 1,
+  },
+  jummahBannerScrollContent: {
+    alignItems: 'center',
+    paddingRight: 6,
+  },
+  jummahBannerTextLine: {
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  jummahBannerLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: 'rgba(248,248,252,0.96)',
+    letterSpacing: 0,
+  },
+  jummahBannerTime: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#2E8B69',
+    letterSpacing: 0,
   },
   scheduleHeading: {
     width: 112,

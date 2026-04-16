@@ -40,28 +40,6 @@ function toTimeParts(value: string): { localTime: string; ampm: string } {
   };
 }
 
-function buildTickerMessages(scenario: HomePreviewScenario): string[] {
-  const messages: string[] = [];
-
-  if (scenario.countdownInfo.note) messages.push(scenario.countdownInfo.note);
-
-  if (scenario.mode === 'jumuah') {
-    messages.push('Recite Surah Al-Kahf, send Salawat, and plan your arrival early.');
-  } else if (scenario.mode === 'eid-fitr-jumuah') {
-    messages.push('Eid takbirat remain active through the morning before Jummah.');
-  } else {
-    messages.push('Keep takbirat, qurbani intention, and Jummah preparation aligned today.');
-  }
-
-  if (scenario.title === 'Jumuah') {
-    messages.push('Khutbah flow is active on the homepage in this state.');
-  } else if (scenario.isForbidden) {
-    messages.push('The homepage keeps prayer-pause messaging prominent in this window.');
-  }
-
-  return messages.slice(0, 2);
-}
-
 function buildForYouChips(scenario: HomePreviewScenario): string[] {
   if (scenario.mode === 'jumuah') {
     if (scenario.title === 'Jumuah') return ['Surah Al-Kahf', 'Salawat', 'Arrive early'];
@@ -134,20 +112,6 @@ function buildPrayerList(scenario: HomePreviewScenario) {
   }
 
   return defaultRows;
-}
-
-function PreviewTicker({ scenario }: { scenario: HomePreviewScenario }) {
-  const messages = useMemo(() => buildTickerMessages(scenario), [scenario]);
-
-  return (
-    <View style={styles.tickerWrap}>
-      <View style={styles.tickerLabel}>
-        <MaterialIcons name="campaign" size={12} color="#0D5E43" />
-        <Text style={styles.tickerLabelText}>Home Banner</Text>
-      </View>
-      <Text style={styles.tickerText}>{messages.join('  ·  ')}</Text>
-    </View>
-  );
 }
 
 function PreviewBody({ scenario }: { scenario: HomePreviewScenario }) {
@@ -293,7 +257,6 @@ export default function HomePreviewScaffold({
                     dateShort={scenario.dateShort}
                     allPrayers={buildPrayerList(scenario)}
                   />
-                  <PreviewTicker scenario={scenario} />
                 </View>
                 <PreviewBody scenario={scenario} />
               </View>
@@ -378,29 +341,6 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     paddingHorizontal: 10,
     gap: 10,
-  },
-  tickerWrap: {
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 6,
-  },
-  tickerLabel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  tickerLabelText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#0D5E43',
-    letterSpacing: 0.3,
-  },
-  tickerText: {
-    fontSize: 11,
-    lineHeight: 16,
-    color: '#355547',
   },
   bodyWrap: {
     paddingHorizontal: 14,
