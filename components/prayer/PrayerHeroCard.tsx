@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
+import HeroNewsBar, { parseHeroNewsSchedule } from '@/components/prayer/HeroNewsBar';
+import FlipClock from '@/components/prayer/FlipClock';
 
 const EID_FIREWORK_BURSTS = [
   { top: '16%', left: '14%', color: '#D4B344', delay: 0 },
@@ -93,8 +95,6 @@ const TRACK_HEIGHT = 5;
 const DOT_OFFSET_TOP = -((DOT_DIAMETER - TRACK_HEIGHT) / 2);
 const COUNTDOWN_WARNING_SECONDS = 50 * 60;
 const COUNTDOWN_CRITICAL_SECONDS = 25 * 60;
-const SCHEDULE_ROLL_GAP = 10;
-
 function formatCountdownFriendly(val: string): string {
   const parts = val.split(':').map(Number);
   if (parts.some(Number.isNaN)) return val;
@@ -146,62 +146,6 @@ function formatSecondsAsHMS(totalSeconds: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-type ParsedScheduleBanner = {
-  eid: string[];
-  jumuah: string[];
-};
-
-function parseScheduleBanner(note: string): ParsedScheduleBanner | null {
-  const text = (note || '').trim();
-  if (!text) return null;
-
-  const lower = text.toLowerCase();
-  const hasEid = lower.includes('eid prayers:');
-  const hasJumuah = lower.includes('jummah prayers:') || lower.includes('jumuah prayers:') || lower.includes('jummah times:') || lower.includes('jumuah times:');
-  if (!hasEid && !hasJumuah) return null;
-
-  const splitByDots = text
-    .split('·')
-    .map((part) => part.trim())
-    .filter(Boolean);
-
-  const eid: string[] = [];
-  const jumuah: string[] = [];
-  let mode: 'eid' | 'jumuah' | null = null;
-
-  for (const chunk of splitByDots) {
-    const normalized = chunk.replace(/^\s+|\s+$/g, '');
-    const lowerChunk = normalized.toLowerCase();
-
-    if (lowerChunk.startsWith('eid prayers:')) {
-      mode = 'eid';
-      const first = normalized.replace(/eid prayers:\s*/i, '').trim();
-      if (first) eid.push(first);
-      continue;
-    }
-
-    if (
-      lowerChunk.startsWith('jummah prayers:')
-      || lowerChunk.startsWith('jumuah prayers:')
-      || lowerChunk.startsWith('jummah times:')
-      || lowerChunk.startsWith('jumuah times:')
-    ) {
-      mode = 'jumuah';
-      const first = normalized.replace(/jum+u?ah (times|prayers):\s*/i, '').trim();
-      if (first) jumuah.push(first);
-      continue;
-    }
-
-    if (mode === 'eid') {
-      eid.push(normalized);
-    } else if (mode === 'jumuah') {
-      jumuah.push(normalized);
-    }
-  }
-  if (eid.length === 0 && jumuah.length === 0) return null;
-  return { eid, jumuah };
-}
-
 function toCompactDayName(dayName: string): string {
   const trimmed = dayName.trim();
   return trimmed.length <= 3 ? trimmed : trimmed.slice(0, 3);
@@ -213,80 +157,6 @@ function toShortDate(dateShort: string): string {
 
 function toTitleCase(label: string): string {
   return label.replace(/\b\w/g, (match) => match.toUpperCase());
-}
-
-function extractDisplayTime(raw: string): string {
-  const match = raw.match(/(\d{1,2}:\d{2}\s*(?:AM|PM)?)/i);
-  if (match?.[1]) return match[1].toUpperCase();
-  return raw.trim();
-}
-
-function RollingSchedulePills({
-  items,
-  prefix,
-}: {
-  items: string[];
-  prefix: string;
-}) {
-  const [viewportWidth, setViewportWidth] = useState(0);
-  const [contentWidth, setContentWidth] = useState(0);
-  const translateX = useRef(new Animated.Value(0)).current;
-  const shouldRoll = contentWidth > 0 && viewportWidth > 0 && contentWidth > viewportWidth;
-
-  useEffect(() => {
-    translateX.stopAnimation();
-
-    if (!shouldRoll) {
-      translateX.setValue(0);
-      return;
-    }
-
-    const distance = contentWidth + SCHEDULE_ROLL_GAP;
-    const duration = Math.max(8000, distance * 30);
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.delay(900),
-        Animated.timing(translateX, {
-          toValue: -distance,
-          duration,
-          useNativeDriver: true,
-        }),
-        Animated.delay(650),
-      ])
-    );
-
-    translateX.setValue(0);
-    loop.start();
-    return () => loop.stop();
-  }, [contentWidth, shouldRoll, translateX, viewportWidth]);
-
-  const renderPills = (duplicate: boolean) => (
-    <View
-      onLayout={duplicate ? undefined : (event) => setContentWidth(event.nativeEvent.layout.width)}
-      style={[styles.schedulePills, duplicate && styles.schedulePillsDuplicate]}
-    >
-      {items.map((item, index) => (
-        <Text key={`${prefix}-${duplicate ? 'dup' : 'base'}-${index}`} style={styles.schedulePillText}>{item}</Text>
-      ))}
-    </View>
-  );
-
-  return (
-    <View
-      onLayout={(event) => setViewportWidth(event.nativeEvent.layout.width)}
-      style={styles.schedulePillsViewport}
-    >
-      <Animated.View
-        style={[
-          styles.schedulePillsTrack,
-          shouldRoll ? { transform: [{ translateX }] } : null,
-        ]}
-      >
-        {renderPills(false)}
-        {shouldRoll ? renderPills(true) : null}
-      </Animated.View>
-    </View>
-  );
 }
 
 export default function PrayerHeroCard({
@@ -388,9 +258,7 @@ export default function PrayerHeroCard({
     : (endTime || nextPrayerTime || '--:--');
   const countdownLabel = countdownInfo.label.trim();
   const countdownTarget = countdownLabel.replace(/^until\s+/i, '').trim();
-  const parsedScheduleBanner = parseScheduleBanner(countdownInfo.note);
-  const jumuahTimes = parsedScheduleBanner?.jumuah?.map(extractDisplayTime) ?? [];
-  const jumuahTimesLine = jumuahTimes.join(' • ');
+  const parsedScheduleBanner = parseHeroNewsSchedule(countdownInfo.note);
   const compactDayName = toCompactDayName(dayName);
   const compactDateShort = toShortDate(dateShort);
   const unifiedDateText = loadingHijri || !hijriLabel
@@ -554,6 +422,11 @@ export default function PrayerHeroCard({
             {liveStatusEndsText ? (
               <Text style={[styles.liveStatusEndsText, { color: liveStatusColor }]}>{liveStatusEndsText}</Text>
             ) : null}
+            {!countdownInfo.flash && countdownFriendly && (
+              <View style={styles.flipClockContainer}>
+                <FlipClock time={countdownFriendly} />
+              </View>
+            )}
           </View>
           ) : null}
 
@@ -574,35 +447,7 @@ export default function PrayerHeroCard({
               </ScrollView>
             </View>
           ) : parsedScheduleBanner ? (
-            <View style={styles.scheduleBanner}>
-              {parsedScheduleBanner.eid.length > 0 ? (
-                <View style={styles.scheduleRow}>
-                  <Text style={styles.scheduleHeading}>Eid Prayers</Text>
-                  <RollingSchedulePills items={parsedScheduleBanner.eid} prefix="eid" />
-                </View>
-              ) : null}
-              {parsedScheduleBanner.jumuah.length > 0 ? (
-                <View style={styles.jummahBannerRow}>
-                  <MaterialIcons
-                    name="calendar-today"
-                    size={17}
-                    color="#2E8B69"
-                    style={styles.jummahBannerIcon}
-                  />
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.jummahBannerScroll}
-                    contentContainerStyle={styles.jummahBannerScrollContent}
-                  >
-                    <Text style={styles.jummahBannerTextLine}>
-                      <Text style={styles.jummahBannerLabel}>Jummah Prayers: </Text>
-                      <Text style={styles.jummahBannerTime}>{jumuahTimesLine}</Text>
-                    </Text>
-                  </ScrollView>
-                </View>
-              ) : null}
-            </View>
+            <HeroNewsBar note={countdownInfo.note} showNewsLabel={false} style={styles.scheduleBanner} />
           ) : countdownInfo.note ? (
             <Text style={styles.phaseNote}>{countdownInfo.note}</Text>
           ) : null}
@@ -790,6 +635,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0,
     lineHeight: 21,
+  },
+  flipClockContainer: {
+    marginTop: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   prayerName: {
     fontSize: 36,
@@ -1362,86 +1212,12 @@ const styles = StyleSheet.create({
   scheduleBanner: {
     marginTop: -1,
     marginBottom: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     borderRadius: 12,
-    backgroundColor: 'rgba(7,13,28,0.62)',
+    backgroundColor: 'rgba(7,13,28,0.48)',
     borderWidth: 1,
-    borderColor: 'rgba(164,186,214,0.22)',
-    gap: 6,
-  },
-  scheduleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  jummahBannerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'nowrap',
-  },
-  jummahBannerIcon: {
-    marginRight: 6,
-  },
-  jummahBannerScroll: {
-    flex: 1,
-  },
-  jummahBannerScrollContent: {
-    alignItems: 'center',
-    paddingRight: 6,
-  },
-  jummahBannerTextLine: {
-    fontSize: 14,
-    lineHeight: 18,
-  },
-  jummahBannerLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: 'rgba(248,248,252,0.96)',
-    letterSpacing: 0,
-  },
-  jummahBannerTime: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#2E8B69',
-    letterSpacing: 0,
-  },
-  scheduleHeading: {
-    width: 112,
-    fontSize: 10,
-    fontWeight: '700',
-    color: 'rgba(255,245,213,0.95)',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  schedulePills: {
-    flexDirection: 'row',
-    flexWrap: 'nowrap',
+    borderColor: 'rgba(164,186,214,0.14)',
     gap: 4,
-    flexGrow: 0,
   },
-  schedulePillsViewport: {
-    flex: 1,
-    overflow: 'hidden',
-  },
-  schedulePillsTrack: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    minWidth: '100%',
-  },
-  schedulePillsDuplicate: {
-    marginLeft: SCHEDULE_ROLL_GAP,
-  },
-  schedulePillText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
-    borderRadius: 999,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    overflow: 'hidden',
-  },
-
 });

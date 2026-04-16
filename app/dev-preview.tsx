@@ -13,6 +13,12 @@ interface PreviewItem {
 
 const PREVIEW_ITEMS: PreviewItem[] = [
   {
+    route: 'home-flow-preview-cards',
+    title: 'Homepage Flow Cards',
+    description: 'Quick access cards for Jummah, Eid ul Adha, and Eid ul Adha + Jummah homepage flows',
+    icon: 'dashboard',
+  },
+  {
     route: 'compartment-hero-preview',
     title: 'Donation Hero Redesign',
     description: 'Two modern nonprofit donation hero mockups — impact banner vs story panel',

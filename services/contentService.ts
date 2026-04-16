@@ -596,7 +596,7 @@ export async function fetchSunnahReminders(): Promise<SunnahReminderRow[]> {
     const supabase = getSupabaseClient();
     const { data, error } = await supabase
       .from('sunnah_reminders')
-      .select('id, title, description, reference, category, display_order, is_active')
+      .select('id, title, description, reference, icon, category, display_order, is_active')
       .eq('is_active', true)
       .order('display_order', { ascending: true });
     if (error || !data || data.length === 0) return [];
@@ -605,6 +605,7 @@ export async function fetchSunnahReminders(): Promise<SunnahReminderRow[]> {
       title: string;
       description: string | null;
       reference: string | null;
+      icon: string | null;
       category: string | null;
       display_order: number;
       is_active: boolean;
@@ -613,8 +614,7 @@ export async function fetchSunnahReminders(): Promise<SunnahReminderRow[]> {
       title: row.title,
       description: row.description,
       reference: row.reference,
-      // Current schema doesn't provide card icon in this table, keep a safe default path.
-      icon: null,
+      icon: row.icon ?? 'star',
       friday_only: (row.category ?? '').toLowerCase() === 'friday',
       category: row.category,
       display_order: row.display_order,

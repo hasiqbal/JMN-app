@@ -416,6 +416,134 @@ export function buildFitrJumuahScenarios(eidJamaats: string[]): CombinedScenario
   ];
 }
 
+export function buildAdhaScenarios(eidJamaats: string[]): CombinedScenario[] {
+  const resolvedEidJamaats = eidJamaats.length > 0 ? eidJamaats : ['06:40', '07:10'];
+  const firstEidJamaat = resolvedEidJamaats[0] ?? '06:40';
+  const eidNote = buildEidNote(resolvedEidJamaats);
+  const eidTimelinePoints = [
+    ...resolvedEidJamaats.map((time, index) => ({
+      label: `J${index + 1}`,
+      position: resolvedEidJamaats.length === 1 ? 0.2 : 0.12 + ((0.56 / Math.max(1, resolvedEidJamaats.length - 1)) * index),
+    })),
+    { label: 'Zawaal', position: 1 },
+  ];
+
+  const eidHeroScenarios: CombinedScenario[] = resolvedEidJamaats.map((time, index) => ({
+    id: `eid-adha-jamaat-${index + 1}`,
+    title: 'Eid Prayer',
+    kicker: 'Eid ul Adha',
+    heroKey: 'EidAdha',
+    isEidHero: true,
+    countdownInfo: {
+      label: `${toOrdinal(index + 1)} Eid`,
+      value: index < resolvedEidJamaats.length - 1 ? '00:20:00' : '01:20:00',
+      note: eidNote,
+      flash: false,
+    },
+    progress: Math.min(0.18 + (index * 0.18), 0.78),
+    startLabel: `${toOrdinal(index + 1)} Eid`,
+    startTime: time,
+    endLabel: index < resolvedEidJamaats.length - 1 ? `${toOrdinal(index + 2)} Eid` : 'Zawaal',
+    endTime: index < resolvedEidJamaats.length - 1 ? resolvedEidJamaats[index + 1] : '12:58',
+    showJamaat: false,
+    nextPrayerJamaatValue: '',
+    eidJamaats: resolvedEidJamaats,
+    timelinePoints: eidTimelinePoints,
+  }));
+
+  return [
+    {
+      id: 'maghrib-eve',
+      title: 'Maghrib',
+      kicker: 'Evening before Eid ul Adha',
+      heroKey: 'Maghrib',
+      countdownInfo: { label: 'Until Eid', value: '11:30:00', note: eidNote, flash: false },
+      progress: 0.22,
+      startLabel: 'Start',
+      startTime: '19:48',
+      endLabel: 'Isha',
+      endTime: '21:20',
+      showJamaat: true,
+      jamaatValue: '19:58',
+      nextPrayerJamaatValue: '21:45',
+    },
+    {
+      id: 'isha-eve',
+      title: 'Isha',
+      kicker: 'Night before Eid ul Adha',
+      heroKey: 'Isha',
+      countdownInfo: { label: 'Until Fajr', value: '07:45:00', note: eidNote, flash: false },
+      progress: 0.88,
+      startLabel: 'Isha',
+      startTime: '21:15',
+      endLabel: 'Fajr',
+      endTime: '05:00',
+      showJamaat: true,
+      jamaatValue: '21:45',
+      nextPrayerJamaatValue: '05:30',
+    },
+    {
+      id: 'sunrise-eid-adha-day',
+      title: 'Sunrise',
+      kicker: 'Eid ul Adha Day',
+      heroKey: 'Sunrise',
+      isForbidden: true,
+      forbiddenEndsAt: '06:27',
+      countdownInfo: { label: 'Until Eid', value: '00:38:00', note: eidNote, flash: false },
+      progress: 0.55,
+      startLabel: 'Sunrise',
+      startTime: '06:07',
+      endLabel: 'Eid Prayer',
+      endTime: firstEidJamaat,
+      showJamaat: false,
+      nextPrayerJamaatValue: '',
+      timelinePoints: [{ label: 'Eid', position: 1 }],
+    },
+    ...eidHeroScenarios,
+    {
+      id: 'zawaal-after-final-eid-adha-jamaat',
+      title: 'Zawaal',
+      kicker: 'Prayer Pause Window',
+      heroKey: 'Zawaal',
+      isForbidden: true,
+      forbiddenEndsAt: '12:58',
+      countdownInfo: {
+        label: 'Until Zawaal',
+        value: '00:45:00',
+        note: 'The final eid prayer has been',
+        flash: false,
+      },
+      progress: 0.94,
+      startLabel: `${toOrdinal(resolvedEidJamaats.length)} Jamaat`,
+      startTime: resolvedEidJamaats[resolvedEidJamaats.length - 1] ?? '07:40',
+      endLabel: 'Zawaal',
+      endTime: '12:58',
+      showJamaat: false,
+      nextPrayerJamaatValue: '',
+      timelinePoints: eidTimelinePoints,
+    },
+    {
+      id: 'dhuhr-after-eid',
+      title: 'Dhuhr',
+      kicker: 'Current Prayer',
+      heroKey: 'Dhuhr',
+      countdownInfo: { label: 'Jamaat', value: '00:50:00', note: '', flash: false },
+      progress: 0.36,
+      startLabel: 'Start',
+      startTime: '13:10',
+      endLabel: 'Asr',
+      endTime: '17:56',
+      showJamaat: true,
+      jamaatValue: '14:00',
+      nextPrayerJamaatValue: '18:25',
+      timelinePoints: [
+        { label: 'Jamaat', position: 0.22 },
+        { label: 'Asr', position: 1 },
+      ],
+    },
+  ];
+}
+
 export function buildAdhaJumuahScenarios(eidJamaats: string[]): CombinedScenario[] {
   const resolvedEidJamaats = eidJamaats.length > 0 ? eidJamaats : ['06:40', '07:10'];
   const firstEidJamaat = resolvedEidJamaats[0] ?? '06:40';

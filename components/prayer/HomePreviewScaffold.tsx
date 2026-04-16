@@ -7,7 +7,7 @@ import { PRAYER_BG_IMAGES, PRAYER_GRADIENTS, PRAYER_ICONS } from '@/components/p
 import { Colors, Radius, Spacing, Typography } from '@/constants/theme';
 import { type SharedPreviewScenario } from '@/components/prayer/previewScenarios';
 
-type PreviewMode = 'jumuah' | 'eid-fitr-jumuah' | 'eid-adha-jumuah';
+type PreviewMode = 'jumuah' | 'eid-fitr-jumuah' | 'eid-adha' | 'eid-adha-jumuah';
 
 export type HomePreviewScenario = SharedPreviewScenario & {
   mode: PreviewMode;
@@ -53,6 +53,11 @@ function buildForYouChips(scenario: HomePreviewScenario): string[] {
     return ['Eid planning', 'Takbirat', 'Jummah timings'];
   }
 
+  if (scenario.mode === 'eid-adha') {
+    if (scenario.isEidHero) return ['Takbirat', 'Qurbani reminder', 'Family visit'];
+    return ['Eid prep', 'Qurbani intention', 'Community check-ins'];
+  }
+
   if (scenario.isEidHero) return ['Takbirat', 'Qurbani reminder', 'Family visit'];
   if (scenario.title === 'Jumuah') return ['Salawat', 'Khutbah focus', 'Dua'];
   return ['Eid prep', 'Qurbani intention', 'Jummah timings'];
@@ -72,6 +77,14 @@ function buildAppealCopy(mode: PreviewMode): { eyebrow: string; title: string; b
       eyebrow: 'Seasonal Focus',
       title: 'Support Eid ul Adha Operations',
       body: 'Help manage the masjid day flow for Eid prayers, guests, and Jummah turnout.',
+    };
+  }
+
+  if (mode === 'eid-adha') {
+    return {
+      eyebrow: 'Seasonal Focus',
+      title: 'Support Eid ul Adha Hosting',
+      body: 'Help manage Eid prayer operations, visitor flow, and family support services on the day.',
     };
   }
 
@@ -102,6 +115,16 @@ function buildPrayerList(scenario: HomePreviewScenario) {
   }
 
   if (scenario.mode === 'eid-adha-jumuah') {
+    return [
+      { name: 'Fajr', time: '03:58', iqamah: '05:00' },
+      { name: 'Dhuhr', time: '13:08', iqamah: '14:00' },
+      { name: 'Asr', time: '18:06', iqamah: '18:35' },
+      { name: 'Maghrib', time: '20:11', iqamah: '20:21' },
+      { name: 'Isha', time: '21:46', iqamah: '22:05' },
+    ];
+  }
+
+  if (scenario.mode === 'eid-adha') {
     return [
       { name: 'Fajr', time: '03:58', iqamah: '05:00' },
       { name: 'Dhuhr', time: '13:08', iqamah: '14:00' },

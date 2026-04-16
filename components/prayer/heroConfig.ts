@@ -27,6 +27,7 @@ export const PRAYER_GRADIENTS: Record<string, readonly [string, string, ...strin
 };
 
 export const PRAYER_BG_IMAGES: Record<string, any> = {
+  Tahjjud: require('@/assets/images/sky/tahjjud.jpg'),
   Fajr: require('@/assets/images/sky/fajr.jpg'),
   Sunrise: require('@/assets/images/sky/sunrise.jpg'),
   Ishraq: require('@/assets/images/sky/ishraq.jpg'),
@@ -39,3 +40,21 @@ export const PRAYER_BG_IMAGES: Record<string, any> = {
   Eid: require('@/assets/images/sky/nabwi.jpg'),
   EidAdha: require('@/assets/images/sky/arafat.jpeg'),
 };
+
+// Equal day segments that cycle through every image in assets/images/sky once per day.
+export const SKY_DAY_CYCLE_KEYS = [
+  'Tahjjud',
+  'Fajr',
+  'Sunrise',
+  'Ishraq',
+  'Dhuhr',
+  'Zawaal',
+  'Asr',
+  'Maghrib',
+  'Isha',
+  'Jumuah',
+  'EidAdha',
+] as const;
+
+export const SKY_CROSS_FADE_DURATION_MS = 8000;
+export const SKY_CYCLE_CHECK_MS = 30000;
