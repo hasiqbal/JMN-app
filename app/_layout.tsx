@@ -1,5 +1,6 @@
 import React from 'react';
 import { Stack } from 'expo-router';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AlertProvider } from '@/template';
 import { runInitialTranslationWarmup } from '@/services/translationWarmupService';
@@ -10,12 +11,14 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <AlertProvider>
-      <SafeAreaProvider>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(tabs)" />
-        </Stack>
-      </SafeAreaProvider>
-    </AlertProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AlertProvider>
+        <SafeAreaProvider>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(tabs)" />
+          </Stack>
+        </SafeAreaProvider>
+      </AlertProvider>
+    </GestureHandlerRootView>
   );
 }

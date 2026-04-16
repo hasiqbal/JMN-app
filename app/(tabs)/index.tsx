@@ -13,6 +13,7 @@ import {
   Modal,
   Platform,
 } from 'react-native';
+import BottomSheet from '@gorhom/bottom-sheet';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -31,6 +32,9 @@ import { fetchEidUlAdha, fetchEidUlFitr } from '@/services/eidService';
 import { PRAYER_BG_IMAGES } from '@/components/prayer/heroConfig';
 import { buildHeroState } from '@/components/prayer/heroState';
 import { buildActivePrayerState } from '@/components/prayer/activePrayerState';
+import PrayerDrawerTrigger from '@/components/prayer/PrayerDrawerTrigger';
+import PrayerDrawerSheet from '@/components/prayer/PrayerDrawerSheet';
+import { buildPrayerDrawerRows } from '@/components/prayer/prayerDrawerState';
 import { createDonationCheckoutUrl } from '@/services/donationService';
 import WebView from 'react-native-webview';
 
@@ -121,6 +125,26 @@ const NIGHT = {
   accentGlow:   'rgba(79,233,72,0.16)',
   gold:         '#FBBF24',
   cardShadow:   'rgba(0,0,0,0.30)',
+};
+
+// ── Premium Emerald Palette (Hero + Drawer Redesign) ────────────────────
+const HERO_DESIGN_TOKENS = {
+  // Colors: deep emerald + mint accents
+  emeraldPrimary:     '#1B7547',  // deep emerald for next prayer highlight
+  emeraldLight:       '#2D9D5C',  // medium emerald for accents
+  mintAccent:         '#4FE948',  // bright mint (from NIGHT.accent)
+  mintSoft:           '#A4F2A0',  // soft mint (from NIGHT.accentSoft)
+  // Text: warm off-white
+  textPrimary:        '#F5F3F1',  // warm off-white
+  textSecondary:      '#E8E5E3',  // slightly darker warm white
+  textTertiary:       '#D0CCC8',  // muted warm tone
+  // Overlays & backgrounds
+  overlayStrong:      'rgba(2,9,19,0.48)',  // slightly dark overlay for text clarity
+  overlayMedium:      'rgba(2,9,19,0.38)',
+  overlayLight:       'rgba(2,9,19,0.28)',
+  // Night mode variants
+  nightEmerald:       '#2D9D5C',  // softer green for calm appearance
+  nightMint:          '#4FE948',
 };
 
 // ── Daily rotation helpers ─────────────────────────────────────────────────
@@ -2712,6 +2736,8 @@ export default function HomeScreen() {
   const [donationCheckoutUrl, setDonationCheckoutUrl] = useState<string | null>(null);
   const [showDonationOptions, setShowDonationOptions] = useState(true);
   const [donationStatusMessage, setDonationStatusMessage] = useState<string | null>(null);
+  const [webPrayerDrawerVisible, setWebPrayerDrawerVisible] = useState(false);
+  const prayerSheetRef = useRef<BottomSheet>(null);
   const loadSunnahReminders = useCallback(async () => {
     try {
       const rows = await fetchSunnahReminders();
@@ -2776,8 +2802,6 @@ export default function HomeScreen() {
   } = usePrayerTimes();
   const flashAnim = useRef(new Animated.Value(1)).current;
   const flashLoopRef = useRef<Animated.CompositeAnimation | null>(null);
-  const heroFlipAnim = useRef(new Animated.Value(0)).current;
-  const [heroFlipSide, setHeroFlipSide] = useState<'live' | 'calendar'>('live');
 
   const currentTime = useCurrentTime();
   const nextInfo = React.useMemo(() => (data ? getNextPrayer(data.prayers) : null), [data]);
@@ -3227,54 +3251,46 @@ export default function HomeScreen() {
     return secondsToPrayerEnd > 0 && secondsToPrayerEnd <= endingSoonThreshold;
   }, [isEidHeroWindow, effectiveForbiddenInfo, activePrayer, nextInfo, currentTime]);
 
-  const flipToSide = useCallback((target: 'live' | 'calendar') => {
-    Animated.spring(heroFlipAnim, {
-      toValue: target === 'live' ? 0 : 1,
-      friction: 9,
-      tension: 65,
-      useNativeDriver: true,
-    }).start(() => setHeroFlipSide(target));
-  }, [heroFlipAnim]);
+  const isCompactHeroCountdown = SCREEN_WIDTH < 370;
+  const heroCountdownParts = React.useMemo(() => {
+    const value = (effectiveHeroCountdownInfo.value ?? '').trim();
+    const full = value.match(/^(\d{1,2}):(\d{2}):(\d{2})$/);
+    if (full) {
+      return {
+        hh: full[1].padStart(2, '0'),
+        mm: full[2],
+        ss: full[3],
+      };
+    }
 
-  const toggleHeroFlip = useCallback(() => {
-    flipToSide(heroFlipSide === 'live' ? 'calendar' : 'live');
-  }, [flipToSide, heroFlipSide]);
+    const short = value.match(/^(\d{1,2}):(\d{2})$/);
+    if (short) {
+      return {
+        hh: short[1].padStart(2, '0'),
+        mm: short[2],
+        ss: '00',
+      };
+    }
 
-  useEffect(() => {
-    const id = setInterval(() => {
-      flipToSide(heroFlipSide === 'live' ? 'calendar' : 'live');
-    }, 8500);
-    return () => clearInterval(id);
-  }, [flipToSide, heroFlipSide]);
+    return null;
+  }, [effectiveHeroCountdownInfo.value]);
 
-  const bottomLiveOpacity = heroFlipAnim.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: [1, 0, 0],
-  });
-
-  const bottomCalendarOpacity = heroFlipAnim.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: [0, 0, 1],
-  });
+  // Calendar face removed: timetable now in drawer only
 
   const backClock = currentTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
   const backSeconds = currentTime.toLocaleTimeString('en-GB', { second: '2-digit' });
   const backGregorian = currentTime.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
   const hijriYear = data?.hijriDate?.match(/\b(\d{4})\b/)?.[1] ?? '';
   const backHijri = [hijriDayNum, rawHijriMonthName, hijriYear ? `${hijriYear} AH` : ''].filter(Boolean).join(' ');
+  const drawerDateLine = `${currentTime.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long' })} | ${hijriDayNum || '--'} ${rawHijriMonthName || 'Hijri'}`;
 
-  const todayPrayerRows = React.useMemo(() => {
-    const order = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
-    return order
-      .map((name) => {
-        const prayer = data?.prayers.find((p) => p.name === name);
-        return {
-          name,
-          athan: prayer?.time ?? '--:--',
-          iqamah: prayer?.iqamah && prayer.iqamah !== '-' ? prayer.iqamah : '--:--',
-        };
-      });
-  }, [data?.prayers]);
+  // Row-state priority keeps one clear focus for elders: current > next > past/future.
+  const drawerPrayerRows = React.useMemo(() => buildPrayerDrawerRows({
+    prayers: data?.prayers,
+    now: currentTime,
+    currentPrayerName: activePrayer?.name,
+    nextPrayerName: effectiveNextPrayerName,
+  }), [data?.prayers, currentTime, activePrayer?.name, effectiveNextPrayerName]);
 
   const effectiveHeroImageOpacity = getHeroImageOpacity(currentTime.getHours(), effectiveHeroPrayerName, !!forbiddenInfo);
   const { currentSkySource, nextSkySource, nextSkyOpacity } = useSkyBackgroundCycle();
@@ -3344,6 +3360,27 @@ export default function HomeScreen() {
     setDonationModalVisible(true);
   }, []);
 
+  const openPrayerDrawer = useCallback(() => {
+    if (Platform.OS === 'web') {
+      setWebPrayerDrawerVisible(true);
+      return;
+    }
+    prayerSheetRef.current?.snapToIndex(0);
+  }, []);
+
+  const closePrayerDrawer = useCallback(() => {
+    if (Platform.OS === 'web') {
+      setWebPrayerDrawerVisible(false);
+      return;
+    }
+    prayerSheetRef.current?.close();
+  }, []);
+
+  const openPrayerCalendar = useCallback(() => {
+    closePrayerDrawer();
+    router.push('/(tabs)/prayer');
+  }, [closePrayerDrawer, router]);
+
   return (
     <>
     <ScrollView
@@ -3362,19 +3399,21 @@ export default function HomeScreen() {
       <View style={[styles.heroHeader, { paddingTop: insets.top + 10 }]}> 
         <Image
           source={currentSkySource ?? PRAYER_BG_IMAGES[effectiveHeroImageKey] ?? PRAYER_BG_IMAGES['Dhuhr']}
-          style={StyleSheet.absoluteFillObject}
+          style={[StyleSheet.absoluteFillObject, { opacity: effectiveHeroImageOpacity }]}
           contentFit="cover"
         />
         <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { opacity: nextSkyOpacity }]}> 
           <Image
             source={nextSkySource ?? PRAYER_BG_IMAGES[effectiveHeroImageKey] ?? PRAYER_BG_IMAGES['Dhuhr']}
-            style={StyleSheet.absoluteFillObject}
+            style={[StyleSheet.absoluteFillObject, { opacity: effectiveHeroImageOpacity }]}
             contentFit="cover"
           />
         </Animated.View>
         <LinearGradient
           pointerEvents="none"
-          colors={N ? ['rgba(2,9,19,0.34)', 'rgba(2,9,19,0.84)'] : ['rgba(2,40,74,0.24)', 'rgba(2,40,74,0.82)']}
+          colors={N
+            ? [HERO_DESIGN_TOKENS.overlayMedium, HERO_DESIGN_TOKENS.overlayStrong]
+            : [HERO_DESIGN_TOKENS.overlayLight, HERO_DESIGN_TOKENS.overlayStrong]}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
           style={StyleSheet.absoluteFillObject}
@@ -3398,7 +3437,7 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.dualStatsRow}>
-          <TouchableOpacity activeOpacity={0.96} onPress={toggleHeroFlip} style={styles.prayerFlipShell}>
+          <View style={styles.prayerFlipShell}>
             <View style={styles.prayerFlipFacesWrap}>
               <View style={[styles.prayerFlipFace, styles.prayerFlipLiveFace]}>
                 <LinearGradient
@@ -3416,7 +3455,24 @@ export default function HomeScreen() {
                         <Text style={styles.heroMainHijriText} numberOfLines={1}>{backHijri || 'Hijri date loading...'}</Text>
                       </View>
                       <Text style={styles.prayerLiveName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>{effectiveHeroPrayerName}</Text>
-                      <Text style={styles.prayerLiveCountdown} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.68}>{effectiveHeroCountdownInfo.value}</Text>
+                      {heroCountdownParts ? (
+                        <View style={[styles.prayerLiveCountdownRow, isCompactHeroCountdown && styles.prayerLiveCountdownRowCompact]}>
+                          <View style={[styles.prayerLiveCountdownUnit, isCompactHeroCountdown && styles.prayerLiveCountdownUnitCompact]}>
+                            <Text style={[styles.prayerLiveCountdownUnitValue, isCompactHeroCountdown && styles.prayerLiveCountdownUnitValueCompact]}>{heroCountdownParts.hh}</Text>
+                            <Text style={styles.prayerLiveCountdownUnitLabel}>HH</Text>
+                          </View>
+                          <View style={[styles.prayerLiveCountdownUnit, isCompactHeroCountdown && styles.prayerLiveCountdownUnitCompact]}>
+                            <Text style={[styles.prayerLiveCountdownUnitValue, isCompactHeroCountdown && styles.prayerLiveCountdownUnitValueCompact]}>{heroCountdownParts.mm}</Text>
+                            <Text style={styles.prayerLiveCountdownUnitLabel}>MM</Text>
+                          </View>
+                          <View style={[styles.prayerLiveCountdownUnit, isCompactHeroCountdown && styles.prayerLiveCountdownUnitCompact]}>
+                            <Text style={[styles.prayerLiveCountdownUnitValue, isCompactHeroCountdown && styles.prayerLiveCountdownUnitValueCompact]}>{heroCountdownParts.ss}</Text>
+                            <Text style={styles.prayerLiveCountdownUnitLabel}>SS</Text>
+                          </View>
+                        </View>
+                      ) : (
+                        <Text style={styles.prayerLiveCountdown} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.68}>{effectiveHeroCountdownInfo.value}</Text>
+                      )}
                       <Text style={styles.prayerLiveLabel} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.82}>{effectiveHeroCountdownInfo.label}</Text>
                       {isEndingSoonInHero ? (
                         <View style={styles.liveEndingSoonBadge}>
@@ -3428,95 +3484,16 @@ export default function HomeScreen() {
                         <Text style={styles.prayerLiveJamaat} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>Jamaat {effectiveHeroJamaatValue}</Text>
                       ) : null}
                     </View>
-
-                    <View style={styles.prayerBottomFlipWrap}>
-                      <Animated.View
-                        pointerEvents={heroFlipSide === 'live' ? 'auto' : 'none'}
-                        style={[
-                          styles.prayerBottomFlipFace,
-                          styles.prayerBottomLiveFace,
-                          { opacity: bottomLiveOpacity },
-                        ]}
-                      >
-                        <View style={styles.prayerLiveFooterBlock}>
-                          <View style={styles.prayerLiveDivider} />
-                          <Text style={styles.prayerLiveFlipName} numberOfLines={1}>{effectiveHeroPrayerName}</Text>
-                          <Text style={styles.prayerLiveFlipCountdown} numberOfLines={1}>{effectiveHeroCountdownInfo.value}</Text>
-                          <Text style={styles.prayerLiveFlipLabel} numberOfLines={1}>{effectiveHeroCountdownInfo.label}</Text>
-                          {!!effectiveHeroShowJamaat && !!effectiveHeroJamaatValue ? (
-                            <Text style={styles.prayerLiveFlipJamaat} numberOfLines={1}>Jamaat {effectiveHeroJamaatValue}</Text>
-                          ) : null}
-                        </View>
-                      </Animated.View>
-
-                      <Animated.View
-                        pointerEvents={heroFlipSide === 'calendar' ? 'auto' : 'none'}
-                        style={[
-                          styles.prayerBottomFlipFace,
-                          styles.prayerBottomCalendarFace,
-                          { opacity: bottomCalendarOpacity },
-                        ]}
-                      >
-                        <View style={[styles.prayerCalendarList, N && { borderColor: 'rgba(173,209,234,0.2)', backgroundColor: 'rgba(255,255,255,0.04)' }]}>
-                          <View style={styles.prayerCalendarHeaderRow}>
-                            <Text style={[styles.prayerCalendarHeaderText, N && { color: '#D2E8FA' }]}>Salah</Text>
-                            <Text style={[styles.prayerCalendarHeaderText, styles.prayerCalendarHeaderTime, N && { color: '#D2E8FA' }]}>Athan</Text>
-                            <Text style={[styles.prayerCalendarHeaderText, styles.prayerCalendarHeaderJamaat, N && { color: '#D2E8FA' }]}>Jamaat</Text>
-                          </View>
-                          {todayPrayerRows.map((row) => (
-                            <View
-                              key={row.name}
-                              style={[
-                                styles.prayerCalendarRow,
-                                row.name === effectiveNextPrayerName && styles.prayerCalendarRowNext,
-                                row.name === effectiveNextPrayerName && N && styles.prayerCalendarRowNextNight,
-                              ]}
-                            >
-                              <Text
-                                style={[
-                                  styles.prayerCalendarPrayer,
-                                  N && { color: '#F2F8FC' },
-                                  row.name === effectiveNextPrayerName && styles.prayerCalendarNextText,
-                                ]}
-                              >
-                                {row.name}
-                              </Text>
-                              <Text
-                                style={[
-                                  styles.prayerCalendarTime,
-                                  N && { color: '#EAF4FC' },
-                                  row.name === effectiveNextPrayerName && styles.prayerCalendarNextText,
-                                ]}
-                              >
-                                {row.athan}
-                              </Text>
-                              <Text
-                                style={[
-                                  styles.prayerCalendarIqamah,
-                                  N && { color: '#BFDDF0' },
-                                  row.name === effectiveNextPrayerName && styles.prayerCalendarNextText,
-                                ]}
-                              >
-                                {row.iqamah}
-                              </Text>
-                            </View>
-                          ))}
-                        </View>
-                      </Animated.View>
-                    </View>
                   </View>
                 </LinearGradient>
               </View>
-
-              <View style={styles.prayerFlipHintRow}>
-                <MaterialIcons name="swap-horiz" size={13} color="rgba(223,238,250,0.86)" />
-                <Text style={styles.prayerFlipHintText}>Tap to flip</Text>
-              </View>
             </View>
 
-          </TouchableOpacity>
+          </View>
         </View>
       </View>
+
+      <PrayerDrawerTrigger nightMode={nightMode} onPress={openPrayerDrawer} />
 
       <HeroToDaySectionBridge nightMode={nightMode} />
 
@@ -3611,6 +3588,18 @@ export default function HomeScreen() {
         </View>
       </View>
     </ScrollView>
+
+    <PrayerDrawerSheet
+      bottomSheetRef={prayerSheetRef}
+      rows={drawerPrayerRows}
+      dateLine={drawerDateLine}
+      nightMode={nightMode}
+      bottomInset={insets.bottom}
+      onOpenCalendar={openPrayerCalendar}
+      onIndexChange={() => {}}
+      webVisible={webPrayerDrawerVisible}
+      onWebClose={closePrayerDrawer}
+    />
 
     <Modal
       visible={donationModalVisible}
@@ -3725,6 +3714,7 @@ export default function HomeScreen() {
         )}
       </View>
     </Modal>
+
     </>
   );
 }
@@ -4093,7 +4083,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   prayerFlipFacesWrap: {
-    height: 470,
+    height: Dimensions.get('window').height * 0.34,
     position: 'relative',
     overflow: 'hidden',
     borderTopLeftRadius: 0,
@@ -4129,48 +4119,11 @@ const styles = StyleSheet.create({
   },
   prayerLiveContent: {
     flex: 1,
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     gap: 14,
   },
   prayerLivePrimaryBlock: {
     alignItems: 'center',
-  },
-  prayerLiveFooterBlock: {
-    gap: 6,
-    flex: 1,
-    justifyContent: 'center',
-  },
-  prayerBottomFlipWrap: {
-    marginTop: 10,
-    height: 230,
-    position: 'relative',
-    alignSelf: 'stretch',
-    marginHorizontal: -20,
-    overflow: 'hidden',
-    borderRadius: 0,
-  },
-  prayerBottomFlipFace: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backfaceVisibility: 'hidden',
-    borderRadius: 0,
-    borderWidth: 0,
-    overflow: 'hidden',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  prayerBottomLiveFace: {
-    borderColor: 'rgba(255,255,255,0.22)',
-    backgroundColor: 'rgba(5,36,27,0.14)',
-  },
-  prayerBottomCalendarFace: {
-    borderColor: 'rgba(190,219,242,0.28)',
-    backgroundColor: 'rgba(255,255,255,0.26)',
-    paddingHorizontal: 0,
-    paddingVertical: 0,
   },
   prayerLiveIconOrbit: {
     width: 58,
@@ -4186,19 +4139,64 @@ const styles = StyleSheet.create({
   prayerLiveEyebrow: {
     marginTop: 2,
     textAlign: 'center',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '900',
-    letterSpacing: 1.2,
+    letterSpacing: 1.6,
     textTransform: 'uppercase',
-    color: '#D9E9F8',
+    color: HERO_DESIGN_TOKENS.mintSoft,
   },
   prayerLiveName: {
-    marginTop: 8,
+    marginTop: 10,
     textAlign: 'center',
-    fontSize: 40,
-    lineHeight: 44,
+    fontSize: 38,
+    lineHeight: 42,
     fontWeight: '900',
-    color: '#FFFFFF',
+    color: HERO_DESIGN_TOKENS.textPrimary,
+  },
+  prayerLiveCountdownRow: {
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  prayerLiveCountdownRowCompact: {
+    gap: 5,
+  },
+  prayerLiveCountdownUnit: {
+    minWidth: 72,
+    borderRadius: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    backgroundColor: 'rgba(8,38,24,0.34)',
+    borderWidth: 1,
+    borderColor: 'rgba(164,242,160,0.34)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  prayerLiveCountdownUnitCompact: {
+    minWidth: 62,
+    paddingVertical: 5,
+    paddingHorizontal: 7,
+  },
+  prayerLiveCountdownUnitValue: {
+    fontSize: 29,
+    lineHeight: 32,
+    fontWeight: '900',
+    color: HERO_DESIGN_TOKENS.textPrimary,
+    fontVariant: ['tabular-nums'] as any,
+    letterSpacing: 0.4,
+  },
+  prayerLiveCountdownUnitValueCompact: {
+    fontSize: 24,
+    lineHeight: 27,
+  },
+  prayerLiveCountdownUnitLabel: {
+    marginTop: 1,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    color: HERO_DESIGN_TOKENS.mintSoft,
   },
   prayerLiveCountdown: {
     marginTop: 6,
@@ -4212,10 +4210,10 @@ const styles = StyleSheet.create({
   prayerLiveLabel: {
     marginTop: 4,
     textAlign: 'center',
-    fontSize: 15,
-    lineHeight: 19,
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: '700',
-    color: '#E7F3FF',
+    color: HERO_DESIGN_TOKENS.textSecondary,
   },
   heroMainDateTimeWrap: {
     marginTop: 6,
@@ -4223,81 +4221,34 @@ const styles = StyleSheet.create({
     gap: 1,
   },
   heroMainClockText: {
-    fontSize: 20,
-    lineHeight: 24,
+    fontSize: 22,
+    lineHeight: 26,
     fontWeight: '900',
-    color: '#F3FAFF',
+    color: HERO_DESIGN_TOKENS.textPrimary,
     fontVariant: ['tabular-nums'] as any,
   },
   heroMainSecondsText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
-    color: 'rgba(222,240,255,0.9)',
+    color: HERO_DESIGN_TOKENS.mintSoft,
   },
   heroMainDateText: {
     fontSize: 12,
     lineHeight: 16,
-    fontWeight: '700',
-    color: '#E7F3FF',
+    fontWeight: '800',
+    color: HERO_DESIGN_TOKENS.textSecondary,
   },
   heroMainHijriText: {
     fontSize: 11,
     lineHeight: 15,
     fontWeight: '700',
-    color: 'rgba(210,233,246,0.92)',
+    color: HERO_DESIGN_TOKENS.textTertiary,
   },
   prayerLiveJamaat: {
     marginTop: 4,
     textAlign: 'center',
     fontSize: 13,
     fontWeight: '700',
-    color: '#CFE8FA',
-  },
-  prayerLiveDivider: {
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.34)',
-  },
-  prayerLiveNext: {
-    textAlign: 'center',
-    fontSize: 18,
-    lineHeight: 23,
-    fontWeight: '800',
-    color: '#F0F8FF',
-  },
-  prayerLiveMeta: {
-    textAlign: 'center',
-    fontSize: 13,
-    lineHeight: 17,
-    fontWeight: '700',
-    color: 'rgba(232,243,255,0.9)',
-  },
-  prayerLiveFlipName: {
-    textAlign: 'center',
-    fontSize: 18,
-    lineHeight: 22,
-    fontWeight: '900',
-    color: '#FFFFFF',
-  },
-  prayerLiveFlipCountdown: {
-    textAlign: 'center',
-    fontSize: 34,
-    lineHeight: 38,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    fontVariant: ['tabular-nums'] as any,
-  },
-  prayerLiveFlipLabel: {
-    textAlign: 'center',
-    fontSize: 13,
-    lineHeight: 17,
-    fontWeight: '700',
-    color: '#E7F3FF',
-  },
-  prayerLiveFlipJamaat: {
-    textAlign: 'center',
-    fontSize: 12,
-    lineHeight: 15,
-    fontWeight: '800',
     color: '#CFE8FA',
   },
   prayerCalendarTopRow: {
@@ -4424,27 +4375,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#396C8A',
     fontVariant: ['tabular-nums'] as any,
-  },
-  prayerFlipHintRow: {
-    position: 'absolute',
-    right: 12,
-    bottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: 'rgba(0,0,0,0.22)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  prayerFlipHintText: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.4,
-    color: '#DDEAF7',
-    textTransform: 'uppercase',
   },
   rebuildHeroCard: {
     flex: 1,

@@ -398,6 +398,13 @@ function CalendarPrayerPanel({
   const nextDate = new Date(date);
   nextDate.setDate(nextDate.getDate() + 1);
   const tomorrowLocal = lookupTimetable(nextDate);
+  const isThursday = date.getDay() === 4;
+  const isTomorrowFriday = nextDate.getDay() === 5;
+  const dhuhrIqamahDate = day.iqDhuhr ? parseTimeOnDate(day.iqDhuhr) : null;
+  const shouldUseTomorrowJumuah = isThursday
+    && isTomorrowFriday
+    && (isPastDay || (isSelectedToday && !!dhuhrIqamahDate && now >= dhuhrIqamahDate));
+  const tomorrowJumuahIqamah = tomorrowLocal?.jumuah ?? (isBST(nextDate) ? '13:30' : '12:45');
 
   const baseRows: {
     label: string;
@@ -443,7 +450,7 @@ function CalendarPrayerPanel({
       athan: day.dhuhr,
       iqamah: day.iqDhuhr,
       tomorrowAthan: tomorrowLocal?.dhuhr,
-      tomorrowIqamah: tomorrowLocal?.iqDhuhr,
+      tomorrowIqamah: shouldUseTomorrowJumuah ? tomorrowJumuahIqamah : tomorrowLocal?.iqDhuhr,
     },
     {
       label: 'Asr',
