@@ -28,7 +28,7 @@ import { useSkyBackgroundCycle } from '@/hooks/useSkyBackgroundCycle';
 import { MOCK_ANNOUNCEMENTS } from '@/services/eventsService';
 import { fetchSunnahReminders, SunnahReminderRow } from '@/services/contentService';
 import { fetchEidUlAdha, fetchEidUlFitr } from '@/services/eidService';
-import { PRAYER_BG_IMAGES, PRAYER_GRADIENTS, PRAYER_ICONS } from '@/components/prayer/heroConfig';
+import { PRAYER_BG_IMAGES } from '@/components/prayer/heroConfig';
 import { buildHeroState } from '@/components/prayer/heroState';
 import { buildActivePrayerState } from '@/components/prayer/activePrayerState';
 import { createDonationCheckoutUrl } from '@/services/donationService';
@@ -2134,37 +2134,13 @@ function HeroToDaySectionBridge({ nightMode }: { nightMode: boolean }) {
   );
 }
 
-// ── Zawaal Section Row: Donation (rotating) + Daily Sunnah/Verse card ────
-type RemFace = 'sunnah' | 'verse';
-const REM_FACES: RemFace[] = ['sunnah', 'verse'];
-const REM_DURATION = 5000;
+// ── Zawaal Section Row: Donation card ────────────────────────────────────
 
-function ZawaalSectionRow({ nightMode, todaySunnah, onDonatePress }: {
+function ZawaalSectionRow({ nightMode, onDonatePress }: {
   nightMode: boolean;
-  todaySunnah: SunnahEntry;
   onDonatePress: () => void;
 }) {
   const N = nightMode ? NIGHT : null;
-
-  // ── Sunnah/Verse flip (right card) ──────────────────────────────────
-  const [faceIndex, setFaceIndex] = useState(0);
-  const [displayFace, setDisplayFace] = useState<RemFace>('sunnah');
-  const rotateAnim = useRef(new Animated.Value(0)).current;
-
-  const flipTo = useCallback((nextIndex: number) => {
-    Animated.timing(rotateAnim, { toValue: 1, duration: 320, useNativeDriver: true }).start(() => {
-      setDisplayFace(REM_FACES[nextIndex]);
-      rotateAnim.setValue(-1);
-      Animated.timing(rotateAnim, { toValue: 0, duration: 320, useNativeDriver: true }).start();
-    });
-  }, [rotateAnim]);
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      setFaceIndex(prev => { const next = (prev + 1) % REM_FACES.length; flipTo(next); return next; });
-    }, REM_DURATION);
-    return () => clearInterval(id);
-  }, [flipTo]);
 
   // ── Donation card rotation (left card) ──────────────────────────────
   const [donateStep, setDonateStep] = useState(0);
@@ -2189,13 +2165,6 @@ function ZawaalSectionRow({ nightMode, todaySunnah, onDonatePress }: {
     return () => clearTimeout(id);
   }, [donateStep, advanceDonate]);
 
-  const rotateZ = rotateAnim.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-90deg', '0deg', '90deg'] });
-  const sunnahColor = N ? NIGHT.accent : Colors.primary;
-  const verseColor  = N ? '#4FE948'   : Colors.primary;
-  const cardBg  = N ? '#102131' : '#F2F8F3';
-  const borderC = N ? '#2C4A62' : '#BDD8C4';
-  const textCol = N ? '#EAF5FF' : '#14251E';
-  const subCol  = N ? '#B7CAD8' : '#587165';
   const donateGradient = N ? ['#1B4D38', '#0D3527'] as const : ['#2D8B5F', '#1D6B45'] as const;
   const donateBorder = N ? 'rgba(158,227,196,0.4)' : 'rgba(100,180,140,0.5)';
   const donateText = N ? '#F0FFF8' : '#FFFFFF';
@@ -2252,120 +2221,6 @@ function ZawaalSectionRow({ nightMode, todaySunnah, onDonatePress }: {
           </View>
         </LinearGradient>
       </TouchableOpacity>
-
-      {/* ── Sunnah / Verse flipping card ──────────────────────────────── */}
-      <View style={[zawaalRowStyles.flipCard, { backgroundColor: cardBg, borderColor: borderC }]}>
-        <LinearGradient
-          pointerEvents="none"
-          colors={N ? ['rgba(17,36,52,0.18)', 'rgba(17,36,52,0)'] : ['rgba(122,170,132,0.22)', 'rgba(122,170,132,0)']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0.9, y: 0.2 }}
-          style={zawaalRowStyles.flipBackdropFade}
-        />
-        <View pointerEvents="none" style={[zawaalRowStyles.flipDecorBlob, { backgroundColor: (displayFace === 'sunnah' ? sunnahColor : verseColor) + '14' }]} />
-        <View pointerEvents="none" style={[zawaalRowStyles.flipDecorBlobSoft, { backgroundColor: (displayFace === 'sunnah' ? sunnahColor : verseColor) + '0E' }]} />
-        <Image
-          pointerEvents="none"
-          source={require('../../assets/images/sky/nabwi.jpg')}
-          style={zawaalRowStyles.flipDecorNabwiImage}
-          contentFit="cover"
-        />
-
-        <Animated.View style={[zawaalRowStyles.flipCardInner, { transform: [{ rotateZ }] }]}>
-          {displayFace === 'sunnah' ? (
-            <View style={zawaalRowStyles.flipHeroFace}>
-              <View style={zawaalRowStyles.flipHeroTopRow}>
-                <View style={[zawaalRowStyles.flipHeroIconWrap, { backgroundColor: sunnahColor + '1C' }]}>
-                  <Image
-                    source={require('../../assets/images/sky/nabwi.jpg')}
-                    style={zawaalRowStyles.flipHeroIconImage}
-                    contentFit="cover"
-                  />
-                </View>
-                <View style={zawaalRowStyles.flipHeroHeaderTextWrap}>
-                  <Text style={[zawaalRowStyles.flipHeroEyebrow, { color: sunnahColor }]}>Daily Sunnah</Text>
-                  <Text style={[zawaalRowStyles.flipHeroHeading, { color: textCol }]}>Daily Sunnah</Text>
-                  <Text style={[zawaalRowStyles.flipHeroSub, { color: subCol }]}>Practice it before the day ends.</Text>
-                </View>
-                <View style={[zawaalRowStyles.flipHeroTodayPill, { backgroundColor: sunnahColor + '1A' }]}>
-                  <MaterialIcons name="calendar-today" size={10} color={sunnahColor} />
-                  <Text style={[zawaalRowStyles.flipHeroTodayText, { color: sunnahColor }]}>Today</Text>
-                </View>
-              </View>
-
-              <Text style={[zawaalRowStyles.flipHeroAct, { color: textCol }]} numberOfLines={2}>{todaySunnah.act}</Text>
-              {!!todaySunnah.detail && (
-                <Text style={[zawaalRowStyles.flipHeroDetail, { color: subCol }]} numberOfLines={3}>{todaySunnah.detail}</Text>
-              )}
-
-              {!!todaySunnah.ref && (
-                <View style={zawaalRowStyles.flipHeroRefRow}>
-                  <MaterialIcons name="book" size={11} color={sunnahColor} />
-                  <Text style={[zawaalRowStyles.flipHeroRefText, { color: sunnahColor }]}>{todaySunnah.ref}</Text>
-                </View>
-              )}
-
-              <LinearGradient
-                colors={N ? ['#2E7B5D', '#0F5A43'] : ['#1D9A61', '#0F6A52']}
-                start={{ x: 0, y: 0.5 }}
-                end={{ x: 1, y: 0.5 }}
-                style={zawaalRowStyles.flipHeroCtaBtn}
-              >
-                <MaterialIcons name="book" size={12} color="#EAF9F0" />
-                <Text style={zawaalRowStyles.flipHeroCtaText}>Open Sunnah</Text>
-                <MaterialIcons name="arrow-forward" size={12} color="#EAF9F0" />
-              </LinearGradient>
-            </View>
-          ) : (
-            <View style={zawaalRowStyles.flipHeroFace}>
-              <View style={zawaalRowStyles.flipHeroTopRow}>
-                <View style={[zawaalRowStyles.flipHeroIconWrap, { backgroundColor: verseColor + '1C' }]}>
-                  <MaterialIcons name="menu-book" size={15} color={verseColor} />
-                </View>
-                <View style={zawaalRowStyles.flipHeroHeaderTextWrap}>
-                  <Text style={[zawaalRowStyles.flipHeroEyebrow, { color: verseColor }]}>Verse of the Day</Text>
-                  <Text style={[zawaalRowStyles.flipHeroHeading, { color: textCol }]}>Daily Verse</Text>
-                  <Text style={[zawaalRowStyles.flipHeroSub, { color: subCol }]}>Reflect and carry it with you.</Text>
-                </View>
-                <View style={[zawaalRowStyles.flipHeroTodayPill, { backgroundColor: verseColor + '1A' }]}>
-                  <MaterialIcons name="calendar-today" size={10} color={verseColor} />
-                  <Text style={[zawaalRowStyles.flipHeroTodayText, { color: verseColor }]}>Today</Text>
-                </View>
-              </View>
-
-              <Text style={[zawaalRowStyles.flipHeroArabic, { color: verseColor }]} numberOfLines={2}>{todayVerse.arabic}</Text>
-              <Text style={[zawaalRowStyles.flipHeroDetail, { color: textCol }]} numberOfLines={3}>{todayVerse.translation}</Text>
-              <View style={zawaalRowStyles.flipHeroRefRow}>
-                <MaterialIcons name="book" size={11} color={verseColor} />
-                <Text style={[zawaalRowStyles.flipHeroRefText, { color: verseColor }]}>{todayVerse.ref}</Text>
-              </View>
-
-              <LinearGradient
-                colors={N ? ['#355F92', '#254A74'] : ['#3E7DBA', '#2F6494']}
-                start={{ x: 0, y: 0.5 }}
-                end={{ x: 1, y: 0.5 }}
-                style={zawaalRowStyles.flipHeroCtaBtn}
-              >
-                <MaterialIcons name="menu-book" size={12} color="#ECF5FF" />
-                <Text style={zawaalRowStyles.flipHeroCtaText}>Open Verse</Text>
-                <MaterialIcons name="arrow-forward" size={12} color="#ECF5FF" />
-              </LinearGradient>
-            </View>
-          )}
-        </Animated.View>
-        <View style={[zawaalRowStyles.dots, { borderTopColor: borderC }]}>
-          {REM_FACES.map((_, i) => (
-            <View
-              key={i}
-              style={[
-                zawaalRowStyles.dot,
-                { backgroundColor: borderC },
-                i === faceIndex && { backgroundColor: N ? '#69A8FF' : Colors.primary, width: 14 },
-              ]}
-            />
-          ))}
-        </View>
-      </View>
     </View>
   );
 }
@@ -2966,7 +2821,6 @@ export default function HomeScreen() {
   // Falls back to Gregorian day-of-year mod 30 until Hijri data loads
   const hijriDayInt  = parseInt(hijriDayNum || '0', 10) || ((DAY_OF_YEAR % 30) + 1);
 
-  const nextPrayerTime = data?.prayers.find(p => p.name === nextPrayerName)?.time ?? '';
   const nextIqamah = nextInfo?.prayer.iqamah && nextInfo.prayer.iqamah !== '-' ? nextInfo.prayer.iqamah : null;
   const fajrPrayer = data?.prayers.find(p => p.name === 'Fajr');
   const dhuhrPrayer = data?.prayers.find(p => p.name === 'Dhuhr');
@@ -2974,7 +2828,6 @@ export default function HomeScreen() {
 
   const {
     heroImageKey,
-    heroGradientColors,
     heroProgress,
     heroAthanMarker,
     heroJamaatMarker,
@@ -3145,7 +2998,7 @@ export default function HomeScreen() {
   // Compute today's sunnah from DB (fallback to SUNNAH_REMINDERS)
   const computedTodaySunnah: SunnahEntry = (() => {
     if (dbSunnahs.length === 0) {
-      return { act: 'Adhkar coming soon.', detail: '', ref: '', icon: 'star' };
+      return { act: '', detail: '', ref: '', icon: 'star' };
     }
     const filtered = isFriday ? dbSunnahs : dbSunnahs.filter(s => !s.friday_only);
     const pool = filtered.length > 0 ? filtered : dbSunnahs;
@@ -3257,7 +3110,6 @@ export default function HomeScreen() {
   const effectiveHeroMidLabel = (isFridayPostZawaal || isEidHeroWindow) ? '' : heroMidLabel;
   const effectiveHeroMidTime = (isFridayPostZawaal || isEidHeroWindow) ? '' : heroMidTime;
   const currentPrayerIqamah = activePrayer?.iqamah && activePrayer.iqamah !== '-' ? activePrayer.iqamah : null;
-  const asrIqamah = asrPrayer?.iqamah && asrPrayer.iqamah !== '-' ? asrPrayer.iqamah : null;
   const hasExplicitHeroMidEvent = !!effectiveHeroMidLabel && !!effectiveHeroMidTime;
   const isSpecialHeroPhase = ['Sunrise', 'Ishraq', 'Zawaal'].includes(effectiveHeroPrayerName);
   const heroPrayerSupportsJamaat = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha', 'Jumuah'].includes(effectiveHeroPrayerName);
@@ -3273,12 +3125,6 @@ export default function HomeScreen() {
   })();
   const effectiveHeroShowJamaat = !!effectiveHeroJamaatValue;
   const effectiveNextPrayerName = isFridayPostZawaal ? 'Asr' : nextPrayerName;
-  const effectiveNextPrayerTime = isFridayPostZawaal
-    ? (asrPrayer?.time ?? nextPrayerTime)
-    : (nextInfo?.prayer.time ?? nextPrayerTime);
-  const effectiveNextPrayerJamaatValue = isFridayPostZawaal
-    ? (asrIqamah ?? '')
-    : (nextIqamah ?? '');
 
   const isEidHero = isEidHeroWindow;
 
@@ -3369,11 +3215,9 @@ export default function HomeScreen() {
     : isEidHeroWindow
     ? activeEidLabel
     : (effectiveForbiddenInfo ? 'Prayer Pause Window' : (activePrayer ? 'Current Prayer' : 'Up Next Prayer'));
-  const effectiveHeroGradientColors = isNonJumuahEidPostFinalHero
-    ? PRAYER_GRADIENTS.Zawaal
-    : isEidHeroWindow
-    ? (activeEidType === 'eid_al_adha' ? PRAYER_GRADIENTS.EidAdha : PRAYER_GRADIENTS.Eid)
-    : heroGradientColors;
+  const effectiveHeroGradientColors: readonly [string, string] = nightMode
+    ? ['#1B4D38', '#0D3527']
+    : ['#2D8B5F', '#1D6B45'];
 
   const isEndingSoonInHero = React.useMemo(() => {
     if (isEidHeroWindow || effectiveForbiddenInfo || !activePrayer || !nextInfo) return false;
@@ -3403,14 +3247,14 @@ export default function HomeScreen() {
     return () => clearInterval(id);
   }, [flipToSide, heroFlipSide]);
 
-  const liveFaceRotate = heroFlipAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '180deg'],
+  const bottomLiveOpacity = heroFlipAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [1, 0, 0],
   });
 
-  const calendarFaceRotate = heroFlipAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['180deg', '360deg'],
+  const bottomCalendarOpacity = heroFlipAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0, 0, 1],
   });
 
   const backClock = currentTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -3556,15 +3400,7 @@ export default function HomeScreen() {
         <View style={styles.dualStatsRow}>
           <TouchableOpacity activeOpacity={0.96} onPress={toggleHeroFlip} style={styles.prayerFlipShell}>
             <View style={styles.prayerFlipFacesWrap}>
-              <Animated.View
-                style={[
-                  styles.prayerFlipFace,
-                  styles.prayerFlipLiveFace,
-                  {
-                    transform: [{ perspective: 1400 }, { rotateY: liveFaceRotate }],
-                  },
-                ]}
-              >
+              <View style={[styles.prayerFlipFace, styles.prayerFlipLiveFace]}>
                 <LinearGradient
                   colors={effectiveHeroGradientColors}
                   start={{ x: 0, y: 0 }}
@@ -3573,10 +3409,12 @@ export default function HomeScreen() {
                 >
                   <View style={styles.prayerLiveContent}>
                     <View style={styles.prayerLivePrimaryBlock}>
-                      <View style={styles.prayerLiveIconOrbit}>
-                        <MaterialIcons name={(PRAYER_ICONS[effectiveHeroPrayerName] ?? 'schedule') as any} size={28} color="#DCE8FF" />
+                      {!alertMode ? <Text style={styles.prayerLiveEyebrow}>{effectiveHeroKicker}</Text> : null}
+                      <View style={styles.heroMainDateTimeWrap}>
+                        <Text style={styles.heroMainClockText}>{backClock} <Text style={styles.heroMainSecondsText}>{backSeconds} sec</Text></Text>
+                        <Text style={styles.heroMainDateText} numberOfLines={1}>{backGregorian}</Text>
+                        <Text style={styles.heroMainHijriText} numberOfLines={1}>{backHijri || 'Hijri date loading...'}</Text>
                       </View>
-                      <Text style={styles.prayerLiveEyebrow}>{alertMode ? 'Jamaat Live Alert' : effectiveHeroKicker}</Text>
                       <Text style={styles.prayerLiveName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>{effectiveHeroPrayerName}</Text>
                       <Text style={styles.prayerLiveCountdown} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.68}>{effectiveHeroCountdownInfo.value}</Text>
                       <Text style={styles.prayerLiveLabel} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.82}>{effectiveHeroCountdownInfo.label}</Text>
@@ -3590,63 +3428,85 @@ export default function HomeScreen() {
                         <Text style={styles.prayerLiveJamaat} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>Jamaat {effectiveHeroJamaatValue}</Text>
                       ) : null}
                     </View>
-                    <View style={styles.prayerLiveFooterBlock}>
-                      <View style={styles.prayerLiveDivider} />
-                      <Text style={styles.prayerLiveNext} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.82}>
-                        Next: {effectiveNextPrayerName} {effectiveNextPrayerTime}{effectiveNextPrayerJamaatValue ? ` • ${effectiveNextPrayerJamaatValue}` : ''}
-                      </Text>
-                      <Text style={styles.prayerLiveMeta} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.84}>
-                        {effectiveHeroStartLabel} {effectiveHeroStartTime} • {effectiveHeroEndLabel} {effectiveHeroEndTime}{isEidHero ? ' • Eid schedule' : ''}
-                      </Text>
+
+                    <View style={styles.prayerBottomFlipWrap}>
+                      <Animated.View
+                        pointerEvents={heroFlipSide === 'live' ? 'auto' : 'none'}
+                        style={[
+                          styles.prayerBottomFlipFace,
+                          styles.prayerBottomLiveFace,
+                          { opacity: bottomLiveOpacity },
+                        ]}
+                      >
+                        <View style={styles.prayerLiveFooterBlock}>
+                          <View style={styles.prayerLiveDivider} />
+                          <Text style={styles.prayerLiveFlipName} numberOfLines={1}>{effectiveHeroPrayerName}</Text>
+                          <Text style={styles.prayerLiveFlipCountdown} numberOfLines={1}>{effectiveHeroCountdownInfo.value}</Text>
+                          <Text style={styles.prayerLiveFlipLabel} numberOfLines={1}>{effectiveHeroCountdownInfo.label}</Text>
+                          {!!effectiveHeroShowJamaat && !!effectiveHeroJamaatValue ? (
+                            <Text style={styles.prayerLiveFlipJamaat} numberOfLines={1}>Jamaat {effectiveHeroJamaatValue}</Text>
+                          ) : null}
+                        </View>
+                      </Animated.View>
+
+                      <Animated.View
+                        pointerEvents={heroFlipSide === 'calendar' ? 'auto' : 'none'}
+                        style={[
+                          styles.prayerBottomFlipFace,
+                          styles.prayerBottomCalendarFace,
+                          { opacity: bottomCalendarOpacity },
+                        ]}
+                      >
+                        <View style={[styles.prayerCalendarList, N && { borderColor: 'rgba(173,209,234,0.2)', backgroundColor: 'rgba(255,255,255,0.04)' }]}>
+                          <View style={styles.prayerCalendarHeaderRow}>
+                            <Text style={[styles.prayerCalendarHeaderText, N && { color: '#D2E8FA' }]}>Salah</Text>
+                            <Text style={[styles.prayerCalendarHeaderText, styles.prayerCalendarHeaderTime, N && { color: '#D2E8FA' }]}>Athan</Text>
+                            <Text style={[styles.prayerCalendarHeaderText, styles.prayerCalendarHeaderJamaat, N && { color: '#D2E8FA' }]}>Jamaat</Text>
+                          </View>
+                          {todayPrayerRows.map((row) => (
+                            <View
+                              key={row.name}
+                              style={[
+                                styles.prayerCalendarRow,
+                                row.name === effectiveNextPrayerName && styles.prayerCalendarRowNext,
+                                row.name === effectiveNextPrayerName && N && styles.prayerCalendarRowNextNight,
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.prayerCalendarPrayer,
+                                  N && { color: '#F2F8FC' },
+                                  row.name === effectiveNextPrayerName && styles.prayerCalendarNextText,
+                                ]}
+                              >
+                                {row.name}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.prayerCalendarTime,
+                                  N && { color: '#EAF4FC' },
+                                  row.name === effectiveNextPrayerName && styles.prayerCalendarNextText,
+                                ]}
+                              >
+                                {row.athan}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.prayerCalendarIqamah,
+                                  N && { color: '#BFDDF0' },
+                                  row.name === effectiveNextPrayerName && styles.prayerCalendarNextText,
+                                ]}
+                              >
+                                {row.iqamah}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      </Animated.View>
                     </View>
                   </View>
                 </LinearGradient>
-              </Animated.View>
-
-              <Animated.View
-                style={[
-                  styles.prayerFlipFace,
-                  styles.prayerFlipCalendarFace,
-                  {
-                    transform: [{ perspective: 1400 }, { rotateY: calendarFaceRotate }],
-                  },
-                ]}
-              >
-                <LinearGradient
-                  colors={N ? ['#112738', '#0B1A28'] : ['#F5FBFF', '#E6F2FB']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.prayerFlipGradientFill}
-                >
-                  <View style={styles.prayerCalendarTopRow}>
-                    <View>
-                      <Text style={[styles.prayerCalendarClock, N && { color: '#F7FBFF' }]}>{backClock}</Text>
-                      <Text style={[styles.prayerCalendarSeconds, N && { color: '#B8D4E9' }]}>{backSeconds} sec</Text>
-                    </View>
-                    <TouchableOpacity
-                      activeOpacity={0.85}
-                      onPress={() => router.push('/(tabs)/prayer?view=month' as any)}
-                      style={[styles.prayerCalendarOpenBtn, N && { borderColor: 'rgba(190,219,242,0.38)', backgroundColor: 'rgba(255,255,255,0.08)' }]}
-                    >
-                      <MaterialIcons name="calendar-month" size={14} color={N ? '#D2E8FA' : '#1D5F87'} />
-                      <Text style={[styles.prayerCalendarOpenText, N && { color: '#D2E8FA' }]}>Open Calendar</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  <Text style={[styles.prayerCalendarDate, N && { color: '#DAECF9' }]} numberOfLines={1}>{backGregorian}</Text>
-                  <Text style={[styles.prayerCalendarHijri, N && { color: '#A6C8DE' }]} numberOfLines={1}>{backHijri || 'Hijri date loading...'}</Text>
-
-                  <View style={[styles.prayerCalendarList, N && { borderColor: 'rgba(173,209,234,0.2)', backgroundColor: 'rgba(255,255,255,0.04)' }]}>
-                    {todayPrayerRows.map((row) => (
-                      <View key={row.name} style={styles.prayerCalendarRow}>
-                        <Text style={[styles.prayerCalendarPrayer, N && { color: '#F2F8FC' }]}>{row.name}</Text>
-                        <Text style={[styles.prayerCalendarTime, N && { color: '#EAF4FC' }]}>{row.athan}</Text>
-                        <Text style={[styles.prayerCalendarIqamah, N && { color: '#BFDDF0' }]}>Iqamah {row.iqamah}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </LinearGradient>
-              </Animated.View>
+              </View>
 
               <View style={styles.prayerFlipHintRow}>
                 <MaterialIcons name="swap-horiz" size={13} color="rgba(223,238,250,0.86)" />
@@ -3665,7 +3525,6 @@ export default function HomeScreen() {
           <View style={[styles.body, N && { backgroundColor: 'transparent' }]}> 
             <ZawaalSectionRow
               nightMode={nightMode}
-              todaySunnah={computedTodaySunnah}
               onDonatePress={openDonationCheckout}
             />
 
@@ -3691,7 +3550,9 @@ export default function HomeScreen() {
 
             <View style={[styles.hadithCard, styles.hadithCardInBody, N && { backgroundColor: N.surface, borderColor: N.border }]}> 
               <Text style={[styles.hadithKicker, N && { color: N.accentSoft }]}>Sunnah Reminder</Text>
-              <Text style={[styles.hadithBody, N && { color: N.text }]} numberOfLines={2}>{computedTodaySunnah.act}</Text>
+              {!!computedTodaySunnah.act && (
+                <Text style={[styles.hadithBody, N && { color: N.text }]} numberOfLines={2}>{computedTodaySunnah.act}</Text>
+              )}
               {!!computedTodaySunnah.ref ? (
                 <Text style={[styles.hadithRef, N && { color: N.textSub }]} numberOfLines={1}>- {computedTodaySunnah.ref}</Text>
               ) : null}
@@ -4017,9 +3878,8 @@ const styles = StyleSheet.create({
     color: '#466858',
   },
   heroHeader: {
-    paddingBottom: 8,
+    paddingBottom: 0,
     overflow: 'hidden',
-    minHeight: 575,
     backgroundColor: '#0E2E52',
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
@@ -4228,25 +4088,24 @@ const styles = StyleSheet.create({
   },
   prayerFlipShell: {
     width: '100%',
-    borderRadius: 28,
+    borderRadius: 0,
     position: 'relative',
     overflow: 'hidden',
   },
   prayerFlipFacesWrap: {
-    height: 430,
+    height: 470,
     position: 'relative',
     overflow: 'hidden',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
   },
   prayerFlipFace: {
     ...StyleSheet.absoluteFillObject,
     backfaceVisibility: 'hidden',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.24)',
+    borderWidth: 0,
   },
   prayerFlipLiveFace: {
     shadowColor: '#021F35',
@@ -4266,7 +4125,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 18,
-    paddingBottom: 40,
+    paddingBottom: 0,
   },
   prayerLiveContent: {
     flex: 1,
@@ -4278,6 +4137,40 @@ const styles = StyleSheet.create({
   },
   prayerLiveFooterBlock: {
     gap: 6,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  prayerBottomFlipWrap: {
+    marginTop: 10,
+    height: 230,
+    position: 'relative',
+    alignSelf: 'stretch',
+    marginHorizontal: -20,
+    overflow: 'hidden',
+    borderRadius: 0,
+  },
+  prayerBottomFlipFace: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backfaceVisibility: 'hidden',
+    borderRadius: 0,
+    borderWidth: 0,
+    overflow: 'hidden',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  prayerBottomLiveFace: {
+    borderColor: 'rgba(255,255,255,0.22)',
+    backgroundColor: 'rgba(5,36,27,0.14)',
+  },
+  prayerBottomCalendarFace: {
+    borderColor: 'rgba(190,219,242,0.28)',
+    backgroundColor: 'rgba(255,255,255,0.26)',
+    paddingHorizontal: 0,
+    paddingVertical: 0,
   },
   prayerLiveIconOrbit: {
     width: 58,
@@ -4291,7 +4184,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.14)',
   },
   prayerLiveEyebrow: {
-    marginTop: 10,
+    marginTop: 2,
     textAlign: 'center',
     fontSize: 12,
     fontWeight: '900',
@@ -4300,7 +4193,7 @@ const styles = StyleSheet.create({
     color: '#D9E9F8',
   },
   prayerLiveName: {
-    marginTop: 6,
+    marginTop: 8,
     textAlign: 'center',
     fontSize: 40,
     lineHeight: 44,
@@ -4323,6 +4216,35 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     fontWeight: '700',
     color: '#E7F3FF',
+  },
+  heroMainDateTimeWrap: {
+    marginTop: 6,
+    alignItems: 'center',
+    gap: 1,
+  },
+  heroMainClockText: {
+    fontSize: 20,
+    lineHeight: 24,
+    fontWeight: '900',
+    color: '#F3FAFF',
+    fontVariant: ['tabular-nums'] as any,
+  },
+  heroMainSecondsText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(222,240,255,0.9)',
+  },
+  heroMainDateText: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+    color: '#E7F3FF',
+  },
+  heroMainHijriText: {
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '700',
+    color: 'rgba(210,233,246,0.92)',
   },
   prayerLiveJamaat: {
     marginTop: 4,
@@ -4348,6 +4270,35 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     fontWeight: '700',
     color: 'rgba(232,243,255,0.9)',
+  },
+  prayerLiveFlipName: {
+    textAlign: 'center',
+    fontSize: 18,
+    lineHeight: 22,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+  prayerLiveFlipCountdown: {
+    textAlign: 'center',
+    fontSize: 34,
+    lineHeight: 38,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    fontVariant: ['tabular-nums'] as any,
+  },
+  prayerLiveFlipLabel: {
+    textAlign: 'center',
+    fontSize: 13,
+    lineHeight: 17,
+    fontWeight: '700',
+    color: '#E7F3FF',
+  },
+  prayerLiveFlipJamaat: {
+    textAlign: 'center',
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: '800',
+    color: '#CFE8FA',
   },
   prayerCalendarTopRow: {
     flexDirection: 'row',
@@ -4397,18 +4348,59 @@ const styles = StyleSheet.create({
     color: '#43708C',
   },
   prayerCalendarList: {
-    marginTop: 12,
-    borderRadius: 16,
+    marginTop: 0,
+    borderRadius: 0,
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderWidth: 1,
     borderColor: 'rgba(28,98,138,0.16)',
-    backgroundColor: 'rgba(255,255,255,0.52)',
-    gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.68)',
+    gap: 5,
+    flex: 1,
+    width: '100%',
+  },
+  prayerCalendarHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(28,98,138,0.2)',
+    paddingBottom: 5,
+    marginBottom: 2,
+  },
+  prayerCalendarHeaderText: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    color: '#43708C',
+  },
+  prayerCalendarHeaderTime: {
+    width: 58,
+    textAlign: 'right',
+  },
+  prayerCalendarHeaderJamaat: {
+    marginLeft: 10,
+    width: 74,
+    textAlign: 'right',
   },
   prayerCalendarRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  prayerCalendarRowNext: {
+    backgroundColor: 'rgba(46,125,50,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(46,125,50,0.42)',
+  },
+  prayerCalendarRowNextNight: {
+    backgroundColor: 'rgba(79,233,72,0.18)',
+    borderColor: 'rgba(164,242,160,0.5)',
+  },
+  prayerCalendarNextText: {
+    color: '#145A32',
   },
   prayerCalendarPrayer: {
     flex: 1,
@@ -4426,7 +4418,7 @@ const styles = StyleSheet.create({
   },
   prayerCalendarIqamah: {
     marginLeft: 10,
-    width: 90,
+    width: 74,
     textAlign: 'right',
     fontSize: 11,
     fontWeight: '700',
