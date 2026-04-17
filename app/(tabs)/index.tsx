@@ -44,14 +44,14 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 
 // ── Time-of-day hero gradient ──────────────────────────────────────────────
 function getHeroImageOpacity(hour: number, prayerName: string, isForbidden: boolean): number {
-  if (isForbidden) return 0.84;
+  if (isForbidden) return 0.9;
   if (prayerName === 'Fajr') return 1;
-  if (prayerName === 'Sunrise' || prayerName === 'Ishraq') return 0.97;
-  if (prayerName === 'Maghrib') return 0.98;
-  if (prayerName === 'Isha') return 0.9;
-  if (hour >= 22 || hour < 4) return 0.88;
-  if (hour >= 17 && hour < 20) return 0.97;
-  return 0.93;
+  if (prayerName === 'Sunrise' || prayerName === 'Ishraq') return 0.99;
+  if (prayerName === 'Maghrib') return 1;
+  if (prayerName === 'Isha') return 0.95;
+  if (hour >= 22 || hour < 4) return 0.93;
+  if (hour >= 17 && hour < 20) return 0.99;
+  return 0.97;
 }
 
 function getFullDayTimelineProgress(
@@ -140,9 +140,9 @@ const HERO_DESIGN_TOKENS = {
   textSecondary:      '#E8E5E3',  // slightly darker warm white
   textTertiary:       '#D0CCC8',  // muted warm tone
   // Overlays & backgrounds
-  overlayStrong:      'rgba(2,9,19,0.4)',  // slightly dark overlay for text clarity
-  overlayMedium:      'rgba(2,9,19,0.3)',
-  overlayLight:       'rgba(2,9,19,0.2)',
+  overlayStrong:      'rgba(2,9,19,0.32)', // keep a stronger floor for text clarity
+  overlayMedium:      'rgba(2,9,19,0.24)',
+  overlayLight:       'rgba(2,9,19,0.16)',
   // Night mode variants
   nightEmerald:       '#2D9D5C',  // softer green for calm appearance
   nightMint:          '#4FE948',
@@ -223,6 +223,15 @@ function isShawwalMonth(hijriMonth: string): boolean {
   );
 }
 
+function isRamadanMonth(hijriMonth: string): boolean {
+  const normalized = normalizeMonthKey(hijriMonth);
+  return (
+    normalized === 'ramadan'
+    || normalized === 'ramadhan'
+    || normalized === 'ramzan'
+  );
+}
+
 // ── Hadith of the Day ────────────────────────────────────────────────────
 const HADITHS = [
   { text: "The best of you are those who learn the Quran and teach it.", ref: "Sahih al-Bukhari 5027" },
@@ -285,11 +294,6 @@ const PRAYER_ICONS_HOME: Record<string, string> = {
 
 // ── Small Next Prayer Flipping Card ──────────────────────────────────────
 const JAMAAT_FLASH_DURATION_MS = 60 * 1000;
-
-const PRAYER_ALERT_ICONS_MAP: Record<string, string> = {
-  Fajr: 'wb-twilight', Dhuhr: 'wb-sunny', Asr: 'wb-cloudy',
-  Maghrib: 'nights-stay', Isha: 'nightlight-round', Jumuah: 'star',
-};
 
 type PrayerCardFace = 'prayer' | 'donate';
 const PRAYER_CARD_FACES: PrayerCardFace[] = ['prayer', 'donate'];
@@ -393,7 +397,18 @@ export function SmallFlippingPrayerCard({
   const alertGrad: readonly [string, string]  = PRAYER_CARD_GRADIENTS[activePrayer?.name ?? ''] ?? ['#0A3D88', '#155FBE'];
   const activeGrad = alertMode ? alertGrad : (displayFace === 'donate' ? donateGrad : prayerGrad);
   const prayerIcon = (PRAYER_ICONS_HOME[nextPrayerName] ?? 'access-time') as any;
-  const alertIcon  = (PRAYER_ALERT_ICONS_MAP[activePrayer?.name ?? ''] ?? 'access-time') as any;
+  const isZawaalNow = activePrayer?.name === 'Zawaal';
+  const nextStripText = nextPrayerIqamah
+    ? `Athan ${nextPrayerTime}  •  Iqamah ${nextPrayerIqamah}`
+    : `Athan ${nextPrayerTime}`;
+  const alertStripText = isZawaalNow
+    ? 'Zawaal now - forbidden period'
+    : (jamaatStarted
+      ? 'Jamaat is now'
+      : (hasJamaat ? `Jamaat in ${jamaatCountdown}` : 'No Jamaat set'));
+  const alertStripIcon = isZawaalNow
+    ? 'block'
+    : (jamaatStarted ? 'groups' : (hasJamaat ? 'schedule' : 'check-circle'));
 
   return (
     <TouchableOpacity
@@ -411,63 +426,75 @@ export function SmallFlippingPrayerCard({
 
         {alertMode ? (
           // ── ALERT FACE: prayer has begun ──────────────────────────────────
-          <View style={[smallFlipStyles.face, { gap: 6 }]}>
-            <Animated.View style={[smallFlipStyles.prayerIconRing, { opacity: jamaatStarted ? flashAnim : 1 }]}>
-              <MaterialIcons name={alertIcon} size={22} color="rgba(255,255,255,0.95)" />
-            </Animated.View>
-            <View style={{ alignItems: 'center' }}>
-              <Text style={[styles.nextPrayerSquareLabel, { fontSize: 9 }]}>Time has begun</Text>
-              <Text style={[styles.nextPrayerSquareName, { fontSize: 22, fontWeight: '900' }]}>
+          <View style={[smallFlipStyles.face, { gap: 9, paddingHorizontal: 10, paddingVertical: 8 }]}>
+            <View style={{ alignItems: 'center', gap: 2 }}>
+              <Text style={prayerHierarchyStyles.topLabel}>Current Prayer</Text>
+              <Animated.Text
+                style={[prayerHierarchyStyles.mainValue, { opacity: jamaatStarted ? flashAnim : 1 }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
                 {activePrayer!.name}
-              </Text>
+              </Animated.Text>
             </View>
-            <View style={styles.squareDivider2} />
-            {jamaatStarted ? (
-              <Animated.View style={[smallAlertStyles.jamaatPill, { opacity: flashAnim }]}>
-                <MaterialIcons name="group" size={13} color="#fff" />
-                <Text style={smallAlertStyles.jamaatPillText}>Jamaat!</Text>
-              </Animated.View>
-            ) : hasJamaat ? (
-              <View style={{ alignItems: 'center' }}>
-                <Text style={smallAlertStyles.jamaatLabel}>Jamaat in</Text>
-                <Text style={smallAlertStyles.jamaatCountdown}>{jamaatCountdown}</Text>
-              </View>
-            ) : (
-              <View style={smallAlertStyles.noJamaatRow}>
-                <MaterialIcons name="check-circle" size={13} color="rgba(255,255,255,0.65)" />
-                <Text style={smallAlertStyles.jamaatLabel}>No Jamaat set</Text>
-              </View>
-            )}
+
+            <Animated.View
+              style={[
+                prayerHierarchyStyles.alertStrip,
+                jamaatStarted && prayerHierarchyStyles.alertStripLive,
+                jamaatStarted && { opacity: flashAnim },
+              ]}
+            >
+              <MaterialIcons
+                name={(jamaatStarted ? 'groups' : (alertStripIcon as any))}
+                size={11}
+                color={jamaatStarted ? '#0B3B2C' : 'rgba(255,255,255,0.88)'}
+              />
+              <Text
+                style={[
+                  prayerHierarchyStyles.alertStripText,
+                  jamaatStarted && prayerHierarchyStyles.alertStripLiveText,
+                ]}
+                numberOfLines={1}
+              >
+                {alertStripText}
+              </Text>
+            </Animated.View>
+
+            <View style={{ alignItems: 'center', gap: 1 }}>
+              <Text style={prayerHierarchyStyles.bottomLabel}>Ends In</Text>
+              <Text style={prayerHierarchyStyles.countdownValue}>{countdown}</Text>
+            </View>
           </View>
         ) : (
           // ── NORMAL FLIP FACES ─────────────────────────────────────────────
           <Animated.View style={[smallFlipStyles.animView, { transform: [{ rotateZ }] }]}>
             {displayFace === 'prayer' ? (
-              <View style={smallFlipStyles.face}>
-                <View style={smallFlipStyles.prayerIconRing}>
-                  <MaterialIcons name={prayerIcon} size={22} color="rgba(255,255,255,0.95)" />
-                </View>
-                <Text style={styles.nextPrayerSquareLabel}>Next Prayer</Text>
+              <View style={[smallFlipStyles.face, { gap: 9, paddingHorizontal: 10, paddingVertical: 8 }]}>
                 {loading || !nextPrayerName ? (
                   <ActivityIndicator color="#fff" size="small" style={{ marginTop: 2 }} />
                 ) : (
                   <>
-                    <Text style={styles.nextPrayerSquareName}>{nextPrayerName}</Text>
-                    <View style={styles.nextTimeRow}>
-                      <MaterialIcons name="volume-up" size={9} color="rgba(255,255,255,0.6)" />
-                      <Text style={styles.nextTimeSub}>Athan</Text>
-                      <Text style={styles.nextTimeVal}>{nextPrayerTime}</Text>
+                    <View style={{ alignItems: 'center', gap: 2 }}>
+                      <Text style={prayerHierarchyStyles.topLabel}>Next Prayer</Text>
+                      <Text
+                        style={prayerHierarchyStyles.mainValue}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                      >
+                        {nextPrayerName}
+                      </Text>
                     </View>
-                    {nextPrayerIqamah ? (
-                      <View style={styles.nextTimeRow}>
-                        <MaterialIcons name="group" size={9} color="rgba(255,255,255,0.6)" />
-                        <Text style={styles.nextTimeSub}>Iqamah</Text>
-                        <Text style={styles.nextTimeIqamah}>{nextPrayerIqamah}</Text>
-                      </View>
-                    ) : null}
-                    <View style={styles.squareDivider2} />
-                    <Text style={styles.nextPrayerSquareCountdown}>{countdown}</Text>
-                    <Text style={styles.nextPrayerSquareCountdownSub}>remaining</Text>
+
+                    <View style={prayerHierarchyStyles.alertStrip}>
+                      <MaterialIcons name={prayerIcon} size={11} color="rgba(255,255,255,0.88)" />
+                      <Text style={prayerHierarchyStyles.alertStripText} numberOfLines={1}>{nextStripText}</Text>
+                    </View>
+
+                    <View style={{ alignItems: 'center', gap: 1 }}>
+                      <Text style={prayerHierarchyStyles.bottomLabel}>Ends In</Text>
+                      <Text style={prayerHierarchyStyles.countdownValue}>{countdown}</Text>
+                    </View>
                   </>
                 )}
               </View>
@@ -554,28 +581,76 @@ const rebuildStyles = StyleSheet.create({
   btnText: { fontSize: 10, fontWeight: '900', color: '#0B3B2C', letterSpacing: 0.2 },
 });
 
-// ── Small alert face styles ───────────────────────────────────────────────
-const smallAlertStyles = StyleSheet.create({
-  jamaatLabel: {
-    fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.72)',
-    textTransform: 'uppercase', letterSpacing: 0.7, textAlign: 'center',
+// ── Small prayer hierarchy styles ─────────────────────────────────────────
+const prayerHierarchyStyles = StyleSheet.create({
+  topLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: 'rgba(255,255,255,0.68)',
+    textTransform: 'uppercase',
+    letterSpacing: 1.15,
   },
-  jamaatCountdown: {
-    fontSize: 26, fontWeight: '900', color: '#fff',
-    letterSpacing: 2, fontVariant: ['tabular-nums'] as any, lineHeight: 30,
+  mainValue: {
+    fontSize: 33,
+    lineHeight: 36,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 0.4,
+    maxWidth: '95%',
+    textAlign: 'center',
   },
-  jamaatPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    paddingHorizontal: 14, paddingVertical: 8,
+  alertStrip: {
+    width: '96%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     borderRadius: Radius.full,
-    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.45)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.28)',
+    shadowColor: '#FFFFFF',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  jamaatPillText: {
-    fontSize: 16, fontWeight: '900', color: '#fff', letterSpacing: 1,
+  alertStripLive: {
+    backgroundColor: '#E8C35B',
+    borderColor: 'rgba(232,195,91,0.95)',
+    shadowColor: '#FFE7A6',
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
-  noJamaatRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
+  alertStripText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.95)',
+    letterSpacing: 0.2,
+    flexShrink: 1,
+    textAlign: 'center',
+  },
+  alertStripLiveText: {
+    color: '#0B3B2C',
+    fontWeight: '900',
+    letterSpacing: 0.25,
+  },
+  bottomLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: 'rgba(255,255,255,0.66)',
+    textTransform: 'uppercase',
+    letterSpacing: 1.15,
+  },
+  countdownValue: {
+    fontSize: 36,
+    lineHeight: 39,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 1.4,
+    fontVariant: ['tabular-nums'] as any,
   },
 });
 
@@ -2682,12 +2757,6 @@ type HeroPrayerTimelineState = {
   showJamaatAnchor: boolean;
 };
 
-type HeroTimelinePoint = {
-  label: string;
-  position: number;
-  time: string;
-};
-
 const HERO_TIMELINE_ENDING_SOON_SECONDS = 15 * 60;
 const HERO_TIMELINE_STARTING_NOW_SECONDS = 2 * 60;
 const HERO_TIMELINE_PULSE_SECONDS = 30;
@@ -2850,24 +2919,37 @@ function HeroPrayerStatus({
     items: string[];
   }[] | null;
 }) {
-  const stateToneStyle = stateLabel.includes('NOW')
-    ? heroTimelineStyles.stateLabelNow
+  const liveStateToneStyle = stateLabel.includes('NOW')
+    ? heroTimelineStyles.liveStateNow
     : stateLabel === 'ENDING SOON'
-    ? heroTimelineStyles.stateLabelSoon
+    ? heroTimelineStyles.liveStateSoon
     : null;
+  const liveStateText = (() => {
+    if (stateLabel === 'JAMAAT NOW') return 'Jamaat live now';
+    if (stateLabel === 'JAMAAT STARTING NOW') return 'Jamaat starting now';
+    if (stateLabel === 'UNTIL JAMAAT') return 'Prayer in progress';
+    if (stateLabel === 'UNTIL END') return 'Prayer in progress';
+    if (stateLabel === 'ENDING SOON') return 'Prayer ending soon';
+    if (/\sSTART$/i.test(stateLabel)) return 'Next prayer starting soon';
+    return stateLabel.replace(/_/g, ' ');
+  })();
   const isCompactSchedule = (scheduleStrip?.length ?? 0) > 1;
 
   return (
     <View style={heroTimelineStyles.statusBlock}>
+      <Text style={heroTimelineStyles.currentPrayerLabel}>Current Prayer</Text>
       <Text style={heroTimelineStyles.prayerName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>
         {prayerName}
       </Text>
-      <Text style={[heroTimelineStyles.stateLabel, stateToneStyle]} numberOfLines={1}>
-        {stateLabel}
+      <Text style={[heroTimelineStyles.liveStateText, liveStateToneStyle]} numberOfLines={1}>
+        {liveStateText}
       </Text>
-      <Text style={heroTimelineStyles.countdownText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>
-        {countdownText}
-      </Text>
+      <View style={heroTimelineStyles.nextPrayerBlock}>
+        <Text style={heroTimelineStyles.prayerEndsLabel}>Prayer Ends In</Text>
+        <Text style={heroTimelineStyles.countdownText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>
+          {countdownText}
+        </Text>
+      </View>
       {scheduleStrip?.length ? (
         <View style={[heroTimelineStyles.scheduleStrip, isCompactSchedule && heroTimelineStyles.scheduleStripCompact]}>
           {scheduleStrip.map((section, sectionIndex) => (
@@ -3018,7 +3100,6 @@ function HeroPrayerTimeline({
   showJamaatAnchor,
   nightMode,
   pulseMarker,
-  timelinePoints,
 }: {
   progress: number;
   startTimeText: string;
@@ -3030,7 +3111,6 @@ function HeroPrayerTimeline({
   showJamaatAnchor: boolean;
   nightMode: boolean;
   pulseMarker: boolean;
-  timelinePoints?: HeroTimelinePoint[];
 }) {
   const [trackWidth, setTrackWidth] = useState(0);
   const animatedProgress = useRef(new Animated.Value(progress)).current;
@@ -3098,15 +3178,6 @@ function HeroPrayerTimeline({
           ) : null}
           <View style={heroTimelineStyles.anchorDot} />
           {showJamaatAnchor ? <View style={[heroTimelineStyles.anchorDot, heroTimelineStyles.anchorDotMiddle]} /> : null}
-          {trackWidth > 0 ? timelinePoints?.map((point) => (
-            <View
-              key={`${point.label}-${point.time}`}
-              style={[
-                heroTimelineStyles.dynamicTimelineDot,
-                { left: `${Math.max(0, Math.min(1, point.position)) * 100}%` },
-              ]}
-            />
-          )) : null}
           {trackWidth > 0 ? (
             <Animated.View
               pointerEvents="none"
@@ -3125,35 +3196,11 @@ function HeroPrayerTimeline({
       <View style={heroTimelineStyles.anchorTimesRow}>
         <Text style={heroTimelineStyles.anchorTimeText} numberOfLines={1}>{startTimeText}</Text>
         {showJamaatAnchor ? <Text style={heroTimelineStyles.anchorTimeTextCenter} numberOfLines={1}>{jamaatTimeText}</Text> : null}
-        {timelinePoints?.map((point) => (
-          <Text
-            key={`${point.label}-${point.time}-time`}
-            style={[
-              heroTimelineStyles.dynamicAnchorTimeText,
-              { left: `${Math.max(0, Math.min(1, point.position)) * 100}%` },
-            ]}
-            numberOfLines={1}
-          >
-            {point.time}
-          </Text>
-        ))}
         <Text style={heroTimelineStyles.anchorTimeText} numberOfLines={1}>{endTimeText}</Text>
       </View>
       <View style={heroTimelineStyles.anchorLabelsRow}>
         <Text style={heroTimelineStyles.anchorLabelText} numberOfLines={1}>{startLabel}</Text>
         {showJamaatAnchor ? <Text style={heroTimelineStyles.anchorLabelTextCenter} numberOfLines={1}>{jamaatLabel}</Text> : null}
-        {timelinePoints?.map((point) => (
-          <Text
-            key={`${point.label}-${point.time}-label`}
-            style={[
-              heroTimelineStyles.dynamicAnchorLabelText,
-              { left: `${Math.max(0, Math.min(1, point.position)) * 100}%` },
-            ]}
-            numberOfLines={1}
-          >
-            {point.label}
-          </Text>
-        ))}
         <Text style={heroTimelineStyles.anchorLabelText} numberOfLines={1}>{endLabel}</Text>
       </View>
     </View>
@@ -3484,6 +3531,7 @@ export default function HomeScreen({ previewOverride }: { previewOverride?: Home
   const rawHijriMonthName = effectiveHijriLabel ? getHijriMonthFromAnyFormat(effectiveHijriLabel) : '';
   const isShawwalNow = isShawwalMonth(rawHijriMonthName);
   const isDhulHijjahNow = isDhulHijjahMonth(rawHijriMonthName);
+  const isRamadanNow = isRamadanMonth(rawHijriMonthName);
   const previewActiveEidType: 'eid_al_fitr' | 'eid_al_adha' | null = previewOverride?.scenario === 'eid-fitr' || previewOverride?.scenario === 'eid-fitr-jumuah'
     ? 'eid_al_fitr'
     : previewOverride?.scenario === 'eid-adha' || previewOverride?.scenario === 'eid-adha-jumuah'
@@ -3549,11 +3597,27 @@ export default function HomeScreen({ previewOverride }: { previewOverride?: Home
     ? 'eid_al_fitr'
     : (isEidUlAdhaDay ? 'eid_al_adha' : null));
 
+  // Show Eid bar from Maghrib the evening before each Eid
+  const maghribTime = maghribPrayer?.timeDate;
+  const isEidFitrEve = !previewActiveEidType
+    && isRamadanNow
+    && (rawHijriDayNum === 29 || rawHijriDayNum === 30)
+    && !!maghribTime
+    && currentTime >= maghribTime;
+  const isEidAdhaEve = !previewActiveEidType
+    && isDhulHijjahNow
+    && rawHijriDayNum === 9
+    && !!maghribTime
+    && currentTime >= maghribTime;
+  // eidBarType extends activeEidType to include eves (bar only — hero stays normal)
+  const eidBarType: 'eid_al_fitr' | 'eid_al_adha' | null =
+    activeEidType ?? (isEidFitrEve ? 'eid_al_fitr' : isEidAdhaEve ? 'eid_al_adha' : null);
+
   const resolvedEidJamaats = React.useMemo(() => {
     if (previewOverride?.eidJamaats?.length) return previewOverride.eidJamaats;
-    const source = activeEidType === 'eid_al_fitr' ? eidUlFitrJamaats : eidUlAdhaJamaats;
+    const source = eidBarType === 'eid_al_fitr' ? eidUlFitrJamaats : eidUlAdhaJamaats;
     return source.length > 0 ? source : ['06:30'];
-  }, [previewOverride?.eidJamaats, activeEidType, eidUlFitrJamaats, eidUlAdhaJamaats]);
+  }, [previewOverride?.eidJamaats, eidBarType, eidUlFitrJamaats, eidUlAdhaJamaats]);
 
   const eidInfoLine = buildEidJamaatNote(resolvedEidJamaats);
   const isEidHeroWindow = !!(
@@ -3563,13 +3627,7 @@ export default function HomeScreen({ previewOverride }: { previewOverride?: Home
     && dhuhrPrayer?.timeDate
     && currentTime < dhuhrPrayer.timeDate
   );
-  const shouldShowEidInfoLine = !!(
-    activeEidType
-    && (
-      (!!asrPrayer?.timeDate && currentTime < asrPrayer.timeDate)
-      || (!!maghribPrayer?.timeDate && currentTime >= maghribPrayer.timeDate)
-    )
-  );
+  const shouldShowEidInfoLine = !!(eidBarType && currentTime < (dhuhrPrayer?.timeDate ?? currentTime));
 
   const eidHeroData = React.useMemo(() => {
     if (!isEidHeroWindow || !fajrPrayer?.timeDate || !dhuhrPrayer?.timeDate) return null;
@@ -3586,11 +3644,13 @@ export default function HomeScreen({ previewOverride }: { previewOverride?: Home
       .map((time) => ({ time, date: parseClockToday(time) }))
       .filter((entry): entry is { time: string; date: Date } => !!entry.date)
       .sort((a, b) => a.date.getTime() - b.date.getTime());
-    const timelinePoints: HeroTimelinePoint[] = jamaatDates.map((entry, index) => ({
-      label: `${toOrdinal(index + 1).toUpperCase()} EID`,
-      time: entry.time,
-      position: jamaatDates.length === 1 ? 0.5 : 0.12 + ((0.76 / Math.max(1, jamaatDates.length - 1)) * index),
-    }));
+    const timelinePoints = [
+      ...jamaatDates.map((entry, index) => ({
+        label: `J${index + 1}`,
+        position: jamaatDates.length === 1 ? 0.2 : 0.12 + ((0.56 / Math.max(1, jamaatDates.length - 1)) * index),
+      })),
+      { label: 'Dhuhr', position: 1 },
+    ];
 
     const firstJamaat = jamaatDates[0]?.date ?? null;
     const lastJamaat = jamaatDates[jamaatDates.length - 1]?.date ?? null;
@@ -3754,9 +3814,9 @@ export default function HomeScreen({ previewOverride }: { previewOverride?: Home
   const firstJummahAthanTime = dhuhrPrayer?.time ?? heroEndTime;
   const fridayJumuahScheduleNote = `Jummah Prayers: 1st: ${jj1} · 2nd: ${jj2}`;
   const shouldShowFridayJumuahNote = (() => {
-    // Show Jummah info strip from Maghrib Thursday until Asr starts on Friday.
-    if (isFriday && asrPrayer?.timeDate && currentTime < asrPrayer.timeDate) return true;
-    if (isThursday && maghribPrayer?.timeDate && currentTime >= maghribPrayer.timeDate) return true;
+    // Show Jummah info strip from Isha Thursday through all Friday states, including Jummah hero
+    if (isFriday) return true; // All Friday cards
+    if (isThursday && heroPrayerName === 'Isha') return true; // Isha Thursday
     return false;
   })();
 
@@ -3892,8 +3952,8 @@ export default function HomeScreen({ previewOverride }: { previewOverride?: Home
   const effectiveHeroEndMarker = isEidHeroWindow ? null : heroEndMarker;
   const effectiveHeroMidMarker = isEidHeroWindow ? null : heroMidMarker;
   const effectiveHeroGradientColors: readonly [string, string] = nightMode
-    ? ['#1B4D38', '#0D3527']
-    : ['#2D8B5F', '#1D6B45'];
+    ? ['rgba(27,77,56,0.62)', 'rgba(13,53,39,0.58)']
+    : ['rgba(45,139,95,0.56)', 'rgba(29,107,69,0.52)'];
   const heroScheduleStrip = React.useMemo(() => {
     const sections: { label: string; items: string[] }[] = [];
 
@@ -3906,13 +3966,13 @@ export default function HomeScreen({ previewOverride }: { previewOverride?: Home
 
     if (shouldShowFridayJumuahNote) {
       sections.push({
-        label: 'Jummah Times',
+        label: isFriday ? 'Today\'s Jummah Times' : 'Tomorrow\'s Jummah Times',
         items: [jj1, jj2],
       });
     }
 
     return sections.length > 0 ? sections : null;
-  }, [shouldShowEidInfoLine, activeEidType, resolvedEidJamaats, shouldShowFridayJumuahNote, jj1, jj2]);
+  }, [shouldShowEidInfoLine, activeEidType, resolvedEidJamaats, shouldShowFridayJumuahNote, isFriday, jj1, jj2]);
 
   const canTrackJamaatJourney = !!(
     activePrayer
@@ -4150,7 +4210,6 @@ export default function HomeScreen({ previewOverride }: { previewOverride?: Home
                 showJamaatAnchor={heroTimelineState.showJamaatAnchor}
                 nightMode={nightMode}
                 pulseMarker={heroTimelineState.pulseMarker}
-                timelinePoints={effectiveHeroTimelinePoints}
               />
             </View>
 
@@ -4556,12 +4615,47 @@ const heroTimelineStyles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
   },
-  prayerName: {
+  currentPrayerLabel: {
+    marginTop: 2,
     textAlign: 'center',
-    fontSize: 38,
-    lineHeight: 42,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    color: '#EAF2EE',
+  },
+  prayerName: {
+    marginTop: 8,
+    textAlign: 'center',
+    fontSize: 52,
+    lineHeight: 56,
     fontWeight: '900',
     color: HERO_DESIGN_TOKENS.textPrimary,
+  },
+  liveStateText: {
+    marginTop: 7,
+    textAlign: 'center',
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: '700',
+    color: 'rgba(241,248,244,0.86)',
+    letterSpacing: 0.35,
+  },
+  liveStateSoon: { color: '#F6E6B4' },
+  liveStateNow: { color: '#FFE8A6' },
+  nextPrayerBlock: {
+    marginTop: 14,
+    alignItems: 'center',
+  },
+  prayerEndsLabel: {
+    textAlign: 'center',
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '900',
+    letterSpacing: 1.45,
+    textTransform: 'uppercase',
+    color: '#EAF2EE',
   },
   stateLabel: {
     marginTop: 8,
@@ -4580,14 +4674,14 @@ const heroTimelineStyles = StyleSheet.create({
     color: '#FFE8A6',
   },
   countdownText: {
-    marginTop: 8,
+    marginTop: 6,
     textAlign: 'center',
-    fontSize: 38,
-    lineHeight: 42,
+    fontSize: 39,
+    lineHeight: 43,
     fontWeight: '900',
     color: '#FFFFFF',
     fontVariant: ['tabular-nums'] as any,
-    letterSpacing: -0.7,
+    letterSpacing: 0.2,
   },
   scheduleStrip: {
     width: '100%',
@@ -4748,19 +4842,6 @@ const heroTimelineStyles = StyleSheet.create({
     elevation: 2,
     zIndex: 4,
   },
-  dynamicTimelineDot: {
-    position: 'absolute',
-    top: '50%',
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginTop: -4,
-    marginLeft: -4,
-    backgroundColor: '#F8E7AE',
-    borderWidth: 1,
-    borderColor: 'rgba(86,60,4,0.60)',
-    zIndex: 2,
-  },
   markerPosition: {
     position: 'absolute',
     left: 0,
@@ -4817,16 +4898,6 @@ const heroTimelineStyles = StyleSheet.create({
     color: HERO_DESIGN_TOKENS.textPrimary,
     fontVariant: ['tabular-nums'] as any,
   },
-  dynamicAnchorTimeText: {
-    position: 'absolute',
-    transform: [{ translateX: -24 }],
-    width: 48,
-    textAlign: 'center',
-    fontSize: 12,
-    fontWeight: '800',
-    color: HERO_DESIGN_TOKENS.textPrimary,
-    fontVariant: ['tabular-nums'] as any,
-  },
   anchorLabelsRow: {
     marginTop: 3,
     flexDirection: 'row',
@@ -4838,17 +4909,6 @@ const heroTimelineStyles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.45,
-    textTransform: 'uppercase',
-    color: HERO_DESIGN_TOKENS.textTertiary,
-  },
-  dynamicAnchorLabelText: {
-    position: 'absolute',
-    transform: [{ translateX: -30 }],
-    width: 60,
-    textAlign: 'center',
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.4,
     textTransform: 'uppercase',
     color: HERO_DESIGN_TOKENS.textTertiary,
   },
@@ -4871,7 +4931,7 @@ const heroSupportStyles = StyleSheet.create({
   card: {
     borderRadius: 0,
     overflow: 'hidden',
-    backgroundColor: 'rgba(2,12,8,0.42)',
+    backgroundColor: 'rgba(2,12,8,0.53)',
     marginHorizontal: -18,
     marginBottom: -14,
     height: 110,

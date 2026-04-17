@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { MaterialIcons } from '@expo/vector-icons';
 import HeroNewsBar, { parseHeroNewsSchedule } from '@/components/prayer/HeroNewsBar';
 import FlipClock from '@/components/prayer/FlipClock';
 
@@ -1212,12 +1211,6 @@ const styles = StyleSheet.create({
   scheduleBanner: {
     marginTop: -1,
     marginBottom: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 12,
-    backgroundColor: 'rgba(7,13,28,0.48)',
-    borderWidth: 1,
-    borderColor: 'rgba(164,186,214,0.14)',
-    gap: 4,
+    paddingHorizontal: 2,
   },
 });

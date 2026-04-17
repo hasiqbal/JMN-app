@@ -10,6 +10,13 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
+type ScheduleSection = {
+  key: 'eid' | 'jumuah';
+  title: string;
+  icon: keyof typeof MaterialIcons.glyphMap;
+  items: string[];
+};
+
 type AlertTone = 'default' | 'live' | 'warning' | 'special';
 
 export type HeroNewsLiveAlert = {
@@ -124,6 +131,47 @@ export function parseHeroNewsSchedule(note: string): ParsedScheduleBanner | null
   return { eid, jumuah };
 }
 
+function buildScheduleSections(parsed: ParsedScheduleBanner): ScheduleSection[] {
+  const sections: ScheduleSection[] = [];
+
+  if (parsed.eid.length > 0) {
+    sections.push({
+      key: 'eid',
+      title: 'EID PRAYERS',
+      icon: 'auto-awesome',
+      items: parsed.eid,
+    });
+  }
+
+  if (parsed.jumuah.length > 0) {
+    sections.push({
+      key: 'jumuah',
+      title: 'JUMUAH TIMES',
+      icon: 'star',
+      items: parsed.jumuah,
+    });
+  }
+
+  return sections;
+}
+
+function parseScheduleItem(value: string, index: number): { label: string; time: string } {
+  const trimmed = value.trim();
+  const match = trimmed.match(/^([^:]+):\s*(.+)$/);
+
+  if (match) {
+    return {
+      label: match[1].trim(),
+      time: match[2].trim(),
+    };
+  }
+
+  return {
+    label: `${index + 1}th`,
+    time: trimmed,
+  };
+}
+
 export default function HeroNewsBar({
   note,
   fallbackText,
@@ -139,6 +187,9 @@ export default function HeroNewsBar({
 }) {
   const resolvedAlertMessage = liveAlert?.message?.trim() ?? '';
   const hasLiveAlert = resolvedAlertMessage.length > 0;
+  const parsedSchedule = parseHeroNewsSchedule(note);
+  const scheduleSections = parsedSchedule ? buildScheduleSections(parsedSchedule) : [];
+  const hasScheduleSections = scheduleSections.length > 0;
   const alertTone: AlertTone = liveAlert?.tone ?? 'default';
   const tonePalette = ALERT_TONE_PALETTES[alertTone];
   const showDetailMessage = alertTone !== 'warning';
@@ -162,10 +213,67 @@ export default function HeroNewsBar({
     return undefined;
   }, [liveAlert?.flashing, pulseAnim]);
 
-  if (!hasLiveAlert) return null;
+  if (!hasLiveAlert && !hasScheduleSections && !fallbackText) return null;
 
   const badgeLabel = (liveAlert?.label?.trim() || 'Alert').toUpperCase();
   const alertIcon = (liveAlert?.icon ?? (alertTone === 'warning' ? 'schedule' : 'notifications-active')) as any;
+
+  if (!hasLiveAlert && hasScheduleSections) {
+    return (
+      <LinearGradient
+        colors={['rgba(15,67,44,0.98)', 'rgba(7,40,27,0.98)']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.scheduleBanner, style]}
+      >
+        <LinearGradient
+          pointerEvents="none"
+          colors={['rgba(255,247,228,0.10)', 'rgba(255,255,255,0.00)']}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={styles.scheduleInnerHighlight}
+        />
+        {scheduleSections.map((section, sectionIndex) => {
+          const parsedItems = section.items.map(parseScheduleItem);
+
+          return (
+            <View
+              key={section.key}
+              style={[
+                styles.scheduleSection,
+                sectionIndex < scheduleSections.length - 1 && styles.scheduleSectionSpacing,
+              ]}
+            >
+              <View style={styles.scheduleHeader}>
+                <MaterialIcons name={section.icon} size={12} color="#C9A95B" />
+                <Text style={styles.scheduleTitle}>{section.title}</Text>
+              </View>
+
+              <View style={styles.scheduleGrid}>
+                {parsedItems.map((item, itemIndex) => (
+                  <React.Fragment key={`${section.key}-${item.label}-${item.time}-${itemIndex}`}>
+                    {itemIndex > 0 ? <View style={styles.scheduleDivider} /> : null}
+                    <View style={styles.scheduleCell}>
+                      <Text style={styles.scheduleLabel}>{item.label}</Text>
+                      <Text style={styles.scheduleTime}>{item.time}</Text>
+                    </View>
+                  </React.Fragment>
+                ))}
+              </View>
+            </View>
+          );
+        })}
+      </LinearGradient>
+    );
+  }
+
+  if (!hasLiveAlert && fallbackText) {
+    return (
+      <View style={[styles.fallbackWrap, style]}>
+        <Text style={styles.fallbackText}>{fallbackText}</Text>
+      </View>
+    );
+  }
 
   return (
     <LinearGradient
@@ -324,5 +432,86 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 14,
     fontWeight: '700',
+  },
+  scheduleBanner: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(197,224,206,0.14)',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    overflow: 'hidden',
+    shadowColor: '#03120B',
+    shadowOffset: { width: 0, height: 7 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  scheduleInnerHighlight: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 28,
+  },
+  scheduleSection: {
+    gap: 10,
+  },
+  scheduleSectionSpacing: {
+    marginBottom: 10,
+  },
+  scheduleHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  scheduleTitle: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '600',
+    letterSpacing: 1.1,
+    color: 'rgba(246,239,226,0.9)',
+  },
+  scheduleGrid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  scheduleCell: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 2,
+    minWidth: 0,
+  },
+  scheduleDivider: {
+    width: 1,
+    height: 26,
+    backgroundColor: 'rgba(230,243,233,0.18)',
+    marginHorizontal: 4,
+  },
+  scheduleLabel: {
+    fontSize: 11,
+    lineHeight: 13,
+    fontWeight: '600',
+    color: 'rgba(239,245,241,0.72)',
+  },
+  scheduleTime: {
+    marginTop: 3,
+    fontSize: 20,
+    lineHeight: 22,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  fallbackWrap: {
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(7,13,28,0.48)',
+  },
+  fallbackText: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '600',
+    color: 'rgba(244,247,245,0.9)',
   },
 });
