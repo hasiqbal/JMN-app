@@ -12,6 +12,8 @@ JMN is a masjid app built with React Native and Expo. It provides prayer times, 
 
 ## Setup
 
+Node.js 22 LTS is required for this project. Node 25 causes Expo CLI startup failures in this repo.
+
 ### 1. Install dependencies
 
 ```bash
@@ -29,6 +31,8 @@ npm install
 ```bash
 pnpm start
 ```
+
+If your Node version is wrong, the start command will stop early with a clear error.
 
 Platform shortcuts:
 

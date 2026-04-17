@@ -3,12 +3,19 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
+    "prestart": "node ./scripts/check-node-version.js",
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
+    "preandroid": "node ./scripts/check-node-version.js",
     "android": "expo start --android",
+    "preios": "node ./scripts/check-node-version.js",
     "ios": "expo start --ios",
+    "preweb": "node ./scripts/check-node-version.js",
     "web": "expo start --web",
     "lint": "expo lint"
+  },
+  "engines": {
+    "node": ">=22 <25"
   },
   "dependencies": {
     "@apollo/client": "^3.4.10",
@@ -141,6 +148,9 @@
     "eslint-config-expo": "~10.0.0",
     "react-dev-inspector": "^2.0.1",
     "typescript": "~5.9.3"
+  },
+  "volta": {
+    "node": "22"
   },
   "private": true
 }

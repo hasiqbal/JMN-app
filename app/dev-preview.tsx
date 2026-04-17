@@ -61,6 +61,18 @@ const PREVIEW_ITEMS: PreviewItem[] = [
     icon: 'auto-awesome',
   },
   {
+    route: 'live-home-preview-eid',
+    title: 'Live Home Eid Preview',
+    description: 'Current home tab hero in Eid mode using the real screen code',
+    icon: 'visibility',
+  },
+  {
+    route: 'live-home-preview-eid-jumuah',
+    title: 'Live Home Eid + Jummah',
+    description: 'Current home tab hero in Eid + Jummah mode using the real screen code',
+    icon: 'preview',
+  },
+  {
     route: 'home-preview-eid-jumuah',
     title: 'Homepage Eid + Jummah',
     description: 'Full homepage preview when Eid ul Fitr falls on Friday',

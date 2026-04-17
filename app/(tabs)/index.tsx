@@ -44,14 +44,14 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 
 // ── Time-of-day hero gradient ──────────────────────────────────────────────
 function getHeroImageOpacity(hour: number, prayerName: string, isForbidden: boolean): number {
-  if (isForbidden) return 0.78;
-  if (prayerName === 'Fajr') return 0.96;
-  if (prayerName === 'Sunrise' || prayerName === 'Ishraq') return 0.92;
-  if (prayerName === 'Maghrib') return 0.95;
-  if (prayerName === 'Isha') return 0.84;
-  if (hour >= 22 || hour < 4) return 0.82;
-  if (hour >= 17 && hour < 20) return 0.94;
-  return 0.88;
+  if (isForbidden) return 0.84;
+  if (prayerName === 'Fajr') return 1;
+  if (prayerName === 'Sunrise' || prayerName === 'Ishraq') return 0.97;
+  if (prayerName === 'Maghrib') return 0.98;
+  if (prayerName === 'Isha') return 0.9;
+  if (hour >= 22 || hour < 4) return 0.88;
+  if (hour >= 17 && hour < 20) return 0.97;
+  return 0.93;
 }
 
 function getFullDayTimelineProgress(
@@ -140,9 +140,9 @@ const HERO_DESIGN_TOKENS = {
   textSecondary:      '#E8E5E3',  // slightly darker warm white
   textTertiary:       '#D0CCC8',  // muted warm tone
   // Overlays & backgrounds
-  overlayStrong:      'rgba(2,9,19,0.48)',  // slightly dark overlay for text clarity
-  overlayMedium:      'rgba(2,9,19,0.38)',
-  overlayLight:       'rgba(2,9,19,0.28)',
+  overlayStrong:      'rgba(2,9,19,0.4)',  // slightly dark overlay for text clarity
+  overlayMedium:      'rgba(2,9,19,0.3)',
+  overlayLight:       'rgba(2,9,19,0.2)',
   // Night mode variants
   nightEmerald:       '#2D9D5C',  // softer green for calm appearance
   nightMint:          '#4FE948',
@@ -2644,9 +2644,26 @@ const zawaalRowStyles = StyleSheet.create({
   },
   dot: { width: 5, height: 5, borderRadius: 3, opacity: 0.55 },
 });
-function useCurrentTime() {
-  const [time, setTime] = useState(() => new Date());
-  useEffect(() => { const id = setInterval(() => setTime(new Date()), 1000); return () => clearInterval(id); }, []);
+type HomePreviewOverride = {
+  scenario: 'eid-fitr' | 'eid-fitr-jumuah' | 'eid-adha' | 'eid-adha-jumuah';
+  nowIso: string;
+  hijriLabel: string;
+  eidJamaats: string[];
+};
+
+function useCurrentTime(fixedTimeIso?: string) {
+  const [time, setTime] = useState(() => (fixedTimeIso ? new Date(fixedTimeIso) : new Date()));
+
+  useEffect(() => {
+    if (fixedTimeIso) {
+      setTime(new Date(fixedTimeIso));
+      return undefined;
+    }
+
+    const id = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(id);
+  }, [fixedTimeIso]);
+
   return time;
 }
 
@@ -2665,10 +2682,17 @@ type HeroPrayerTimelineState = {
   showJamaatAnchor: boolean;
 };
 
+type HeroTimelinePoint = {
+  label: string;
+  position: number;
+  time: string;
+};
+
 const HERO_TIMELINE_ENDING_SOON_SECONDS = 15 * 60;
 const HERO_TIMELINE_STARTING_NOW_SECONDS = 2 * 60;
 const HERO_TIMELINE_PULSE_SECONDS = 30;
-const HERO_LOGO_MARKER_SIZE = 26;
+const HERO_LOGO_MARKER_SIZE = 30;
+const HERO_TIMELINE_END_DOT_GAP = 16;
 
 function resolvePrayerJamaatDate(activePrayer: PrayerTime | null, iqamah: string | null): Date | null {
   if (!activePrayer || !iqamah || iqamah === '-' || iqamah === '--:--') return null;
@@ -2702,6 +2726,8 @@ function usePrayerTimelineState(params: {
   effectiveHeroCountdownInfo: { label: string; value: string };
   effectiveHeroStartLabel: string;
   effectiveHeroStartTime: string;
+  effectiveHeroMidLabel: string;
+  effectiveHeroMidTime: string;
   effectiveHeroEndLabel: string;
   effectiveHeroEndTime: string;
   effectiveHeroShowJamaat: boolean;
@@ -2716,6 +2742,7 @@ function usePrayerTimelineState(params: {
     const fallbackEndTime = params.effectiveHeroShowJamaat && params.effectiveHeroJamaatValue
       ? params.effectiveHeroJamaatValue
       : (params.effectiveHeroEndTime || '--:--');
+    const hasExplicitMiddleAnchor = !!params.effectiveHeroMidLabel && !!params.effectiveHeroMidTime;
 
     if (!params.canTrackJamaatJourney || !params.activePrayer) {
       return {
@@ -2723,14 +2750,16 @@ function usePrayerTimelineState(params: {
         countdownText: params.effectiveHeroCountdownInfo.value || '00:00:00',
         startLabel: params.effectiveHeroStartLabel || 'Start',
         startTimeText: params.effectiveHeroStartTime || '--:--',
-        jamaatLabel: 'Jamaat',
-        jamaatTimeText: params.effectiveHeroJamaatValue || '--:--',
+        jamaatLabel: hasExplicitMiddleAnchor ? params.effectiveHeroMidLabel : 'Jamaat',
+        jamaatTimeText: hasExplicitMiddleAnchor
+          ? params.effectiveHeroMidTime
+          : (params.effectiveHeroJamaatValue || '--:--'),
         endLabel: fallbackEndLabel,
         endTimeText: fallbackEndTime,
         progress: Math.max(0, Math.min(1, params.effectiveHeroProgress || 0)),
         pulseMarker: false,
         isLiveJamaatTrack: false,
-        showJamaatAnchor: false,
+        showJamaatAnchor: hasExplicitMiddleAnchor,
       };
     }
 
@@ -2811,16 +2840,22 @@ function HeroPrayerStatus({
   prayerName,
   stateLabel,
   countdownText,
+  scheduleStrip,
 }: {
   prayerName: string;
   stateLabel: string;
   countdownText: string;
+  scheduleStrip?: {
+    label: string;
+    items: string[];
+  }[] | null;
 }) {
   const stateToneStyle = stateLabel.includes('NOW')
     ? heroTimelineStyles.stateLabelNow
     : stateLabel === 'ENDING SOON'
     ? heroTimelineStyles.stateLabelSoon
     : null;
+  const isCompactSchedule = (scheduleStrip?.length ?? 0) > 1;
 
   return (
     <View style={heroTimelineStyles.statusBlock}>
@@ -2833,6 +2868,114 @@ function HeroPrayerStatus({
       <Text style={heroTimelineStyles.countdownText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>
         {countdownText}
       </Text>
+      {scheduleStrip?.length ? (
+        <View style={[heroTimelineStyles.scheduleStrip, isCompactSchedule && heroTimelineStyles.scheduleStripCompact]}>
+          {scheduleStrip.map((section, sectionIndex) => (
+            <View
+              key={`${section.label}-${sectionIndex}`}
+              style={[
+                heroTimelineStyles.scheduleSection,
+                isCompactSchedule && heroTimelineStyles.scheduleSectionCompact,
+                sectionIndex > 0 && heroTimelineStyles.scheduleSectionWithDivider,
+                sectionIndex > 0 && isCompactSchedule && heroTimelineStyles.scheduleSectionWithDividerCompact,
+              ]}
+            >
+              <View style={heroTimelineStyles.scheduleStripHeader}>
+                <MaterialIcons name="star" size={12} color="#FFE7A0" />
+                <Text style={[heroTimelineStyles.scheduleStripLabel, isCompactSchedule && heroTimelineStyles.scheduleStripLabelCompact]}>{section.label}</Text>
+              </View>
+              <HeroScheduleTimes sectionLabel={section.label} items={section.items} compact={isCompactSchedule} />
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function HeroScheduleTimes({
+  sectionLabel,
+  items,
+  compact,
+}: {
+  sectionLabel: string;
+  items: string[];
+  compact: boolean;
+}) {
+  const scrollRef = useRef<ScrollView | null>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const [contentWidth, setContentWidth] = useState(0);
+  const offsetRef = useRef(0);
+  const directionRef = useRef<1 | -1>(1);
+  const pauseTicksRef = useRef(0);
+  const shouldAutoScroll = items.length >= 3 && contentWidth > containerWidth + 12;
+
+  useEffect(() => {
+    if (!shouldAutoScroll) {
+      offsetRef.current = 0;
+      directionRef.current = 1;
+      pauseTicksRef.current = 0;
+      scrollRef.current?.scrollTo({ x: 0, animated: false });
+      return undefined;
+    }
+
+    const maxOffset = Math.max(0, contentWidth - containerWidth);
+    if (maxOffset <= 0) return undefined;
+
+    const intervalId = setInterval(() => {
+      if (pauseTicksRef.current > 0) {
+        pauseTicksRef.current -= 1;
+        return;
+      }
+
+      let nextOffset = offsetRef.current + directionRef.current;
+
+      if (nextOffset >= maxOffset) {
+        nextOffset = maxOffset;
+        directionRef.current = -1;
+        pauseTicksRef.current = 18;
+      } else if (nextOffset <= 0) {
+        nextOffset = 0;
+        directionRef.current = 1;
+        pauseTicksRef.current = 18;
+      }
+
+      offsetRef.current = nextOffset;
+      scrollRef.current?.scrollTo({ x: nextOffset, animated: false });
+    }, 65);
+
+    return () => clearInterval(intervalId);
+  }, [shouldAutoScroll, contentWidth, containerWidth]);
+
+  const timeNodes = items.map((time, timeIndex) => (
+    <React.Fragment key={`${sectionLabel}-${time}-${timeIndex}`}>
+      {timeIndex > 0 ? <View style={heroTimelineStyles.scheduleStripDivider} /> : null}
+      <View style={heroTimelineStyles.scheduleStripTimePill}>
+        <Text style={[heroTimelineStyles.scheduleStripTimeOrder, compact && heroTimelineStyles.scheduleStripTimeOrderCompact]}>{`${toOrdinal(timeIndex + 1)}`}</Text>
+        <Text style={[heroTimelineStyles.scheduleStripTimeValue, compact && heroTimelineStyles.scheduleStripTimeValueCompact]}>{time}</Text>
+      </View>
+    </React.Fragment>
+  ));
+
+  if (!shouldAutoScroll) {
+    return <View style={heroTimelineStyles.scheduleStripTimes}>{timeNodes}</View>;
+  }
+
+  return (
+    <View
+      style={heroTimelineStyles.scheduleStripScrollViewport}
+      onLayout={(event) => setContainerWidth(event.nativeEvent.layout.width)}
+    >
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        scrollEnabled={false}
+        onContentSizeChange={(width) => setContentWidth(width)}
+        contentContainerStyle={heroTimelineStyles.scheduleStripScrollContent}
+      >
+        {timeNodes}
+      </ScrollView>
     </View>
   );
 }
@@ -2875,6 +3018,7 @@ function HeroPrayerTimeline({
   showJamaatAnchor,
   nightMode,
   pulseMarker,
+  timelinePoints,
 }: {
   progress: number;
   startTimeText: string;
@@ -2886,6 +3030,7 @@ function HeroPrayerTimeline({
   showJamaatAnchor: boolean;
   nightMode: boolean;
   pulseMarker: boolean;
+  timelinePoints?: HeroTimelinePoint[];
 }) {
   const [trackWidth, setTrackWidth] = useState(0);
   const animatedProgress = useRef(new Animated.Value(progress)).current;
@@ -2930,7 +3075,7 @@ function HeroPrayerTimeline({
     };
   }, [markerScale, pulseMarker]);
 
-  const markerTravel = Math.max(0, trackWidth - HERO_LOGO_MARKER_SIZE);
+  const markerTravel = Math.max(0, trackWidth - HERO_LOGO_MARKER_SIZE - HERO_TIMELINE_END_DOT_GAP);
   const markerTranslateX = animatedProgress.interpolate({
     inputRange: [0, 1],
     outputRange: [0, markerTravel],
@@ -2953,7 +3098,15 @@ function HeroPrayerTimeline({
           ) : null}
           <View style={heroTimelineStyles.anchorDot} />
           {showJamaatAnchor ? <View style={[heroTimelineStyles.anchorDot, heroTimelineStyles.anchorDotMiddle]} /> : null}
-          <View style={[heroTimelineStyles.anchorDot, heroTimelineStyles.anchorDotRight]} />
+          {trackWidth > 0 ? timelinePoints?.map((point) => (
+            <View
+              key={`${point.label}-${point.time}`}
+              style={[
+                heroTimelineStyles.dynamicTimelineDot,
+                { left: `${Math.max(0, Math.min(1, point.position)) * 100}%` },
+              ]}
+            />
+          )) : null}
           {trackWidth > 0 ? (
             <Animated.View
               pointerEvents="none"
@@ -2965,17 +3118,42 @@ function HeroPrayerTimeline({
               <HeroLogoMarker markerScale={markerScale} nightMode={nightMode} pulseMarker={pulseMarker} />
             </Animated.View>
           ) : null}
+          <View style={[heroTimelineStyles.anchorDot, heroTimelineStyles.anchorDotRight, heroTimelineStyles.anchorDotEnd]} />
         </View>
       </View>
 
       <View style={heroTimelineStyles.anchorTimesRow}>
         <Text style={heroTimelineStyles.anchorTimeText} numberOfLines={1}>{startTimeText}</Text>
         {showJamaatAnchor ? <Text style={heroTimelineStyles.anchorTimeTextCenter} numberOfLines={1}>{jamaatTimeText}</Text> : null}
+        {timelinePoints?.map((point) => (
+          <Text
+            key={`${point.label}-${point.time}-time`}
+            style={[
+              heroTimelineStyles.dynamicAnchorTimeText,
+              { left: `${Math.max(0, Math.min(1, point.position)) * 100}%` },
+            ]}
+            numberOfLines={1}
+          >
+            {point.time}
+          </Text>
+        ))}
         <Text style={heroTimelineStyles.anchorTimeText} numberOfLines={1}>{endTimeText}</Text>
       </View>
       <View style={heroTimelineStyles.anchorLabelsRow}>
         <Text style={heroTimelineStyles.anchorLabelText} numberOfLines={1}>{startLabel}</Text>
         {showJamaatAnchor ? <Text style={heroTimelineStyles.anchorLabelTextCenter} numberOfLines={1}>{jamaatLabel}</Text> : null}
+        {timelinePoints?.map((point) => (
+          <Text
+            key={`${point.label}-${point.time}-label`}
+            style={[
+              heroTimelineStyles.dynamicAnchorLabelText,
+              { left: `${Math.max(0, Math.min(1, point.position)) * 100}%` },
+            ]}
+            numberOfLines={1}
+          >
+            {point.label}
+          </Text>
+        ))}
         <Text style={heroTimelineStyles.anchorLabelText} numberOfLines={1}>{endLabel}</Text>
       </View>
     </View>
@@ -3087,17 +3265,30 @@ function HeroDynamicSupportCard({
   jj2: string;
   onOpenSalahDrawer: () => void;
 }) {
+  const isAdhaSupportCard = /adha/i.test(eidLabel);
+
   // Priority 1: Eid
   if (isEidActive) {
     return (
-      <TouchableOpacity style={heroSupportStyles.card} activeOpacity={0.82} onPress={onOpenSalahDrawer}>
+      <TouchableOpacity
+        style={[heroSupportStyles.card, isAdhaSupportCard && heroSupportStyles.salahCard]}
+        activeOpacity={0.82}
+        onPress={onOpenSalahDrawer}
+      >
         <View style={heroSupportStyles.dynamicInner}>
           <View style={heroSupportStyles.dynamicIconRow}>
-            <MaterialIcons name="star" size={12} color="#FBBF24" />
-            <Text style={[heroSupportStyles.dynamicEyebrow, { color: '#FBBF24' }]}>{eidLabel}</Text>
+            <MaterialIcons name="star" size={12} color={isAdhaSupportCard ? '#B78103' : '#FBBF24'} />
+            <Text
+              style={[
+                heroSupportStyles.dynamicEyebrow,
+                isAdhaSupportCard ? heroSupportStyles.adhaEyebrow : { color: '#FBBF24' },
+              ]}
+            >
+              {eidLabel}
+            </Text>
           </View>
-          <Text style={heroSupportStyles.dynamicTitle}>Eid Salah</Text>
-          <Text style={heroSupportStyles.dynamicSub} numberOfLines={1}>{eidFirstJamaat}</Text>
+          <Text style={[heroSupportStyles.dynamicTitle, isAdhaSupportCard && heroSupportStyles.adhaTitle]}>Eid Salah</Text>
+          <Text style={[heroSupportStyles.dynamicSub, isAdhaSupportCard && heroSupportStyles.adhaSub]} numberOfLines={1}>{eidFirstJamaat}</Text>
         </View>
       </TouchableOpacity>
     );
@@ -3106,16 +3297,20 @@ function HeroDynamicSupportCard({
   // Priority 2: Jumu'ah (Friday)
   // Priority 3: Today's Salah
   return (
-    <TouchableOpacity style={heroSupportStyles.card} activeOpacity={0.82} onPress={onOpenSalahDrawer}>
+    <TouchableOpacity
+      style={[heroSupportStyles.card, heroSupportStyles.salahCard]}
+      activeOpacity={0.82}
+      onPress={onOpenSalahDrawer}
+    >
       <View style={heroSupportStyles.dynamicInner}>
         <View style={heroSupportStyles.dynamicIconRow}>
-          <MaterialIcons name="schedule" size={12} color="rgba(164,242,160,0.90)" />
-          <Text style={heroSupportStyles.dynamicEyebrow}>Today{'\u2019'}s Salah</Text>
+          <MaterialIcons name="schedule" size={12} color="#2B7A57" />
+          <Text style={[heroSupportStyles.dynamicEyebrow, heroSupportStyles.salahEyebrow]}>Today{'\u2019'}s Salah</Text>
         </View>
-        <Text style={heroSupportStyles.dynamicTitle}>Prayer Times</Text>
-        <View style={heroSupportStyles.dynamicViewBtn}>
-          <Text style={heroSupportStyles.dynamicViewBtnText}>View Times</Text>
-          <MaterialIcons name="arrow-forward" size={9} color="rgba(164,242,160,0.90)" />
+        <Text style={[heroSupportStyles.dynamicTitle, heroSupportStyles.salahTitle]}>Prayer Times</Text>
+        <View style={[heroSupportStyles.dynamicViewBtn, heroSupportStyles.salahViewBtn]}>
+          <Text style={[heroSupportStyles.dynamicViewBtnText, heroSupportStyles.salahViewBtnText]}>View Times</Text>
+          <MaterialIcons name="arrow-forward" size={9} color="#2B7A57" />
         </View>
       </View>
     </TouchableOpacity>
@@ -3171,7 +3366,7 @@ const toggleStyles = StyleSheet.create({
 });
 
 // ── Home Screen ────────────────────────────────────────────────────────────
-export default function HomeScreen() {
+export default function HomeScreen({ previewOverride }: { previewOverride?: HomePreviewOverride }) {
   // DB-driven sunnah reminders
   const [dbSunnahs, setDbSunnahs] = useState<SunnahReminderRow[]>([]);
   const [eidUlFitrJamaats, setEidUlFitrJamaats] = useState<string[]>([]);
@@ -3240,6 +3435,7 @@ export default function HomeScreen() {
 
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const showPreviewShortcuts = __DEV__ || !!previewOverride;
   const { nightMode } = useNightMode();
   const {
     data, countdown, nextPrayerName,
@@ -3249,7 +3445,7 @@ export default function HomeScreen() {
   const flashAnim = useRef(new Animated.Value(1)).current;
   const flashLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
-  const currentTime = useCurrentTime();
+  const currentTime = useCurrentTime(previewOverride?.nowIso);
   const nextInfo = React.useMemo(() => (data ? getNextPrayer(data.prayers) : null), [data]);
 
   const {
@@ -3282,11 +3478,21 @@ export default function HomeScreen() {
   }, [jamaatStarted, jamaatOngoing, flashAnim]);
 
   const N = nightMode ? NIGHT : null;
-  const hijriDayNum  = data ? getHijriDayNumber(data.hijriDate) : '';
-  const rawHijriDayNum = data ? Number.parseInt(getHijriDayNumber(data.hijriDate) || '0', 10) : 0;
-  const rawHijriMonthName = data ? getHijriMonthFromAnyFormat(data.hijriDate) : '';
+  const effectiveHijriLabel = previewOverride?.hijriLabel ?? data?.hijriDate ?? '';
+  const hijriDayNum  = effectiveHijriLabel ? getHijriDayNumber(effectiveHijriLabel) : '';
+  const rawHijriDayNum = effectiveHijriLabel ? Number.parseInt(getHijriDayNumber(effectiveHijriLabel) || '0', 10) : 0;
+  const rawHijriMonthName = effectiveHijriLabel ? getHijriMonthFromAnyFormat(effectiveHijriLabel) : '';
   const isShawwalNow = isShawwalMonth(rawHijriMonthName);
   const isDhulHijjahNow = isDhulHijjahMonth(rawHijriMonthName);
+  const previewActiveEidType: 'eid_al_fitr' | 'eid_al_adha' | null = previewOverride?.scenario === 'eid-fitr' || previewOverride?.scenario === 'eid-fitr-jumuah'
+    ? 'eid_al_fitr'
+    : previewOverride?.scenario === 'eid-adha' || previewOverride?.scenario === 'eid-adha-jumuah'
+    ? 'eid_al_adha'
+    : null;
+  const effectiveIsFriday = previewOverride
+    ? (previewOverride.scenario === 'eid-fitr-jumuah' || previewOverride.scenario === 'eid-adha-jumuah')
+    : currentTime.getDay() === 5;
+  const effectiveIsThursday = previewOverride ? false : currentTime.getDay() === 4;
   // Hijri day as integer (1-30) — drives Full Juz for monthly Quran completion
   // Falls back to Gregorian day-of-year mod 30 until Hijri data loads
   const hijriDayInt  = parseInt(hijriDayNum || '0', 10) || ((DAY_OF_YEAR % 30) + 1);
@@ -3295,6 +3501,7 @@ export default function HomeScreen() {
   const fajrPrayer = data?.prayers.find(p => p.name === 'Fajr');
   const dhuhrPrayer = data?.prayers.find(p => p.name === 'Dhuhr');
   const asrPrayer = data?.prayers.find(p => p.name === 'Asr');
+  const maghribPrayer = data?.prayers.find(p => p.name === 'Maghrib');
 
   const {
     heroImageKey,
@@ -3336,16 +3543,17 @@ export default function HomeScreen() {
     jamaatCountdown,
     countdown,
   ]);
-  const isEidUlFitrDay = isShawwalNow && rawHijriDayNum === 1;
-  const isEidUlAdhaDay = isDhulHijjahNow && rawHijriDayNum === 10;
-  const activeEidType: 'eid_al_fitr' | 'eid_al_adha' | null = isEidUlFitrDay
+  const isEidUlFitrDay = previewActiveEidType === 'eid_al_fitr' || (isShawwalNow && rawHijriDayNum === 1);
+  const isEidUlAdhaDay = previewActiveEidType === 'eid_al_adha' || (isDhulHijjahNow && rawHijriDayNum === 10);
+  const activeEidType: 'eid_al_fitr' | 'eid_al_adha' | null = previewActiveEidType ?? (isEidUlFitrDay
     ? 'eid_al_fitr'
-    : (isEidUlAdhaDay ? 'eid_al_adha' : null);
+    : (isEidUlAdhaDay ? 'eid_al_adha' : null));
 
   const resolvedEidJamaats = React.useMemo(() => {
+    if (previewOverride?.eidJamaats?.length) return previewOverride.eidJamaats;
     const source = activeEidType === 'eid_al_fitr' ? eidUlFitrJamaats : eidUlAdhaJamaats;
     return source.length > 0 ? source : ['06:30'];
-  }, [activeEidType, eidUlFitrJamaats, eidUlAdhaJamaats]);
+  }, [previewOverride?.eidJamaats, activeEidType, eidUlFitrJamaats, eidUlAdhaJamaats]);
 
   const eidInfoLine = buildEidJamaatNote(resolvedEidJamaats);
   const isEidHeroWindow = !!(
@@ -3355,7 +3563,13 @@ export default function HomeScreen() {
     && dhuhrPrayer?.timeDate
     && currentTime < dhuhrPrayer.timeDate
   );
-  const shouldShowEidInfoLine = !!(activeEidType && currentTime < (dhuhrPrayer?.timeDate ?? currentTime));
+  const shouldShowEidInfoLine = !!(
+    activeEidType
+    && (
+      (!!asrPrayer?.timeDate && currentTime < asrPrayer.timeDate)
+      || (!!maghribPrayer?.timeDate && currentTime >= maghribPrayer.timeDate)
+    )
+  );
 
   const eidHeroData = React.useMemo(() => {
     if (!isEidHeroWindow || !fajrPrayer?.timeDate || !dhuhrPrayer?.timeDate) return null;
@@ -3372,13 +3586,11 @@ export default function HomeScreen() {
       .map((time) => ({ time, date: parseClockToday(time) }))
       .filter((entry): entry is { time: string; date: Date } => !!entry.date)
       .sort((a, b) => a.date.getTime() - b.date.getTime());
-    const timelinePoints = [
-      ...jamaatDates.map((entry, index) => ({
-        label: `J${index + 1}`,
-        position: jamaatDates.length === 1 ? 0.2 : 0.12 + ((0.56 / Math.max(1, jamaatDates.length - 1)) * index),
-      })),
-      { label: 'Dhuhr', position: 1 },
-    ];
+    const timelinePoints: HeroTimelinePoint[] = jamaatDates.map((entry, index) => ({
+      label: `${toOrdinal(index + 1).toUpperCase()} EID`,
+      time: entry.time,
+      position: jamaatDates.length === 1 ? 0.5 : 0.12 + ((0.76 / Math.max(1, jamaatDates.length - 1)) * index),
+    }));
 
     const firstJamaat = jamaatDates[0]?.date ?? null;
     const lastJamaat = jamaatDates[jamaatDates.length - 1]?.date ?? null;
@@ -3461,8 +3673,8 @@ export default function HomeScreen() {
     eidInfoLine,
   ]);
 
-  const isFriday = currentTime.getDay() === 5;
-  const isThursday = currentTime.getDay() === 4;
+  const isFriday = effectiveIsFriday;
+  const isThursday = effectiveIsThursday;
 
   // Compute today's sunnah from DB (fallback to SUNNAH_REMINDERS)
   const computedTodaySunnah: SunnahEntry = (() => {
@@ -3542,9 +3754,9 @@ export default function HomeScreen() {
   const firstJummahAthanTime = dhuhrPrayer?.time ?? heroEndTime;
   const fridayJumuahScheduleNote = `Jummah Prayers: 1st: ${jj1} · 2nd: ${jj2}`;
   const shouldShowFridayJumuahNote = (() => {
-    // Show Jummah info strip from Isha Thursday through all Friday states, including Jummah hero
-    if (isFriday) return true; // All Friday cards
-    if (isThursday && heroPrayerName === 'Isha') return true; // Isha Thursday
+    // Show Jummah info strip from Maghrib Thursday until Asr starts on Friday.
+    if (isFriday && asrPrayer?.timeDate && currentTime < asrPrayer.timeDate) return true;
+    if (isThursday && maghribPrayer?.timeDate && currentTime >= maghribPrayer.timeDate) return true;
     return false;
   })();
 
@@ -3682,6 +3894,25 @@ export default function HomeScreen() {
   const effectiveHeroGradientColors: readonly [string, string] = nightMode
     ? ['#1B4D38', '#0D3527']
     : ['#2D8B5F', '#1D6B45'];
+  const heroScheduleStrip = React.useMemo(() => {
+    const sections: { label: string; items: string[] }[] = [];
+
+    if (shouldShowEidInfoLine) {
+      sections.push({
+        label: activeEidType === 'eid_al_adha' ? 'Eid ul Adha Times' : 'Eid Times',
+        items: resolvedEidJamaats,
+      });
+    }
+
+    if (shouldShowFridayJumuahNote) {
+      sections.push({
+        label: 'Jummah Times',
+        items: [jj1, jj2],
+      });
+    }
+
+    return sections.length > 0 ? sections : null;
+  }, [shouldShowEidInfoLine, activeEidType, resolvedEidJamaats, shouldShowFridayJumuahNote, jj1, jj2]);
 
   const canTrackJamaatJourney = !!(
     activePrayer
@@ -3699,6 +3930,8 @@ export default function HomeScreen() {
     effectiveHeroCountdownInfo,
     effectiveHeroStartLabel,
     effectiveHeroStartTime,
+    effectiveHeroMidLabel,
+    effectiveHeroMidTime,
     effectiveHeroEndLabel,
     effectiveHeroEndTime,
     effectiveHeroShowJamaat,
@@ -3711,7 +3944,7 @@ export default function HomeScreen() {
 
   const backClock = currentTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
   const backGregorian = currentTime.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
-  const hijriYear = data?.hijriDate?.match(/\b(\d{4})\b/)?.[1] ?? '';
+  const hijriYear = effectiveHijriLabel.match(/\b(\d{4})\b/)?.[1] ?? '';
   const backHijri = [hijriDayNum, rawHijriMonthName, hijriYear ? `${hijriYear} AH` : ''].filter(Boolean).join(' ');
   const headerDateLine = `${backGregorian} • ${backHijri || 'Hijri date loading...'}`;
   const drawerDateLine = `${currentTime.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long' })} | ${hijriDayNum || '--'} ${rawHijriMonthName || 'Hijri'}`;
@@ -3807,6 +4040,30 @@ export default function HomeScreen() {
     prayerSheetRef.current?.close();
   }, []);
 
+  const openPreviewShortcut = useCallback((target: 'home' | 'eid' | 'eid-jumuah' | 'eid-adha' | 'eid-adha-jumuah') => {
+    if (target === 'home') {
+      router.push('/(tabs)' as any);
+      return;
+    }
+
+    if (target === 'eid') {
+      router.push('/live-home-preview-eid' as any);
+      return;
+    }
+
+    if (target === 'eid-adha') {
+      router.push('/live-home-preview-eid-adha' as any);
+      return;
+    }
+
+    if (target === 'eid-adha-jumuah') {
+      router.push('/live-home-preview-eid-adha-jumuah' as any);
+      return;
+    }
+
+    router.push('/live-home-preview-eid-jumuah' as any);
+  }, [router]);
+
   const openPrayerCalendar = useCallback(() => {
     closePrayerDrawer();
     router.push('/(tabs)/prayer');
@@ -3880,6 +4137,7 @@ export default function HomeScreen() {
                 prayerName={effectiveHeroPrayerName}
                 stateLabel={heroTimelineState.stateLabel}
                 countdownText={heroTimelineState.countdownText}
+                scheduleStrip={heroScheduleStrip}
               />
               <HeroPrayerTimeline
                 progress={heroTimelineState.progress}
@@ -3892,6 +4150,7 @@ export default function HomeScreen() {
                 showJamaatAnchor={heroTimelineState.showJamaatAnchor}
                 nightMode={nightMode}
                 pulseMarker={heroTimelineState.pulseMarker}
+                timelinePoints={effectiveHeroTimelinePoints}
               />
             </View>
 
@@ -3905,6 +4164,79 @@ export default function HomeScreen() {
       </View>
 
       <PrayerDrawerTrigger nightMode={nightMode} onPress={openPrayerDrawer} />
+
+      {showPreviewShortcuts ? (
+        <View style={styles.previewShortcutWrap}>
+          <Text style={styles.previewShortcutTitle}>Preview Hero</Text>
+          <View style={styles.previewShortcutRow}>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => openPreviewShortcut('home')}
+              style={[
+                styles.previewShortcutBtn,
+                !previewOverride && styles.previewShortcutBtnActive,
+              ]}
+            >
+              <Text style={[
+                styles.previewShortcutBtnText,
+                !previewOverride && styles.previewShortcutBtnTextActive,
+              ]}>Home</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => openPreviewShortcut('eid')}
+              style={[
+                styles.previewShortcutBtn,
+                previewOverride?.scenario === 'eid-fitr' && styles.previewShortcutBtnActive,
+              ]}
+            >
+              <Text style={[
+                styles.previewShortcutBtnText,
+                previewOverride?.scenario === 'eid-fitr' && styles.previewShortcutBtnTextActive,
+              ]}>Eid</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => openPreviewShortcut('eid-jumuah')}
+              style={[
+                styles.previewShortcutBtn,
+                previewOverride?.scenario === 'eid-fitr-jumuah' && styles.previewShortcutBtnActive,
+              ]}
+            >
+              <Text style={[
+                styles.previewShortcutBtnText,
+                previewOverride?.scenario === 'eid-fitr-jumuah' && styles.previewShortcutBtnTextActive,
+              ]}>Eid + Jummah</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => openPreviewShortcut('eid-adha')}
+              style={[
+                styles.previewShortcutBtn,
+                previewOverride?.scenario === 'eid-adha' && styles.previewShortcutBtnActive,
+              ]}
+            >
+              <Text style={[
+                styles.previewShortcutBtnText,
+                previewOverride?.scenario === 'eid-adha' && styles.previewShortcutBtnTextActive,
+              ]}>Adha</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => openPreviewShortcut('eid-adha-jumuah')}
+              style={[
+                styles.previewShortcutBtn,
+                previewOverride?.scenario === 'eid-adha-jumuah' && styles.previewShortcutBtnActive,
+              ]}
+            >
+              <Text style={[
+                styles.previewShortcutBtnText,
+                previewOverride?.scenario === 'eid-adha-jumuah' && styles.previewShortcutBtnTextActive,
+              ]}>Adha + Jummah</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
 
       <HeroToDaySectionBridge nightMode={nightMode} />
 
@@ -4250,12 +4582,106 @@ const heroTimelineStyles = StyleSheet.create({
   countdownText: {
     marginTop: 8,
     textAlign: 'center',
-    fontSize: 46,
-    lineHeight: 50,
+    fontSize: 38,
+    lineHeight: 42,
     fontWeight: '900',
     color: '#FFFFFF',
     fontVariant: ['tabular-nums'] as any,
     letterSpacing: -0.7,
+  },
+  scheduleStrip: {
+    width: '100%',
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: 'rgba(7,13,28,0.24)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    gap: 8,
+  },
+  scheduleStripCompact: {
+    marginTop: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 6,
+  },
+  scheduleSection: {
+    gap: 8,
+  },
+  scheduleSectionCompact: {
+    gap: 6,
+  },
+  scheduleSectionWithDivider: {
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.10)',
+  },
+  scheduleSectionWithDividerCompact: {
+    paddingTop: 6,
+  },
+  scheduleStripHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  scheduleStripLabel: {
+    fontSize: 10,
+    lineHeight: 13,
+    fontWeight: '800',
+    letterSpacing: 0.9,
+    textTransform: 'uppercase',
+    color: '#F8E7B2',
+  },
+  scheduleStripLabelCompact: {
+    fontSize: 9,
+    lineHeight: 12,
+    letterSpacing: 0.7,
+  },
+  scheduleStripTimes: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scheduleStripScrollViewport: {
+    width: '100%',
+    overflow: 'hidden',
+  },
+  scheduleStripScrollContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+  },
+  scheduleStripTimePill: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2,
+  },
+  scheduleStripTimeOrder: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.72)',
+  },
+  scheduleStripTimeOrderCompact: {
+    fontSize: 9,
+  },
+  scheduleStripTimeValue: {
+    fontSize: 15,
+    lineHeight: 18,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    fontVariant: ['tabular-nums'] as any,
+  },
+  scheduleStripTimeValueCompact: {
+    fontSize: 14,
+    lineHeight: 16,
+  },
+  scheduleStripDivider: {
+    width: 1,
+    alignSelf: 'stretch',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    marginHorizontal: 6,
   },
   timelineBlock: {
     width: '100%',
@@ -4296,6 +4722,7 @@ const heroTimelineStyles = StyleSheet.create({
     borderRadius: 4,
     marginTop: -4,
     backgroundColor: 'rgba(255,255,255,0.72)',
+    zIndex: 2,
   },
   anchorDotMiddle: {
     left: '50%',
@@ -4305,37 +4732,66 @@ const heroTimelineStyles = StyleSheet.create({
     left: undefined,
     right: 0,
   },
+  anchorDotEnd: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginTop: -5,
+    right: -1,
+    backgroundColor: '#F8FCFF',
+    borderWidth: 2,
+    borderColor: 'rgba(14,73,52,0.65)',
+    shadowColor: '#FFFFFF',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.28,
+    shadowRadius: 4,
+    elevation: 2,
+    zIndex: 4,
+  },
+  dynamicTimelineDot: {
+    position: 'absolute',
+    top: '50%',
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginTop: -4,
+    marginLeft: -4,
+    backgroundColor: '#F8E7AE',
+    borderWidth: 1,
+    borderColor: 'rgba(86,60,4,0.60)',
+    zIndex: 2,
+  },
   markerPosition: {
     position: 'absolute',
     left: 0,
     top: '50%',
     marginTop: -(HERO_LOGO_MARKER_SIZE / 2),
+    zIndex: 3,
   },
   markerOuter: {
     width: HERO_LOGO_MARKER_SIZE,
     height: HERO_LOGO_MARKER_SIZE,
     borderRadius: HERO_LOGO_MARKER_SIZE / 2,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.62)',
+    backgroundColor: 'transparent',
+    borderWidth: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#FFF7CF',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
+    shadowColor: '#071019',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.22,
+    shadowRadius: 6,
     elevation: 4,
   },
   markerOuterNight: {
-    shadowOpacity: 0.22,
+    shadowOpacity: 0.3,
   },
   markerOuterPulse: {
-    shadowOpacity: 0.32,
-    shadowRadius: 11,
+    shadowOpacity: 0.38,
+    shadowRadius: 8,
   },
   markerImage: {
-    width: 18,
-    height: 18,
+    width: 24,
+    height: 24,
   },
   anchorTimesRow: {
     marginTop: 8,
@@ -4361,6 +4817,16 @@ const heroTimelineStyles = StyleSheet.create({
     color: HERO_DESIGN_TOKENS.textPrimary,
     fontVariant: ['tabular-nums'] as any,
   },
+  dynamicAnchorTimeText: {
+    position: 'absolute',
+    transform: [{ translateX: -24 }],
+    width: 48,
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '800',
+    color: HERO_DESIGN_TOKENS.textPrimary,
+    fontVariant: ['tabular-nums'] as any,
+  },
   anchorLabelsRow: {
     marginTop: 3,
     flexDirection: 'row',
@@ -4372,6 +4838,17 @@ const heroTimelineStyles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.45,
+    textTransform: 'uppercase',
+    color: HERO_DESIGN_TOKENS.textTertiary,
+  },
+  dynamicAnchorLabelText: {
+    position: 'absolute',
+    transform: [{ translateX: -30 }],
+    width: 60,
+    textAlign: 'center',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.4,
     textTransform: 'uppercase',
     color: HERO_DESIGN_TOKENS.textTertiary,
   },
@@ -4398,6 +4875,11 @@ const heroSupportStyles = StyleSheet.create({
     marginHorizontal: -18,
     marginBottom: -14,
     height: 110,
+  },
+  salahCard: {
+    backgroundColor: '#F3F7F5',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(17,73,51,0.08)',
   },
   donateInner: {
     flex: 1,
@@ -4521,17 +5003,32 @@ const heroSupportStyles = StyleSheet.create({
     textTransform: 'uppercase',
     color: HERO_DESIGN_TOKENS.mintSoft,
   },
+  salahEyebrow: {
+    color: '#2B7A57',
+  },
+  adhaEyebrow: {
+    color: '#B78103',
+  },
   dynamicTitle: {
     fontSize: 13,
     fontWeight: '800',
     color: HERO_DESIGN_TOKENS.textPrimary,
     lineHeight: 16,
   },
+  adhaTitle: {
+    color: '#18392B',
+  },
+  salahTitle: {
+    color: '#18392B',
+  },
   dynamicSub: {
     fontSize: 10,
     fontWeight: '600',
     color: HERO_DESIGN_TOKENS.textTertiary,
     lineHeight: 13,
+  },
+  adhaSub: {
+    color: '#5C4A15',
   },
   dynamicViewBtn: {
     flexDirection: 'row',
@@ -4545,11 +5042,18 @@ const heroSupportStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(164,242,160,0.26)',
   },
+  salahViewBtn: {
+    backgroundColor: '#E6F0EB',
+    borderColor: 'rgba(43,122,87,0.18)',
+  },
   dynamicViewBtnText: {
     fontSize: 9,
     fontWeight: '700',
     color: HERO_DESIGN_TOKENS.mintSoft,
     letterSpacing: 0.3,
+  },
+  salahViewBtnText: {
+    color: '#2B7A57',
   },
 });
 
@@ -5630,6 +6134,53 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     marginBottom: 12,
     marginTop: Spacing.sm,
+  },
+  previewShortcutWrap: {
+    marginHorizontal: Spacing.md,
+    marginTop: 10,
+    marginBottom: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: 'rgba(8, 30, 22, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(13, 107, 69, 0.14)',
+    gap: 8,
+  },
+  previewShortcutTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: '#2E5B49',
+  },
+  previewShortcutRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  previewShortcutBtn: {
+    minWidth: 88,
+    minHeight: 38,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(13, 107, 69, 0.18)',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  previewShortcutBtnActive: {
+    backgroundColor: '#0D6B45',
+    borderColor: '#0D6B45',
+  },
+  previewShortcutBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#24503F',
+  },
+  previewShortcutBtnTextActive: {
+    color: '#FFFFFF',
   },
   seeAll: { ...Typography.labelMedium, color: Colors.primary },
   quickAccessGrid: {
