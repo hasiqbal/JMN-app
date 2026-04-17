@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
   },
   image: {
-    resizeMode: 'cover',
+    resizeMode: 'contain',
   },
   overlay: {
     flex: 1,

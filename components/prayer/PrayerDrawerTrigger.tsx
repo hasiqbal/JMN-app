@@ -6,6 +6,7 @@ import { Colors, Spacing } from '@/constants/theme';
 type PrayerDrawerTriggerProps = {
   nightMode: boolean;
   onPress: () => void;
+  attached?: boolean;
 };
 
 const NIGHT = {
@@ -17,31 +18,52 @@ const NIGHT = {
   handle: 'rgba(229, 243, 236, 0.5)',
 };
 
-export default function PrayerDrawerTrigger({ nightMode, onPress }: PrayerDrawerTriggerProps) {
+const ATTACHED = {
+  icon:   '#E8B84B',             // warm gold
+  text:   '#FCF8F2',             // hero textPrimary warm white
+  sub:    '#C8E2D6',             // soft mint-grey
+  handle: 'rgba(200, 226, 212, 0.38)',
+};
+
+export default function PrayerDrawerTrigger({ nightMode, onPress, attached }: PrayerDrawerTriggerProps) {
+  const iconColor  = attached ? ATTACHED.icon  : nightMode ? NIGHT.icon  : '#2C7B57';
+  const textColor  = attached ? ATTACHED.text  : nightMode ? NIGHT.text  : undefined;
+  const hintColor  = attached ? ATTACHED.sub   : nightMode ? NIGHT.sub   : undefined;
+  const arrowColor = attached ? ATTACHED.sub   : nightMode ? NIGHT.sub   : '#6C8C7A';
+  const handleStyle = attached
+    ? { backgroundColor: ATTACHED.handle }
+    : nightMode ? { backgroundColor: NIGHT.handle } : undefined;
+
+  const inner = (
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel="Open today's salah drawer"
+      activeOpacity={0.9}
+      onPress={onPress}
+      style={[
+        styles.panel,
+        attached ? styles.panelAttached : nightMode ? styles.panelNight : styles.panelDay,
+      ]}
+    >
+      <View style={[styles.handle, handleStyle]} />
+      <View style={styles.row}>
+        <View style={styles.leftMeta}>
+          <MaterialIcons name="mosque" size={16} color={iconColor} />
+          <Text style={[styles.title, textColor ? { color: textColor } : undefined]}>Today&apos;s Salah</Text>
+        </View>
+        <View style={styles.rightMeta}>
+          <Text style={[styles.hint, hintColor ? { color: hintColor } : undefined]}>View times</Text>
+          <MaterialIcons name="keyboard-arrow-up" size={17} color={arrowColor} />
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+
+  if (attached) return inner;
+
   return (
     <View style={styles.container}>
-      <TouchableOpacity
-        accessibilityRole="button"
-        accessibilityLabel="Open today's salah drawer"
-        activeOpacity={0.9}
-        onPress={onPress}
-        style={[
-          styles.panel,
-          nightMode ? styles.panelNight : styles.panelDay,
-        ]}
-      >
-        <View style={[styles.handle, nightMode && { backgroundColor: NIGHT.handle }]} />
-        <View style={styles.row}>
-          <View style={styles.leftMeta}>
-            <MaterialIcons name="mosque" size={16} color={nightMode ? NIGHT.icon : '#2C7B57'} />
-            <Text style={[styles.title, nightMode && { color: NIGHT.text }]}>Today&apos;s Salah</Text>
-          </View>
-          <View style={styles.rightMeta}>
-            <Text style={[styles.hint, nightMode && { color: NIGHT.sub }]}>View times</Text>
-            <MaterialIcons name="keyboard-arrow-up" size={17} color={nightMode ? NIGHT.sub : '#6C8C7A'} />
-          </View>
-        </View>
-      </TouchableOpacity>
+      {inner}
     </View>
   );
 }
@@ -77,6 +99,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.16,
     shadowRadius: 9,
     elevation: 2,
+  },
+  panelAttached: {
+    backgroundColor: 'rgba(30, 94, 65, 0.90)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(236, 244, 238, 0.18)',
+    paddingHorizontal: 18,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
   },
   handle: {
     alignSelf: 'center',

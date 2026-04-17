@@ -76,14 +76,20 @@ export function useSkyBackgroundCycle() {
     return PRAYER_BG_IMAGES[key] ?? PRAYER_BG_IMAGES.Dhuhr;
   }, [currentIndex]);
 
+  const currentSkyKey = useMemo(() => SKY_DAY_CYCLE_KEYS[currentIndex] ?? 'Dhuhr', [currentIndex]);
+
   const nextSkySource = useMemo(() => {
     const key = SKY_DAY_CYCLE_KEYS[nextIndex] ?? 'Dhuhr';
     return PRAYER_BG_IMAGES[key] ?? PRAYER_BG_IMAGES.Dhuhr;
   }, [nextIndex]);
 
+  const nextSkyKey = useMemo(() => SKY_DAY_CYCLE_KEYS[nextIndex] ?? 'Dhuhr', [nextIndex]);
+
   return {
     currentSkySource,
+    currentSkyKey,
     nextSkySource,
+    nextSkyKey,
     nextSkyOpacity: fadeOpacity,
   };
 }
