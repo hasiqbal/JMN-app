@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { View, Text, StyleSheet, Animated, Platform } from 'react-native';
 
 type Props = {
   time: string; // Format: "HH:MM:SS"
@@ -48,7 +48,7 @@ function FlipDigit({ digit }: { digit: string }) {
           styles.flipFront,
           {
             opacity: frontOpacity,
-            transform: [{ rotateX: rotateX }],
+            transform: [{ perspective: 1000 }, { rotateX: rotateX }],
           },
         ]}
       >
@@ -62,7 +62,7 @@ function FlipDigit({ digit }: { digit: string }) {
           styles.flipBack,
           {
             opacity: backOpacity,
-            transform: [{ rotateX: rotateX }],
+            transform: [{ perspective: 1000 }, { rotateX: rotateX }],
           },
         ]}
       >
@@ -99,7 +99,6 @@ const styles = StyleSheet.create({
     width: 30,
     height: 48,
     marginHorizontal: 2,
-    perspective: 1000,
     overflow: 'hidden',
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
     borderRadius: 4,
@@ -125,17 +124,25 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 0,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 8,
+    ...(Platform.OS === 'web'
+      ? { textShadow: '0px 2px 8px rgba(0,0,0,0.5)' }
+      : {
+          textShadowColor: 'rgba(0,0,0,0.5)',
+          textShadowOffset: { width: 0, height: 2 },
+          textShadowRadius: 8,
+        }),
   },
   colon: {
     fontSize: 28,
     fontWeight: '800',
     color: '#FFFFFF',
     marginHorizontal: 4,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 8,
+    ...(Platform.OS === 'web'
+      ? { textShadow: '0px 2px 8px rgba(0,0,0,0.5)' }
+      : {
+          textShadowColor: 'rgba(0,0,0,0.5)',
+          textShadowOffset: { width: 0, height: 2 },
+          textShadowRadius: 8,
+        }),
   },
 });

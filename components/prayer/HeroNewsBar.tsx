@@ -227,11 +227,10 @@ export default function HeroNewsBar({
         style={[styles.scheduleBanner, style]}
       >
         <LinearGradient
-          pointerEvents="none"
           colors={['rgba(255,247,228,0.10)', 'rgba(255,255,255,0.00)']}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
-          style={styles.scheduleInnerHighlight}
+          style={[styles.scheduleInnerHighlight, { pointerEvents: 'none' }]}
         />
         {scheduleSections.map((section, sectionIndex) => {
           const parsedItems = section.items.map(parseScheduleItem);
@@ -283,11 +282,10 @@ export default function HeroNewsBar({
       style={[styles.banner, !showDetailMessage && styles.bannerBadgeOnly, style]}
     >
       <LinearGradient
-        pointerEvents="none"
         colors={['rgba(255,255,255,0.16)', 'rgba(255,255,255,0.00)']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
-        style={styles.topGloss}
+        style={[styles.topGloss, { pointerEvents: 'none' }]}
       />
 
       {showNewsLabel ? (
@@ -307,11 +305,10 @@ export default function HeroNewsBar({
         <View style={styles.contentWrap}>
           <View style={styles.innerGlassFrame}>
             <LinearGradient
-              pointerEvents="none"
               colors={['rgba(255,255,255,0.10)', 'rgba(255,255,255,0.00)']}
               start={{ x: 0.2, y: 0 }}
               end={{ x: 0.8, y: 1 }}
-              style={styles.innerGloss}
+              style={[styles.innerGloss, { pointerEvents: 'none' }]}
             />
 
             <View style={styles.content}>

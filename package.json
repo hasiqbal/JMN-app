@@ -23,7 +23,7 @@
     "@expo/metro-runtime": "6.1.2",
     "@expo/styleguide-native": "^1.0.1",
     "@expo/vector-icons": "^15.1.1",
-    "@gorhom/bottom-sheet": "4.4.6",
+    "@gorhom/bottom-sheet": "5.2.9",
     "@graphql-codegen/introspection": "^2.1.1",
     "@lucide/lab": "^0.1.2",
     "@privacyresearch/libsignal-protocol-typescript": "0.0.16",

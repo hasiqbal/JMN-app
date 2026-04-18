@@ -176,11 +176,11 @@ const ENHANCED_ARABIC_GROUPS = new Set([
 
 // ── Prayer-time display metadata ─────────────────────────────────────────
 const PRAYER_TIME_META: Record<string, { title: string; icon: string; accent: string }> = {
-  'after-fajr':    { title: 'Morning Adhkar',         icon: 'wb-twilight', accent: ADHKAR_ACCENT_GREEN },
+  'after-fajr':    { title: 'After Fajr Adhkar',      icon: 'wb-twilight', accent: ADHKAR_ACCENT_GREEN },
   'after-zuhr':    { title: 'After Dhuhr Adhkar',     icon: 'wb-sunny',    accent: ADHKAR_ACCENT_GREEN },
   'after-jumuah':  { title: "After Jumu'ah Adhkar",   icon: 'star',        accent: ADHKAR_ACCENT_GREEN },
   'after-asr':     { title: 'After Asr Adhkar',       icon: 'wb-cloudy',   accent: ADHKAR_ACCENT_GREEN },
-  'after-maghrib': { title: 'Evening Adhkar',         icon: 'bedtime',     accent: ADHKAR_ACCENT_GREEN },
+  'after-maghrib': { title: 'After Maghrib Adhkar',   icon: 'bedtime',     accent: ADHKAR_ACCENT_GREEN },
   'after-isha':    { title: 'After Isha Adhkar',      icon: 'nightlight',  accent: ADHKAR_ACCENT_GREEN },
   'before-fajr':   { title: 'Before Fajr & Tahajjud Adhkar', icon: 'nights-stay', accent: ADHKAR_ACCENT_GREEN },
   // Group-filtered overrides

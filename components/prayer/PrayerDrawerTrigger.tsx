@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Platform } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors, Spacing } from '@/constants/theme';
 
@@ -21,15 +21,15 @@ const NIGHT = {
 const ATTACHED = {
   icon:   '#E8B84B',             // warm gold
   text:   '#FCF8F2',             // hero textPrimary warm white
-  sub:    '#C8E2D6',             // soft mint-grey
+  sub:    '#E2F4EA',             // brighter mint for clearer CTA
   handle: 'rgba(200, 226, 212, 0.38)',
 };
 
 export default function PrayerDrawerTrigger({ nightMode, onPress, attached }: PrayerDrawerTriggerProps) {
-  const iconColor  = attached ? ATTACHED.icon  : nightMode ? NIGHT.icon  : '#2C7B57';
   const textColor  = attached ? ATTACHED.text  : nightMode ? NIGHT.text  : undefined;
   const hintColor  = attached ? ATTACHED.sub   : nightMode ? NIGHT.sub   : undefined;
   const arrowColor = attached ? ATTACHED.sub   : nightMode ? NIGHT.sub   : '#6C8C7A';
+  const iconBadgeStyle = attached ? styles.iconBadgeAttached : nightMode ? styles.iconBadgeNight : styles.iconBadgeDay;
   const handleStyle = attached
     ? { backgroundColor: ATTACHED.handle }
     : nightMode ? { backgroundColor: NIGHT.handle } : undefined;
@@ -48,11 +48,22 @@ export default function PrayerDrawerTrigger({ nightMode, onPress, attached }: Pr
       <View style={[styles.handle, handleStyle]} />
       <View style={styles.row}>
         <View style={styles.leftMeta}>
-          <MaterialIcons name="mosque" size={16} color={iconColor} />
+          <View style={[styles.iconBadge, iconBadgeStyle]}>
+            <Image
+              source={require('../../assets/images/masjid-building.jpg')}
+              style={styles.iconImage}
+              resizeMode="cover"
+            />
+          </View>
           <Text style={[styles.title, textColor ? { color: textColor } : undefined]}>Today&apos;s Salah</Text>
         </View>
         <View style={styles.rightMeta}>
-          <Text style={[styles.hint, hintColor ? { color: hintColor } : undefined]}>View times</Text>
+          <Text
+            style={[styles.hint, hintColor ? { color: hintColor } : undefined]}
+            numberOfLines={1}
+          >
+            View prayer times
+          </Text>
           <MaterialIcons name="keyboard-arrow-up" size={17} color={arrowColor} />
         </View>
       </View>
@@ -85,19 +96,27 @@ const styles = StyleSheet.create({
   panelDay: {
     backgroundColor: 'rgba(236, 246, 239, 0.98)',
     borderColor: 'rgba(43, 117, 76, 0.13)',
-    shadowColor: '#0A3F28',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 9,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 4px 9px rgba(10,63,40,0.06)' }
+      : {
+          shadowColor: '#0A3F28',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.06,
+          shadowRadius: 9,
+        }),
     elevation: 1,
   },
   panelNight: {
     backgroundColor: NIGHT.panel,
     borderColor: NIGHT.panelBorder,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.16,
-    shadowRadius: 9,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 4px 9px rgba(0,0,0,0.16)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.16,
+          shadowRadius: 9,
+        }),
     elevation: 2,
   },
   panelAttached: {
@@ -127,7 +146,27 @@ const styles = StyleSheet.create({
   leftMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 9,
+    gap: 10,
+  },
+  iconBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    overflow: 'hidden',
+    borderWidth: 1,
+  },
+  iconBadgeDay: {
+    borderColor: 'rgba(42, 94, 66, 0.22)',
+  },
+  iconBadgeNight: {
+    borderColor: 'rgba(155, 229, 168, 0.34)',
+  },
+  iconBadgeAttached: {
+    borderColor: 'rgba(239, 214, 156, 0.6)',
+  },
+  iconImage: {
+    width: '100%',
+    height: '100%',
   },
   title: {
     fontSize: 16,
@@ -138,12 +177,12 @@ const styles = StyleSheet.create({
   rightMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 1,
+    gap: 2,
   },
   hint: {
-    fontSize: 11,
-    fontWeight: '500',
+    fontSize: 12,
+    fontWeight: '700',
     color: '#6D8577',
-    letterSpacing: 0.1,
+    letterSpacing: 0.2,
   },
 });

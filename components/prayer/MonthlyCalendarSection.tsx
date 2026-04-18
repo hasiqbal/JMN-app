@@ -300,6 +300,8 @@ function buildMonthGrid(
         ...local,
         fajr: dbRow.fajr,
         sunrise: dbRow.sunrise,
+        ishraq: dbRow.ishraq ?? local.ishraq,
+        zawaal: dbRow.zawaal ?? local.zawaal,
         dhuhr: dbRow.zuhr,
         asr: dbRow.asr,
         maghrib: dbRow.maghrib,
@@ -395,6 +397,37 @@ function CalendarPrayerPanel({
     return d;
   };
 
+  const parseClockToMinutes = (timeStr: string | undefined | null): number | null => {
+    if (!timeStr) return null;
+    const [h, m] = timeStr.split(':').map(Number);
+    if (Number.isNaN(h) || Number.isNaN(m)) return null;
+    if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+    return (h * 60) + m;
+  };
+
+  const formatMinutesToClock = (totalMinutes: number): string => {
+    const normalized = ((totalMinutes % (24 * 60)) + (24 * 60)) % (24 * 60);
+    const hours = Math.floor(normalized / 60);
+    const minutes = normalized % 60;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  };
+
+  const midpointClockBetween = (start: string | undefined | null, end: string | undefined | null): string | undefined => {
+    const startMinutes = parseClockToMinutes(start);
+    const endMinutes = parseClockToMinutes(end);
+    if (startMinutes === null || endMinutes === null) return undefined;
+
+    const adjustedEnd = endMinutes <= startMinutes ? endMinutes + (24 * 60) : endMinutes;
+    const midpoint = Math.round(startMinutes + ((adjustedEnd - startMinutes) / 2));
+    return formatMinutesToClock(midpoint);
+  };
+
+  const subtractMinutesFromClock = (clock: string | undefined | null, minutes: number): string | undefined => {
+    const parsed = parseClockToMinutes(clock);
+    if (parsed === null) return undefined;
+    return formatMinutesToClock(parsed - minutes);
+  };
+
   const nextDate = new Date(date);
   nextDate.setDate(nextDate.getDate() + 1);
   const tomorrowLocal = lookupTimetable(nextDate);
@@ -405,6 +438,10 @@ function CalendarPrayerPanel({
     && isTomorrowFriday
     && (isPastDay || (isSelectedToday && !!dhuhrIqamahDate && now >= dhuhrIqamahDate));
   const tomorrowJumuahIqamah = tomorrowLocal?.jumuah ?? (isBST(nextDate) ? '13:30' : '12:45');
+  const duhaToday = midpointClockBetween(day.fajr, day.maghrib) ?? '--:--';
+  const duhaTomorrow = midpointClockBetween(tomorrowLocal?.fajr, tomorrowLocal?.maghrib);
+  const zawaalToday = day.zawaal ?? subtractMinutesFromClock(day.dhuhr, 30) ?? '--:--';
+  const zawaalTomorrow = tomorrowLocal?.zawaal ?? subtractMinutesFromClock(tomorrowLocal?.dhuhr, 30);
 
   const baseRows: {
     label: string;
@@ -442,6 +479,22 @@ function CalendarPrayerPanel({
       athan: day.ishraq,
       iqamah: null,
       tomorrowAthan: tomorrowLocal?.ishraq,
+    },
+    {
+      label: 'ad-Duha al-Kubra',
+      color: '#2E7D32',
+      icon: 'wb-sunny',
+      athan: duhaToday,
+      iqamah: null,
+      tomorrowAthan: duhaTomorrow,
+    },
+    {
+      label: 'Zawaal',
+      color: '#00897B',
+      icon: 'hourglass-empty',
+      athan: zawaalToday,
+      iqamah: null,
+      tomorrowAthan: zawaalTomorrow,
     },
     {
       label: 'Dhuhr',
@@ -555,6 +608,8 @@ function CalendarPrayerPanel({
             {p.label === 'Fajr' ? <Text style={panelStyles.prayerGuidance}>Nafl forbidden after you prayed until Ishraq</Text> : null}
             {p.label === 'Asr' ? <Text style={panelStyles.prayerGuidance}>Forbidden to delay - 20 mins before Maghrib</Text> : null}
             {p.label === 'Ishraq' ? <Text style={panelStyles.prayerGuidance}>Nafl allowed after sunrise window ends</Text> : null}
+            {p.label === 'ad-Duha al-Kubra' ? <Text style={panelStyles.prayerGuidance}>Peak Duha window - midpoint between Fajr and Maghrib</Text> : null}
+            {p.label === 'Zawaal' ? <Text style={panelStyles.prayerGuidance}>Forbidden to pray until Dhuhr begins</Text> : null}
           </View>
           <View style={{ width: 72, alignItems: 'center' }}>
             <Text style={[

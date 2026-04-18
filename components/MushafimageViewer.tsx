@@ -527,7 +527,7 @@ function MushafImageViewer({
 
             {/* Translation layer (bottom sheet) */}
             {showTrans ? (
-              <View style={S.transOverlay} pointerEvents="box-none">
+              <View style={[S.transOverlay, { pointerEvents: 'box-none' }]}>
                 <TouchableOpacity
                   style={[S.transBackdrop, { backgroundColor: 'rgba(0,0,0,0.2)' }]}
                   activeOpacity={1}

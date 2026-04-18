@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import HeroNewsBar, { parseHeroNewsSchedule } from '@/components/prayer/HeroNewsBar';
@@ -315,15 +316,14 @@ export default function PrayerHeroCard({
       <View style={[styles.surfaceShell, embedded && styles.surfaceShellEmbedded]}>
         {/* Full-screen overlay */}
         <LinearGradient
-          pointerEvents="none"
           colors={['rgba(0,0,0,0.25)', 'rgba(0,0,0,0.5)']}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
-          style={styles.overlay}
+          style={[styles.overlay, { pointerEvents: 'none' }]}
         />
         {/* Fireworks layer */}
         {isEidHero ? (
-          <View pointerEvents="none" style={styles.fireworksLayer}>
+          <View style={[styles.fireworksLayer, { pointerEvents: 'none' }]}>
             {EID_FIREWORK_BURSTS.map((burst, burstIndex) => {
               const burstOpacity = fireworksAnim.interpolate({
                 inputRange: [0, burst.delay, Math.min(1, burst.delay + 0.18), Math.min(1, burst.delay + 0.45), 1],
@@ -349,7 +349,22 @@ export default function PrayerHeroCard({
                     },
                   ]}
                 >
-                  <View style={[styles.fireworkCore, { backgroundColor: burst.color }]} />
+                  <View
+                    style={[
+                      styles.fireworkCore,
+                      {
+                        backgroundColor: burst.color,
+                        ...(Platform.OS === 'web'
+                          ? { boxShadow: `0px 0px 12px ${burst.color}` }
+                          : {
+                              shadowColor: burst.color,
+                              shadowOpacity: 0.85,
+                              shadowRadius: 12,
+                              shadowOffset: { width: 0, height: 0 },
+                            }),
+                      },
+                    ]}
+                  />
                   {FIREWORK_ANGLES.map((angle) => (
                     <View
                       key={`${burstIndex}-${angle}`}
@@ -373,11 +388,10 @@ export default function PrayerHeroCard({
         >
           {embedded ? (
             <LinearGradient
-              pointerEvents="none"
               colors={['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.015)', 'rgba(255,255,255,0.00)']}
               start={{ x: 0, y: 0 }}
               end={{ x: 0.9, y: 1 }}
-              style={styles.surfaceSheen}
+              style={[styles.surfaceSheen, { pointerEvents: 'none' }]}
             />
           ) : null}
           <View style={styles.textCluster}>
@@ -518,9 +532,6 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 999,
-    shadowOpacity: 0.85,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 0 },
   },
   fireworkRay: {
     position: 'absolute',
@@ -564,9 +575,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: -0.8,
     lineHeight: 48,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 8,
+    ...(Platform.OS === 'web'
+      ? { textShadow: '0px 2px 8px rgba(0,0,0,0.5)' }
+      : {
+          textShadowColor: 'rgba(0,0,0,0.5)',
+          textShadowOffset: { width: 0, height: 2 },
+          textShadowRadius: 8,
+        }),
   },
   clockAmpm: {
     fontSize: 18,
@@ -647,9 +662,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: -0.5,
     marginBottom: 4,
-    textShadowColor: 'rgba(0,0,0,0.35)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 6,
+    ...(Platform.OS === 'web'
+      ? { textShadow: '0px 1px 6px rgba(0,0,0,0.35)' }
+      : {
+          textShadowColor: 'rgba(0,0,0,0.35)',
+          textShadowOffset: { width: 0, height: 1 },
+          textShadowRadius: 6,
+        }),
   },
   prayerIn: {
     fontSize: 22,
@@ -703,10 +722,14 @@ const styles = StyleSheet.create({
     height: 3,
     backgroundColor: 'rgba(96, 225, 154, 0.24)',
     borderRadius: 2,
-    shadowColor: 'rgba(54,214,125,0.24)',
-    shadowOpacity: 0.6,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 0 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 0px 4px rgba(54,214,125,0.24)' }
+      : {
+          shadowColor: 'rgba(54,214,125,0.24)',
+          shadowOpacity: 0.6,
+          shadowRadius: 4,
+          shadowOffset: { width: 0, height: 0 },
+        }),
   },
   glowingLineAura: {
     position: 'absolute',
@@ -724,10 +747,14 @@ const styles = StyleSheet.create({
     height: 3,
     backgroundColor: '#59C98A',
     borderRadius: 2,
-    shadowColor: '#4DB87D',
-    shadowOpacity: 0.95,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 0 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 0px 8px rgba(77,184,125,0.95)' }
+      : {
+          shadowColor: '#4DB87D',
+          shadowOpacity: 0.95,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 0 },
+        }),
   },
   glowingLinePullCap: {
     position: 'absolute',
@@ -737,10 +764,14 @@ const styles = StyleSheet.create({
     marginLeft: -4,
     borderRadius: 999,
     backgroundColor: '#A8EBC7',
-    shadowColor: '#A8EBC7',
-    shadowOpacity: 0.9,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 0 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 0px 8px rgba(168,235,199,0.9)' }
+      : {
+          shadowColor: '#A8EBC7',
+          shadowOpacity: 0.9,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 0 },
+        }),
   },
   glowingLineShimmerClip: {
     position: 'absolute',
@@ -758,10 +789,14 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 999,
     backgroundColor: 'rgba(255,255,255,0.34)',
-    shadowColor: '#DFFFF0',
-    shadowOpacity: 0.7,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 0 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 0px 12px rgba(223,255,240,0.7)' }
+      : {
+          shadowColor: '#DFFFF0',
+          shadowOpacity: 0.7,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 0 },
+        }),
   },
   glowingLineShimmerSecondary: {
     position: 'absolute',
@@ -770,10 +805,14 @@ const styles = StyleSheet.create({
     height: 18,
     borderRadius: 999,
     backgroundColor: 'rgba(141,255,209,0.28)',
-    shadowColor: '#8EDDB6',
-    shadowOpacity: 0.55,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 0 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 0px 8px rgba(142,221,182,0.55)' }
+      : {
+          shadowColor: '#8EDDB6',
+          shadowOpacity: 0.55,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 0 },
+        }),
   },
   timelineLogoPointr: {
     position: 'absolute',
@@ -835,10 +874,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#74DDA0',
     borderWidth: 2,
     borderColor: '#FFFFFF',
-    shadowColor: '#74DDA0',
-    shadowOpacity: 0.9,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 0 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 0px 10px rgba(116,221,160,0.9)' }
+      : {
+          shadowColor: '#74DDA0',
+          shadowOpacity: 0.9,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 0 },
+        }),
   },
   timelineLabel: {
     fontSize: 11,
@@ -866,9 +909,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFFFFF',
     lineHeight: 22,
-    textShadowColor: 'rgba(79,233,72,0.4)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 8,
+    ...(Platform.OS === 'web'
+      ? { textShadow: '0px 0px 8px rgba(79,233,72,0.4)' }
+      : {
+          textShadowColor: 'rgba(79,233,72,0.4)',
+          textShadowOffset: { width: 0, height: 0 },
+          textShadowRadius: 8,
+        }),
   },
   cutThroughContentArea: {
     paddingTop: 0,
@@ -889,10 +936,14 @@ const styles = StyleSheet.create({
     height: 6,
     marginBottom: 0,
     backgroundColor: 'rgba(255,255,255,0.22)',
-    shadowColor: 'rgba(4,18,38,0.45)',
-    shadowOpacity: 0.28,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 8 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 8px 12px rgba(4,18,38,0.28)' }
+      : {
+          shadowColor: 'rgba(4,18,38,0.45)',
+          shadowOpacity: 0.28,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 8 },
+        }),
   },
   barTrackWarning: {
     backgroundColor: 'rgba(255,186,112,0.25)',
@@ -904,10 +955,14 @@ const styles = StyleSheet.create({
     height: '100%',
     overflow: 'hidden',
     borderRadius: 999,
-    shadowColor: '#68EDE5',
-    shadowOpacity: 0.8,
-    shadowRadius: 9,
-    shadowOffset: { width: 0, height: 0 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 0px 9px rgba(104,237,229,0.8)' }
+      : {
+          shadowColor: '#68EDE5',
+          shadowOpacity: 0.8,
+          shadowRadius: 9,
+          shadowOffset: { width: 0, height: 0 },
+        }),
   },
   barFillGradient: {
     height: '100%',
@@ -974,10 +1029,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderWidth: 2.5,
     borderColor: '#68EDE5',
-    shadowColor: '#68EDE5',
-    shadowOpacity: 0.95,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 0 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 0px 10px rgba(104,237,229,0.95)' }
+      : {
+          shadowColor: '#68EDE5',
+          shadowOpacity: 0.95,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 0 },
+        }),
   },
   barEndMark: {
     position: 'absolute',
@@ -989,10 +1048,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(205,245,255,0.95)',
     borderWidth: 1.5,
     borderColor: '#FFFFFF',
-    shadowColor: '#9CEBFF',
-    shadowOpacity: 0.85,
-    shadowRadius: 7,
-    shadowOffset: { width: 0, height: 0 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 0px 7px rgba(156,235,255,0.85)' }
+      : {
+          shadowColor: '#9CEBFF',
+          shadowOpacity: 0.85,
+          shadowRadius: 7,
+          shadowOffset: { width: 0, height: 0 },
+        }),
   },
   barTimelinePoint: {
     position: 'absolute',
@@ -1119,9 +1182,13 @@ const styles = StyleSheet.create({
     opacity: 1,
     fontWeight: '800',
     color: '#FFFFFF',
-    textShadowColor: 'rgba(255,255,255,0.35)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 6,
+    ...(Platform.OS === 'web'
+      ? { textShadow: '0px 0px 6px rgba(255,255,255,0.35)' }
+      : {
+          textShadowColor: 'rgba(255,255,255,0.35)',
+          textShadowOffset: { width: 0, height: 0 },
+          textShadowRadius: 6,
+        }),
   },
   timesStripTimeInactive: {
     opacity: 0.56,

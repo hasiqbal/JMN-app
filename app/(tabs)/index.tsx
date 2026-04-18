@@ -15,13 +15,11 @@ import {
   Dimensions,
 } from 'react-native';
 import BottomSheet from '@gorhom/bottom-sheet';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
-import { useAlert } from '@/template';
 import { useSkyBackgroundCycle } from '@/hooks/useSkyBackgroundCycle';
 import { formatCountdownSeconds, getNextPrayer, type PrayerTime } from '@/services/prayerService';
 import { usePrayerTimes } from '@/hooks/usePrayerTimes';
@@ -35,6 +33,8 @@ import { buildActivePrayerState } from '@/components/prayer/activePrayerState';
 import PrayerDrawerTrigger from '@/components/prayer/PrayerDrawerTrigger';
 import PrayerDrawerSheet from '@/components/prayer/PrayerDrawerSheet';
 import { buildPrayerDrawerRows } from '@/components/prayer/prayerDrawerState';
+import { HomeQuickAccessSection } from '@/components/prayer/HomeQuickAccessSection';
+import { HomeForYouTodaySection } from '@/components/prayer/HomeForYouTodaySection';
 import { createDonationCheckoutUrl } from '@/services/donationService';
 import WebView from 'react-native-webview';
 
@@ -143,10 +143,10 @@ const HERO_DESIGN_TOKENS = {
   textSecondary:      '#EDE7DE',  // softer off-white
   textTertiary:       '#D4CDC2',  // muted warm tone
   // Hero surfaces
-  heroTop:            '#2E8A60',
-  heroBottom:         '#1E5E41',
-  heroTopNight:       '#1F5A40',
-  heroBottomNight:    '#123A2C',
+  heroTop:            'rgba(46,138,96,0.70)',
+  heroBottom:         'rgba(30,94,65,0.78)',
+  heroTopNight:       'rgba(31,90,64,0.78)',
+  heroBottomNight:    'rgba(18,58,44,0.85)',
   badgeForest:        'rgba(15,51,35,0.92)',
   badgeBorder:        'rgba(179,218,194,0.20)',
   badgeIconBg:        '#E9E0CF',
@@ -159,9 +159,9 @@ const HERO_DESIGN_TOKENS = {
   donationSurface:    'rgba(9,44,31,0.74)',
   goldSoft:           '#D8C27A',
   // Overlays & backgrounds
-  overlayStrong:      'rgba(2,9,19,0.42)',  // balanced readability with more photo visibility
-  overlayMedium:      'rgba(2,9,19,0.32)',
-  overlayLight:       'rgba(2,9,19,0.22)',
+  overlayStrong:      'rgba(2,9,19,0.34)',  // slight reduction in photo prominence for balanced readability
+  overlayMedium:      'rgba(2,9,19,0.24)',
+  overlayLight:       'rgba(2,9,19,0.15)',
   // Night mode variants
   nightEmerald:       '#2D9D5C',  // softer green for calm appearance
   nightMint:          '#4FE948',
@@ -709,1436 +709,12 @@ export function FlippingLogoCard({ nightMode, sunnah }: {
   );
 }
 
-// ── For You Today — Prayer-aware dismissible cards ──────────────────────
-type FYCardData = {
-  id: string;
-  icon: string;
-  color: string;
-  title: string;
-  sub: string;
-  route?: string;
-  badge?: string;
-  // prayerTab controls which chip is pre-selected when navigating to Adhkar tab
-  prayerTab?: string;
-  // true when the prayer window has passed but adhkar wasn't completed
-  isOverdue?: boolean;
-};
+// Home dashboard sections extracted to dedicated components.
 
-const PRAYER_ADHKAR_CARDS: Record<string, FYCardData> = {
-  Fajr: {
-    id: 'adhkar-fajr', icon: 'wb-twilight', color: '#4FE948',
-    title: 'Morning Adhkar', sub: 'Wird al-Latif · Yaseen · Dua of Yaseen',
-    route: '/(tabs)/duas', badge: 'After Fajr', prayerTab: 'after-fajr',
-  },
-  Dhuhr: {
-    id: 'adhkar-dhuhr', icon: 'wb-sunny', color: '#0A5C9E',
-    title: 'Dhuhr Adhkar', sub: 'Tasbih · Salawat · Astaghfirullah',
-    route: '/(tabs)/duas', badge: 'After Dhuhr', prayerTab: 'after-dhuhr',
-  },
-  Asr: {
-    id: 'adhkar-asr', icon: 'wb-cloudy', color: '#E65100',
-    title: 'Asr Adhkar', sub: 'Surah Al-Waqiah · Hizb ul Bahr',
-    route: '/(tabs)/duas', badge: 'After Asr', prayerTab: 'after-asr',
-  },
-  Maghrib: {
-    id: 'adhkar-maghrib', icon: 'bedtime', color: '#6A1B9A',
-    title: 'Evening Adhkar', sub: 'Evening duas & protection dhikr',
-    route: '/(tabs)/duas', badge: 'After Maghrib', prayerTab: 'after-maghrib',
-  },
-  Isha: {
-    id: 'adhkar-isha', icon: 'nightlight', color: '#1565C0',
-    title: 'Night Dhikr', sub: "Night remembrance & du'a before sleep",
-    route: '/(tabs)/duas', badge: 'After Isha', prayerTab: 'after-isha',
-  },
-};
-
-// ── Pre-Fajr adhkar card content ─────────────────────────────────────────
-const PRE_FAJR_CARD_DATA: FYCardData = {
-  id: 'adhkar-pre-fajr',
-  icon: 'brightness-3',
-  color: '#2C3A9E',
-  title: 'Pre-Fajr Adhkar',
-  sub: 'Tahajjud · Witr · Istighfar · Last-third-of-night duas',
-  route: '/(tabs)/duas',
-  badge: 'Before Fajr',
-};
-
-// ── Tahajjud card — unlocks 2 hours before Fajr ─────────────────────────
-const TAHAJJUD_CARD_DATA: FYCardData = {
-  id: 'adhkar-tahajjud',
-  icon: 'nights-stay',
-  color: '#1A237E',
-  title: 'Tahajjud Adhkar',
-  sub: 'Night prayer duas · Witr · Istighfar · Last-third-of-night supplications',
-  route: '/(tabs)/duas',
-  badge: 'Tahajjud Time',
-  prayerTab: 'before-fajr',
-};
-
-// ── Post-Jumu'ah adhkar card content ─────────────────────────────────────
-const POST_JUMUAH_CARD_DATA: Omit<FYCardData, 'id'> = {
-  icon: 'star',
-  color: '#8D6E0A',
-  title: "Post-Jumu'ah Adhkar",
-  sub: "Tasbih · Salawat · Du'a after Jumu'ah · 4 Sunnah Asr",
-  route: '/(tabs)/duas',
-  badge: "After Jumu'ah",
-};
-
-// ── Official Hafs mushaf page ranges (api.quran.com page_number field) ──
-// Each Juz spans 20 pages (Juz 1 = 21 pages). Corrected per user verification.
-const JUZ_START_PAGE: Record<number, number> = {
-  1: 1,   2: 22,  3: 42,  4: 62,  5: 82,
-  6: 102, 7: 122, 8: 142, 9: 162, 10: 182,
-  11: 202, 12: 222, 13: 242, 14: 262, 15: 282,
-  16: 302, 17: 322, 18: 342, 19: 362, 20: 382,
-  21: 402, 22: 422, 23: 442, 24: 462, 25: 482,
-  26: 502, 27: 522, 28: 542, 29: 562, 30: 582,
-};
-const JUZ_END_PAGE: Record<number, number> = {
-  1: 21,  2: 41,  3: 61,  4: 81,  5: 101,
-  6: 121, 7: 141, 8: 161, 9: 181, 10: 201,
-  11: 221, 12: 241, 13: 261, 14: 281, 15: 301,
-  16: 321, 17: 341, 18: 361, 19: 381, 20: 401,
-  21: 421, 22: 441, 23: 461, 24: 481, 25: 501,
-  26: 521, 27: 541, 28: 561, 29: 581, 30: 604,
-};
-
-// ── 30-Juz Daily Quran Portions ────────────────────────────────────────
-const QURAN_PORTIONS = [
-  { juz: 1,  surahs: 'Al-Fatihah · Al-Baqarah 1–141',    pages: '1–21'    },
-  { juz: 2,  surahs: 'Al-Baqarah 142–252',               pages: '22–41'   },
-  { juz: 3,  surahs: 'Al-Baqarah 253 · Al-Imran 1–91',  pages: '42–61'   },
-  { juz: 4,  surahs: 'Al-Imran 92–200 · An-Nisa 1–23',  pages: '62–81'   },
-  { juz: 5,  surahs: 'An-Nisa 24–147',                  pages: '82–101'  },
-  { juz: 6,  surahs: 'An-Nisa 148 · Al-Maidah 81',      pages: '102–121' },
-  { juz: 7,  surahs: 'Al-Maidah 82–120 · Al-Anam 1–110',pages: '122–141' },
-  { juz: 8,  surahs: 'Al-Anam 111–165 · Al-Araf 1–87',  pages: '142–161' },
-  { juz: 9,  surahs: 'Al-Araf 88–206 · Al-Anfal 1–40',  pages: '162–181' },
-  { juz: 10, surahs: 'Al-Anfal 41–75 · At-Tawbah 1–92', pages: '182–201' },
-  { juz: 11, surahs: 'At-Tawbah 93–129 · Hud 1–5',      pages: '202–221' },
-  { juz: 12, surahs: 'Hud 6–123 · Yusuf 1–52',          pages: '222–241' },
-  { juz: 13, surahs: 'Yusuf 53–111 · Ibrahim 1–52',     pages: '242–261' },
-  { juz: 14, surahs: 'Al-Hijr · An-Nahl 1–128',         pages: '262–281' },
-  { juz: 15, surahs: 'Al-Isra · Al-Kahf 1–74',          pages: '282–301' },
-  { juz: 16, surahs: 'Al-Kahf 75–110 · Ta-Ha 1–135',    pages: '302–321' },
-  { juz: 17, surahs: 'Al-Anbiya · Al-Hajj 1–78',        pages: '322–341' },
-  { juz: 18, surahs: 'Al-Muminun · Al-Furqan 1–20',     pages: '342–361' },
-  { juz: 19, surahs: 'Al-Furqan 21–77 · An-Naml 1–55',  pages: '362–381' },
-  { juz: 20, surahs: 'An-Naml 56–93 · Al-Ankabut 1–44', pages: '382–401' },
-  { juz: 21, surahs: 'Al-Ankabut 45 · Al-Ahzab 1–30',   pages: '402–421' },
-  { juz: 22, surahs: 'Al-Ahzab 31–73 · Ya-Sin 1–27',    pages: '422–441' },
-  { juz: 23, surahs: 'Ya-Sin 28–83 · Az-Zumar 1–31',    pages: '442–461' },
-  { juz: 24, surahs: 'Az-Zumar 32–75 · Fussilat 1–46',  pages: '462–481' },
-  { juz: 25, surahs: 'Fussilat 47–54 · Al-Jathiyah',    pages: '482–501' },
-  { juz: 26, surahs: 'Al-Ahqaf · Ad-Dhariyat 1–30',     pages: '502–521' },
-  { juz: 27, surahs: 'Ad-Dhariyat 31–60 · Al-Hadid',    pages: '522–541' },
-  { juz: 28, surahs: 'Al-Mujadila · At-Tahrim',         pages: '542–561' },
-  { juz: 29, surahs: 'Al-Mulk · Al-Mursalat',           pages: '562–581' },
-  { juz: 30, surahs: 'An-Naba · An-Nas',                pages: '582–604' },
-];
-
-// ── Durood Levels ────────────────────────────────────────────────────────
-// ── Quran Reading Levels ────────────────────────────────────────────────
-const QURAN_READ_LEVELS = [
-  { level: 1, label: 'Ayahs', desc: '3–5 Ayahs',  color: '#2E7D32', bg: '#E8F5E9' },
-  { level: 2, label: '1 Page', desc: '~1 Page',   color: '#1565C0', bg: '#E3F2FD' },
-  { level: 3, label: '½ Juz',  desc: '~10 Pages', color: '#6A1B9A', bg: '#F3E5F5' },
-  { level: 4, label: 'Full Juz', desc: '~20 Pgs', color: '#B8860B', bg: '#FFF8E1' },
-];
-
-// ── Few-Ayah Daily Portions (Level 1) ────────────────────────────────────
-const AYAH_PORTIONS = [
-  { ref: 'Al-Fatihah 1:1–7',       surahs: 'The Opening — 7 ayahs',                pages: 'p. 1'        },
-  { ref: 'Al-Baqarah 2:1–5',       surahs: 'Opening 5 ayahs of Al-Baqarah',        pages: 'p. 2'        },
-  { ref: 'Al-Baqarah 2:255–257',   surahs: 'Ayat al-Kursi & the two after',        pages: 'p. 42'       },
-  { ref: 'Al-Baqarah 2:284–286',   surahs: 'Closing ayahs of Al-Baqarah',          pages: 'p. 49'       },
-  { ref: 'Al-Imran 3:1–5',         surahs: 'Opening of Al-Imran',                  pages: 'p. 50'       },
-  { ref: 'Al-Imran 3:190–194',     surahs: 'Signs for those of understanding',     pages: 'p. 75'       },
-  { ref: 'An-Nisa 4:36–38',        surahs: 'Rights of parents & neighbours',       pages: 'p. 84'       },
-  { ref: 'Al-Maidah 5:1–3',        surahs: 'Lawful & unlawful — opening',          pages: 'p. 106'      },
-  { ref: 'Al-Anam 6:1–3',          surahs: 'Praise of Allah, creation',            pages: 'p. 128'      },
-  { ref: 'Al-Araf 7:54–56',        surahs: 'Allah the Creator, call to Him',       pages: 'p. 157'      },
-  { ref: 'At-Tawbah 9:111–112',    surahs: 'The covenant of the believers',        pages: 'p. 204'      },
-  { ref: 'Yunus 10:61–63',         surahs: 'Friends of Allah, no fear for them',   pages: 'p. 215'      },
-  { ref: 'Hud 11:114–115',         surahs: 'Prayer removes evil deeds',            pages: 'p. 234'      },
-  { ref: 'Yusuf 12:64–67',         surahs: "Ya'qub's trust in Allah",              pages: 'p. 243'      },
-  { ref: 'Ibrahim 14:40–42',       surahs: 'Ibrahim prays for his offspring',      pages: 'p. 261'      },
-  { ref: 'Al-Isra 17:23–27',       surahs: 'Rights of parents',                   pages: 'p. 284'      },
-  { ref: 'Al-Kahf 18:1–5',         surahs: 'Opening of Al-Kahf',                  pages: 'p. 293'      },
-  { ref: 'Al-Kahf 18:107–110',     surahs: 'Gardens of Paradise',                 pages: 'p. 304'      },
-  { ref: 'Maryam 19:1–6',          surahs: 'Story of Zakariyya begins',           pages: 'p. 305'      },
-  { ref: 'Ta-Ha 20:1–5',           surahs: 'Allah on the Throne',                 pages: 'p. 312'      },
-  { ref: 'Al-Anbiya 21:87–90',     surahs: "Yunus's du'a & Allah's response",     pages: 'p. 329'      },
-  { ref: 'Al-Muminun 23:1–11',     surahs: 'Qualities of the successful believers',pages: 'p. 342'      },
-  { ref: 'An-Nur 24:35–38',        surahs: 'Verse of Light & the blessed houses', pages: 'p. 354'      },
-  { ref: 'Al-Furqan 25:63–67',     surahs: 'Servants of the Most Merciful',       pages: 'p. 365'      },
-  { ref: 'Luqman 31:12–15',        surahs: 'Wisdom of Luqman to his son',         pages: 'p. 411'      },
-  { ref: 'Ya-Sin 36:77–83',        surahs: 'Power of Allah to resurrect',         pages: 'p. 445'      },
-  { ref: 'Az-Zumar 39:53–55',      surahs: "Do not despair of Allah's mercy",     pages: 'p. 464'      },
-  { ref: 'Al-Hujurat 49:11–13',    surahs: 'Brotherhood & avoiding assumptions',  pages: 'p. 517'      },
-  { ref: 'Ar-Rahman 55:1–13',      surahs: 'Which of your Lord\'s favours?',       pages: 'p. 531'      },
-  { ref: 'Al-Waqiah 56:77–80',     surahs: 'The noble Quran — protected scripture',pages: 'p. 536'     },
-  { ref: 'Al-Mulk 67:1–5',         surahs: 'Opening of Al-Mulk — blessed is He',  pages: 'p. 562'      },
-  { ref: 'Al-Insan 76:1–5',        surahs: 'The creation and trial of man',       pages: 'p. 578'      },
-  { ref: 'An-Naba 78:1–16',        surahs: 'The Great News — creation of earth',  pages: 'p. 582'      },
-  { ref: 'Abasa 80:1–16',          surahs: 'He frowned — admonition to the heart',pages: 'p. 585'      },
-  { ref: 'Al-Inshirah 94:1–8',     surahs: 'Did We not expand your chest?',       pages: 'p. 596'      },
-  { ref: 'Al-Qadr 97:1–5',         surahs: 'The Night of Power',                  pages: 'p. 598'      },
-  { ref: 'Al-Zalzalah 99:1–8',     surahs: 'The earthquake of the Hour',          pages: 'p. 599'      },
-  { ref: 'Al-Asr 103:1–3 + Al-Humazah 104:1–3', surahs: 'Time & the slanderer',  pages: 'p. 601'     },
-  { ref: 'Al-Ikhlas + Al-Falaq + An-Nas', surahs: 'Three Quls — protection duas', pages: 'p. 603–604'  },
-];
-
-// ── 1-Page Daily Portions (Level 2) ─────────────────────────────────────
-export const PAGE_PORTIONS = Array.from({ length: 60 }, (_, i) => {
-  const page = (i * 10 + 1);
-  return { page, ref: `Page ${page}`, surahs: `Mushaf page ${page}` };
-});
-
-const DUROOD_LEVELS = [
-  { level: 1, target: 100,  label: 'L1',  color: '#2E7D32', bg: '#E8F5E9' },
-  { level: 2, target: 300,  label: 'L2',  color: '#1565C0', bg: '#E3F2FD' },
-  { level: 3, target: 500,  label: 'L3',  color: '#6A1B9A', bg: '#F3E5F5' },
-  { level: 4, target: 1000, label: 'L4',  color: '#B8860B', bg: '#FFF8E1' },
-];
-
-export const DAILY_QURAN_REMINDERS = [
-  { sub: 'Recite Surah Al-Kahf today — light shines between the two Fridays.' },
-  { sub: '"The best of you are those who learn the Quran and teach it." — Bukhari 5027' },
-  { sub: 'Read one page of Quran — even a small amount done consistently is beloved to Allah.' },
-  { sub: 'Recite Surah Al-Mulk tonight — it intercedes for its reciter in the grave.' },
-  { sub: 'Allah said: "Indeed the recitation of Fajr is ever witnessed (by angels)." — 17:78' },
-  { sub: 'Recite Ayat al-Kursi after every Fard prayer for protection until the next prayer.' },
-  { sub: '"Whoever reads one letter from the Book of Allah earns one good deed." — Tirmidhi' },
-];
-
-const PENDING_OPEN_KEY = 'quran_pending_open_v1';
-
-// ── Juz → first Surah of that Juz (chapter ID) ─────────────────────────
-export const JUZ_FIRST_SURAH: Record<number, number> = {
-  1: 1, 2: 2, 3: 2, 4: 3, 5: 4, 6: 4, 7: 5, 8: 6, 9: 7, 10: 8,
-  11: 9, 12: 11, 13: 12, 14: 15, 15: 17, 16: 18, 17: 21, 18: 23,
-  19: 25, 20: 27, 21: 29, 22: 33, 23: 36, 24: 39, 25: 41,
-  26: 46, 27: 51, 28: 58, 29: 67, 30: 78,
-};
-
-// ── Surah first mushaf page — used to find which chapter contains a given page ──
-const SURAH_START_PAGE: Record<number, number> = {
-  1:1,   2:2,   3:50,  4:77,  5:106, 6:128, 7:151, 8:177, 9:187,
-  10:208,11:221,12:235,13:249,14:255,15:262,16:267,17:282,18:293,
-  19:305,20:312,21:322,22:333,23:342,24:350,25:359,26:367,27:377,
-  28:385,29:396,30:404,31:411,32:415,33:418,34:428,35:434,36:440,
-  37:446,38:453,39:458,40:467,41:477,42:483,43:489,44:496,45:499,
-  46:502,47:507,48:511,49:515,50:518,51:520,52:523,53:526,54:528,
-  55:531,56:534,57:537,58:542,59:545,60:549,61:551,62:553,63:554,
-  64:556,65:558,66:560,67:562,68:564,69:566,70:568,71:570,72:572,
-  73:574,74:575,75:577,76:578,77:580,78:582,79:583,80:585,81:586,
-  82:587,83:587,84:589,85:590,86:591,87:591,88:592,89:593,90:594,
-  91:595,92:595,93:596,94:596,95:597,96:597,97:598,98:598,99:599,
-  100:599,101:600,102:600,103:601,104:601,105:601,106:602,107:602,
-  108:602,109:603,110:603,111:603,112:604,113:604,114:604,
-};
-
-/** Returns the chapter (1–114) whose pages contain the given mushaf page */
-function chapterForMushaPage(targetPage: number): number {
-  let best = 1;
-  for (let s = 1; s <= 114; s++) {
-    if ((SURAH_START_PAGE[s] ?? 999) <= targetPage) best = s;
-    else break;
-  }
-  return best;
-}
-
-// ── AYAH_PORTIONS surah ID map (for Level 1 open-in-app) ────────────────
-const AYAH_SURAH_IDS: number[] = [
-  1, 2, 2, 2, 3, 3, 4, 5, 6, 7, 9, 10, 11, 12, 14,
-  17, 18, 18, 19, 20, 21, 23, 24, 25, 31, 36, 39, 49, 55, 56,
-  67, 76, 78, 80, 94, 97, 99, 103, 112,
-];
-
-// ── Daily Quran Portion Card (with 4 levels + open-in-app) ───────────────
-function QuranPortionCard({
-  nightMode, todayKey, dismissed, onDismiss, hijriDay,
-}: {
-  nightMode: boolean;
-  todayKey: string;
-  dismissed: Set<string>;
-  onDismiss: (id: string) => void;
-  hijriDay: number; // Hijri day of month (1-30) — drives Full Juz for monthly completion
-}) {
-  const id = `quran-portion-${todayKey}`;
-  const levelKey = 'quran_read_level_persist';
-  const N = nightMode ? NIGHT : null;
-
-  const [levelIdx, setLevelIdx] = useState(3); // default: Full Juz
-  const [levelLoaded, setLevelLoaded] = useState(false);
-  const scale = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    AsyncStorage.getItem(levelKey).then(v => {
-      if (v !== null) setLevelIdx(parseInt(v, 10) || 3);
-      setLevelLoaded(true);
-    }).catch(() => setLevelLoaded(true));
-  }, []);
-
-  const switchLevel = (i: number) => {
-    setLevelIdx(i);
-    AsyncStorage.setItem(levelKey, String(i)).catch(() => {});
-  };
-
-  const router = useRouter();
-  const onIn  = () => Animated.spring(scale, { toValue: 0.96, useNativeDriver: true, speed: 60 }).start();
-  const onOut = () => Animated.spring(scale, { toValue: 1,    useNativeDriver: true, speed: 40 }).start();
-
-  if (!levelLoaded) return null;
-  if (dismissed.has(id)) return null;
-
-  // Determine the target chapter ID to open in the Quran tab
-  const getTargetChapterId = (): number => {
-    if (levelIdx === 0) {
-      // Level 1: few Ayahs — map to specific surah
-      const idx = DAY_OF_YEAR % AYAH_SURAH_IDS.length;
-      return AYAH_SURAH_IDS[idx];
-    } else if (levelIdx === 1) {
-      // Level 2: 1 page — find chapter containing the target page
-      const page = ((DAY_OF_YEAR - 1) % 604) + 1;
-      return chapterForMushaPage(page);
-    } else if (levelIdx === 2) {
-      // Level 3: Half Juz — chapter containing the half-start page
-      const portion = QURAN_PORTIONS[(DAY_OF_YEAR - 1) % 30];
-      const isFirstHalf = DAY_OF_YEAR % 2 === 0;
-      const startPg = JUZ_START_PAGE[portion.juz];
-      const endPg   = JUZ_END_PAGE[portion.juz];
-      const midPage = Math.round((startPg + endPg) / 2);
-      return chapterForMushaPage(isFirstHalf ? startPg : midPage);
-    } else if (levelIdx === 3) {
-      // Level 4: Full Juz — keyed to Hijri day (1-30), completing Quran in one lunar month
-      const juzNum = Math.max(1, Math.min(30, hijriDay));
-      return chapterForMushaPage(JUZ_START_PAGE[juzNum]);
-    }
-    return 1;
-  };
-
-  const openInQuran = () => {
-    const chapterId = getTargetChapterId();
-    let targetPage: number | null = null;
-
-    if (levelIdx === 0) {
-      // Level 1: Few Ayahs — extract first page number from AYAH_PORTIONS pages string
-      const a = AYAH_PORTIONS[DAY_OF_YEAR % AYAH_PORTIONS.length];
-      const m = a.pages.match(/(\d+)/);
-      targetPage = m ? parseInt(m[1], 10) : null;
-    } else if (levelIdx === 1) {
-      // Level 2: 1 Page — exact mushaf page
-      targetPage = ((DAY_OF_YEAR - 1) % 604) + 1;
-    } else if (levelIdx === 2) {
-      // Level 3: Half Juz — jump to start of whichever half
-      const portion = QURAN_PORTIONS[(DAY_OF_YEAR - 1) % 30];
-      const isFirstHalf = DAY_OF_YEAR % 2 === 0;
-      const startPg = JUZ_START_PAGE[portion.juz];
-      const endPg   = JUZ_END_PAGE[portion.juz];
-      const midPage = Math.round((startPg + endPg) / 2);
-      targetPage = isFirstHalf ? startPg : midPage;
-    } else {
-      // Level 4: Full Juz — keyed to Hijri day for monthly Quran completion
-      const juzNum = Math.max(1, Math.min(30, hijriDay));
-      targetPage = JUZ_START_PAGE[juzNum];
-    }
-
-    const value = targetPage ? `${chapterId}|${targetPage}` : String(chapterId);
-    AsyncStorage.setItem(PENDING_OPEN_KEY, value).catch(() => {});
-    router.push('/(tabs)/quran' as any);
-  };
-
-  const lv = QURAN_READ_LEVELS[levelIdx];
-  const accentColor = nightMode ? '#4FE948' : lv.color;
-  const bgTint      = nightMode ? 'rgba(79,233,72,0.15)' : lv.bg;
-
-  // ── Pick content based on level ────────────────────────────────────────
-  let badge = '';
-  let titleLine = '';
-  let subLine = '';
-  let pagesLine = '';
-
-  if (levelIdx === 0) {
-    // Level 1: Few Ayahs
-    const a = AYAH_PORTIONS[DAY_OF_YEAR % AYAH_PORTIONS.length];
-    badge     = '3–5 Ayahs';
-    titleLine = a.ref;
-    subLine   = a.surahs;
-    pagesLine = a.pages;
-  } else if (levelIdx === 1) {
-    // Level 2: 1 Page — use official Juz page boundaries
-    const page = ((DAY_OF_YEAR - 1) % 604) + 1;
-    let juzForPage = 1;
-    for (let j = 30; j >= 1; j--) { if (page >= JUZ_START_PAGE[j]) { juzForPage = j; break; } }
-    badge     = '~1 Page';
-    titleLine = `Mushaf Page ${page}`;
-    subLine   = `Juz ${juzForPage}`;
-    pagesLine = `p. ${page}`;
-  } else if (levelIdx === 2) {
-    // Level 3: Half Juz
-    const portion = QURAN_PORTIONS[(DAY_OF_YEAR - 1) % 30];
-    const half = (DAY_OF_YEAR % 2 === 0) ? 'First half' : 'Second half';
-    const startPg = JUZ_START_PAGE[portion.juz];
-    const endPg   = JUZ_END_PAGE[portion.juz];
-    const midPage = Math.round((startPg + endPg) / 2);
-    badge     = 'Half Juz';
-    titleLine = `Juz ${portion.juz} — ${half}`;
-    subLine   = portion.surahs;
-    pagesLine = half === 'First half'
-      ? `pp. ${startPg}–${midPage}`
-      : `pp. ${midPage}–${endPg}`;
-  } else {
-    // Level 4: Full Juz — Hijri day maps to Juz number for monthly Quran completion
-    const juzNum  = Math.max(1, Math.min(30, hijriDay));
-    const portion = QURAN_PORTIONS[juzNum - 1];
-    const startPg = JUZ_START_PAGE[juzNum];
-    const endPg   = JUZ_END_PAGE[juzNum];
-    badge     = `Juz ${juzNum}`;
-    titleLine = portion.surahs;
-    subLine   = `Day ${hijriDay} of month · p. ${startPg}`;
-    pagesLine = `pp. ${startPg}–${endPg}`;
-  }
-
-  return (
-    <TouchableOpacity onPressIn={onIn} onPressOut={onOut} activeOpacity={1}>
-      <Animated.View style={[
-        fyStyles.duroodCard, { width: 178 },
-        N && { backgroundColor: N.surface, borderColor: N.border },
-        { transform: [{ scale }] },
-      ]}>
-        {/* Header */}
-        <View style={fyStyles.duroodHeader}>
-          <MaterialIcons name="menu-book" size={13} color={accentColor} />
-          <Text style={[fyStyles.duroodTitle, { color: accentColor }]}>Daily Quran</Text>
-          <View style={[fyStyles.juzBadge, { backgroundColor: accentColor }]}>
-            <Text style={fyStyles.juzBadgeText}>{badge}</Text>
-          </View>
-        </View>
-
-        {/* Content */}
-        <View style={[fyStyles.duroodTapArea, { backgroundColor: bgTint, borderColor: accentColor + '44', paddingVertical: 8, paddingHorizontal: 8 }]}>
-          <Text style={[fyStyles.cardTitle, { textAlign: 'center', fontSize: 11, lineHeight: 15 }, N && { color: N.text }]} numberOfLines={2}>
-            {titleLine}
-          </Text>
-          {subLine ? (
-            <Text style={[fyStyles.cardSub, { textAlign: 'center', marginTop: 2 }, N && { color: N.textSub }]} numberOfLines={2}>
-              {subLine}
-            </Text>
-          ) : null}
-          <View style={[fyStyles.badgeRow, { backgroundColor: accentColor + '20', marginTop: 5, alignSelf: 'center' }]}>
-            <MaterialIcons name="import-contacts" size={9} color={accentColor} />
-            <Text style={[fyStyles.badgeText, { color: accentColor }]}>{pagesLine}</Text>
-          </View>
-        </View>
-
-        {/* Level selector */}
-        <View style={fyStyles.duroodLevels}>
-          {QURAN_READ_LEVELS.map((ql, i) => (
-            <TouchableOpacity
-              key={ql.level}
-              onPress={() => switchLevel(i)}
-              style={[
-                fyStyles.duroodLevelBtn,
-                i === levelIdx
-                  ? { backgroundColor: accentColor, borderColor: accentColor }
-                  : N
-                    ? { backgroundColor: N.surfaceAlt, borderColor: N.border }
-                    : { backgroundColor: ql.bg, borderColor: ql.color + '40' },
-              ]}
-            >
-              <Text style={[
-                fyStyles.duroodLevelText,
-                { color: i === levelIdx ? '#fff' : N ? N.textMuted : ql.color },
-              ]}>{ql.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Read in App button */}
-        <TouchableOpacity
-          onPress={openInQuran}
-          style={[fyStyles.openRow, { backgroundColor: accentColor + '28', alignSelf: 'stretch', justifyContent: 'center' }]}
-        >
-          <MaterialIcons name="auto-stories" size={11} color={accentColor} />
-          <Text style={[fyStyles.openText, { color: accentColor }]}>Read in App</Text>
-        </TouchableOpacity>
-
-        {/* Mark done */}
-        <TouchableOpacity
-          onPress={() => onDismiss(id)}
-          style={[fyStyles.openRow, { backgroundColor: accentColor + '14', alignSelf: 'stretch', justifyContent: 'center' }]}
-        >
-          <MaterialIcons name="check-circle" size={11} color={accentColor} />
-          <Text style={[fyStyles.openText, { color: accentColor }]}>Mark as Read</Text>
-        </TouchableOpacity>
-      </Animated.View>
-    </TouchableOpacity>
-  );
-}
-
-// ── Istighfar Counter Card ────────────────────────────────────────────────
-function IstighfarCounterCard({
-  nightMode, todayKey, dismissed, onDismiss,
-}: {
-  nightMode: boolean;
-  todayKey: string;
-  dismissed: Set<string>;
-  onDismiss: (id: string) => void;
-}) {
-  const N = nightMode ? NIGHT : null;
-  const cardId  = `istighfar-${todayKey}`;
-  const countKey = `istighfar_count_${todayKey}`;
-  const TARGET = 100;
-
-  const [count, setCount] = useState(0);
-  const [loaded, setLoaded] = useState(false);
-  const flashAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    AsyncStorage.getItem(countKey).then(c => {
-      if (c) setCount(parseInt(c, 10) || 0);
-      setLoaded(true);
-    }).catch(() => setLoaded(true));
-  }, [countKey]);
-
-  const done = count >= TARGET;
-  const progress = Math.min(count / TARGET, 1);
-  const accentColor = nightMode ? '#C084FC' : '#7C3AED'; // purple
-  const bgTint = nightMode ? 'rgba(192,132,252,0.12)' : '#F5F3FF';
-
-  const triggerFlash = () => {
-    flashAnim.setValue(0);
-    Animated.sequence([
-      Animated.timing(flashAnim, { toValue: 1, duration: 180, useNativeDriver: true }),
-      Animated.timing(flashAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
-    ]).start();
-  };
-
-  const tap = () => {
-    if (done) return;
-    const next = count + 1;
-    setCount(next);
-    AsyncStorage.setItem(countKey, String(next)).catch(() => {});
-    Animated.sequence([
-      Animated.spring(scaleAnim, { toValue: 0.90, useNativeDriver: true, speed: 80 }),
-      Animated.spring(scaleAnim, { toValue: 1,    useNativeDriver: true, speed: 40 }),
-    ]).start();
-    if (next === TARGET) triggerFlash();
-  };
-
-  if (!loaded || dismissed.has(cardId)) return null;
-
-  const flashOpacity = flashAnim.interpolate({ inputRange: [0,1], outputRange: [0, 0.30] });
-
-  return (
-    <View style={[
-      fyStyles.duroodCard,
-      N && { backgroundColor: N.surface, borderColor: N.border },
-    ]}>
-      <Animated.View
-        pointerEvents="none"
-        style={[StyleSheet.absoluteFillObject, { backgroundColor: accentColor, opacity: flashOpacity, borderRadius: Radius.lg }]}
-      />
-      {/* Header */}
-      <View style={fyStyles.duroodHeader}>
-        <MaterialIcons name="refresh" size={13} color={accentColor} />
-        <Text style={[fyStyles.duroodTitle, { color: accentColor }]}>Istighfar</Text>
-        {done ? (
-          <View style={[fyStyles.duroodDoneBadge, { backgroundColor: accentColor }]}>
-            <MaterialIcons name="check" size={9} color="#fff" />
-            <Text style={fyStyles.duroodDoneText}>Done!</Text>
-          </View>
-        ) : null}
-      </View>
-
-      {/* Arabic */}
-      <Text style={{ textAlign: 'center', fontSize: 14, color: accentColor, fontWeight: '700', letterSpacing: 0.5 }}>
-        أَسْتَغْفِرُ اللَّهَ
-      </Text>
-
-      {/* Tap counter */}
-      <TouchableOpacity onPress={tap} activeOpacity={done ? 1 : 0.7} disabled={done}>
-        <Animated.View style={[
-          fyStyles.duroodTapArea,
-          { backgroundColor: bgTint, borderColor: accentColor + '44' },
-          { transform: [{ scale: scaleAnim }] },
-        ]}>
-          <Text style={[fyStyles.duroodCount, { color: accentColor }]}>{count}</Text>
-          <Text style={[fyStyles.duroodCountOf, N && { color: N.textMuted }]}>of {TARGET}</Text>
-        </Animated.View>
-      </TouchableOpacity>
-
-      {/* Progress bar */}
-      <View style={[fyStyles.duroodProgressBg, N && { backgroundColor: N.border }]}>
-        <View style={[fyStyles.duroodProgressFill, { width: `${Math.round(progress * 100)}%` as any, backgroundColor: accentColor }]} />
-      </View>
-
-      <Text style={{ fontSize: 9, fontWeight: '500', color: N ? N.textMuted : Colors.textSubtle, textAlign: 'center', lineHeight: 13 }}>
-        {'Whoever says Astaghfirullah 100x\nhas all sins forgiven'} - Bukhari 6307
-      </Text>
-
-      {/* Mark done */}
-      <TouchableOpacity
-        onPress={() => onDismiss(cardId)}
-        style={[fyStyles.openRow, { backgroundColor: accentColor + '14', alignSelf: 'stretch', justifyContent: 'center' }]}
-      >
-        <MaterialIcons name="check-circle" size={11} color={accentColor} />
-        <Text style={[fyStyles.openText, { color: accentColor }]}>Mark as Done</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-// ── Bed Time Card ──────────────────────────────────────────────────────────
-function BedTimeCard({
-  nightMode, todayKey, dismissed, onDismiss, onOpen,
-}: {
-  nightMode: boolean;
-  todayKey: string;
-  dismissed: Set<string>;
-  onDismiss: (id: string) => void;
-  onOpen: () => void;
-}) {
-  const N = nightMode ? NIGHT : null;
-  const cardId = `bedtime-${todayKey}`;
-
-  if (dismissed.has(cardId)) return null;
-
-  const accentColor = nightMode ? '#93C5FD' : '#1E40AF'; // cool blue
-  const bgTint = nightMode ? 'rgba(147,197,253,0.10)' : '#EFF6FF';
-
-  return (
-    <View style={[
-      fyStyles.duroodCard, { width: 148 },
-      N && { backgroundColor: N.surface, borderColor: N.border },
-    ]}>
-      {/* Header */}
-      <View style={fyStyles.duroodHeader}>
-        <MaterialIcons name="bedtime" size={13} color={accentColor} />
-        <Text style={[fyStyles.duroodTitle, { color: accentColor }]}>Bed Time</Text>
-      </View>
-
-      {/* Icon area */}
-      <View style={[fyStyles.duroodTapArea, { backgroundColor: bgTint, borderColor: accentColor + '44', paddingVertical: 12 }]}>
-        <MaterialIcons name="nights-stay" size={24} color={accentColor} />
-        <Text style={{ fontSize: 11, fontWeight: '700', color: accentColor, textAlign: 'center', marginTop: 4, lineHeight: 15 }}>
-          Night Adhkar
-        </Text>
-      </View>
-
-      <Text style={{ fontSize: 10, fontWeight: '400', color: N ? N.textSub : Colors.textSubtle, textAlign: 'center', lineHeight: 14 }}>
-        3 Quls · Ayat al-Kursi{"\n"}du{"\x27"}as before sleep
-      </Text>
-
-      {/* Open button */}
-      <TouchableOpacity
-        onPress={onOpen}
-        style={[fyStyles.openRow, { backgroundColor: accentColor + '22', alignSelf: 'stretch', justifyContent: 'center' }]}
-      >
-        <MaterialIcons name="arrow-forward" size={11} color={accentColor} />
-        <Text style={[fyStyles.openText, { color: accentColor }]}>Open Adhkar</Text>
-      </TouchableOpacity>
-
-      {/* Dismiss */}
-      <TouchableOpacity
-        onPress={() => onDismiss(cardId)}
-        style={[fyStyles.openRow, { backgroundColor: accentColor + '12', alignSelf: 'stretch', justifyContent: 'center' }]}
-      >
-        <MaterialIcons name="check-circle" size={11} color={accentColor} />
-        <Text style={[fyStyles.openText, { color: accentColor }]}>Done for tonight</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-// ── Daily Durood Counter Card ───────────────────────────────────────────
-function DuroodCounterCard({
-  nightMode, todayKey, dismissed, onDismiss,
-}: {
-  nightMode: boolean;
-  todayKey: string;
-  dismissed: Set<string>;
-  onDismiss: (id: string) => void;
-}) {
-  const N = nightMode ? NIGHT : null;
-  const duroodId = `durood-${todayKey}`;
-  const countKey = `durood_count_${todayKey}`;
-  const levelKey = 'durood_level_persist';
-
-  const [count, setCount] = useState(0);
-  const [levelIdx, setLevelIdx] = useState(0);
-  const [loaded, setLoaded] = useState(false);
-  const flashAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    Promise.all([
-      AsyncStorage.getItem(countKey),
-      AsyncStorage.getItem(levelKey),
-    ]).then(([c, l]) => {
-      if (c) setCount(parseInt(c, 10) || 0);
-      if (l) setLevelIdx(parseInt(l, 10) || 0);
-      setLoaded(true);
-    }).catch(() => setLoaded(true));
-  }, [countKey]);
-
-  const currentLevel = DUROOD_LEVELS[levelIdx];
-  const progress = Math.min(count / currentLevel.target, 1);
-  const done = count >= currentLevel.target;
-
-  const triggerFlash = () => {
-    flashAnim.setValue(0);
-    Animated.sequence([
-      Animated.timing(flashAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
-      Animated.timing(flashAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
-    ]).start();
-  };
-
-  const tap = () => {
-    if (done) return;
-    const next = count + 1;
-    setCount(next);
-    AsyncStorage.setItem(countKey, String(next)).catch(() => {});
-    Animated.sequence([
-      Animated.spring(scaleAnim, { toValue: 0.92, useNativeDriver: true, speed: 80 }),
-      Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, speed: 40 }),
-    ]).start();
-    if (next === currentLevel.target) triggerFlash();
-  };
-
-  const switchLevel = (idx: number) => {
-    setLevelIdx(idx);
-    AsyncStorage.setItem(levelKey, String(idx)).catch(() => {});
-  };
-
-  if (!loaded) return null;
-  if (dismissed.has(duroodId)) return null;
-
-  const accentColor = nightMode ? '#69A8FF' : currentLevel.color;
-  const bgTint = nightMode ? 'rgba(106,174,255,0.10)' : currentLevel.bg;
-
-  const flashOpacity = flashAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.35] });
-
-  return (
-    <View style={[
-      fyStyles.duroodCard,
-      N && { backgroundColor: N.surface, borderColor: N.border },
-    ]}>
-      {/* Flash overlay */}
-      <Animated.View
-        pointerEvents="none"
-        style={[StyleSheet.absoluteFillObject, { backgroundColor: accentColor, opacity: flashOpacity, borderRadius: Radius.lg }]}
-      />
-
-      {/* Header */}
-      <View style={fyStyles.duroodHeader}>
-        <MaterialIcons name="favorite" size={13} color={accentColor} />
-        <Text style={[fyStyles.duroodTitle, { color: accentColor }]}>Daily Durood</Text>
-        {done ? (
-          <View style={[fyStyles.duroodDoneBadge, { backgroundColor: accentColor }]}>
-            <MaterialIcons name="check" size={9} color="#fff" />
-            <Text style={fyStyles.duroodDoneText}>Done!</Text>
-          </View>
-        ) : null}
-      </View>
-
-      {/* Counter tap */}
-      <TouchableOpacity onPress={tap} activeOpacity={done ? 1 : 0.7} disabled={done}>
-        <Animated.View style={[
-          fyStyles.duroodTapArea,
-          { backgroundColor: bgTint, borderColor: accentColor + '44' },
-          { transform: [{ scale: scaleAnim }] },
-        ]}>
-          <Text style={[fyStyles.duroodCount, { color: accentColor }]}>{count}</Text>
-          <Text style={[fyStyles.duroodCountOf, N && { color: N.textMuted }]}>of {currentLevel.target}</Text>
-        </Animated.View>
-      </TouchableOpacity>
-
-      {/* Progress bar */}
-      <View style={[fyStyles.duroodProgressBg, N && { backgroundColor: N.border }]}>
-        <Animated.View style={[
-          fyStyles.duroodProgressFill,
-          { width: `${Math.round(progress * 100)}%` as any, backgroundColor: accentColor },
-        ]} />
-      </View>
-
-      {/* Level selector */}
-      <View style={fyStyles.duroodLevels}>
-        {DUROOD_LEVELS.map((lv, i) => (
-          <TouchableOpacity
-            key={lv.level}
-            onPress={() => switchLevel(i)}
-            style={[
-              fyStyles.duroodLevelBtn,
-              i === levelIdx
-                ? { backgroundColor: accentColor, borderColor: accentColor }
-                : N
-                  ? { backgroundColor: N.surfaceAlt, borderColor: N.border }
-                  : { backgroundColor: lv.bg, borderColor: lv.color + '40' },
-            ]}
-          >
-            <Text style={[
-              fyStyles.duroodLevelText,
-              { color: i === levelIdx ? '#fff' : N ? N.textMuted : lv.color },
-            ]}>{lv.label} {lv.target >= 1000 ? '1k' : lv.target}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Mark as Done */}
-      <TouchableOpacity
-        onPress={() => onDismiss(duroodId)}
-        style={[fyStyles.openRow, { backgroundColor: accentColor + '14', alignSelf: 'stretch', justifyContent: 'center' }]}
-      >
-        <MaterialIcons name="check-circle" size={11} color={accentColor} />
-        <Text style={[fyStyles.openText, { color: accentColor }]}>Mark as Done</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-// ── Next Adhkar Countdown Card ──────────────────────────────────────────
-const PRAYER_ADHKAR_META: Record<string, { icon: string; color: string; title: string; sub: string; badge: string; prayerTab: string }> = {
-  Tahajjud:{ icon: 'nights-stay', color: '#1A237E', title: 'Tahajjud Adhkar', sub: 'Night prayer · Witr · Istighfar · Last-third duas', badge: 'Before Fajr',   prayerTab: 'before-fajr'   },
-  Fajr:    { icon: 'wb-twilight', color: '#4FE948', title: 'Morning Adhkar',  sub: 'Wird al-Latif · Yaseen · Dua',         badge: 'After Fajr',    prayerTab: 'after-fajr'    },
-  Dhuhr:   { icon: 'wb-sunny',    color: '#0A5C9E', title: 'Dhuhr Adhkar',   sub: 'Tasbih · Salawat · Astaghfirullah',    badge: 'After Dhuhr',   prayerTab: 'after-dhuhr'   },
-  Asr:     { icon: 'wb-cloudy',   color: '#E65100', title: 'Asr Adhkar',     sub: 'Al-Waqiah · Hizb ul Bahr',             badge: 'After Asr',     prayerTab: 'after-asr'     },
-  Maghrib: { icon: 'bedtime',     color: '#6A1B9A', title: 'Evening Adhkar', sub: 'Evening duas & protection dhikr',      badge: 'After Maghrib', prayerTab: 'after-maghrib' },
-  Isha:    { icon: 'nightlight',  color: '#1565C0', title: 'Night Dhikr',    sub: "Night remembrance & du'a before sleep", badge: 'After Isha',    prayerTab: 'after-isha'    },
-};
-
-function NextAdhkarCountdownCard({
-  nightMode, prayers, currentTime, onOpen,
-}: {
-  nightMode: boolean;
-  prayers: { name: string; timeDate: Date }[];
-  currentTime: Date;
-  onOpen: (prayerTab: string) => void;
-}) {
-  const N = nightMode ? NIGHT : null;
-  const { showAlert } = useAlert();
-
-  // Build augmented prayer list including Tahajjud (2h before Fajr)
-  const fajrEntry = prayers.find(pr => pr.name === 'Fajr');
-  const tahajjudTime = fajrEntry
-    ? new Date(fajrEntry.timeDate.getTime() - 2 * 60 * 60 * 1000)
-    : null;
-
-  // Order: Tahajjud → Fajr → Dhuhr → Asr → Maghrib → Isha
-  const PRAYER_ORDER = ['Tahajjud', 'Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
-
-  // Augmented list with Tahajjud virtual entry
-  const augmented: { name: string; timeDate: Date }[] = [
-    ...(tahajjudTime ? [{ name: 'Tahajjud', timeDate: tahajjudTime }] : []),
-    ...prayers,
-  ];
-
-  // Find the next upcoming prayer adhkar (not yet passed)
-  let nextPrayer = PRAYER_ORDER.reduce<{ name: string; timeDate: Date } | null>((found, name) => {
-    if (found) return found;
-    const p = augmented.find(pr => pr.name === name);
-    if (p && p.timeDate > currentTime) return p;
-    return null;
-  }, null);
-
-  // Wrap: after Isha show tomorrow's Tahajjud (fajrTime - 2h + 1 day)
-  if (!nextPrayer) {
-    if (tahajjudTime) {
-      const tomorrowTahajjud = new Date(tahajjudTime);
-      tomorrowTahajjud.setDate(tomorrowTahajjud.getDate() + 1);
-      nextPrayer = { name: 'Tahajjud', timeDate: tomorrowTahajjud };
-    } else if (fajrEntry) {
-      const tomorrowFajr = new Date(fajrEntry.timeDate);
-      tomorrowFajr.setDate(tomorrowFajr.getDate() + 1);
-      nextPrayer = { name: 'Fajr', timeDate: tomorrowFajr };
-    }
-  }
-
-  if (!nextPrayer || prayers.length === 0) return null;
-  const meta = PRAYER_ADHKAR_META[nextPrayer.name];
-  if (!meta) return null;
-
-  const secondsLeft = Math.max(0, Math.floor((nextPrayer.timeDate.getTime() - currentTime.getTime()) / 1000));
-  const isAvailable = secondsLeft === 0;
-  const countdown = formatCountdownSeconds(secondsLeft);
-
-  // Format prayer time for the alert message
-  const prayerTimeStr = nextPrayer.timeDate.toLocaleTimeString('en-GB', {
-    hour: '2-digit', minute: '2-digit', hour12: true,
-  });
-
-  const handlePress = () => {
-    if (isAvailable) {
-      onOpen(meta.prayerTab);
-    } else {
-      const isTahajjud = nextPrayer!.name === 'Tahajjud';
-      showAlert(
-        isTahajjud ? 'Tahajjud Time Not Yet' : `Available after ${nextPrayer!.name}`,
-        isTahajjud
-          ? `Tahajjud adhkar unlocks at ${prayerTimeStr} — two hours before Fajr. Come back then.`
-          : `This section unlocks at ${prayerTimeStr}. Come back after ${nextPrayer!.name} prayer.`
-      );
-    }
-  };
-
-  const accentColor = nightMode ? meta.color + 'CC' : meta.color;
-  const bgTint = meta.color + (nightMode ? '18' : '10');
-
-  return (
-    <TouchableOpacity
-      style={[
-        fyStyles.duroodCard, { width: 158 },
-        N && { backgroundColor: N.surface, borderColor: N.border },
-        !isAvailable && { opacity: 0.62 },
-      ]}
-      onPress={handlePress}
-      activeOpacity={0.85}
-    >
-      {/* Header */}
-      <View style={fyStyles.duroodHeader}>
-        <MaterialIcons name={isAvailable ? meta.icon as any : 'schedule'} size={13} color={accentColor} />
-        <Text style={[fyStyles.duroodTitle, { color: accentColor }]}>
-          {isAvailable ? meta.badge : 'Coming Up'}
-        </Text>
-        <View style={[fyStyles.juzBadge, { backgroundColor: isAvailable ? accentColor : (N ? N.border : '#ccc') }]}>
-          <Text style={fyStyles.juzBadgeText}>{isAvailable ? 'Available' : 'Soon'}</Text>
-        </View>
-      </View>
-
-      {/* Countdown / Available area */}
-      <View style={[fyStyles.duroodTapArea, { backgroundColor: bgTint, borderColor: accentColor + '50', paddingVertical: 10 }]}>
-        {isAvailable ? (
-          <>
-            <MaterialIcons name={meta.icon as any} size={22} color={accentColor} style={{ marginBottom: 4 }} />
-            <Text style={{ fontSize: 13, fontWeight: '800', color: accentColor, textAlign: 'center', lineHeight: 18 }}>
-              Ready to recite
-            </Text>
-          </>
-        ) : (
-          <>
-            <MaterialIcons name="schedule" size={18} color={accentColor} style={{ marginBottom: 2 }} />
-            <Text style={{ fontSize: 22, fontWeight: '900', color: accentColor, letterSpacing: 1, fontVariant: ['tabular-nums'] as any }}>
-              {countdown}
-            </Text>
-            <Text style={{ fontSize: 9, fontWeight: '600', color: N ? N.textMuted : Colors.textSubtle, marginTop: 1 }}>
-              until {nextPrayer.name}
-            </Text>
-          </>
-        )}
-      </View>
-
-      {/* Details */}
-      <Text style={[fyStyles.cardTitle, { fontSize: 11, lineHeight: 14 }, N && { color: N.text }]} numberOfLines={1}>
-        {meta.title}
-      </Text>
-      <Text style={[fyStyles.cardSub, N && { color: N.textSub }]} numberOfLines={2}>
-        {meta.sub}
-      </Text>
-
-      {/* Open */}
-      <View style={[fyStyles.openRow, { backgroundColor: accentColor + '18', alignSelf: 'stretch', justifyContent: 'center' }]}>
-        <MaterialIcons
-          name={isAvailable ? 'arrow-forward' : 'lock-clock'}
-          size={10}
-          color={accentColor}
-        />
-        <Text style={[fyStyles.openText, { color: accentColor }]}>
-          {isAvailable ? 'View Adhkar →' : `Tap for details`}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-function ForYouCard({
-  card, nightMode, onOpen, onDismiss,
-}: {
-  card: FYCardData;
-  nightMode: boolean;
-  onOpen: (card: FYCardData) => void;
-  onDismiss: (id: string) => void;
-}) {
-  const scale = useRef(new Animated.Value(1)).current;
-  const onIn  = () => Animated.spring(scale, { toValue: 0.96, useNativeDriver: true, speed: 60 }).start();
-  const onOut = () => Animated.spring(scale, { toValue: 1,    useNativeDriver: true, speed: 40 }).start();
-  const N = nightMode ? NIGHT : null;
-  const isOverdue = !!card.isOverdue;
-  const overdueColor = '#B45309'; // amber-700
-  const overdueBg = N ? 'rgba(180,83,9,0.14)' : 'rgba(255,237,213,0.85)';
-  const overdueBorder = N ? '#7C3A00' : '#F59E0B';
-
-  return (
-    <TouchableOpacity
-      onPress={() => onOpen(card)}
-      onPressIn={onIn}
-      onPressOut={onOut}
-      activeOpacity={1}
-    >
-      <Animated.View style={[
-        fyStyles.card,
-        N && { backgroundColor: N.surface, borderColor: N.border },
-        isOverdue && { backgroundColor: overdueBg, borderColor: overdueBorder, borderWidth: 1.5, opacity: 0.88 },
-        { transform: [{ scale }] },
-      ]}>
-        <View style={[fyStyles.colorBar, { backgroundColor: isOverdue ? overdueColor : card.color }]} />
-        <View style={fyStyles.cardBody}>
-          <View style={fyStyles.cardTopRow}>
-            <View style={[fyStyles.iconCircle, { backgroundColor: (isOverdue ? overdueColor : card.color) + '22' }]}>
-              <MaterialIcons name={isOverdue ? 'schedule' as any : card.icon as any} size={17} color={isOverdue ? overdueColor : card.color} />
-            </View>
-            {/* Small dismiss X */}
-            <TouchableOpacity
-              onPress={(e) => { e.stopPropagation(); onDismiss(card.id); }}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              style={[fyStyles.doneBtn, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}
-            >
-              <MaterialIcons name="close" size={10} color={N ? N.textMuted : Colors.textSubtle} />
-            </TouchableOpacity>
-          </View>
-          {/* Badge row */}
-          {isOverdue ? (
-            <View style={[fyStyles.badgeRow, { backgroundColor: overdueColor + '22' }]}>
-              <MaterialIcons name="warning-amber" size={9} color={overdueColor} />
-              <Text style={[fyStyles.badgeText, { color: overdueColor }]}>Still Due</Text>
-            </View>
-          ) : card.badge ? (
-            <View style={[fyStyles.badgeRow, { backgroundColor: card.color + '18' }]}>
-              <Text style={[fyStyles.badgeText, { color: card.color }]}>{card.badge}</Text>
-            </View>
-          ) : null}
-          <Text style={[fyStyles.cardTitle, N && { color: N.text }, isOverdue && { color: N ? '#F6B65E' : '#78350F' }]} numberOfLines={2}>{card.title}</Text>
-          <Text style={[fyStyles.cardSub, N && { color: N.textSub }]} numberOfLines={2}>{card.sub}</Text>
-          {/* Bottom action rows */}
-          {card.route ? (
-            <TouchableOpacity
-              onPress={(e) => { e.stopPropagation(); onOpen(card); }}
-              style={[fyStyles.openRow, { backgroundColor: (isOverdue ? overdueColor : card.color) + '18' }]}
-            >
-              <MaterialIcons name="arrow-forward" size={10} color={isOverdue ? overdueColor : card.color} />
-              <Text style={[fyStyles.openText, { color: isOverdue ? overdueColor : card.color }]}>{isOverdue ? 'Open Adhkar →' : 'Open →'}</Text>
-            </TouchableOpacity>
-          ) : null}
-          {/* Mark as Complete — always visible for prayer adhkar cards */}
-          <TouchableOpacity
-            onPress={(e) => { e.stopPropagation(); onDismiss(card.id); }}
-            style={[fyStyles.openRow, { backgroundColor: (isOverdue ? overdueColor : card.color) + '14', alignSelf: 'stretch', justifyContent: 'center' }]}
-          >
-            <MaterialIcons name="check-circle" size={11} color={isOverdue ? overdueColor : card.color} />
-            <Text style={[fyStyles.openText, { color: isOverdue ? overdueColor : card.color }]}>Mark as Complete</Text>
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
-    </TouchableOpacity>
-  );
-}
-
-const fyStyles = StyleSheet.create({
-  duroodCard: {
-    width: 178,
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    overflow: 'hidden',
-    padding: 10,
-    gap: 7,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  duroodHeader: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  duroodTitle: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3, flex: 1 },
-  duroodDoneBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-    paddingHorizontal: 6, paddingVertical: 2, borderRadius: Radius.full,
-  },
-  duroodDoneText: { fontSize: 9, fontWeight: '800', color: '#fff' },
-  duroodTapArea: {
-    alignItems: 'center', justifyContent: 'center',
-    borderRadius: Radius.md, borderWidth: 1.5,
-    paddingVertical: 10,
-  },
-  duroodCount: { fontSize: 28, fontWeight: '900', lineHeight: 32 },
-  duroodCountOf: { fontSize: 10, fontWeight: '600', color: Colors.textSubtle, marginTop: 1 },
-  duroodProgressBg: {
-    height: 4, borderRadius: 2, backgroundColor: Colors.border, overflow: 'hidden',
-  },
-  duroodProgressFill: { height: 4, borderRadius: 2 },
-  duroodLevels: { flexDirection: 'row', gap: 4 },
-  duroodLevelBtn: {
-    flex: 1, alignItems: 'center', paddingVertical: 4,
-    borderRadius: Radius.sm, borderWidth: 1,
-  },
-  duroodLevelText: { fontSize: 8.5, fontWeight: '800' },
-  quranPortionHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 9, paddingVertical: 7,
-  },
-  quranPortionHeaderText: { fontSize: 10, fontWeight: '800', color: '#fff', flex: 1 },
-  juzBadge: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    paddingHorizontal: 6, paddingVertical: 1, borderRadius: Radius.full,
-  },
-  juzBadgeText: { fontSize: 9, fontWeight: '800', color: '#fff' },
-  card: {
-    width: 148,
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  colorBar: { height: 3 },
-  cardBody: { padding: 9, gap: 4 },
-  cardTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
-  iconCircle: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  doneBtn: {
-    width: 20, height: 20, borderRadius: 10,
-    backgroundColor: Colors.surfaceAlt,
-    borderWidth: 1, borderColor: Colors.border,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  badgeRow: {
-    alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2,
-    borderRadius: Radius.full,
-  },
-  badgeText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.3 },
-  cardTitle: { fontSize: 12, fontWeight: '800', color: Colors.textPrimary, lineHeight: 16 },
-  cardSub: { fontSize: 10.5, fontWeight: '400', lineHeight: 14, color: Colors.textSubtle },
-  openRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 2,
-    alignSelf: 'flex-start', paddingHorizontal: 7, paddingVertical: 3,
-    borderRadius: Radius.full, marginTop: 3,
-  },
-  openText: { fontSize: 10, fontWeight: '700' },
-});
-
-// ── Manual swipe row for For You Today ──────────────────────────────────
-function ForYouTickerRow({
-  cards, nightMode, onOpen, onDismiss, extraSlots,
-}: {
-  cards: FYCardData[];
-  nightMode: boolean;
-  onOpen: (card: FYCardData) => void;
-  onDismiss: (id: string) => void;
-  extraSlots: React.ReactNode[];
-}) {
-  return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={{ flexDirection: 'row', gap: 10, paddingHorizontal: Spacing.md, paddingBottom: 4, paddingTop: 2 }}
-    >
-      {/* Prayer adhkar cards first — highest priority */}
-      {cards.map(card => (
-        <ForYouCard
-          key={card.id}
-          card={card}
-          nightMode={nightMode}
-          onOpen={onOpen}
-          onDismiss={onDismiss}
-        />
-      ))}
-      {/* Persistent utility slots: Durood, Quran portion, Next Adhkar countdown */}
-      {extraSlots.map((slot, i) => (
-        <React.Fragment key={`extra-${i}`}>{slot}</React.Fragment>
-      ))}
-    </ScrollView>
-  );
-}
-
-function ForYouTodaySection({
-  prayers, nightMode, currentTime, hijriDay, todaySunnah,
-}: {
-  prayers: { name: string; timeDate: Date }[];
-  nightMode: boolean;
-  currentTime: Date;
-  hijriDay: number;
-  todaySunnah: SunnahEntry;
-}) {
-  const N = nightMode ? NIGHT : null;
-  const router = useRouter();
-
-  // Use Fajr as the day boundary — before Fajr counts as the previous day
-  const fajrPrayer = prayers.find(p => p.name === 'Fajr');
-  const referenceDate = new Date(currentTime);
-  if (fajrPrayer && currentTime < fajrPrayer.timeDate) {
-    referenceDate.setDate(referenceDate.getDate() - 1);
-  }
-  const todayKey = `${referenceDate.getFullYear()}-${String(referenceDate.getMonth() + 1).padStart(2, '0')}-${String(referenceDate.getDate()).padStart(2, '0')}`;
-  const storageKey = `foryou_done_${todayKey}`;
-
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    AsyncStorage.getItem(storageKey).then(val => {
-      if (val) {
-        try { setDismissed(new Set(JSON.parse(val))); } catch {}
-      }
-      setLoaded(true);
-    }).catch(() => setLoaded(true));
-  }, [storageKey]);
-
-  // Dismiss only — does NOT navigate
-  const dismissOnly = useCallback(async (id: string) => {
-    const next = new Set(dismissed);
-    next.add(id);
-    setDismissed(next);
-    AsyncStorage.setItem(storageKey, JSON.stringify([...next])).catch(() => {});
-  }, [dismissed, storageKey]);
-
-  // Open card — navigates but does NOT dismiss
-  const openCard = useCallback((card: FYCardData) => {
-    if (card.route) {
-      if (card.prayerTab) {
-        router.push(`${card.route}?prayerTime=${card.prayerTab}` as any);
-      } else {
-        router.push(card.route as any);
-      }
-    }
-  }, [router]);
-
-  if (!loaded) return null;
-
-  const PRAYER_ORDER = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
-  const cards: FYCardData[] = [];
-
-  // ── Pre-Fajr adhkar — shown when it is currently before Fajr (night window)
-  const fajrPrayerObj = prayers.find(p => p.name === 'Fajr');
-  const ishaObj = prayers.find(p => p.name === 'Isha');
-  const isPreFajr = fajrPrayerObj ? currentTime < fajrPrayer!.timeDate : false;
-  // Only show Pre-Fajr card after Isha has passed (proper night window)
-  const ishaHasPassed = ishaObj ? ishaObj.timeDate <= currentTime : false;
-
-  // Tahajjud window: 2 hours before Fajr (takes priority over generic pre-fajr card)
-  const tahajjudUnlockTime = fajrPrayerObj
-    ? new Date(fajrPrayerObj.timeDate.getTime() - 2 * 60 * 60 * 1000)
-    : null;
-  const inTahajjudWindow = tahajjudUnlockTime
-    ? currentTime >= tahajjudUnlockTime && currentTime < fajrPrayer!.timeDate
-    : false;
-
-  // Show Tahajjud card during the 2h window before Fajr
-  if (inTahajjudWindow && !dismissed.has(TAHAJJUD_CARD_DATA.id)) {
-    cards.push(TAHAJJUD_CARD_DATA);
-  }
-
-  // Show generic Pre-Fajr card only OUTSIDE the Tahajjud window (earlier night)
-  if (isPreFajr && ishaHasPassed && !inTahajjudWindow && !dismissed.has(PRE_FAJR_CARD_DATA.id)) {
-    cards.push(PRE_FAJR_CARD_DATA);
-  }
-
-  // Determine which prayer's window has expired (next prayer has started)
-  const PRAYER_NEXT_MAP: Record<string, string> = {
-    Fajr: 'Dhuhr', Dhuhr: 'Asr', Asr: 'Maghrib', Maghrib: 'Isha',
-  };
-
-  // Prayer adhkar cards — appear when that salah time has passed, persist until checked
-  // Marked as overdue once the NEXT prayer has started
-  PRAYER_ORDER.forEach(name => {
-    const prayer = prayers.find(p => p.name === name);
-    if (prayer && prayer.timeDate <= currentTime) {
-      const card = PRAYER_ADHKAR_CARDS[name];
-      if (card && !dismissed.has(card.id)) {
-        const nextName = PRAYER_NEXT_MAP[name];
-        const nextEntry = nextName ? prayers.find(p => p.name === nextName) : null;
-        const isOverdue = nextEntry ? nextEntry.timeDate <= currentTime : false;
-        cards.push({ ...card, isOverdue });
-      }
-    }
-  });
-
-  // ── Post-Jumu'ah adhkar — Fridays after 2nd Jamaat time
-  const isFridayNow = currentTime.getDay() === 5;
-  if (isFridayNow) {
-    const y = currentTime.getFullYear();
-    const lsm = new Date(y, 2, 31); while (lsm.getDay() !== 0) lsm.setDate(lsm.getDate() - 1);
-    const lso = new Date(y, 9, 31); while (lso.getDay() !== 0) lso.setDate(lso.getDate() - 1);
-    const isBST = currentTime >= lsm && currentTime < lso;
-    const jamaat2Hour = isBST ? 14 : 13;
-    const jamaat2Time = new Date(currentTime);
-    jamaat2Time.setHours(jamaat2Hour, 30, 0, 0);
-    const postJumuahId = `adhkar-post-jumuah-${todayKey}`;
-    if (currentTime >= jamaat2Time && !dismissed.has(postJumuahId)) {
-      cards.push({ id: postJumuahId, ...POST_JUMUAH_CARD_DATA });
-    }
-  }
-
-  // Jumu'ah reminder on Fridays (before Jumu'ah)
-  const jumuahId = `jumuah-${todayKey}`;
-  if (isFridayNow && !dismissed.has(jumuahId)) {
-    const y2 = currentTime.getFullYear();
-    const lsm2 = new Date(y2, 2, 31); while (lsm2.getDay() !== 0) lsm2.setDate(lsm2.getDate() - 1);
-    const lso2 = new Date(y2, 9, 31); while (lso2.getDay() !== 0) lso2.setDate(lso2.getDate() - 1);
-    const bstNow = currentTime >= lsm2 && currentTime < lso2;
-    const j2h = bstNow ? 14 : 13;
-    const j2cutoff = new Date(currentTime); j2cutoff.setHours(j2h, 30, 0, 0);
-    if (currentTime < j2cutoff) {
-      cards.push({
-        id: jumuahId,
-        icon: 'star',
-        color: '#B8860B',
-        title: "Jumu'ah Mubarak",
-        sub: 'Recite Surah Al-Kahf & send abundant Salawat today.',
-        badge: 'Friday',
-      });
-    }
-  }
-
-  // Daily Sunnah reminder
-  const sunnahId = `sunnah-${todayKey}`;
-  if (!dismissed.has(sunnahId)) {
-    cards.push({
-      id: sunnahId,
-      icon: todaySunnah.icon as string,
-      color: '#3949AB',
-      title: todaySunnah.act,
-      sub: todaySunnah.ref,
-      badge: 'Sunnah',
-    });
-  }
-
-  const allDone = cards.length === 0;
-
-  // Augmented prayers for countdown (includes Tahajjud virtual entry)
-  const tahajjudForCountdown = fajrPrayerObj
-    ? new Date(fajrPrayerObj.timeDate.getTime() - 2 * 60 * 60 * 1000)
-    : null;
-  const augmentedPrayersForCountdown = tahajjudForCountdown
-    ? [{ name: 'Tahajjud', timeDate: tahajjudForCountdown }, ...prayers]
-    : prayers;
-
-  // ── Extra fixed slots ─────────────────────────────────────────────────────
-  const extraSlots: React.ReactNode[] = [
-    <DuroodCounterCard key="durood" nightMode={nightMode} todayKey={todayKey} dismissed={dismissed} onDismiss={dismissOnly} />,
-    <IstighfarCounterCard key="istighfar" nightMode={nightMode} todayKey={todayKey} dismissed={dismissed} onDismiss={dismissOnly} />,
-    <QuranPortionCard key="quran-portion" nightMode={nightMode} todayKey={todayKey} dismissed={dismissed} onDismiss={dismissOnly} hijriDay={hijriDay} />,
-    <BedTimeCard key="bedtime" nightMode={nightMode} todayKey={todayKey} dismissed={dismissed} onDismiss={dismissOnly} onOpen={() => router.push('/(tabs)/duas?prayerTime=after-isha&group=Night+Protection' as any)} />,
-    <NextAdhkarCountdownCard key="next-adhkar" nightMode={nightMode} prayers={augmentedPrayersForCountdown} currentTime={currentTime} onOpen={(prayerTab) => router.push(`/(tabs)/duas?prayerTime=${prayerTab}` as any)} />,
-  ];
-
-  return (
-    <View style={{ marginHorizontal: -Spacing.md, marginTop: 2, marginBottom: 2 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: Spacing.md }}>
-        <Text style={[styles.sectionTitle, N && { color: N.text }]}>For You Today</Text>
-        <Text style={{ fontSize: 10, fontWeight: '600', color: N ? N.textMuted : Colors.textSubtle }}>
-          {allDone ? 'All done ✓' : `${cards.length} reminder${cards.length !== 1 ? 's' : ''}`}
-        </Text>
-      </View>
-
-      {allDone ? (
-        // Static row when all prayer cards are done (Durood + Quran + Countdown still show)
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: Spacing.md, gap: 10, paddingBottom: 4 }}
-        >
-          <DuroodCounterCard nightMode={nightMode} todayKey={todayKey} dismissed={dismissed} onDismiss={dismissOnly} />
-          <IstighfarCounterCard nightMode={nightMode} todayKey={todayKey} dismissed={dismissed} onDismiss={dismissOnly} />
-          <QuranPortionCard nightMode={nightMode} todayKey={todayKey} dismissed={dismissed} onDismiss={dismissOnly} hijriDay={hijriDay} />
-          <BedTimeCard nightMode={nightMode} todayKey={todayKey} dismissed={dismissed} onDismiss={dismissOnly} onOpen={() => router.push('/(tabs)/duas?prayerTime=after-isha' as any)} />
-          <NextAdhkarCountdownCard
-            nightMode={nightMode}
-            prayers={augmentedPrayersForCountdown}
-            currentTime={currentTime}
-            onOpen={(prayerTab) => router.push(`/(tabs)/duas?prayerTime=${prayerTab}` as any)}
-          />
-          <View style={[
-            fyStyles.card, { width: 160, justifyContent: 'center' },
-            N && { backgroundColor: N.surface, borderColor: N.border },
-          ]}>
-            <View style={fyStyles.colorBar} />
-            <View style={[fyStyles.cardBody, { alignItems: 'center', gap: 8, paddingVertical: 16 }]}>
-              <View style={[fyStyles.iconCircle, { backgroundColor: '#4FE94822', width: 40, height: 40, borderRadius: 20 }]}>
-                <MaterialIcons name="check-circle" size={22} color="#4FE948" />
-              </View>
-              <Text style={[fyStyles.cardTitle, { textAlign: 'center', fontSize: 13 }, N && { color: N.text }]}>
-                All caught up!
-              </Text>
-              <Text style={[fyStyles.cardSub, { textAlign: 'center', lineHeight: 15 }, N && { color: N.textSub }]}>
-                Check back after the next Salah.
-              </Text>
-            </View>
-          </View>
-        </ScrollView>
-      ) : (
-        // Auto-scrolling ticker when cards are present
-        <ForYouTickerRow
-          cards={cards}
-          nightMode={nightMode}
-          onOpen={openCard}
-          onDismiss={dismissOnly}
-          extraSlots={extraSlots}
-        />
-      )}
-    </View>
-  );
-}
-
-// ── Masjid Status Strip ─────────────────────────────────────────────────
-// ── Animated Quick Link Card ─────────────────────────────────────────────
-function QuickLinkCard({
-  icon, label, route, nightMode,
-}: {
-  icon: string; label: string; route: string; nightMode: boolean;
-}) {
-  const router = useRouter();
-  const scale = useRef(new Animated.Value(1)).current;
-  const onIn  = () => Animated.spring(scale, { toValue: 0.93, useNativeDriver: true, speed: 60 }).start();
-  const onOut = () => Animated.spring(scale, { toValue: 1,    useNativeDriver: true, speed: 40 }).start();
-  const N = nightMode ? NIGHT : null;
-  return (
-    <TouchableOpacity
-      onPress={() => router.push(route as any)}
-      onPressIn={onIn}
-      onPressOut={onOut}
-      activeOpacity={1}
-      style={{ width: '47%' }}
-    >
-      <Animated.View style={[
-        styles.quickLinkCard,
-        N && {
-          backgroundColor: N.surface,
-          borderColor: N.border,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.30,
-          shadowRadius: 20,
-          elevation: 8,
-        },
-        { transform: [{ scale }] },
-      ]}>
-        <View style={[
-          styles.quickLinkIcon,
-          N && { backgroundColor: N.accentGlow },
-        ]}>
-          <View style={N ? styles.quickLinkIconGlow : undefined}>
-            <MaterialIcons name={icon as any} size={22} color={N ? N.accent : Colors.primary} />
-          </View>
-        </View>
-        <Text style={[styles.quickLinkLabel, N && { color: N.text }]}>{label}</Text>
-      </Animated.View>
-    </TouchableOpacity>
-  );
-}
-
-// ── Masjid photo assets for donation card rotation ────────────────────────
 const MASJID_IMAGES = [
   require('@/assets/images/masjid/JMN_page_2.png'),
   require('@/assets/images/masjid/JMN_page_3.png'),
-  require('@/assets/images/masjid/JMN_page_5 (1).png'),
+  require('@/assets/images/masjid/JMN_page_5_1.png'),
   require('@/assets/images/masjid/JMN_page_7.png'),
 ];
 // Sequence: donate(even step), photo(odd step) — total = 2 × photo count
@@ -2155,7 +731,7 @@ function HeroToDaySectionBridge({ nightMode }: { nightMode: boolean }) {
         colors={nightMode ? ['rgba(11,18,32,0.0)', NIGHT.bg] : ['rgba(13,38,71,0.0)', '#E8EEEA']}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
-        style={{ height: 20 }}
+        style={{ height: 18 }}
       />
     </View>
   );
@@ -2265,10 +841,14 @@ const zawaalRowStyles = StyleSheet.create({
     borderRadius: 18,
     overflow: 'hidden',
     minHeight: 130,
-    shadowColor: '#0D3527',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 6px 12px rgba(13,53,39,0.18)' }
+      : {
+          shadowColor: '#0D3527',
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.18,
+          shadowRadius: 12,
+        }),
     elevation: 4,
   },
   donateCardGradient: {
@@ -2333,10 +913,14 @@ const zawaalRowStyles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 4px 8px rgba(0,0,0,0.2)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.2,
+          shadowRadius: 8,
+        }),
     elevation: 3,
   },
   donateCardCtaText: {
@@ -2489,7 +1073,9 @@ const zawaalRowStyles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '900',
     color: '#fff',
-    textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4,
+    ...(Platform.OS === 'web'
+      ? { textShadow: '0px 1px 4px rgba(0,0,0,0.5)' }
+      : { textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }),
   },
   photoSub: {
     fontSize: 11,
@@ -2512,10 +1098,14 @@ const zawaalRowStyles = StyleSheet.create({
     alignSelf: 'center',
     aspectRatio: 1,
     minHeight: 276,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 10px 16px rgba(0,0,0,0.1)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 10 },
+          shadowOpacity: 0.1,
+          shadowRadius: 16,
+        }),
     elevation: 6,
     position: 'relative',
   },
@@ -2654,10 +1244,14 @@ const zawaalRowStyles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     minWidth: 132,
-    shadowColor: '#0A4B37',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.14,
-    shadowRadius: 6,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 3px 6px rgba(10,75,55,0.14)' }
+      : {
+          shadowColor: '#0A4B37',
+          shadowOffset: { width: 0, height: 3 },
+          shadowOpacity: 0.14,
+          shadowRadius: 6,
+        }),
     elevation: 2,
   },
   flipHeroCtaText: {
@@ -2687,6 +1281,8 @@ type HeroPrayerTimelineState = {
   jamaatTimeText: string;
   endLabel: string;
   endTimeText: string;
+  startPrayerName: string;
+  endPrayerName: string;
   progress: number;
   pulseMarker: boolean;
   isLiveJamaatTrack: boolean;
@@ -2697,7 +1293,7 @@ const HERO_TIMELINE_ENDING_SOON_SECONDS = 15 * 60;
 const HERO_TIMELINE_STARTING_NOW_SECONDS = 2 * 60;
 const HERO_TIMELINE_JAMAAT_ONGOING_SECONDS = 7 * 60;
 const HERO_TIMELINE_PULSE_SECONDS = 30;
-const HERO_LOGO_MARKER_SIZE = 30;
+const HERO_LOGO_MARKER_SIZE = 22;
 
 function resolvePrayerJamaatDate(activePrayer: PrayerTime | null, iqamah: string | null): Date | null {
   if (!activePrayer || !iqamah || iqamah === '-' || iqamah === '--:--') return null;
@@ -2761,6 +1357,8 @@ function usePrayerTimelineState(params: {
           : (params.effectiveHeroJamaatValue || '--:--'),
         endLabel: fallbackEndLabel,
         endTimeText: fallbackEndTime,
+        startPrayerName: params.effectiveHeroStartLabel || 'Start',
+        endPrayerName: params.effectiveHeroEndLabel || 'Next',
         progress: Math.max(0, Math.min(1, params.effectiveHeroProgress || 0)),
         pulseMarker: false,
         isLiveJamaatTrack: false,
@@ -2781,6 +1379,8 @@ function usePrayerTimelineState(params: {
         jamaatTimeText: params.currentPrayerIqamah || '--:--',
         endLabel: fallbackEndLabel,
         endTimeText: fallbackEndTime,
+        startPrayerName: params.activePrayer.name || 'Start',
+        endPrayerName: params.effectiveHeroEndLabel || 'Next',
         progress: Math.max(0, Math.min(1, params.effectiveHeroProgress || 0)),
         pulseMarker: false,
         isLiveJamaatTrack: false,
@@ -2806,7 +1406,7 @@ function usePrayerTimelineState(params: {
       if (secondsToJamaat <= HERO_TIMELINE_STARTING_NOW_SECONDS) {
         stateLabel = 'JAMAAT STARTING NOW';
       } else if (secondsToJamaat <= HERO_TIMELINE_ENDING_SOON_SECONDS) {
-        stateLabel = 'ENDING SOON';
+        stateLabel = 'JAMAAT SOON';
       }
     } else if (secondsToEnd > 0) {
       progress = Math.max(0.5, Math.min(1, 0.5 + (0.5 * (jamaatToEndElapsed / jamaatToEndTotal))));
@@ -2835,6 +1435,8 @@ function usePrayerTimelineState(params: {
       jamaatTimeText: params.currentPrayerIqamah || '--:--',
       endLabel: 'End',
       endTimeText: params.effectiveHeroEndTime || params.effectiveHeroEndLabel || '--:--',
+      startPrayerName: params.activePrayer.name || 'Start',
+      endPrayerName: params.effectiveHeroEndLabel || 'End',
       progress,
       pulseMarker: secondsToJamaat <= HERO_TIMELINE_PULSE_SECONDS || secondsToEnd <= HERO_TIMELINE_PULSE_SECONDS,
       isLiveJamaatTrack: true,
@@ -2860,55 +1462,140 @@ function HeroPrayerStatus({
   nextPrayerTime: string;
   showJamaatAnchor: boolean;
 }) {
+  const jamaatPillFlashAnim = useRef(new Animated.Value(1)).current;
   const isJamaatNow = stateLabel === 'JAMAAT NOW' || stateLabel === 'JAMAAT STARTING NOW';
+  const isJamaatInProgress = stateLabel === 'JAMAAT NOW';
+  const isJamaatSoon = stateLabel === 'JAMAAT SOON';
   const isEndingSoon = stateLabel === 'ENDING SOON';
   const isUntilEnd = stateLabel === 'UNTIL END';
-  const showJamaatPill = showJamaatAnchor && (stateLabel === 'UNTIL JAMAAT' || isJamaatNow || isEndingSoon || isUntilEnd);
+  const normalizedStateLabel = stateLabel.trim().toUpperCase();
+  const isForbidden = normalizedStateLabel === 'FORBIDDEN WINDOW' || prayerName === 'Zawaal';
+  const showJamaatPill = showJamaatAnchor
+    && (normalizedStateLabel === 'UNTIL JAMAAT' || isJamaatNow || isJamaatSoon || isEndingSoon || isUntilEnd);
+  const showContextPill = countdownText !== '00:00:00';
 
-  const pillCountdown = (() => {
-    const [h = 0, m = 0, s = 0] = countdownText.split(':').map(Number);
-    const mins = (h * 60) + m;
-    if (mins > 0) return `${String(mins).padStart(2, '0')} min`;
-    return `${String(s).padStart(2, '0')} sec`;
+  useEffect(() => {
+    let loop: Animated.CompositeAnimation | null = null;
+
+    if (isJamaatInProgress && showContextPill) {
+      loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(jamaatPillFlashAnim, {
+            toValue: 0.52,
+            duration: 520,
+            useNativeDriver: true,
+          }),
+          Animated.timing(jamaatPillFlashAnim, {
+            toValue: 1,
+            duration: 520,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      loop.start();
+    } else {
+      jamaatPillFlashAnim.stopAnimation();
+      jamaatPillFlashAnim.setValue(1);
+    }
+
+    return () => {
+      loop?.stop();
+    };
+  }, [isJamaatInProgress, showContextPill, jamaatPillFlashAnim]);
+
+  const jamaatPillScale = jamaatPillFlashAnim.interpolate({
+    inputRange: [0.52, 1],
+    outputRange: [0.985, 1],
+  });
+
+  const toTitleCase = (value: string) => value.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+
+  const nonJamaatPillLabel = (() => {
+    if (isForbidden) return 'Forbidden period ends in';
+    if (normalizedStateLabel.startsWith('UNTIL ')) {
+      const target = toTitleCase(normalizedStateLabel.replace('UNTIL ', '').trim());
+      return `Countdown to ${target}`;
+    }
+    if (normalizedStateLabel === 'LIVE PRAYER') return 'Live prayer countdown';
+    return 'Countdown to next event';
   })();
 
-  const pillLabel = isJamaatNow
-    ? 'Jamaat in progress'
-    : isEndingSoon
-    ? 'Prayer ending soon'
-    : isUntilEnd
-    ? 'Prayer in progress'
-    : `Jamaat starts in ${pillCountdown}`;
+  const pillLabel = showJamaatPill
+    ? isJamaatNow
+      ? 'Jamaat in progress'
+      : isJamaatSoon
+      ? 'Jamaat time soon'
+      : isEndingSoon
+      ? 'Prayer ending soon'
+      : isUntilEnd
+      ? 'Countdown To The Prayer End Time'
+      : 'Countdown to Jamaat'
+    : nonJamaatPillLabel;
+
+  const pillIconName = showJamaatPill
+    ? isJamaatNow
+      ? 'play-arrow'
+      : isUntilEnd
+      ? 'radio-button-on'
+      : 'schedule'
+    : 'schedule';
 
   return (
     <View style={heroTimelineStyles.statusBlock}>
-      <Text style={heroTimelineStyles.currentPrayerLabel}>CURRENT PRAYER</Text>
-      <Text style={[heroTimelineStyles.prayerName, { fontSize: 66, lineHeight: 70 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+      <Text style={heroTimelineStyles.currentPrayerLabel}>
+        {isForbidden ? 'FORBIDDEN PERIOD' : 'CURRENT PRAYER'}
+      </Text>
+      <Text style={heroTimelineStyles.prayerName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
         {prayerName}
       </Text>
 
-      {showJamaatPill ? (
-        <View style={heroTimelineStyles.jamaatPill}>
-          <View style={heroTimelineStyles.jamaatPillIconWrap}>
-            <MaterialIcons name={isJamaatNow ? 'play-arrow' : isUntilEnd ? 'radio-button-on' : 'schedule'} size={13} color={HERO_DESIGN_TOKENS.badgeIcon} />
-          </View>
-          <Text style={heroTimelineStyles.jamaatPillText}>{pillLabel}</Text>
+      {showContextPill ? (
+          <Animated.View
+            style={[
+              heroTimelineStyles.jamaatPill,
+              heroTimelineStyles.countdownSectionPill,
+              isJamaatInProgress
+                ? { opacity: jamaatPillFlashAnim, transform: [{ scale: jamaatPillScale }] }
+                : null,
+            ]}
+          >
+            <View style={heroTimelineStyles.jamaatPillIconWrap}>
+              <MaterialIcons name={isForbidden ? 'block' : pillIconName} size={10} color={HERO_DESIGN_TOKENS.badgeIcon} />
+            </View>
+            <Text
+              style={heroTimelineStyles.jamaatPillText}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              allowFontScaling={false}
+            >
+              {pillLabel}
+            </Text>
+          </Animated.View>
+      ) : null}
+
+      {!isJamaatInProgress ? (
+        <View style={[heroTimelineStyles.countdownRow, !showContextPill && heroTimelineStyles.countdownRowNoPill]}>
+          {countdownText.split(':').map((seg, i) => (
+            <React.Fragment key={i}>
+              {i > 0 && <Text style={heroTimelineStyles.countdownColon}>:</Text>}
+              <View style={heroTimelineStyles.countdownSegment}>
+                <Text style={heroTimelineStyles.countdownDigit}>{seg}</Text>
+              </View>
+            </React.Fragment>
+          ))}
         </View>
       ) : null}
 
-      <Text style={[heroTimelineStyles.countdownText, { fontSize: 72, lineHeight: 76, letterSpacing: -0.3 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>
-        {countdownText}
-      </Text>
-
-      <View style={heroTimelineStyles.simpleDivider}>
-        <View style={heroTimelineStyles.simpleDividerDot} />
-      </View>
-
       <View style={heroTimelineStyles.footerRow}>
-        <MaterialIcons name="wb-sunny" size={16} color="rgba(237,231,222,0.76)" />
+        <MaterialIcons name={isForbidden ? 'info-outline' : 'wb-sunny'} size={11} color="rgba(237,231,222,0.54)" />
         <Text style={heroTimelineStyles.footerText} numberOfLines={1}>
-          Jamaat at <Text style={heroTimelineStyles.footerBold}>{jamaatTimeText || '--:--'}</Text>
-          {nextPrayerName ? `  ·  Next: ${nextPrayerName} at ${nextPrayerTime}` : ''}
+          {isForbidden
+            ? <><Text style={heroTimelineStyles.footerLabel}>Prayer resumes at </Text><Text style={heroTimelineStyles.footerTime}>{nextPrayerTime || '--:--'}</Text></>
+            : prayerName === 'Ishraq'
+            ? <><Text style={heroTimelineStyles.footerLabel}>Zawaal at </Text><Text style={heroTimelineStyles.footerTime}>{jamaatTimeText || '--:--'}</Text></>
+            : <><Text style={heroTimelineStyles.footerLabel}>Jamaat at </Text><Text style={heroTimelineStyles.footerTime}>{jamaatTimeText || '--:--'}</Text></>
+          }
+          {!isForbidden && nextPrayerName ? <><Text style={heroTimelineStyles.footerMuted}>  ·  Next: </Text><Text style={heroTimelineStyles.footerLabel}>{nextPrayerName} at </Text><Text style={heroTimelineStyles.footerTime}>{nextPrayerTime}</Text></> : ''}
         </Text>
       </View>
     </View>
@@ -2923,6 +1610,8 @@ function HeroPrayerTimeline({
   startLabel,
   jamaatLabel,
   endLabel,
+  startPrayerName,
+  endPrayerName,
   showJamaatAnchor,
   nightMode,
   pulseMarker,
@@ -2934,6 +1623,8 @@ function HeroPrayerTimeline({
   startLabel: string;
   jamaatLabel: string;
   endLabel: string;
+  startPrayerName: string;
+  endPrayerName: string;
   showJamaatAnchor: boolean;
   nightMode: boolean;
   pulseMarker: boolean;
@@ -2999,27 +1690,27 @@ function HeroPrayerTimeline({
           {trackWidth > 0 ? (
             <Animated.View style={[heroTimelineStyles.trackFill, { width: fillWidth }]} />
           ) : null}
-          <View style={heroTimelineStyles.anchorDot} />
-          {showJamaatAnchor ? <View style={[heroTimelineStyles.anchorDot, heroTimelineStyles.anchorDotMiddle]} /> : null}
+          <View style={[heroTimelineStyles.anchorDot, progress > 0 && heroTimelineStyles.anchorDotFilled]} />
+          {showJamaatAnchor ? <View style={[heroTimelineStyles.anchorDot, heroTimelineStyles.anchorDotMiddle, progress > 0.5 && heroTimelineStyles.anchorDotFilled]} /> : null}
           {trackWidth > 0 ? (
             <Animated.View
-              pointerEvents="none"
               style={[
                 heroTimelineStyles.markerPosition,
+                { pointerEvents: 'none' },
                 { transform: [{ translateX: markerTranslateX }] },
               ]}
             >
               <HeroLogoMarker markerScale={markerScale} nightMode={nightMode} pulseMarker={pulseMarker} />
             </Animated.View>
           ) : null}
-          <View style={[heroTimelineStyles.anchorDot, heroTimelineStyles.anchorDotRight]} />
+          <View style={[heroTimelineStyles.anchorDot, heroTimelineStyles.anchorDotRight, progress >= 1 && heroTimelineStyles.anchorDotFilled]} />
         </View>
       </View>
 
       <View style={heroTimelineStyles.anchorLabelsRow}>
-        <Text style={heroTimelineStyles.anchorLabelText} numberOfLines={1}>{startLabel}</Text>
+        <Text style={heroTimelineStyles.anchorLabelText} numberOfLines={1}>{startPrayerName}</Text>
         {showJamaatAnchor ? <Text style={heroTimelineStyles.anchorLabelTextCenter} numberOfLines={1}>{jamaatLabel}</Text> : null}
-        <Text style={heroTimelineStyles.anchorLabelText} numberOfLines={1}>{endLabel}</Text>
+        <Text style={heroTimelineStyles.anchorLabelText} numberOfLines={1}>{endPrayerName}</Text>
       </View>
     </View>
   );
@@ -3081,10 +1772,21 @@ function HeroDonationCard({ onPress }: { nightMode: boolean; onPress: () => void
         {isInfoFace ? (
           <View style={StyleSheet.absoluteFillObject}>
             <LinearGradient
-              colors={['#295947', '#214839', '#173127']}
+              colors={['#3A9569', '#2A7354', '#173C2D']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={[StyleSheet.absoluteFillObject, { opacity: 0.82 }]}
+              style={StyleSheet.absoluteFillObject}
+            />
+            <LinearGradient
+              colors={['rgba(245,234,197,0.20)', 'rgba(245,234,197,0.05)', 'rgba(245,234,197,0.00)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={heroSupportStyles.donateInfoSheen}
+            />
+            <Image
+              source={require('@/assets/images/background/kiswahkaabah.jpg')}
+              style={heroSupportStyles.donateInfoPattern}
+              contentFit="cover"
             />
             <Image
               source={require('../../assets/images/masjid-logo.png')}
@@ -3093,10 +1795,13 @@ function HeroDonationCard({ onPress }: { nightMode: boolean; onPress: () => void
             />
             <View style={heroSupportStyles.donateInfoTint} />
             <View style={heroSupportStyles.donateInfoOrb} />
-            <View style={heroSupportStyles.donateFrame} />
-            <View style={[heroSupportStyles.donateInfoTint, { opacity: 0.7 }]} />
-            <View style={[heroSupportStyles.donateInfoOrb, { opacity: 0.5 }]} />
-            <View style={[heroSupportStyles.donateFrame, { opacity: 0.5 }]} />
+            <View style={heroSupportStyles.donateInfoOrbSecondary} />
+            <LinearGradient
+              colors={['rgba(8,23,17,0.44)', 'rgba(8,23,17,0.14)', 'rgba(8,23,17,0.22)']}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={heroSupportStyles.donateInfoVignette}
+            />
             <View style={heroSupportStyles.donateInner}>
               <View style={heroSupportStyles.donateLeft}>
                 <View style={heroSupportStyles.donateKickerRow}>
@@ -3119,18 +1824,18 @@ function HeroDonationCard({ onPress }: { nightMode: boolean; onPress: () => void
           </View>
         ) : (
           <View style={StyleSheet.absoluteFillObject}>
+            <View style={heroSupportStyles.donatePhotoBase} />
             <Image
               source={MASJID_IMAGES[photoIndex]}
-              style={StyleSheet.absoluteFillObject}
+              style={[StyleSheet.absoluteFillObject, heroSupportStyles.donatePhotoImage]}
               contentFit="cover"
             />
             <LinearGradient
-              colors={['rgba(12,31,24,0.18)', 'rgba(12,31,24,0.78)', 'rgba(8,18,14,0.92)']}
+              colors={['rgba(12,31,24,0.10)', 'rgba(12,31,24,0.52)', 'rgba(8,18,14,0.70)']}
               start={{ x: 0, y: 0 }}
               end={{ x: 0, y: 1 }}
               style={StyleSheet.absoluteFillObject}
             />
-            <View style={heroSupportStyles.donateFrame} />
             <View style={heroSupportStyles.donatePhotoOverlay}>
               <View style={heroSupportStyles.donatePhotoTextBlock}>
                 <View style={heroSupportStyles.donateKickerRow}>
@@ -3801,7 +2506,7 @@ export default function HomeScreen() {
   // Calendar face removed: timetable now in drawer only
 
   const backClock = currentTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
-  const backGregorian = currentTime.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+  const backGregorian = currentTime.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
   const hijriYear = data?.hijriDate?.match(/\b(\d{4})\b/)?.[1] ?? '';
   const backHijri = [hijriDayNum, rawHijriMonthName, hijriYear ? `${hijriYear} AH` : ''].filter(Boolean).join(' ');
   const headerDateLine = `${backGregorian} • ${backHijri || 'Hijri date loading...'}`;
@@ -3922,38 +2627,39 @@ export default function HomeScreen() {
         <Image
           source={currentSkySource ?? PRAYER_BG_IMAGES[effectiveHeroImageKey] ?? PRAYER_BG_IMAGES['Dhuhr']}
           style={[StyleSheet.absoluteFillObject, { opacity: effectiveHeroImageOpacity }]}
-          contentFit="contain"
+          contentFit="cover"
           contentPosition={getHeroImagePosition(currentSkyKey ?? effectiveHeroImageKey)}
         />
-        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { opacity: nextSkyOpacity }]}> 
+        <Animated.View style={[StyleSheet.absoluteFillObject, { pointerEvents: 'none', opacity: nextSkyOpacity }]}> 
           <Image
             source={nextSkySource ?? PRAYER_BG_IMAGES[effectiveHeroImageKey] ?? PRAYER_BG_IMAGES['Dhuhr']}
             style={[StyleSheet.absoluteFillObject, { opacity: effectiveHeroImageOpacity }]}
-            contentFit="contain"
+            contentFit="cover"
             contentPosition={getHeroImagePosition(nextSkyKey ?? effectiveHeroImageKey)}
           />
         </Animated.View>
         <LinearGradient
-          pointerEvents="none"
           colors={N
             ? [HERO_DESIGN_TOKENS.overlayMedium, HERO_DESIGN_TOKENS.overlayStrong]
             : [HERO_DESIGN_TOKENS.overlayLight, HERO_DESIGN_TOKENS.overlayStrong]}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
-          style={StyleSheet.absoluteFillObject}
+          style={[StyleSheet.absoluteFillObject, { pointerEvents: 'none' }]}
         />
 
         <View style={styles.topNav}>
           <View style={styles.topNavBrand}>
-            <Image
-              source={require('@/assets/images/masjid-logo.png')}
-              style={styles.topNavLogo}
-              contentFit="contain"
-            />
+            <View style={styles.topNavLogoWrap}>
+              <Image
+                source={require('@/assets/images/masjid-logo.png')}
+                style={styles.topNavLogo}
+                contentFit="contain"
+              />
+            </View>
             <View style={styles.topNavText}>
               <Text numberOfLines={1} style={styles.topNavName}>Jami&apos; Masjid Noorani</Text>
               <Text style={styles.topNavCity}>Halifax, UK</Text>
-              <Text style={styles.topNavDateLine} numberOfLines={1}>{headerDateLine}</Text>
+              <Text style={styles.topNavDateLine} numberOfLines={1} ellipsizeMode="tail">{headerDateLine}</Text>
             </View>
           </View>
           <Text style={styles.topNavUpdated}>{backClock}</Text>
@@ -3986,6 +2692,8 @@ export default function HomeScreen() {
                 startLabel={heroTimelineState.startLabel}
                 jamaatLabel={heroTimelineState.jamaatLabel}
                 endLabel={heroTimelineState.endLabel}
+                startPrayerName={heroTimelineState.startPrayerName}
+                endPrayerName={heroTimelineState.endPrayerName}
                 showJamaatAnchor={heroTimelineState.showJamaatAnchor}
                 nightMode={nightMode}
                 pulseMarker={heroTimelineState.pulseMarker}
@@ -3993,7 +2701,7 @@ export default function HomeScreen() {
             </View>
 
             {/* Soft separator with extra space above donation card */}
-            <View style={{height: 18}} />
+            <View style={{height: 30}} />
             <View style={heroNewStyles.softSeparator} />
 
             {/* Donation Card — visually secondary, softer heading, less intense bg */}
@@ -4012,18 +2720,10 @@ export default function HomeScreen() {
       <View style={[styles.dayCanvas, N && { backgroundColor: N.bg, marginTop: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0 }]}>
         <View style={styles.dayCanvasContent}>
           <View style={[styles.body, N && { backgroundColor: 'transparent' }]}> 
-            <Text style={[styles.sectionTitle, N && { color: N.text }]}>Quick Access</Text>
-            <View style={styles.quickLinks}>
-              {[
-                { icon: 'campaign', label: 'Events & News', route: '/(tabs)/events' },
-                { icon: 'help-outline', label: 'How To Pray', route: '/(tabs)/howto' },
-              ].map(item => (
-                <QuickLinkCard key={item.label} icon={item.icon} label={item.label} route={item.route} nightMode={nightMode} />
-              ))}
-            </View>
+            <HomeQuickAccessSection nightMode={nightMode} />
 
             <View style={styles.forYouFadeZone}>
-              <ForYouTodaySection
+              <HomeForYouTodaySection
                 prayers={data?.prayers ?? []}
                 nightMode={nightMode}
                 currentTime={currentTime}
@@ -4032,62 +2732,80 @@ export default function HomeScreen() {
               />
             </View>
 
-            <View style={[styles.hadithCard, styles.hadithCardInBody, N && { backgroundColor: N.surface, borderColor: N.border }]}> 
-              <Text style={[styles.hadithKicker, N && { color: N.accentSoft }]}>Sunnah Reminder</Text>
-              {!!computedTodaySunnah.act && (
-                <Text style={[styles.hadithBody, N && { color: N.text }]} numberOfLines={2}>{computedTodaySunnah.act}</Text>
-              )}
-              {!!computedTodaySunnah.ref ? (
-                <Text style={[styles.hadithRef, N && { color: N.textSub }]} numberOfLines={1}>- {computedTodaySunnah.ref}</Text>
-              ) : null}
-              <View style={styles.hadithDots}>
-                <View style={[styles.hadithDot, styles.hadithDotActive, N && { backgroundColor: N.accent }]} />
-                <View style={[styles.hadithDot, N && { backgroundColor: 'rgba(255,255,255,0.22)' }]} />
-                <View style={[styles.hadithDot, N && { backgroundColor: 'rgba(255,255,255,0.22)' }]} />
+            {/* ── Sunnah of the Day ─────────────────────────────────── */}
+            <TouchableOpacity
+              onPress={() => router.push('/(tabs)/duas' as any)}
+              activeOpacity={0.92}
+              style={styles.sunnahCard}
+            >
+              {/* Gold top border line */}
+              <View style={styles.sunnahTopBorder} />
+              <View style={styles.sunnahInner}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sunnahKicker}>SUNNAH OF THE DAY</Text>
+                  {!!computedTodaySunnah.act && (
+                    <Text style={styles.sunnahAct} numberOfLines={2}>{computedTodaySunnah.act}</Text>
+                  )}
+                  {!!computedTodaySunnah.ref && (
+                    <Text style={styles.sunnahRef} numberOfLines={1}>\u2014 {computedTodaySunnah.ref}</Text>
+                  )}
+                </View>
+                <MaterialIcons name="star" size={20} color="#C9A227" style={{ alignSelf: 'flex-end', marginBottom: 2 }} />
               </View>
+              <View style={styles.sunnahFooter}>
+                <Text style={styles.sunnahExplore}>Explore Duas \u2192</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* ── Community Feed ────────────────────────────────────── */}
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Community Updates</Text>
+              <TouchableOpacity onPress={() => router.push('/(tabs)/events')}>
+                <Text style={styles.seeAll}>See All</Text>
+              </TouchableOpacity>
             </View>
 
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, N && { color: N.text }]}>Community Updates</Text>
-              <TouchableOpacity onPress={() => router.push('/(tabs)/events')}>
-                <Text style={[styles.seeAll, N && { color: N.accent }]}>See All</Text>
-              </TouchableOpacity>
+            <View style={styles.communityCard}>
+              {MOCK_ANNOUNCEMENTS.length === 0 ? (
+                <View style={styles.communityRow}>
+                  <Text style={styles.communityRowTitle}>No announcements yet</Text>
+                </View>
+              ) : (
+                MOCK_ANNOUNCEMENTS.slice(0, 2).map((ann, idx) => (
+                  <React.Fragment key={ann.id}>
+                    {idx > 0 && <View style={styles.communityDivider} />}
+                    <TouchableOpacity
+                      onPress={() => router.push('/(tabs)/events')}
+                      activeOpacity={0.8}
+                      style={styles.communityRow}
+                    >
+                      <View style={{ flex: 1, gap: 4 }}>
+                        <View style={styles.communityChipRow}>
+                          <View style={[
+                            styles.communityChip,
+                            ann.important && { backgroundColor: '#FEF3C7', borderColor: '#FCD34D' },
+                          ]}>
+                            <Text style={[
+                              styles.communityChipText,
+                              ann.important && { color: '#92400E' },
+                            ]}>{ann.important ? 'Important' : 'News'}</Text>
+                          </View>
+                          <Text style={styles.communityDate}>{ann.date}</Text>
+                        </View>
+                        <Text style={styles.communityRowTitle} numberOfLines={1}>{ann.title}</Text>
+                      </View>
+                      <MaterialIcons name="chevron-right" size={18} color={Colors.textSubtle} />
+                    </TouchableOpacity>
+                  </React.Fragment>
+                ))
+              )}
             </View>
 
             <TouchableOpacity
               onPress={() => router.push('/(tabs)/events')}
-              activeOpacity={0.85}
-              style={[
-                styles.eventsAnnouncementsCard,
-                N && {
-                  backgroundColor: N.surface,
-                  borderColor: N.border,
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 6 },
-                  shadowOpacity: 0.25,
-                  shadowRadius: 14,
-                  elevation: 6,
-                },
-              ]}
+              style={styles.communityViewAll}
             >
-              <View style={styles.eaCardInner}>
-                <View style={[styles.eaIconBox, N && { backgroundColor: N.accentGlow }]}>
-                  <MaterialIcons name="campaign" size={26} color={N ? N.accent : Colors.primary} />
-                </View>
-                <View style={{ flex: 1, gap: 3 }}>
-                  <Text style={[styles.eaTitle, N && { color: N.text }]}>Masjid Events & News</Text>
-                  <Text style={[styles.eaBody, N && { color: N.textSub }]}>Latest announcements, upcoming events, and community updates.</Text>
-                  {MOCK_ANNOUNCEMENTS.length > 0 ? (
-                    <View style={[styles.eaLatestBand, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}> 
-                      <MaterialIcons name="fiber-manual-record" size={8} color={N ? N.accent : Colors.primary} />
-                      <Text style={[styles.eaLatestText, N && { color: N.textSub }]} numberOfLines={1}>
-                        {MOCK_ANNOUNCEMENTS[0].title}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-                <MaterialIcons name="chevron-right" size={22} color={N ? N.textMuted : Colors.textSubtle} />
-              </View>
+              <Text style={styles.communityViewAllText}>View all announcements \u2192</Text>
             </TouchableOpacity>
 
             <View style={{ height: Spacing.xl }} />
@@ -4234,18 +2952,22 @@ const heroNewStyles = StyleSheet.create({
     marginBottom: 8,
     borderRadius: 24,
     overflow: 'hidden',
-    shadowColor: '#021F35',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.28,
-    shadowRadius: 26,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 10px 26px rgba(2,31,53,0.28)' }
+      : {
+          shadowColor: '#021F35',
+          shadowOffset: { width: 0, height: 10 },
+          shadowOpacity: 0.28,
+          shadowRadius: 26,
+        }),
     elevation: 7,
   },
   softSeparator: {
-    height: 2,
-    backgroundColor: 'rgba(236,244,238,0.13)',
+    height: 1,
+    backgroundColor: 'rgba(236,244,238,0.08)',
     marginHorizontal: -18,
-    borderRadius: 2,
-    marginBottom: 2,
+    borderRadius: 1,
+    marginBottom: 6,
   },
   heroGradient: {
     paddingHorizontal: 18,
@@ -4333,49 +3055,118 @@ const heroTimelineStyles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
   },
+  islamicFrame: {
+    width: '100%',
+    alignItems: 'center',
+    paddingTop: 16,
+    paddingBottom: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(208,234,217,0.22)',
+    borderRadius: 16,
+    position: 'relative',
+    overflow: 'visible',
+    backgroundColor: 'rgba(5,48,33,0.10)',
+  },
+  islamicCorner: {
+    position: 'absolute',
+    width: 16,
+    height: 16,
+    borderColor: 'rgba(232,225,214,0.40)',
+  },
+  islamicCornerTL: {
+    top: -1,
+    left: -1,
+    borderTopWidth: 2,
+    borderLeftWidth: 2,
+    borderTopLeftRadius: 4,
+  },
+  islamicCornerTR: {
+    top: -1,
+    right: -1,
+    borderTopWidth: 2,
+    borderRightWidth: 2,
+    borderTopRightRadius: 4,
+  },
+  islamicCornerBL: {
+    bottom: -1,
+    left: -1,
+    borderBottomWidth: 2,
+    borderLeftWidth: 2,
+    borderBottomLeftRadius: 4,
+  },
+  islamicCornerBR: {
+    bottom: -1,
+    right: -1,
+    borderBottomWidth: 2,
+    borderRightWidth: 2,
+    borderBottomRightRadius: 4,
+  },
+  islamicTopDiamond: {
+    position: 'absolute',
+    top: -8,
+    alignSelf: 'center',
+    width: 16,
+    height: 16,
+    backgroundColor: 'rgba(42,100,70,1)',
+    transform: [{ rotate: '45deg' }],
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(208,234,217,0.40)',
+  },
+  islamicTopDiamondInner: {
+    width: 5,
+    height: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(232,225,214,0.55)',
+    transform: [{ rotate: '0deg' }],
+  },
   currentPrayerLabel: {
     textAlign: 'center',
     fontSize: 10,
     lineHeight: 13,
-    fontWeight: '600',
+    fontWeight: '700',
     letterSpacing: 2.2,
     textTransform: 'uppercase',
-    color: 'rgba(232,225,214,0.62)',
+    color: 'rgba(232,225,214,0.78)',
+    marginBottom: 6,
   },
   prayerName: {
-    marginTop: 6,
+    marginTop: 4,
     textAlign: 'center',
-    fontSize: 38,
-    lineHeight: 42,
-    fontWeight: '600',
-    letterSpacing: 0.5,
+    fontSize: 54,
+    lineHeight: 58,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
     color: HERO_DESIGN_TOKENS.textPrimary,
   },
   jamaatPill: {
-    marginTop: 10,
+    marginTop: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     backgroundColor: HERO_DESIGN_TOKENS.badgeForest,
     borderRadius: 999,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
     borderWidth: 1,
     borderColor: HERO_DESIGN_TOKENS.badgeBorder,
   },
   jamaatPillIconWrap: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 21,
+    height: 21,
+    borderRadius: 10.5,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: HERO_DESIGN_TOKENS.badgeIconBg,
   },
   jamaatPillText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: HERO_DESIGN_TOKENS.textPrimary,
     letterSpacing: 0.2,
+    flexShrink: 1,
   },
   stateLabel: {
     marginTop: 8,
@@ -4393,12 +3184,54 @@ const heroTimelineStyles = StyleSheet.create({
   stateLabelNow: {
     color: '#FFE8A6',
   },
+  countdownSectionPill: {
+    marginTop: 18,
+    alignSelf: 'center',
+  },
+  countdownRow: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingHorizontal: 6,
+  },
+  countdownRowNoPill: {
+    marginTop: 14,
+  },
+  countdownSegment: {
+    backgroundColor: 'rgba(12,54,38,0.21)',
+    borderRadius: 9,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    minWidth: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(208,234,217,0.05)',
+  },
+  countdownDigit: {
+    fontSize: 50,
+    lineHeight: 54,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    fontVariant: ['tabular-nums'] as any,
+    letterSpacing: 1,
+    textAlign: 'center',
+  },
+  countdownColon: {
+    fontSize: 36,
+    lineHeight: 52,
+    fontWeight: '300',
+    color: 'rgba(255,255,255,0.26)',
+    marginHorizontal: 1,
+  },
   countdownText: {
     marginTop: 12,
     textAlign: 'center',
     fontSize: 46,
     lineHeight: 50,
-    fontWeight: '500',
+    fontWeight: '700',
     color: '#FFFFFF',
     fontVariant: ['tabular-nums'] as any,
     letterSpacing: -0.3,
@@ -4426,18 +3259,24 @@ const heroTimelineStyles = StyleSheet.create({
   footerText: {
     fontSize: 16,
     fontWeight: '500',
-    color: 'rgba(237,231,222,0.74)',
+    color: 'rgba(237,231,222,0.68)',
   },
-  footerBold: {
+  footerLabel: {
+    color: 'rgba(237,231,222,0.70)',
+  },
+  footerMuted: {
+    color: 'rgba(237,231,222,0.56)',
+  },
+  footerTime: {
     fontWeight: '800',
     color: HERO_DESIGN_TOKENS.textPrimary,
   },
   timelineBlock: {
     width: '100%',
-    marginTop: 14,
+    marginTop: 16,
   },
   trackShell: {
-    paddingHorizontal: 6,
+    paddingHorizontal: 2,
   },
   trackRail: {
     height: 28,
@@ -4448,19 +3287,19 @@ const heroTimelineStyles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    height: 2,
+    height: 2.5,
     borderRadius: 999,
-    backgroundColor: HERO_DESIGN_TOKENS.railBase,
+    backgroundColor: 'rgba(234,243,237,0.26)',
   },
   trackLineNight: {
-    backgroundColor: HERO_DESIGN_TOKENS.railBaseNight,
+    backgroundColor: 'rgba(234,243,237,0.22)',
   },
   trackFill: {
     position: 'absolute',
     left: 0,
-    height: 2,
+    height: 2.5,
     borderRadius: 999,
-    backgroundColor: HERO_DESIGN_TOKENS.railFill,
+    backgroundColor: 'rgba(236,246,240,0.65)',
   },
   anchorDot: {
     position: 'absolute',
@@ -4470,7 +3309,13 @@ const heroTimelineStyles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     marginTop: -4,
-    backgroundColor: HERO_DESIGN_TOKENS.railDot,
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: 'rgba(244,239,231,0.50)',
+  },
+  anchorDotFilled: {
+    backgroundColor: 'rgba(244,239,231,0.85)',
+    borderWidth: 0,
   },
   anchorDotMiddle: {
     left: '50%',
@@ -4490,55 +3335,36 @@ const heroTimelineStyles = StyleSheet.create({
     width: HERO_LOGO_MARKER_SIZE,
     height: HERO_LOGO_MARKER_SIZE,
     borderRadius: HERO_LOGO_MARKER_SIZE / 2,
-    backgroundColor: 'rgba(252,248,242,0.05)',
+    backgroundColor: 'rgba(23,70,50,0.82)',
     borderWidth: 1,
-    borderColor: 'rgba(252,248,242,0.10)',
+    borderColor: 'rgba(252,248,242,0.30)',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#07140E',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    elevation: 4,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 1px 2px rgba(7,20,14,0.06)' }
+      : {
+          shadowColor: '#07140E',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.06,
+          shadowRadius: 2,
+        }),
+    elevation: 2,
   },
   markerOuterNight: {
-    shadowOpacity: 0.18,
+    ...(Platform.OS === 'web' ? { boxShadow: '0px 1px 2px rgba(7,20,14,0.10)' } : { shadowOpacity: 0.10 }),
   },
   markerOuterPulse: {
-    shadowOpacity: 0.18,
-    shadowRadius: 5,
+    // scale-only pulse; no shadow changes
   },
   markerImage: {
-    width: 24,
-    height: 24,
-  },
-  anchorTimesRow: {
-    marginTop: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  anchorTimeText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: HERO_DESIGN_TOKENS.textPrimary,
-    fontVariant: ['tabular-nums'] as any,
-  },
-  anchorTimeTextCenter: {
-    position: 'absolute',
-    left: '50%',
-    transform: [{ translateX: -24 }],
-    width: 48,
-    textAlign: 'center',
-    fontSize: 13,
-    fontWeight: '800',
-    color: HERO_DESIGN_TOKENS.textPrimary,
-    fontVariant: ['tabular-nums'] as any,
+    width: 18,
+    height: 18,
+    tintColor: 'rgba(197,246,188,0.96)',
+    opacity: 0.96,
   },
   anchorLabelsRow: {
-    marginTop: 3,
-    marginBottom: 4,
+    marginTop: -3,
+    marginBottom: 2,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -4546,10 +3372,10 @@ const heroTimelineStyles = StyleSheet.create({
   },
   anchorLabelText: {
     fontSize: 10,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: 0.3,
     textTransform: 'uppercase',
-    color: 'rgba(252,248,242,0.82)', // higher contrast, premium white
+    color: 'rgba(232,225,214,0.58)',
   },
   anchorLabelTextCenter: {
     position: 'absolute',
@@ -4587,32 +3413,42 @@ const heroSupportStyles = StyleSheet.create({
     paddingVertical: 14,
     gap: 12,
   },
-  donateFrame: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    bottom: 8,
-    left: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(232,212,139,0.10)',
-    borderRadius: 14,
-  },
   donateInfoLogo: {
-    opacity: 0.06,
-    transform: [{ scale: 1.02 }],
+    opacity: 0.07,
+    transform: [{ scale: 1.05 }],
+  },
+  donateInfoPattern: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.32,
+    transform: [{ scale: 1.08 }],
+  },
+  donateInfoSheen: {
+    ...StyleSheet.absoluteFillObject,
   },
   donateInfoTint: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(8,25,19,0.22)',
+    backgroundColor: 'rgba(6,20,15,0.18)',
   },
   donateInfoOrb: {
     position: 'absolute',
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    top: -66,
-    right: -22,
-    backgroundColor: 'rgba(232,212,139,0.10)',
+    width: 168,
+    height: 168,
+    borderRadius: 84,
+    top: -82,
+    right: -34,
+    backgroundColor: 'rgba(232,212,139,0.16)',
+  },
+  donateInfoOrbSecondary: {
+    position: 'absolute',
+    width: 126,
+    height: 126,
+    borderRadius: 63,
+    bottom: -72,
+    left: -26,
+    backgroundColor: 'rgba(118, 197, 148, 0.13)',
+  },
+  donateInfoVignette: {
+    ...StyleSheet.absoluteFillObject,
   },
   donateSectionRow: {
     flexDirection: 'row',
@@ -4641,6 +3477,16 @@ const heroSupportStyles = StyleSheet.create({
     alignItems: 'flex-end',
     justifyContent: 'space-between',
     gap: 12,
+  },
+  donatePhotoBase: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#10261C',
+  },
+  donatePhotoImage: {
+    top: -16,
+    bottom: -16,
+    left: -20,
+    right: -20,
   },
   donatePhotoTextBlock: {
     flex: 1,
@@ -4739,10 +3585,14 @@ const heroSupportStyles = StyleSheet.create({
     minWidth: 104,
     paddingHorizontal: 12,
     paddingVertical: 7,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.16,
-    shadowRadius: 8,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 4px 8px rgba(0,0,0,0.16)' }
+      : {
+          shadowColor: '#000000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.16,
+          shadowRadius: 8,
+        }),
     elevation: 3,
   },
   donateBtnText: {
@@ -4995,35 +3845,64 @@ const styles = StyleSheet.create({
   topNav: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingHorizontal: Spacing.md,
-    paddingTop: 4,
-    paddingBottom: 12,
-    backgroundColor: 'rgba(5,18,14,0.16)',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md + 2,
+    paddingTop: 10,
+    paddingBottom: 14,
+    backgroundColor: 'rgba(5,18,14,0.18)',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
   },
   topNavBrand: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
+    alignItems: 'center',
+    gap: 8,
     flex: 1,
+    minWidth: 0,
+  },
+  topNavLogoWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 4,
+    marginRight: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 0,
+    borderColor: 'transparent',
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 2px 4px rgba(3,18,12,0.24)' }
+      : {
+          shadowColor: '#03120C',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.24,
+          shadowRadius: 4,
+        }),
+    elevation: 2,
   },
   topNavLogo: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
+    width: 34,
+    height: 34,
+    opacity: 1,
   },
   topNavText: {
     flex: 1,
-    paddingTop: 1,
+    minWidth: 0,
   },
   topNavName: {
-    fontSize: 20,
-    fontWeight: '900',
+    fontSize: 16,
+    fontWeight: '800',
     color: '#FFFFFF',
-    letterSpacing: 0.1,
-    textShadowColor: 'rgba(0,0,0,0.4)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    letterSpacing: 0.15,
+    lineHeight: 20,
+    marginBottom: 2,
+    ...(Platform.OS === 'web'
+      ? { textShadow: '0px 1px 2px rgba(0,0,0,0.35)' }
+      : {
+          textShadowColor: 'rgba(0,0,0,0.35)',
+          textShadowOffset: { width: 0, height: 1 },
+          textShadowRadius: 2,
+        }),
   },
   topNavCityRow: {
     flexDirection: 'row',
@@ -5038,28 +3917,37 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.62)',
   },
   topNavCity: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: 'rgba(242,247,255,0.88)',
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.75)',
     letterSpacing: 0.2,
+    marginTop: 0,
   },
   topNavDateLine: {
-    marginTop: 3,
-    fontSize: 11,
-    lineHeight: 15,
-    fontWeight: '600',
-    color: 'rgba(233,240,235,0.84)',
+    marginTop: 1,
+    fontSize: 10,
+    lineHeight: 13,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.58)',
     letterSpacing: 0.1,
+    flexShrink: 1,
   },
   topNavUpdated: {
-    fontSize: 24,
-    lineHeight: 28,
-    fontWeight: '900',
+    fontSize: 28,
+    lineHeight: 32,
+    fontWeight: '800',
     color: '#FFFFFF',
     fontVariant: ['tabular-nums'] as any,
-    letterSpacing: 0.3,
-    marginLeft: 10,
-    marginTop: 2,
+    letterSpacing: -0.5,
+    marginLeft: 12,
+    paddingRight: 2,
+    ...(Platform.OS === 'web'
+      ? { textShadow: '0px 1px 2px rgba(0,0,0,0.3)' }
+      : {
+          textShadowColor: 'rgba(0,0,0,0.3)',
+          textShadowOffset: { width: 0, height: 1 },
+          textShadowRadius: 2,
+        }),
   },
   headerControls: {
     flexDirection: 'row',
@@ -5115,65 +4003,139 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
     overflow: 'visible',
   },
-  hadithCard: {
-    marginHorizontal: Spacing.md,
-    marginTop: 12,
-    borderRadius: 24,
-    backgroundColor: 'rgba(250,252,252,0.98)',
-    borderWidth: 1,
-    borderColor: 'rgba(17,53,39,0.12)',
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    alignItems: 'center',
-    gap: 8,
-    shadowColor: '#003C28',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 24,
-    elevation: 2,
-  },
-  hadithCardInBody: {
-    marginHorizontal: 0,
+  // ── Sunnah of the Day card ───────────────────────────────────────────
+  sunnahCard: {
     marginTop: 8,
     marginBottom: 12,
+    borderRadius: Radius.xl,
+    backgroundColor: '#FDF8EF',
+    borderWidth: 1,
+    borderColor: 'rgba(201,162,39,0.28)',
+    overflow: 'hidden',
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 4px 16px rgba(201,162,39,0.10)' }
+      : {
+          shadowColor: '#C9A227',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.10,
+          shadowRadius: 16,
+        }),
+    elevation: 3,
   },
-  hadithKicker: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: '#0E7A5F',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
+  sunnahTopBorder: {
+    height: 3,
+    backgroundColor: '#C9A227',
+    width: '100%',
   },
-  hadithBody: {
-    fontSize: 18,
-    lineHeight: 28,
-    textAlign: 'center',
-    color: '#1C2F27',
-    fontWeight: '700',
-  },
-  hadithDots: {
-    marginTop: 2,
+  sunnahInner: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+    gap: 10,
+  },
+  sunnahKicker: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    color: '#2C6A50',
+    textTransform: 'uppercase',
+    marginBottom: 6,
+  },
+  sunnahAct: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#1B2A22',
+    lineHeight: 22,
+  },
+  sunnahRef: {
+    fontSize: 12,
+    fontStyle: 'italic',
+    fontWeight: '500',
+    color: '#607468',
+    marginTop: 4,
+  },
+  sunnahFooter: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    paddingTop: 6,
+    alignItems: 'flex-end',
+  },
+  sunnahExplore: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2C6A50',
+  },
+  // ── Community feed ──────────────────────────────────────────────────
+  communityCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden',
+    marginBottom: Spacing.sm,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 4px 14px rgba(11,92,58,0.07)' }
+      : {
+          shadowColor: '#0B5C3A',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.07,
+          shadowRadius: 14,
+        }),
+    elevation: 3,
+  },
+  communityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 13,
+    paddingHorizontal: Spacing.md,
+  },
+  communityDivider: {
+    height: 1,
+    backgroundColor: '#E5EDE7',
+    marginHorizontal: Spacing.md,
+  },
+  communityChipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
   },
-  hadithDot: {
-    marginBottom: 4,
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: 'rgba(28,47,39,0.22)',
+  communityChip: {
+    backgroundColor: Colors.primarySoft,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(63,174,90,0.25)',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
   },
-  hadithDotActive: {
-    width: 18,
-    backgroundColor: Colors.primary,
+  communityChipText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: Colors.primary,
+    letterSpacing: 0.2,
   },
-  hadithRef: {
-    marginTop: 2,
-    fontSize: 12,
-    lineHeight: 16,
+  communityDate: {
+    fontSize: 10,
+    fontWeight: '500',
     color: Colors.textSubtle,
-    fontWeight: '600',
-    textAlign: 'center',
+  },
+  communityRowTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    lineHeight: 18,
+  },
+  communityViewAll: {
+    alignSelf: 'flex-end',
+    marginBottom: Spacing.sm,
+    paddingVertical: 2,
+  },
+  communityViewAllText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.primary,
   },
   prayerFlipShell: {
     width: '100%',
@@ -5197,17 +4159,25 @@ const styles = StyleSheet.create({
     borderWidth: 0,
   },
   prayerFlipLiveFace: {
-    shadowColor: '#021F35',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.28,
-    shadowRadius: 26,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 10px 26px rgba(2,31,53,0.28)' }
+      : {
+          shadowColor: '#021F35',
+          shadowOffset: { width: 0, height: 10 },
+          shadowOpacity: 0.28,
+          shadowRadius: 26,
+        }),
     elevation: 7,
   },
   prayerFlipCalendarFace: {
-    shadowColor: '#05253D',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
-    shadowRadius: 24,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 10px 24px rgba(5,37,61,0.2)' }
+      : {
+          shadowColor: '#05253D',
+          shadowOffset: { width: 0, height: 10 },
+          shadowOpacity: 0.2,
+          shadowRadius: 24,
+        }),
     elevation: 6,
   },
   prayerFlipGradientFill: {
@@ -5482,10 +4452,14 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(207,180,79,0.45)',
-    shadowColor: '#061E13',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 6px 20px rgba(6,30,19,0.2)' }
+      : {
+          shadowColor: '#061E13',
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.2,
+          shadowRadius: 20,
+        }),
     elevation: 5,
   },
   rebuildHeroOverlay: {
@@ -5500,9 +4474,13 @@ const styles = StyleSheet.create({
     fontSize: 24,
     lineHeight: 28,
     fontWeight: '900',
-    textShadowColor: 'rgba(0,0,0,0.45)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    ...(Platform.OS === 'web'
+      ? { textShadow: '0px 1px 3px rgba(0,0,0,0.45)' }
+      : {
+          textShadowColor: 'rgba(0,0,0,0.45)',
+          textShadowOffset: { width: 0, height: 1 },
+          textShadowRadius: 3,
+        }),
   },
   rebuildHeroSub: {
     color: 'rgba(244,247,246,0.95)',
@@ -5534,10 +4512,14 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.2)',
     paddingHorizontal: 16,
     paddingVertical: 16,
-    shadowColor: '#003C28',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 4px 24px rgba(0,60,40,0.12)' }
+      : {
+          shadowColor: '#003C28',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.12,
+          shadowRadius: 24,
+        }),
     elevation: 4,
     justifyContent: 'space-between',
   },
@@ -5625,10 +4607,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.24)',
     minHeight: 276,
-    shadowColor: '#003C28',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 28,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 8px 28px rgba(0,60,40,0.18)' }
+      : {
+          shadowColor: '#003C28',
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.18,
+          shadowRadius: 28,
+        }),
     elevation: 6,
   },
   liveIconWrap: {
@@ -5729,10 +4715,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 14,
     borderWidth: 1,
-    shadowColor: '#003C28',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 2px 12px rgba(0,60,40,0.06)' }
+      : {
+          shadowColor: '#003C28',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.06,
+          shadowRadius: 12,
+        }),
     elevation: 2,
   },
   actionTilePrimary: {
@@ -5866,7 +4856,7 @@ const styles = StyleSheet.create({
   jumuahDoneText: { fontSize: 12, fontWeight: '600', color: Colors.primary },
 
   // ── Body ──
-  body: { paddingHorizontal: Spacing.md, paddingTop: 14, backgroundColor: 'transparent' },
+  body: { paddingHorizontal: Spacing.md, paddingTop: 6, backgroundColor: 'transparent' },
   forYouFadeZone: {
     position: 'relative',
     marginTop: 2,
@@ -5886,66 +4876,6 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
   seeAll: { ...Typography.labelMedium, color: Colors.primary },
-  quickAccessGrid: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 8,
-  },
-  quickAccessCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(17,73,51,0.12)',
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    shadowColor: '#003C28',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 1,
-  },
-  quickAccessIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#E7F4EC',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: 24,
-  },
-  quickAccessLabel: {
-    fontSize: 16,
-    color: '#1A2E24',
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  quickLinks: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.md, justifyContent: 'space-between' },
-  quickLinkCard: {
-    backgroundColor: Colors.surface, borderRadius: Radius.xl,
-    width: '100%', padding: Spacing.md, alignItems: 'center',
-    borderWidth: 1, borderColor: Colors.border,
-    shadowColor: '#0B5C3A', shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08, shadowRadius: 16, elevation: 4,
-    paddingVertical: 16,
-    borderBottomWidth: 3, borderBottomColor: Colors.primarySoft,
-  },
-  quickLinkIcon: {
-    width: 52, height: 52, borderRadius: Radius.full,
-    backgroundColor: Colors.primarySoft,
-    alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.sm,
-  },
-  quickLinkIconGlow: {
-    shadowColor: '#4FE948',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.85,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  quickLinkLabel: { ...Typography.labelMedium, color: Colors.textPrimary, textAlign: 'center', fontSize: 13, fontWeight: '700' },
 
   announcementCard: {
     backgroundColor: Colors.surface, borderRadius: Radius.md,
@@ -5963,31 +4893,10 @@ const styles = StyleSheet.create({
   annTitle: { ...Typography.titleSmall, color: Colors.textPrimary, marginBottom: 4 },
   annBody: { ...Typography.bodyMedium, color: Colors.textSecondary, lineHeight: 22 },
   annDate: { ...Typography.bodySmall, color: Colors.textSubtle, marginTop: 6 },
-  eventsAnnouncementsCard: {
-    backgroundColor: Colors.surface, borderRadius: Radius.xl,
-    borderWidth: 1, borderColor: Colors.border,
-    marginBottom: Spacing.sm,
-    shadowColor: '#0B5C3A', shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08, shadowRadius: 16, elevation: 4,
+  // ea styles kept for potential future re-use
+  eventsAnnouncementsCard_legacy: {
+    backgroundColor: Colors.surface,
   },
-  eaCardInner: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    padding: Spacing.md,
-  },
-  eaIconBox: {
-    width: 56, height: 56, borderRadius: Radius.lg,
-    backgroundColor: Colors.primarySoft,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  },
-  eaTitle: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary },
-  eaBody: { fontSize: 12, fontWeight: '400', lineHeight: 17, color: Colors.textSecondary },
-  eaLatestBand: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: Colors.primarySoft, borderRadius: Radius.full,
-    borderWidth: 1, borderColor: Colors.border,
-    paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start', marginTop: 2,
-  },
-  eaLatestText: { fontSize: 11, fontWeight: '600', color: Colors.textSecondary, flexShrink: 1 },
 });
 
 // ── Small Prayer Card Flip Styles ───────────────────────────────────────
@@ -6047,3 +4956,4 @@ const flipCard = StyleSheet.create({
   },
   donateBtnText: { fontSize: 12, fontWeight: '800', color: '#1A0F00', letterSpacing: 0.3 },
 });
+

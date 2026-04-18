@@ -17,10 +17,20 @@ export const HomeTheme = {
   quickAccessIconFg: '#265E47',
   announceBandBg: '#EDF3EA',
   announceBandText: '#365D4E',
+  // Sunnah card
+  sunnahCardBg: '#FDF8EF',
+  sunnahBorderGold: '#C9A227',
+  sunnahKicker: '#2C6A50',
+  // Shortcut dock
+  shortcutDockBg: '#FFFFFF',
+  shortcutDockShadow: 'rgba(53,70,57,0.10)',
+  // Community feed
+  communityRowSeparator: '#E5EDE7',
+  communityRowBg: '#FFFFFF',
 } as const;
 
 export const HomeSectionKickers = {
-  quickAccess: 'TODAY ESSENTIALS',
-  forYou: 'GUIDED ROUTINES',
+  quickAccess: 'QUICK LINKS',
+  forYou: 'YOUR ADHKAR',
   events: 'COMMUNITY FEED',
 } as const;

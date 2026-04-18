@@ -70,11 +70,11 @@ const SALAWAAT_GROUP_THUMB = require('../../assets/images/Group icons/nabwi.jpg'
 
 const GUIDED_FLOW_META: Record<PrayerTimeId, { accent: string; background: string; doneTitle: string; icon: string }> = {
   'before-fajr': { accent: DUAS_ACCENT_GREEN, background: Colors.background, doneTitle: 'Before Fajr Adhkar', icon: 'nights-stay' },
-  'after-fajr': { accent: DUAS_ACCENT_GREEN, background: Colors.background, doneTitle: 'Morning Adhkar', icon: 'wb-twilight' },
+  'after-fajr': { accent: DUAS_ACCENT_GREEN, background: Colors.background, doneTitle: 'After Fajr Adhkar', icon: 'wb-twilight' },
   'after-zuhr': { accent: DUAS_ACCENT_GREEN, background: Colors.background, doneTitle: 'After Dhuhr Adhkar', icon: 'wb-sunny' },
   'after-jumuah': { accent: DUAS_ACCENT_GREEN, background: Colors.background, doneTitle: "After Jumu'ah Adhkar", icon: 'star' },
     'after-asr': { accent: DUAS_ACCENT_GREEN, background: Colors.background, doneTitle: 'After Asr Adhkar', icon: 'wb-cloudy' },
-    'after-maghrib': { accent: DUAS_ACCENT_GREEN, background: Colors.background, doneTitle: 'Evening Adhkar', icon: 'bedtime' },
+    'after-maghrib': { accent: DUAS_ACCENT_GREEN, background: Colors.background, doneTitle: 'After Maghrib Adhkar', icon: 'bedtime' },
     'after-isha': { accent: DUAS_ACCENT_GREEN, background: Colors.background, doneTitle: 'After Isha Adhkar', icon: 'nightlight' },
 };
 
@@ -669,13 +669,13 @@ export default function DuasScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }, { backgroundColor: pageBg }]}>
-      {!N ? <View pointerEvents="none" style={styles.contextOverlay} /> : null}
+      {!N ? <View style={[styles.contextOverlay, { pointerEvents: 'none' }]} /> : null}
       <ImageBackground
         source={require('@/assets/images/masjid-building.jpg')}
         style={[styles.heroHeader, { paddingTop: insets.top }]}
         imageStyle={{ opacity: N ? 0.14 : 0.18 }}
       >
-        <View pointerEvents="none" style={styles.heroSoftenOverlay} />
+        <View style={[styles.heroSoftenOverlay, { pointerEvents: 'none' }]} />
         <LinearGradient
           colors={ADHKAR_HERO_GRADIENT}
           style={StyleSheet.absoluteFillObject}
@@ -1120,7 +1120,7 @@ function AfterIshaScreen({ nightMode, onSelectGroup }: { nightMode: boolean; onS
   return <PrayerTimeSelectionScreen
     prayerTime="after-isha" nightMode={nightMode} onSelect={handleIshaSelect} onSelectGroup={(gn) => setViewingGroupName(gn)}
     icon="nightlight" nightIcon="nightlight" nightColor="#93C5FD" accent="#1565C0"
-    title="After Isha" subtitle="Choose what to recite after Isha prayer"
+    title="After Isha Adhkar" subtitle="Choose what to recite after Isha prayer"
     colors={['#1565C0', '#3949AB', '#6A1B9A', DUAS_ACCENT_GREEN, '#00695C', '#AD1457', '#B8860B']}
   />;
 }
