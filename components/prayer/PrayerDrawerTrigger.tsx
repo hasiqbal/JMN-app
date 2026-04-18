@@ -22,7 +22,7 @@ const ATTACHED = {
   icon:   '#E8B84B',             // warm gold
   text:   '#FCF8F2',             // hero textPrimary warm white
   sub:    '#E2F4EA',             // brighter mint for clearer CTA
-  handle: 'rgba(200, 226, 212, 0.38)',
+  handle: '#C8E2D4',
 };
 
 export default function PrayerDrawerTrigger({ nightMode, onPress, attached }: PrayerDrawerTriggerProps) {
@@ -120,9 +120,9 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   panelAttached: {
-    backgroundColor: 'rgba(30, 94, 65, 0.90)',
+    backgroundColor: 'rgba(30, 94, 65, 0.95)',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(236, 244, 238, 0.18)',
+    borderTopColor: '#4A7D63',
     paddingHorizontal: 18,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
