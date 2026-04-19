@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -18,6 +19,7 @@ import { formatCountdownSeconds } from '@/services/prayerService';
 import { useAlert } from '@/template';
 
 const GATES_BG = require('@/assets/images/background/gates.jpg');
+const AQSA_BG = require('@/assets/images/background/aqsa.jpg');
 const TAWBAH_BG = require('@/assets/images/background/tawbah.jpg');
 const TAWHID_BG = require('@/assets/images/background/tawhid.jpg');
 
@@ -196,10 +198,10 @@ const QURAN_PORTIONS = [
 // ── Durood Levels ────────────────────────────────────────────────────────
 // ── Quran Reading Levels ────────────────────────────────────────────────
 const QURAN_READ_LEVELS = [
-  { level: 1, label: 'Ayahs', desc: '3–5 Ayahs',  color: '#2E7D32', bg: '#E8F5E9' },
-  { level: 2, label: '1 Page', desc: '~1 Page',   color: '#1565C0', bg: '#E3F2FD' },
-  { level: 3, label: '½ Juz',  desc: '~10 Pages', color: '#6A1B9A', bg: '#F3E5F5' },
-  { level: 4, label: 'Full Juz', desc: '~20 Pgs', color: '#B8860B', bg: '#FFF8E1' },
+  { level: 1, label: 'Ayahs', desc: '3–5 Ayahs',  color: '#66DDAA', bg: 'rgba(102,221,170,0.15)' },
+  { level: 2, label: '1 Page', desc: '~1 Page',   color: '#5BCFA5', bg: 'rgba(91,207,165,0.15)' },
+  { level: 3, label: '½ Juz',  desc: '~10 Pages', color: '#4FE948', bg: 'rgba(79,233,72,0.15)' },
+  { level: 4, label: 'Full Juz', desc: '~20 Pgs', color: '#A4F2A0', bg: 'rgba(164,242,160,0.15)' },
 ];
 
 // ── Few-Ayah Daily Portions (Level 1) ────────────────────────────────────
@@ -319,6 +321,7 @@ function QuranPortionCard({
   const [levelIdx, setLevelIdx] = useState(3); // default: Full Juz
   const [levelLoaded, setLevelLoaded] = useState(false);
   const scale = useRef(new Animated.Value(1)).current;
+  const { width: windowWidth } = useWindowDimensions();
 
   useEffect(() => {
     AsyncStorage.getItem(levelKey).then(v => {
@@ -337,7 +340,8 @@ function QuranPortionCard({
   const onOut = () => Animated.spring(scale, { toValue: 1,    useNativeDriver: true, speed: 40 }).start();
 
   if (!levelLoaded) return null;
-  if (dismissed.has(id)) return null;
+  // Keep Quran card visible on web to avoid stale dismissal state hiding it.
+  if (Platform.OS !== 'web' && dismissed.has(id)) return null;
 
   // Determine the target chapter ID to open in the Quran tab
   const getTargetChapterId = (): number => {
@@ -398,7 +402,7 @@ function QuranPortionCard({
 
   const lv = QURAN_READ_LEVELS[levelIdx];
   const accentColor = nightMode ? '#4FE948' : lv.color;
-  const bgTint      = nightMode ? 'rgba(79,233,72,0.15)' : lv.bg;
+  const cardWidth = Math.max(300, windowWidth - (Spacing.md * 2));
 
   // ── Pick content based on level ────────────────────────────────────────
   let badge = '';
@@ -450,75 +454,81 @@ function QuranPortionCard({
   return (
     <TouchableOpacity onPressIn={onIn} onPressOut={onOut} activeOpacity={1}>
       <Animated.View style={[
-        fyStyles.duroodCard, { width: 178 },
+        fyStyles.duroodCard,
+        fyStyles.quranFullWidthCard,
+        { width: cardWidth },
         N && { backgroundColor: N.surface, borderColor: N.border },
         { transform: [{ scale }] },
       ]}>
-        {/* Header */}
-        <View style={fyStyles.duroodHeader}>
-          <MaterialIcons name="menu-book" size={13} color={accentColor} />
-          <Text style={[fyStyles.duroodTitle, { color: accentColor }]}>Daily Quran</Text>
-          <View style={[fyStyles.juzBadge, { backgroundColor: accentColor }]}>
-            <Text style={fyStyles.juzBadgeText}>{badge}</Text>
+        <ImageBackground source={AQSA_BG} style={fyStyles.quranBgWrap} imageStyle={fyStyles.quranBgImage}>
+          <View style={fyStyles.quranBgOverlay}>
+            {/* Header */}
+            <View style={fyStyles.duroodHeader}>
+              <MaterialIcons name="menu-book" size={13} color={accentColor} />
+              <Text style={[fyStyles.duroodTitle, { color: accentColor }]}>Daily Quran</Text>
+              <View style={[fyStyles.juzBadge, { backgroundColor: accentColor }]}>
+                <Text style={fyStyles.juzBadgeText}>{badge}</Text>
+              </View>
+            </View>
+
+            {/* Content */}
+            <View style={[fyStyles.counterPanelCompact, { backgroundColor: 'rgba(255,255,255,0.18)', paddingVertical: 10, paddingHorizontal: 10 }]}>
+              <Text style={[fyStyles.cardTitle, { textAlign: 'center', fontSize: 14, lineHeight: 18, color: '#FFFFFF', fontWeight: '900' }]} numberOfLines={2}>
+                {titleLine}
+              </Text>
+              {subLine ? (
+                <Text style={[fyStyles.cardSub, { textAlign: 'center', marginTop: 2, fontWeight: '500', opacity: 1, color: 'rgba(255,255,255,0.70)' }]} numberOfLines={2}>
+                  {subLine}
+                </Text>
+              ) : null}
+              <View style={[fyStyles.badgeRow, { backgroundColor: 'rgba(255,255,255,0.15)', marginTop: 5, alignSelf: 'center' }]}>
+                <MaterialIcons name="import-contacts" size={9} color={accentColor} />
+                <Text style={[fyStyles.badgeText, { color: accentColor }]}>{pagesLine}</Text>
+              </View>
+            </View>
+
+            {/* Level selector */}
+            <View style={[fyStyles.counterSegmentedCompact, { backgroundColor: 'rgba(0,0,0,0.3)' }]}>
+              {QURAN_READ_LEVELS.map((ql, i) => (
+                <TouchableOpacity
+                  key={ql.level}
+                  onPress={() => switchLevel(i)}
+                  activeOpacity={0.8}
+                  style={[
+                    fyStyles.counterSegmentBtnCompact,
+                    i === levelIdx
+                      ? { backgroundColor: accentColor, borderColor: accentColor }
+                      : { backgroundColor: 'transparent', borderColor: 'transparent' },
+                  ]}
+                >
+                  <Text style={[
+                    fyStyles.counterSegmentTextCompact,
+                    { color: i === levelIdx ? '#000' : 'rgba(255,255,255,0.7)' },
+                  ]}>{ql.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Action buttons — side by side */}
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity
+                onPress={openInQuran}
+                style={[fyStyles.openRow, { flex: 1, backgroundColor: accentColor, justifyContent: 'center', marginTop: 0 }]}
+              >
+                <MaterialIcons name="auto-stories" size={11} color="#fff" />
+                <Text style={[fyStyles.openText, { color: '#fff' }]}>Read in App</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => onDismiss(id)}
+                style={[fyStyles.openRow, { flex: 1, backgroundColor: accentColor, justifyContent: 'center', marginTop: 0 }]}
+              >
+                <MaterialIcons name="check-circle" size={11} color="#fff" />
+                <Text style={[fyStyles.openText, { color: '#fff' }]}>Mark as Read</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-
-        {/* Content */}
-        <View style={[fyStyles.duroodTapArea, { backgroundColor: bgTint, borderColor: accentColor + '44', paddingVertical: 8, paddingHorizontal: 8 }]}>
-          <Text style={[fyStyles.cardTitle, { textAlign: 'center', fontSize: 11, lineHeight: 15 }, N && { color: N.text }]} numberOfLines={2}>
-            {titleLine}
-          </Text>
-          {subLine ? (
-            <Text style={[fyStyles.cardSub, { textAlign: 'center', marginTop: 2, fontWeight: '500', opacity: 1, color: '#7A756D' }, N && { color: N.textSub }]} numberOfLines={2}>
-              {subLine}
-            </Text>
-          ) : null}
-          <View style={[fyStyles.badgeRow, { backgroundColor: accentColor + '20', marginTop: 5, alignSelf: 'center' }]}>
-            <MaterialIcons name="import-contacts" size={9} color={accentColor} />
-            <Text style={[fyStyles.badgeText, { color: accentColor }]}>{pagesLine}</Text>
-          </View>
-        </View>
-
-        {/* Level selector */}
-        <View style={fyStyles.duroodLevels}>
-          {QURAN_READ_LEVELS.map((ql, i) => (
-            <TouchableOpacity
-              key={ql.level}
-              onPress={() => switchLevel(i)}
-              style={[
-                fyStyles.duroodLevelBtn,
-                i === levelIdx
-                  ? { backgroundColor: accentColor, borderColor: accentColor }
-                  : N
-                    ? { backgroundColor: N.surfaceAlt, borderColor: N.border }
-                    : { backgroundColor: ql.bg, borderColor: ql.color + '40' },
-              ]}
-            >
-              <Text style={[
-                fyStyles.duroodLevelText,
-                { color: i === levelIdx ? '#fff' : N ? N.textMuted : ql.color },
-              ]}>{ql.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Read in App button */}
-        <TouchableOpacity
-          onPress={openInQuran}
-          style={[fyStyles.openRow, { backgroundColor: accentColor + '28', alignSelf: 'stretch', justifyContent: 'center' }]}
-        >
-          <MaterialIcons name="auto-stories" size={11} color={accentColor} />
-          <Text style={[fyStyles.openText, { color: accentColor }]}>Read in App</Text>
-        </TouchableOpacity>
-
-        {/* Mark done */}
-        <TouchableOpacity
-          onPress={() => onDismiss(id)}
-          style={[fyStyles.openRow, { backgroundColor: accentColor + '14', alignSelf: 'stretch', justifyContent: 'center' }]}
-        >
-          <MaterialIcons name="check-circle" size={11} color={accentColor} />
-          <Text style={[fyStyles.openText, { color: accentColor }]}>Mark as Read</Text>
-        </TouchableOpacity>
+        </ImageBackground>
       </Animated.View>
     </TouchableOpacity>
   );
@@ -1517,6 +1527,22 @@ const fyStyles = StyleSheet.create({
     padding: 0,
     borderWidth: 0,
   },
+  quranFullWidthCard: {
+    padding: 0,
+  },
+  quranBgWrap: {
+    borderRadius: Radius.xl,
+    overflow: 'hidden',
+  },
+  quranBgImage: {
+    borderRadius: Radius.xl,
+  },
+  quranBgOverlay: {
+    backgroundColor: 'rgba(0,0,0,0.30)',
+    borderRadius: Radius.xl,
+    padding: 11,
+    gap: 8,
+  },
   duroodImageOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.48)',
@@ -1807,7 +1833,7 @@ export function HomeForYouTodaySection({
   const quranCardId = `quran-portion-${todayKey}`;
   const duroodCardId = `durood-${todayKey}`;
   const istighfarCardId = `istighfar-${todayKey}`;
-  const showQuranRow = !dismissed.has(quranCardId);
+  const showQuranRow = Platform.OS === 'web' ? true : !dismissed.has(quranCardId);
   const showCountersRow = !dismissed.has(duroodCardId) || !dismissed.has(istighfarCardId);
 
   // Keep this as the current row: prayer cards with utility follow-ups.
