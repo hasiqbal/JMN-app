@@ -24,10 +24,14 @@ import { useSkyBackgroundCycle } from '@/hooks/useSkyBackgroundCycle';
 import { formatCountdownSeconds, getNextPrayer, type PrayerTime } from '@/services/prayerService';
 import { usePrayerTimes } from '@/hooks/usePrayerTimes';
 import { useNightMode } from '@/hooks/useNightMode';
-import { fetchSunnahReminders, type SunnahReminderRow } from '@/services/contentService';
+import {
+  fetchAnnouncements,
+  fetchSunnahReminders,
+  type AnnouncementRow,
+  type SunnahReminderRow,
+} from '@/services/contentService';
 import { fetchEidUlAdha, fetchEidUlFitr } from '@/services/eidService';
 import { fetchDailySacredContent, type DailySacredContent } from '@/services/sacredContentService';
-import { MOCK_ANNOUNCEMENTS } from '@/services/eventsService';
 import { PRAYER_BG_IMAGES } from '@/components/prayer/heroConfig';
 import { buildHeroState } from '@/components/prayer/heroState';
 import { buildActivePrayerState } from '@/components/prayer/activePrayerState';
@@ -36,6 +40,10 @@ import PrayerDrawerSheet from '@/components/prayer/PrayerDrawerSheet';
 import { buildPrayerDrawerRows } from '@/components/prayer/prayerDrawerState';
 import { HomeQuickAccessSection } from '@/components/prayer/HomeQuickAccessSection';
 import { HomeForYouTodaySection } from '@/components/prayer/HomeForYouTodaySection';
+import {
+  CommunityUpdatesSection,
+  type CommunityUpdateItem,
+} from '@/components/prayer/CommunityUpdatesSection';
 import { SacredContentModule, SacredReadingSheet } from '@/components/prayer/SacredContentModule';
 import { createDonationCheckoutUrl } from '@/services/donationService';
 import WebView from 'react-native-webview';
@@ -1978,8 +1986,10 @@ const toggleStyles = StyleSheet.create({
 export default function HomeScreen() {
   // DB-driven sunnah reminders
   const [dbSunnahs, setDbSunnahs] = useState<SunnahReminderRow[]>([]);
+  const [communityUpdates, setCommunityUpdates] = useState<AnnouncementRow[]>([]);
+  const [communityLoading, setCommunityLoading] = useState(false);
   const [dailySacred, setDailySacred] = useState<DailySacredContent | null>(null);
-  const [sacredLoaded, setSacredLoaded] = useState(false);
+  const [sacredLoaded, setSacredLoaded] = useState(true);
   const [activeSacredPanel, setActiveSacredPanel] = useState<SacredPanel | null>(null);
   const [eidUlFitrJamaats, setEidUlFitrJamaats] = useState<string[]>([]);
   const [eidUlAdhaJamaats, setEidUlAdhaJamaats] = useState<string[]>([]);
@@ -2000,6 +2010,18 @@ export default function HomeScreen() {
     }
   }, []);
 
+  const loadCommunityUpdates = useCallback(async () => {
+    setCommunityLoading(true);
+    try {
+      const rows = await fetchAnnouncements();
+      setCommunityUpdates(rows);
+    } catch {
+      setCommunityUpdates([]);
+    } finally {
+      setCommunityLoading(false);
+    }
+  }, []);
+
   const loadDailySacredContent = useCallback(async () => {
     try {
       const content = await fetchDailySacredContent();
@@ -2014,9 +2036,10 @@ export default function HomeScreen() {
   useEffect(() => {
     loadSunnahReminders();
     loadDailySacredContent();
+    loadCommunityUpdates();
 
     // Yaseen images are bundled as local assets — no preload needed
-  }, [loadDailySacredContent, loadSunnahReminders]);
+  }, [loadCommunityUpdates, loadDailySacredContent, loadSunnahReminders]);
 
   useEffect(() => {
     let mounted = true;
@@ -2662,11 +2685,40 @@ export default function HomeScreen() {
   const onPullRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await Promise.all([refreshPrayerTimes(), loadSunnahReminders(), loadDailySacredContent()]);
+      await Promise.all([
+        refreshPrayerTimes(),
+        loadSunnahReminders(),
+        loadDailySacredContent(),
+        loadCommunityUpdates(),
+      ]);
     } finally {
       setRefreshing(false);
     }
-  }, [loadDailySacredContent, refreshPrayerTimes, loadSunnahReminders]);
+  }, [loadCommunityUpdates, loadDailySacredContent, refreshPrayerTimes, loadSunnahReminders]);
+
+  const homeCommunityItems = React.useMemo<CommunityUpdateItem[]>(() => {
+    return communityUpdates.map((row) => {
+      const categoryLabel = (row.category || 'Notice').trim();
+      const normalized = categoryLabel.toLowerCase();
+      const category = row.pinned && (normalized === 'general' || normalized === 'news')
+        ? 'Important'
+        : categoryLabel;
+
+      return {
+        id: row.id,
+        category,
+        title: row.title,
+        date: new Date(row.published_at).toLocaleDateString('en-GB', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        }),
+        priority: row.pinned ? 100 : 0,
+        isPinned: row.pinned,
+        excerpt: row.body,
+      };
+    });
+  }, [communityUpdates]);
 
   const startDonationCheckout = useCallback(async (priceSlot: 1 | 2) => {
     if (donationLoading) return;
@@ -2862,60 +2914,21 @@ export default function HomeScreen() {
                 nightMode={nightMode}
                 currentTime={currentTime}
                 hijriDay={hijriDayInt}
-                todaySunnah={computedTodaySunnah}
+                hijriMonthName={rawHijriMonthName}
               />
             </View>
 
-            {/* ── Community Feed ────────────────────────────────────── */}
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Community Updates</Text>
-              <TouchableOpacity onPress={() => router.push('/(tabs)/events')}>
-                <Text style={styles.seeAll}>See All</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.communityCard}>
-              {MOCK_ANNOUNCEMENTS.length === 0 ? (
-                <View style={styles.communityRow}>
-                  <Text style={styles.communityRowTitle}>No announcements yet</Text>
-                </View>
-              ) : (
-                MOCK_ANNOUNCEMENTS.slice(0, 2).map((ann, idx) => (
-                  <React.Fragment key={ann.id}>
-                    {idx > 0 && <View style={styles.communityDivider} />}
-                    <TouchableOpacity
-                      onPress={() => router.push('/(tabs)/events')}
-                      activeOpacity={0.8}
-                      style={styles.communityRow}
-                    >
-                      <View style={{ flex: 1, gap: 4 }}>
-                        <View style={styles.communityChipRow}>
-                          <View style={[
-                            styles.communityChip,
-                            ann.important && { backgroundColor: '#FEF3C7', borderColor: '#FCD34D' },
-                          ]}>
-                            <Text style={[
-                              styles.communityChipText,
-                              ann.important && { color: '#92400E' },
-                            ]}>{ann.important ? 'Important' : 'News'}</Text>
-                          </View>
-                          <Text style={styles.communityDate}>{ann.date}</Text>
-                        </View>
-                        <Text style={styles.communityRowTitle} numberOfLines={1}>{ann.title}</Text>
-                      </View>
-                      <MaterialIcons name="chevron-right" size={18} color={Colors.textSubtle} />
-                    </TouchableOpacity>
-                  </React.Fragment>
-                ))
-              )}
-            </View>
-
-            <TouchableOpacity
-              onPress={() => router.push('/(tabs)/events')}
-              style={styles.communityViewAll}
-            >
-              <Text style={styles.communityViewAllText}>View all announcements \u2192</Text>
-            </TouchableOpacity>
+            <CommunityUpdatesSection
+              title="Community Updates"
+              items={homeCommunityItems}
+              isLoading={communityLoading}
+              nightMode={nightMode}
+              onPressSeeAll={() => router.push('/(tabs)/events')}
+              onPressItem={(item) => router.push({
+                pathname: '/(tabs)/events',
+                params: { announcementId: item.id },
+              } as any)}
+            />
 
             <View style={{ height: Spacing.xl }} />
           </View>

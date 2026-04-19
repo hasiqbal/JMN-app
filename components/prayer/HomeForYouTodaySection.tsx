@@ -200,51 +200,8 @@ const QURAN_PORTIONS = [
 const QURAN_READ_LEVELS = [
   { level: 1, label: 'Ayahs', desc: '3–5 Ayahs',  color: '#66DDAA', bg: 'rgba(102,221,170,0.15)' },
   { level: 2, label: '1 Page', desc: '~1 Page',   color: '#5BCFA5', bg: 'rgba(91,207,165,0.15)' },
-  { level: 3, label: '½ Juz',  desc: '~10 Pages', color: '#4FE948', bg: 'rgba(79,233,72,0.15)' },
-  { level: 4, label: 'Full Juz', desc: '~20 Pgs', color: '#A4F2A0', bg: 'rgba(164,242,160,0.15)' },
-];
-
-// ── Few-Ayah Daily Portions (Level 1) ────────────────────────────────────
-const AYAH_PORTIONS = [
-  { ref: 'Al-Fatihah 1:1–7',       surahs: 'The Opening — 7 ayahs',                pages: 'p. 1'        },
-  { ref: 'Al-Baqarah 2:1–5',       surahs: 'Opening 5 ayahs of Al-Baqarah',        pages: 'p. 2'        },
-  { ref: 'Al-Baqarah 2:255–257',   surahs: 'Ayat al-Kursi & the two after',        pages: 'p. 42'       },
-  { ref: 'Al-Baqarah 2:284–286',   surahs: 'Closing ayahs of Al-Baqarah',          pages: 'p. 49'       },
-  { ref: 'Al-Imran 3:1–5',         surahs: 'Opening of Al-Imran',                  pages: 'p. 50'       },
-  { ref: 'Al-Imran 3:190–194',     surahs: 'Signs for those of understanding',     pages: 'p. 75'       },
-  { ref: 'An-Nisa 4:36–38',        surahs: 'Rights of parents & neighbours',       pages: 'p. 84'       },
-  { ref: 'Al-Maidah 5:1–3',        surahs: 'Lawful & unlawful — opening',          pages: 'p. 106'      },
-  { ref: 'Al-Anam 6:1–3',          surahs: 'Praise of Allah, creation',            pages: 'p. 128'      },
-  { ref: 'Al-Araf 7:54–56',        surahs: 'Allah the Creator, call to Him',       pages: 'p. 157'      },
-  { ref: 'At-Tawbah 9:111–112',    surahs: 'The covenant of the believers',        pages: 'p. 204'      },
-  { ref: 'Yunus 10:61–63',         surahs: 'Friends of Allah, no fear for them',   pages: 'p. 215'      },
-  { ref: 'Hud 11:114–115',         surahs: 'Prayer removes evil deeds',            pages: 'p. 234'      },
-  { ref: 'Yusuf 12:64–67',         surahs: "Ya'qub's trust in Allah",              pages: 'p. 243'      },
-  { ref: 'Ibrahim 14:40–42',       surahs: 'Ibrahim prays for his offspring',      pages: 'p. 261'      },
-  { ref: 'Al-Isra 17:23–27',       surahs: 'Rights of parents',                   pages: 'p. 284'      },
-  { ref: 'Al-Kahf 18:1–5',         surahs: 'Opening of Al-Kahf',                  pages: 'p. 293'      },
-  { ref: 'Al-Kahf 18:107–110',     surahs: 'Gardens of Paradise',                 pages: 'p. 304'      },
-  { ref: 'Maryam 19:1–6',          surahs: 'Story of Zakariyya begins',           pages: 'p. 305'      },
-  { ref: 'Ta-Ha 20:1–5',           surahs: 'Allah on the Throne',                 pages: 'p. 312'      },
-  { ref: 'Al-Anbiya 21:87–90',     surahs: "Yunus's du'a & Allah's response",     pages: 'p. 329'      },
-  { ref: 'Al-Muminun 23:1–11',     surahs: 'Qualities of the successful believers',pages: 'p. 342'      },
-  { ref: 'An-Nur 24:35–38',        surahs: 'Verse of Light & the blessed houses', pages: 'p. 354'      },
-  { ref: 'Al-Furqan 25:63–67',     surahs: 'Servants of the Most Merciful',       pages: 'p. 365'      },
-  { ref: 'Luqman 31:12–15',        surahs: 'Wisdom of Luqman to his son',         pages: 'p. 411'      },
-  { ref: 'Ya-Sin 36:77–83',        surahs: 'Power of Allah to resurrect',         pages: 'p. 445'      },
-  { ref: 'Az-Zumar 39:53–55',      surahs: "Do not despair of Allah's mercy",     pages: 'p. 464'      },
-  { ref: 'Al-Hujurat 49:11–13',    surahs: 'Brotherhood & avoiding assumptions',  pages: 'p. 517'      },
-  { ref: 'Ar-Rahman 55:1–13',      surahs: 'Which of your Lord\'s favours?',       pages: 'p. 531'      },
-  { ref: 'Al-Waqiah 56:77–80',     surahs: 'The noble Quran — protected scripture',pages: 'p. 536'     },
-  { ref: 'Al-Mulk 67:1–5',         surahs: 'Opening of Al-Mulk — blessed is He',  pages: 'p. 562'      },
-  { ref: 'Al-Insan 76:1–5',        surahs: 'The creation and trial of man',       pages: 'p. 578'      },
-  { ref: 'An-Naba 78:1–16',        surahs: 'The Great News — creation of earth',  pages: 'p. 582'      },
-  { ref: 'Abasa 80:1–16',          surahs: 'He frowned — admonition to the heart',pages: 'p. 585'      },
-  { ref: 'Al-Inshirah 94:1–8',     surahs: 'Did We not expand your chest?',       pages: 'p. 596'      },
-  { ref: 'Al-Qadr 97:1–5',         surahs: 'The Night of Power',                  pages: 'p. 598'      },
-  { ref: 'Al-Zalzalah 99:1–8',     surahs: 'The earthquake of the Hour',          pages: 'p. 599'      },
-  { ref: 'Al-Asr 103:1–3 + Al-Humazah 104:1–3', surahs: 'Time & the slanderer',  pages: 'p. 601'     },
-  { ref: 'Al-Ikhlas + Al-Falaq + An-Nas', surahs: 'Three Quls — protection duas', pages: 'p. 603–604'  },
+  { level: 3, label: '½ Juz',  desc: '~10 Pages', color: '#5DD9A0', bg: 'rgba(93,217,160,0.15)' },
+  { level: 4, label: 'Full Juz', desc: '~20 Pgs', color: '#6ECF97', bg: 'rgba(110,207,151,0.13)' },
 ];
 
 const DUROOD_LEVELS = [
@@ -269,6 +226,34 @@ const TAWHID_LEVELS = [
 ];
 
 const PENDING_OPEN_KEY = 'quran_pending_open_v1';
+const QURAN_RESUME_PAGE_KEY = 'quran_resume_page_v1';
+const QURAN_RESUME_PAGE_15LINE_KEY = 'quran_resume_page_15line_v1';
+const QURAN_RESUME_PAGE_16LINE_KEY = 'quran_resume_page_16line_v1';
+const QURAN_HALF_JUZ_STATE_KEY = 'quran_half_juz_state_v1';
+const QURAN_LAST_VALID_HIJRI_DAY_KEY = 'quran_last_valid_hijri_day_v1';
+const QURAN_FULL_JUZ_PROGRESS_KEY = 'quran_full_juz_progress_v1';
+const QURAN_CATCHUP_UI_STATE_KEY = 'quran_catchup_ui_state_v1';
+const QURAN_MUSHAF_LAYOUT_KEY = 'quran_mushaf_layout_v1';
+
+type HalfJuzState = {
+  dayKey: string;
+  juz: number;
+  half: 'first' | 'second';
+};
+
+type FullJuzProgressState = {
+  lastCompletedHijriDay: number;
+  handledMissedDays: number[];
+  skippedMissedDays: number[];
+};
+
+type CatchupUiState = {
+  dateKey: string;
+  extraReminderUsed: boolean;
+};
+
+type MushafLayout = '15line' | '16line';
+type ResumePagesByLayout = Record<MushafLayout, number | null>;
 
 // ── Surah first mushaf page — used to find which chapter contains a given page ──
 const SURAH_START_PAGE: Record<number, number> = {
@@ -297,37 +282,287 @@ function chapterForMushaPage(targetPage: number): number {
   return best;
 }
 
-// ── AYAH_PORTIONS surah ID map (for Level 1 open-in-app) ────────────────
-const AYAH_SURAH_IDS: number[] = [
-  1, 2, 2, 2, 3, 3, 4, 5, 6, 7, 9, 10, 11, 12, 14,
-  17, 18, 18, 19, 20, 21, 23, 24, 25, 31, 36, 39, 49, 55, 56,
-  67, 76, 78, 80, 94, 97, 99, 103, 112,
-];
+function getLocalDateKey(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function getEpochDayLocal(date: Date): number {
+  const localMidnight = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  return Math.floor(localMidnight.getTime() / 86400000);
+}
+
+const TOTAL_MUSHAF_PAGES = 604;
+
+function getResumePageKey(layout: MushafLayout): string {
+  return layout === '16line' ? QURAN_RESUME_PAGE_16LINE_KEY : QURAN_RESUME_PAGE_15LINE_KEY;
+}
+
+function parseStoredMushafPage(value: string | null): number | null {
+  const parsed = value ? parseInt(value, 10) : NaN;
+  if (Number.isFinite(parsed) && parsed >= 1 && parsed <= TOTAL_MUSHAF_PAGES) return parsed;
+  return null;
+}
+
+function getFallbackResumePage(layout: MushafLayout, date: Date): number {
+  const seed = getEpochDayLocal(date);
+  if (layout === '16line') {
+    return ((seed * 197 + 43) % TOTAL_MUSHAF_PAGES) + 1;
+  }
+  return ((seed * 113 + 17) % TOTAL_MUSHAF_PAGES) + 1;
+}
+
+function getDailyRandomAyahSelection(date: Date): { page: number; surah: number; ayahTarget: number } {
+  const daySeed = getEpochDayLocal(date);
+  // 313 is coprime with 604, so it cycles all mushaf pages before repeating.
+  const page = ((daySeed * 313 + 97) % TOTAL_MUSHAF_PAGES) + 1;
+  const ayahTarget = ((daySeed * 17 + 11) % 5) + 3; // 3..7 ayahs
+  return { page, surah: chapterForMushaPage(page), ayahTarget };
+}
 
 // ── Daily Quran Portion Card (with 4 levels + open-in-app) ───────────────
 function QuranPortionCard({
-  nightMode, todayKey, dismissed, onDismiss, hijriDay,
+  nightMode, todayKey, dismissed, onDismiss, hijriDay, hijriMonthName,
 }: {
   nightMode: boolean;
   todayKey: string;
   dismissed: Set<string>;
   onDismiss: (id: string) => void;
   hijriDay: number; // Hijri day of month (1-30) — drives Full Juz for monthly completion
+  hijriMonthName?: string;
 }) {
   const id = `quran-portion-${todayKey}`;
   const levelKey = 'quran_read_level_persist';
   const N = nightMode ? NIGHT : null;
+  const { showAlert } = useAlert();
 
   const [levelIdx, setLevelIdx] = useState(3); // default: Full Juz
   const [levelLoaded, setLevelLoaded] = useState(false);
+  const [resolvedHijriDay, setResolvedHijriDay] = useState(1);
+  const [resumePages, setResumePages] = useState<ResumePagesByLayout>({
+    '15line': null,
+    '16line': null,
+  });
+  const [halfJuzState, setHalfJuzState] = useState<HalfJuzState | null>(null);
+  const [fullJuzProgress, setFullJuzProgress] = useState<FullJuzProgressState>({
+    lastCompletedHijriDay: 0,
+    handledMissedDays: [],
+    skippedMissedDays: [],
+  });
+  const [showCatchupBanner, setShowCatchupBanner] = useState(false);
+  const [activeCatchupJuzDay, setActiveCatchupJuzDay] = useState<number | null>(null);
+  const [pendingMissedDays, setPendingMissedDays] = useState<number[]>([]);
+  const [extraReminderUsed, setExtraReminderUsed] = useState(false);
+  const [mushafLayout, setMushafLayout] = useState<MushafLayout>('15line');
   const scale = useRef(new Animated.Value(1)).current;
+  const launchCatchupShownRef = useRef(false);
+  const autoHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const extraReminderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { width: windowWidth } = useWindowDimensions();
+  const router = useRouter();
+  const todayDateKey = getLocalDateKey(new Date());
+  const currentLayoutResumePage = resumePages[mushafLayout] ?? getFallbackResumePage(mushafLayout, new Date());
+  const ayahSelection = getDailyRandomAyahSelection(new Date());
+  const isRamadan = /(ramadan|رمضان)/i.test(hijriMonthName ?? '');
+
+  const openQuranAtPage = useCallback((targetPage: number) => {
+    const chapterId = chapterForMushaPage(targetPage);
+    AsyncStorage.setItem(PENDING_OPEN_KEY, `${chapterId}|${targetPage}`).catch(() => {});
+    AsyncStorage.setItem(QURAN_MUSHAF_LAYOUT_KEY, mushafLayout).catch(() => {});
+    router.push('/(tabs)/quran' as any);
+  }, [mushafLayout, router]);
 
   useEffect(() => {
-    AsyncStorage.getItem(levelKey).then(v => {
-      if (v !== null) setLevelIdx(parseInt(v, 10) || 3);
+    Promise.all([
+      AsyncStorage.getItem(levelKey),
+      AsyncStorage.getItem(QURAN_RESUME_PAGE_15LINE_KEY),
+      AsyncStorage.getItem(QURAN_RESUME_PAGE_16LINE_KEY),
+      AsyncStorage.getItem(QURAN_RESUME_PAGE_KEY),
+      AsyncStorage.getItem(QURAN_HALF_JUZ_STATE_KEY),
+      AsyncStorage.getItem(QURAN_LAST_VALID_HIJRI_DAY_KEY),
+      AsyncStorage.getItem(QURAN_FULL_JUZ_PROGRESS_KEY),
+      AsyncStorage.getItem(QURAN_CATCHUP_UI_STATE_KEY),
+      AsyncStorage.getItem(QURAN_MUSHAF_LAYOUT_KEY),
+    ]).then(([
+      storedLevel,
+      storedPage15,
+      storedPage16,
+      legacyStoredPage,
+      storedHalfState,
+      storedValidHijriDay,
+      storedProgress,
+      storedCatchupUi,
+      storedMushafLayout,
+    ]) => {
+      if (storedLevel !== null) setLevelIdx(parseInt(storedLevel, 10) || 3);
+      if (storedMushafLayout === '15line' || storedMushafLayout === '16line') {
+        setMushafLayout(storedMushafLayout);
+      }
+
+      const legacy = parseStoredMushafPage(legacyStoredPage);
+      const parsed15 = parseStoredMushafPage(storedPage15) ?? legacy;
+      const parsed16 = parseStoredMushafPage(storedPage16);
+      setResumePages({ '15line': parsed15, '16line': parsed16 });
+
+      const incomingHijriValid = Number.isFinite(hijriDay) && hijriDay >= 1 && hijriDay <= 30;
+      const persistedHijri = storedValidHijriDay ? parseInt(storedValidHijriDay, 10) : NaN;
+      const persistedHijriValid = Number.isFinite(persistedHijri) && persistedHijri >= 1 && persistedHijri <= 30;
+      const fallbackHijri = ((DAY_OF_YEAR - 1) % 30) + 1;
+      const effectiveHijriDay = incomingHijriValid
+        ? hijriDay
+        : persistedHijriValid
+          ? persistedHijri
+          : fallbackHijri;
+
+      setResolvedHijriDay(effectiveHijriDay);
+      if (incomingHijriValid) {
+        AsyncStorage.setItem(QURAN_LAST_VALID_HIJRI_DAY_KEY, String(hijriDay)).catch(() => {});
+      }
+
+      let parsedHalfState: HalfJuzState | null = null;
+      if (storedHalfState) {
+        try {
+          const decoded = JSON.parse(storedHalfState) as HalfJuzState;
+          const validHalf = decoded.half === 'first' || decoded.half === 'second';
+          const validJuz = Number.isFinite(decoded.juz) && decoded.juz >= 1 && decoded.juz <= 30;
+          if (decoded.dayKey && validHalf && validJuz) parsedHalfState = decoded;
+        } catch {}
+      }
+
+      const seedJuz = ((DAY_OF_YEAR - 1) % 30) + 1;
+      let nextHalfState: HalfJuzState;
+      if (!parsedHalfState) {
+        nextHalfState = { dayKey: todayDateKey, juz: seedJuz, half: 'first' };
+      } else if (parsedHalfState.dayKey === todayDateKey) {
+        nextHalfState = parsedHalfState;
+      } else if (parsedHalfState.half === 'first') {
+        nextHalfState = { dayKey: todayDateKey, juz: parsedHalfState.juz, half: 'second' };
+      } else {
+        nextHalfState = {
+          dayKey: todayDateKey,
+          juz: parsedHalfState.juz >= 30 ? 1 : parsedHalfState.juz + 1,
+          half: 'first',
+        };
+      }
+      setHalfJuzState(nextHalfState);
+      if (!parsedHalfState || parsedHalfState.dayKey !== nextHalfState.dayKey || parsedHalfState.half !== nextHalfState.half || parsedHalfState.juz !== nextHalfState.juz) {
+        AsyncStorage.setItem(QURAN_HALF_JUZ_STATE_KEY, JSON.stringify(nextHalfState)).catch(() => {});
+      }
+
+      let progressState: FullJuzProgressState = {
+        lastCompletedHijriDay: 0,
+        handledMissedDays: [],
+        skippedMissedDays: [],
+      };
+      if (storedProgress) {
+        try {
+          const decoded = JSON.parse(storedProgress) as FullJuzProgressState;
+          if (Number.isFinite(decoded.lastCompletedHijriDay)) {
+            progressState = {
+              lastCompletedHijriDay: Math.max(0, Math.min(30, decoded.lastCompletedHijriDay)),
+              handledMissedDays: Array.isArray(decoded.handledMissedDays)
+                ? decoded.handledMissedDays.filter((d) => Number.isFinite(d) && d >= 1 && d <= 30)
+                : [],
+              skippedMissedDays: Array.isArray(decoded.skippedMissedDays)
+                ? decoded.skippedMissedDays.filter((d) => Number.isFinite(d) && d >= 1 && d <= 30)
+                : [],
+            };
+          }
+        } catch {}
+      }
+      if (effectiveHijriDay === 1) {
+        progressState = { lastCompletedHijriDay: 0, handledMissedDays: [], skippedMissedDays: [] };
+        AsyncStorage.setItem(QURAN_FULL_JUZ_PROGRESS_KEY, JSON.stringify(progressState)).catch(() => {});
+      }
+      setFullJuzProgress(progressState);
+
+      const defaultCatchupUi: CatchupUiState = { dateKey: todayDateKey, extraReminderUsed: false };
+      if (storedCatchupUi) {
+        try {
+          const decoded = JSON.parse(storedCatchupUi) as CatchupUiState;
+          if (decoded.dateKey === todayDateKey) {
+            setExtraReminderUsed(!!decoded.extraReminderUsed);
+          } else {
+            AsyncStorage.setItem(QURAN_CATCHUP_UI_STATE_KEY, JSON.stringify(defaultCatchupUi)).catch(() => {});
+            setExtraReminderUsed(false);
+          }
+        } catch {
+          AsyncStorage.setItem(QURAN_CATCHUP_UI_STATE_KEY, JSON.stringify(defaultCatchupUi)).catch(() => {});
+          setExtraReminderUsed(false);
+        }
+      } else {
+        AsyncStorage.setItem(QURAN_CATCHUP_UI_STATE_KEY, JSON.stringify(defaultCatchupUi)).catch(() => {});
+        setExtraReminderUsed(false);
+      }
+
       setLevelLoaded(true);
     }).catch(() => setLevelLoaded(true));
+  }, [hijriDay, todayDateKey]);
+
+  const derivePendingMissedDays = useCallback((progress: FullJuzProgressState, todayHijriDay: number) => {
+    const handled = new Set(progress.handledMissedDays);
+    const pending: number[] = [];
+    for (let d = progress.lastCompletedHijriDay + 1; d < todayHijriDay; d++) {
+      if (d >= 1 && d <= 30 && !handled.has(d)) pending.push(d);
+    }
+    return pending;
+  }, []);
+
+  const persistCatchupUiState = useCallback((nextExtraReminderUsed: boolean) => {
+    const state: CatchupUiState = { dateKey: todayDateKey, extraReminderUsed: nextExtraReminderUsed };
+    AsyncStorage.setItem(QURAN_CATCHUP_UI_STATE_KEY, JSON.stringify(state)).catch(() => {});
+  }, [todayDateKey]);
+
+  const setFullJuzProgressAndPersist = useCallback((next: FullJuzProgressState) => {
+    setFullJuzProgress(next);
+    AsyncStorage.setItem(QURAN_FULL_JUZ_PROGRESS_KEY, JSON.stringify(next)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!levelLoaded) return;
+    const pending = derivePendingMissedDays(fullJuzProgress, resolvedHijriDay);
+    setPendingMissedDays(pending);
+  }, [levelLoaded, fullJuzProgress, resolvedHijriDay, derivePendingMissedDays]);
+
+  useEffect(() => {
+    if (!levelLoaded || levelIdx !== 3 || launchCatchupShownRef.current) return;
+    if (pendingMissedDays.length === 0) return;
+    setShowCatchupBanner(true);
+    launchCatchupShownRef.current = true;
+  }, [levelLoaded, levelIdx, pendingMissedDays.length]);
+
+  useEffect(() => {
+    if (!showCatchupBanner) {
+      if (autoHideTimerRef.current) {
+        clearTimeout(autoHideTimerRef.current);
+        autoHideTimerRef.current = null;
+      }
+      return;
+    }
+    autoHideTimerRef.current = setTimeout(() => {
+      setShowCatchupBanner(false);
+    }, 9000);
+    return () => {
+      if (autoHideTimerRef.current) {
+        clearTimeout(autoHideTimerRef.current);
+        autoHideTimerRef.current = null;
+      }
+    };
+  }, [showCatchupBanner]);
+
+  useEffect(() => {
+    return () => {
+      if (extraReminderTimerRef.current) {
+        clearTimeout(extraReminderTimerRef.current);
+        extraReminderTimerRef.current = null;
+      }
+      if (autoHideTimerRef.current) {
+        clearTimeout(autoHideTimerRef.current);
+        autoHideTimerRef.current = null;
+      }
+    };
   }, []);
 
   const switchLevel = (i: number) => {
@@ -335,7 +570,11 @@ function QuranPortionCard({
     AsyncStorage.setItem(levelKey, String(i)).catch(() => {});
   };
 
-  const router = useRouter();
+  const switchMushafLayout = (layout: MushafLayout) => {
+    setMushafLayout(layout);
+    AsyncStorage.setItem(QURAN_MUSHAF_LAYOUT_KEY, layout).catch(() => {});
+  };
+
   const onIn  = () => Animated.spring(scale, { toValue: 0.96, useNativeDriver: true, speed: 60 }).start();
   const onOut = () => Animated.spring(scale, { toValue: 1,    useNativeDriver: true, speed: 40 }).start();
 
@@ -346,109 +585,206 @@ function QuranPortionCard({
   // Determine the target chapter ID to open in the Quran tab
   const getTargetChapterId = (): number => {
     if (levelIdx === 0) {
-      // Level 1: few Ayahs — map to specific surah
-      const idx = DAY_OF_YEAR % AYAH_SURAH_IDS.length;
-      return AYAH_SURAH_IDS[idx];
+      // Level 1: daily random page across the whole Quran
+      return ayahSelection.surah;
     } else if (levelIdx === 1) {
-      // Level 2: 1 page — find chapter containing the target page
-      const page = ((DAY_OF_YEAR - 1) % 604) + 1;
+      // Level 2: resume-aware page selection
+      const page = currentLayoutResumePage;
       return chapterForMushaPage(page);
     } else if (levelIdx === 2) {
-      // Level 3: Half Juz — chapter containing the half-start page
-      const portion = QURAN_PORTIONS[(DAY_OF_YEAR - 1) % 30];
-      const isFirstHalf = DAY_OF_YEAR % 2 === 0;
+      // Level 3: persisted first-half/second-half progression
+      const juzNum = halfJuzState?.juz ?? (((DAY_OF_YEAR - 1) % 30) + 1);
+      const isFirstHalf = (halfJuzState?.half ?? 'first') === 'first';
+      const portion = QURAN_PORTIONS[juzNum - 1];
       const startPg = JUZ_START_PAGE[portion.juz];
       const endPg   = JUZ_END_PAGE[portion.juz];
       const midPage = Math.round((startPg + endPg) / 2);
       return chapterForMushaPage(isFirstHalf ? startPg : midPage);
     } else if (levelIdx === 3) {
       // Level 4: Full Juz — keyed to Hijri day (1-30), completing Quran in one lunar month
-      const juzNum = Math.max(1, Math.min(30, hijriDay));
+      const juzNum = Math.max(1, Math.min(30, resolvedHijriDay));
       return chapterForMushaPage(JUZ_START_PAGE[juzNum]);
     }
     return 1;
   };
 
+  const advanceResumePage = (currentPage: number, layout: MushafLayout = mushafLayout) => {
+    const nextPage = currentPage >= TOTAL_MUSHAF_PAGES ? 1 : currentPage + 1;
+    setResumePages((prev) => ({ ...prev, [layout]: nextPage }));
+    AsyncStorage.setItem(getResumePageKey(layout), String(nextPage)).catch(() => {});
+    if (layout === '15line') {
+      // Keep legacy key updated for backward compatibility with older app builds.
+      AsyncStorage.setItem(QURAN_RESUME_PAGE_KEY, String(nextPage)).catch(() => {});
+    }
+  };
+
+  const normalizeDays = (days: number[]) => Array.from(new Set(days.filter((d) => d >= 1 && d <= 30))).sort((a, b) => a - b);
+
+  const buildNextFullJuzProgress = (targetDay: number, markSkipped: boolean): FullJuzProgressState => {
+    const handled = new Set(fullJuzProgress.handledMissedDays);
+    const skipped = new Set(fullJuzProgress.skippedMissedDays);
+
+    handled.add(targetDay);
+    if (markSkipped) skipped.add(targetDay);
+    else skipped.delete(targetDay);
+
+    let lastCompleted = fullJuzProgress.lastCompletedHijriDay;
+    while (lastCompleted < 30 && handled.has(lastCompleted + 1)) {
+      lastCompleted += 1;
+      handled.delete(lastCompleted);
+      skipped.delete(lastCompleted);
+    }
+
+    return {
+      lastCompletedHijriDay: lastCompleted,
+      handledMissedDays: normalizeDays(Array.from(handled)),
+      skippedMissedDays: normalizeDays(Array.from(skipped)),
+    };
+  };
+
+  const queueOneExtraReminderIfAllowed = (nextProgress: FullJuzProgressState) => {
+    if (extraReminderUsed) return;
+    const stillPending = derivePendingMissedDays(nextProgress, resolvedHijriDay);
+    if (stillPending.length === 0) return;
+
+    setExtraReminderUsed(true);
+    persistCatchupUiState(true);
+    if (extraReminderTimerRef.current) clearTimeout(extraReminderTimerRef.current);
+    extraReminderTimerRef.current = setTimeout(() => {
+      if (levelIdx === 3) setShowCatchupBanner(true);
+    }, 20000);
+  };
+
   const openInQuran = () => {
+    setShowCatchupBanner(false);
+    setActiveCatchupJuzDay(null);
     const chapterId = getTargetChapterId();
     let targetPage: number | null = null;
 
     if (levelIdx === 0) {
-      // Level 1: Few Ayahs — extract first page number from AYAH_PORTIONS pages string
-      const a = AYAH_PORTIONS[DAY_OF_YEAR % AYAH_PORTIONS.length];
-      const m = a.pages.match(/(\d+)/);
-      targetPage = m ? parseInt(m[1], 10) : null;
+      // Level 1: open selected daily random page
+      targetPage = ayahSelection.page;
     } else if (levelIdx === 1) {
-      // Level 2: 1 Page — exact mushaf page
-      targetPage = ((DAY_OF_YEAR - 1) % 604) + 1;
+      // Level 2: 1 Page — resume-aware
+      targetPage = currentLayoutResumePage;
     } else if (levelIdx === 2) {
-      // Level 3: Half Juz — jump to start of whichever half
-      const portion = QURAN_PORTIONS[(DAY_OF_YEAR - 1) % 30];
-      const isFirstHalf = DAY_OF_YEAR % 2 === 0;
+      // Level 3: Half Juz — persisted first/second progression
+      const juzNum = halfJuzState?.juz ?? (((DAY_OF_YEAR - 1) % 30) + 1);
+      const portion = QURAN_PORTIONS[juzNum - 1];
+      const isFirstHalf = (halfJuzState?.half ?? 'first') === 'first';
       const startPg = JUZ_START_PAGE[portion.juz];
       const endPg   = JUZ_END_PAGE[portion.juz];
       const midPage = Math.round((startPg + endPg) / 2);
       targetPage = isFirstHalf ? startPg : midPage;
     } else {
       // Level 4: Full Juz — keyed to Hijri day for monthly Quran completion
-      const juzNum = Math.max(1, Math.min(30, hijriDay));
+      const juzNum = Math.max(1, Math.min(30, resolvedHijriDay));
       targetPage = JUZ_START_PAGE[juzNum];
     }
 
     const value = targetPage ? `${chapterId}|${targetPage}` : String(chapterId);
     AsyncStorage.setItem(PENDING_OPEN_KEY, value).catch(() => {});
+    AsyncStorage.setItem(QURAN_MUSHAF_LAYOUT_KEY, mushafLayout).catch(() => {});
+    if (levelIdx === 1 && targetPage) {
+      advanceResumePage(targetPage, mushafLayout);
+    }
     router.push('/(tabs)/quran' as any);
+  };
+
+  const handleMarkAsRead = () => {
+    if (levelIdx === 1) {
+      const currentPage = currentLayoutResumePage;
+      advanceResumePage(currentPage, mushafLayout);
+      onDismiss(id);
+      return;
+    }
+    if (levelIdx === 3) {
+      const targetDay = activeCatchupJuzDay ?? resolvedHijriDay;
+      const nextProgress = buildNextFullJuzProgress(targetDay, false);
+      setFullJuzProgressAndPersist(nextProgress);
+      setActiveCatchupJuzDay(null);
+      const stillPending = derivePendingMissedDays(nextProgress, resolvedHijriDay);
+      setShowCatchupBanner(stillPending.length > 0);
+      return;
+    }
+
+    onDismiss(id);
+  };
+
+  const handleOpenCatchupConfirmation = () => {
+    const targetDay = pendingMissedDays[0];
+    if (!targetDay) return;
+
+    const promptTitle = 'Continue from missed Juz';
+    const promptBody = isRamadan
+      ? `In this blessed month, you can continue with Juz ${targetDay} now.`
+      : `You can continue with Juz ${targetDay} now.`;
+
+    showAlert(promptTitle, promptBody, [
+      {
+        text: 'Yes, catch up now',
+        onPress: () => {
+          setShowCatchupBanner(false);
+          setActiveCatchupJuzDay(targetDay);
+          openQuranAtPage(JUZ_START_PAGE[targetDay] ?? 1);
+        },
+      },
+      { text: 'Cancel', style: 'cancel', onPress: () => {} },
+    ]);
+  };
+
+  const handleSkipCatchup = () => {
+    const targetDay = pendingMissedDays[0];
+    if (!targetDay) return;
+
+    const nextProgress = buildNextFullJuzProgress(targetDay, true);
+    setFullJuzProgressAndPersist(nextProgress);
+    setShowCatchupBanner(false);
+    queueOneExtraReminderIfAllowed(nextProgress);
   };
 
   const lv = QURAN_READ_LEVELS[levelIdx];
   const accentColor = nightMode ? '#4FE948' : lv.color;
   const cardWidth = Math.max(300, windowWidth - (Spacing.md * 2));
+  const nextMissedJuz = pendingMissedDays[0] ?? null;
+  const shouldRenderCatchupBanner = levelIdx === 3 && showCatchupBanner && pendingMissedDays.length > 0;
 
   // ── Pick content based on level ────────────────────────────────────────
   let badge = '';
   let titleLine = '';
+  let ayahLine = '';
   let subLine = '';
-  let pagesLine = '';
 
   if (levelIdx === 0) {
-    // Level 1: Few Ayahs
-    const a = AYAH_PORTIONS[DAY_OF_YEAR % AYAH_PORTIONS.length];
-    badge     = '3–5 Ayahs';
-    titleLine = a.ref;
-    subLine   = a.surahs;
-    pagesLine = a.pages;
+    // Level 1: random page + explicit ayah amount target
+    badge     = `${ayahSelection.ayahTarget} Ayahs`;
+    titleLine = `Surah ${ayahSelection.surah} · Page ${ayahSelection.page}`;
+    ayahLine  = `Read ${ayahSelection.ayahTarget} ayahs today`;
+    subLine   = 'Daily random selection from the full Quran';
   } else if (levelIdx === 1) {
     // Level 2: 1 Page — use official Juz page boundaries
-    const page = ((DAY_OF_YEAR - 1) % 604) + 1;
+    const page = currentLayoutResumePage;
     let juzForPage = 1;
     for (let j = 30; j >= 1; j--) { if (page >= JUZ_START_PAGE[j]) { juzForPage = j; break; } }
     badge     = '~1 Page';
     titleLine = `Mushaf Page ${page}`;
     subLine   = `Juz ${juzForPage}`;
-    pagesLine = `p. ${page}`;
   } else if (levelIdx === 2) {
-    // Level 3: Half Juz
-    const portion = QURAN_PORTIONS[(DAY_OF_YEAR - 1) % 30];
-    const half = (DAY_OF_YEAR % 2 === 0) ? 'First half' : 'Second half';
-    const startPg = JUZ_START_PAGE[portion.juz];
-    const endPg   = JUZ_END_PAGE[portion.juz];
-    const midPage = Math.round((startPg + endPg) / 2);
+    // Level 3: Half Juz with persisted split progression
+    const juzNum = halfJuzState?.juz ?? (((DAY_OF_YEAR - 1) % 30) + 1);
+    const portion = QURAN_PORTIONS[juzNum - 1];
+    const half = (halfJuzState?.half ?? 'first') === 'first' ? 'First half' : 'Second half';
     badge     = 'Half Juz';
     titleLine = `Juz ${portion.juz} — ${half}`;
     subLine   = portion.surahs;
-    pagesLine = half === 'First half'
-      ? `pp. ${startPg}–${midPage}`
-      : `pp. ${midPage}–${endPg}`;
   } else {
     // Level 4: Full Juz — Hijri day maps to Juz number for monthly Quran completion
-    const juzNum  = Math.max(1, Math.min(30, hijriDay));
+    const juzNum  = Math.max(1, Math.min(30, resolvedHijriDay));
     const portion = QURAN_PORTIONS[juzNum - 1];
     const startPg = JUZ_START_PAGE[juzNum];
-    const endPg   = JUZ_END_PAGE[juzNum];
     badge     = `Juz ${juzNum}`;
     titleLine = portion.surahs;
-    subLine   = `Day ${hijriDay} of month · p. ${startPg}`;
-    pagesLine = `pp. ${startPg}–${endPg}`;
+    subLine   = `Day ${resolvedHijriDay} of month · p. ${startPg}`;
   }
 
   return (
@@ -476,15 +812,16 @@ function QuranPortionCard({
               <Text style={[fyStyles.cardTitle, { textAlign: 'center', fontSize: 14, lineHeight: 18, color: '#FFFFFF', fontWeight: '900' }]} numberOfLines={2}>
                 {titleLine}
               </Text>
+              {ayahLine ? (
+                <Text style={[fyStyles.cardSub, { textAlign: 'center', marginTop: 1, fontSize: 11, lineHeight: 14, fontWeight: '700', color: 'rgba(255,255,255,0.82)' }]} numberOfLines={1}>
+                  {ayahLine}
+                </Text>
+              ) : null}
               {subLine ? (
                 <Text style={[fyStyles.cardSub, { textAlign: 'center', marginTop: 2, fontWeight: '500', opacity: 1, color: 'rgba(255,255,255,0.70)' }]} numberOfLines={2}>
                   {subLine}
                 </Text>
               ) : null}
-              <View style={[fyStyles.badgeRow, { backgroundColor: 'rgba(255,255,255,0.15)', marginTop: 5, alignSelf: 'center' }]}>
-                <MaterialIcons name="import-contacts" size={9} color={accentColor} />
-                <Text style={[fyStyles.badgeText, { color: accentColor }]}>{pagesLine}</Text>
-              </View>
             </View>
 
             {/* Level selector */}
@@ -509,6 +846,65 @@ function QuranPortionCard({
               ))}
             </View>
 
+            <View style={[fyStyles.counterSegmentedCompact, { backgroundColor: 'rgba(0,0,0,0.3)' }]}>
+              {(['15line', '16line'] as MushafLayout[]).map((layout) => {
+                const selected = mushafLayout === layout;
+                return (
+                  <TouchableOpacity
+                    key={layout}
+                    onPress={() => switchMushafLayout(layout)}
+                    activeOpacity={0.8}
+                    style={[
+                      fyStyles.counterSegmentBtnCompact,
+                      selected
+                        ? { backgroundColor: accentColor, borderColor: accentColor }
+                        : { backgroundColor: 'transparent', borderColor: 'transparent' },
+                    ]}
+                  >
+                    <Text style={[
+                      fyStyles.counterSegmentTextCompact,
+                      { color: selected ? '#000' : 'rgba(255,255,255,0.7)' },
+                    ]}>
+                      {layout === '16line' ? '16-Line' : '15-Line'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {shouldRenderCatchupBanner && nextMissedJuz ? (
+              <View style={fyStyles.catchupBannerWrap}>
+                <View style={fyStyles.catchupBannerHead}>
+                  <Text style={fyStyles.catchupBannerTitle}>
+                    {isRamadan ? 'A gentle Ramadan reminder' : "A gentle reminder for yesterday's Juz"}
+                  </Text>
+                  <View style={fyStyles.catchupCountPill}>
+                    <Text style={fyStyles.catchupCountPillText}>{pendingMissedDays.length} missed</Text>
+                  </View>
+                </View>
+                <Text style={fyStyles.catchupBannerBody}>
+                  {isRamadan
+                    ? `In this blessed month, you can continue with Juz ${nextMissedJuz} now.`
+                    : `You can continue with Juz ${nextMissedJuz} now.`}
+                </Text>
+                <View style={fyStyles.catchupActionRow}>
+                  <TouchableOpacity
+                    onPress={handleOpenCatchupConfirmation}
+                    style={[fyStyles.catchupActionBtn, fyStyles.catchupPrimaryBtn]}
+                  >
+                    <MaterialIcons name="menu-book" size={10} color="#0B2817" />
+                    <Text style={fyStyles.catchupPrimaryBtnText}>Catch up yesterday’s Juz</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleSkipCatchup}
+                    style={[fyStyles.catchupActionBtn, fyStyles.catchupSecondaryBtn]}
+                  >
+                    <Text style={fyStyles.catchupSecondaryBtnText}>Skip catch-up</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : null}
+
             {/* Action buttons — side by side */}
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <TouchableOpacity
@@ -520,7 +916,7 @@ function QuranPortionCard({
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={() => onDismiss(id)}
+                onPress={handleMarkAsRead}
                 style={[fyStyles.openRow, { flex: 1, backgroundColor: accentColor, justifyContent: 'center', marginTop: 0 }]}
               >
                 <MaterialIcons name="check-circle" size={11} color="#fff" />
@@ -1173,7 +1569,6 @@ function ForYouCard({
   const N = nightMode ? NIGHT : null;
   const isOverdue = !!card.isOverdue;
   const overdueColor = '#C62828'; // red-700
-  const isSunnahCard = card.id.startsWith('sunnah-');
 
   const accentColor = isOverdue ? overdueColor : card.color;
 
@@ -1205,8 +1600,7 @@ function ForYouCard({
             ) : card.badge ? (
               <View style={[
                 fyStyles.badgeRow,
-                isSunnahCard && fyStyles.badgeRowSunnah,
-                { backgroundColor: card.color + (isSunnahCard ? '24' : '14') },
+                { backgroundColor: card.color + '14' },
               ]}>
                 <Text style={[fyStyles.badgeText, { color: card.color }]}>{card.badge}</Text>
               </View>
@@ -1224,33 +1618,20 @@ function ForYouCard({
                 style={[
                   fyStyles.openPrimary,
                   { backgroundColor: accentColor + (N ? '2A' : '18') },
-                  isSunnahCard && fyStyles.openPrimaryWide,
                 ]}
               >
-                <Text style={[fyStyles.openPrimaryText, { color: accentColor }]}>{isSunnahCard ? 'View Reminder' : 'Open'}</Text>
+                <Text style={[fyStyles.openPrimaryText, { color: accentColor }]}>Open</Text>
                 <MaterialIcons name="arrow-forward" size={10} color={accentColor} />
               </TouchableOpacity>
             ) : <View />}
-            {isSunnahCard ? (
-              <TouchableOpacity
-                onPress={(e) => { e.stopPropagation(); onDismiss(card.id); }}
-                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                style={[fyStyles.doneSunnahBtn, { backgroundColor: accentColor }]}
-                accessibilityLabel="Mark sunnah completed"
-              >
-                <MaterialIcons name="task-alt" size={12} color="#FFFFFF" />
-                <Text style={fyStyles.doneSunnahText}>Completed</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                onPress={(e) => { e.stopPropagation(); onDismiss(card.id); }}
-                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                style={[fyStyles.doneIconBtn, { borderColor: accentColor + (N ? '44' : '30') }]}
-                accessibilityLabel="Mark adhkar done"
-              >
-                <MaterialIcons name="check" size={12} color={accentColor} />
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              onPress={(e) => { e.stopPropagation(); onDismiss(card.id); }}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              style={[fyStyles.doneIconBtn, { borderColor: accentColor + (N ? '44' : '30') }]}
+              accessibilityLabel="Mark adhkar done"
+            >
+              <MaterialIcons name="check" size={12} color={accentColor} />
+            </TouchableOpacity>
           </View>
         </View>
       </Animated.View>
@@ -1543,6 +1924,82 @@ const fyStyles = StyleSheet.create({
     padding: 11,
     gap: 8,
   },
+  catchupBannerWrap: {
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(164,242,160,0.35)',
+    backgroundColor: 'rgba(11,37,25,0.58)',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 6,
+  },
+  catchupBannerHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  catchupBannerTitle: {
+    flex: 1,
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#C9F7D4',
+    letterSpacing: 0.2,
+  },
+  catchupBannerBody: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.86)',
+  },
+  catchupCountPill: {
+    borderRadius: Radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    backgroundColor: 'rgba(79,233,72,0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(79,233,72,0.45)',
+  },
+  catchupCountPillText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#BFF8B6',
+    letterSpacing: 0.2,
+  },
+  catchupActionRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  catchupActionBtn: {
+    flex: 1,
+    minHeight: 28,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 4,
+    paddingHorizontal: 10,
+  },
+  catchupPrimaryBtn: {
+    backgroundColor: '#A4F2A0',
+  },
+  catchupPrimaryBtnText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#0B2817',
+    letterSpacing: 0.15,
+  },
+  catchupSecondaryBtn: {
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+  },
+  catchupSecondaryBtnText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: 'rgba(255,255,255,0.84)',
+    letterSpacing: 0.15,
+  },
   duroodImageOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.48)',
@@ -1572,10 +2029,6 @@ const fyStyles = StyleSheet.create({
     paddingHorizontal: 7, paddingVertical: 2,
     borderRadius: Radius.full,
   },
-  badgeRowSunnah: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
   badgeText: { fontSize: 9, fontWeight: '700', letterSpacing: 0.2 },
   cardTitle: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary, lineHeight: 17 },
   cardSub: { fontSize: 10.5, fontWeight: '400', lineHeight: 14, color: Colors.textSubtle, opacity: 0.9 },
@@ -1597,10 +2050,6 @@ const fyStyles = StyleSheet.create({
     borderRadius: Radius.full,
   },
   openPrimaryText: { fontSize: 10, fontWeight: '700' },
-  openPrimaryWide: {
-    flex: 1,
-    justifyContent: 'center',
-  },
   doneIconBtn: {
     width: 24,
     height: 24,
@@ -1609,21 +2058,6 @@ const fyStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'transparent',
-  },
-  doneSunnahBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: Radius.full,
-  },
-  doneSunnahText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#FFFFFF',
   },
 });
 
@@ -1662,13 +2096,13 @@ function ForYouTickerRow({
 }
 
 export function HomeForYouTodaySection({
-  prayers, nightMode, currentTime, hijriDay, todaySunnah,
+  prayers, nightMode, currentTime, hijriDay, hijriMonthName,
 }: {
   prayers: { name: string; timeDate: Date }[];
   nightMode: boolean;
   currentTime: Date;
   hijriDay: number;
-  todaySunnah: SunnahEntry;
+  hijriMonthName?: string;
 }) {
   const N = nightMode ? NIGHT : null;
   const router = useRouter();
@@ -1686,12 +2120,33 @@ export function HomeForYouTodaySection({
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
+    let active = true;
+    setLoaded(false);
+
     AsyncStorage.getItem(storageKey).then(val => {
+      if (!active) return;
+
       if (val) {
-        try { setDismissed(new Set(JSON.parse(val))); } catch {}
+        try {
+          setDismissed(new Set(JSON.parse(val)));
+        } catch {
+          setDismissed(new Set());
+        }
+      } else {
+        // Reset dismissal state when the day changes and no cards are dismissed yet.
+        setDismissed(new Set());
       }
+
       setLoaded(true);
-    }).catch(() => setLoaded(true));
+    }).catch(() => {
+      if (!active) return;
+      setDismissed(new Set());
+      setLoaded(true);
+    });
+
+    return () => {
+      active = false;
+    };
   }, [storageKey]);
 
   // Dismiss only — does NOT navigate
@@ -1804,22 +2259,6 @@ export function HomeForYouTodaySection({
     }
   }
 
-  // Daily Sunnah reminder
-  const sunnahId = `sunnah-${todayKey}`;
-  const hasSunnahReminder = [todaySunnah.act, todaySunnah.detail, todaySunnah.ref]
-    .some((value) => (value ?? '').trim().length > 0);
-  if (hasSunnahReminder && !dismissed.has(sunnahId)) {
-    cards.push({
-      id: sunnahId,
-      icon: todaySunnah.icon as string,
-      color: '#2E7D32',
-      title: todaySunnah.act || 'Adhkar coming soon.',
-      sub: todaySunnah.detail || todaySunnah.ref || 'Review the Sunnah reminder and complete it today.',
-      badge: 'Sunnah Reminder',
-      route: '/(tabs)/duas',
-    });
-  }
-
   const allDone = cards.length === 0;
 
   // Augmented prayers for countdown (includes Tahajjud virtual entry)
@@ -1874,6 +2313,7 @@ export function HomeForYouTodaySection({
             dismissed={dismissed}
             onDismiss={dismissOnly}
             hijriDay={hijriDay}
+            hijriMonthName={hijriMonthName}
           />
         </ScrollView>
       ) : null}

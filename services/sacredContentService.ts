@@ -50,6 +50,16 @@ type DailyVerseResponse = {
   };
 };
 
+const INVOKE_TIMEOUT_MS = 8000;
+
+function getSupabaseEnv() {
+  const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  const anonKey =
+    process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+    || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+  return { url, anonKey };
+}
+
 function resolveDeviceTimeZone(): string {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
@@ -93,9 +103,39 @@ async function invokeDailyFunction<T>(
   functionName: 'daily-hadith' | 'daily-verse',
   body: Record<string, unknown>
 ): Promise<T | null> {
+  const { url, anonKey } = getSupabaseEnv();
+
+  if (url && anonKey) {
+    try {
+      const endpoint = `${url}/functions/v1/${functionName}`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), INVOKE_TIMEOUT_MS);
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          apikey: anonKey,
+          Authorization: `Bearer ${anonKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (!response.ok) return null;
+      const parsed = await response.json();
+      return (parsed as T) ?? null;
+    } catch {
+      // Fall through to Supabase client invoke as secondary path.
+    }
+  }
+
   try {
     const supabase = getSupabaseClient();
-    const { data, error } = await supabase.functions.invoke(functionName, { body });
+    const invokePromise = supabase.functions.invoke(functionName, { body });
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Function invoke timeout')), INVOKE_TIMEOUT_MS);
+    });
+    const { data, error } = await Promise.race([invokePromise, timeoutPromise]);
     if (error) return null;
     return (data as T) ?? null;
   } catch {

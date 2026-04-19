@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -117,6 +117,11 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
     }
   };
 
+  const guideCards = useMemo(
+    () => HOW_TO_GUIDES.filter((guide, index, arr) => arr.findIndex(g => g.title === guide.title) === index),
+    []
+  );
+
   return (
     <ScrollView
       ref={scrollRef}
@@ -140,7 +145,7 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
         </View>
       </View>
 
-      {HOW_TO_GUIDES.map((guide) => {
+      {guideCards.map((guide) => {
         const isOpen = expandedGuide === guide.id;
         return (
           <View

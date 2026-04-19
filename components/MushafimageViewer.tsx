@@ -5,6 +5,7 @@
  */
 import React from 'react';
 import { View, Text, TouchableOpacity, AppState, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { GestureHandlerRootView, Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -33,6 +34,7 @@ const DEFAULT_TRANSLATOR_LABEL_BY_LANG: Record<'en' | 'ur', string> = {
   en: 'The Clear Quran — Dr. Mustafa Khattab',
   ur: 'اردو ترجمہ',
 };
+const QURAN_MUSHAF_LAYOUT_KEY = 'quran_mushaf_layout_v1';
 
 function pickDefaultTranslatorId(
   locale: 'en' | 'ur',
@@ -268,6 +270,26 @@ function MushafImageViewer({
   }, []);
 
   React.useEffect(() => {
+    let active = true;
+    AsyncStorage.getItem(QURAN_MUSHAF_LAYOUT_KEY)
+      .then((value) => {
+        if (!active) return;
+        if (value === '15line' || value === '16line') {
+          setLayoutStyle(value);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const setLayoutAndPersist = React.useCallback((layout: '15line' | '16line') => {
+    setLayoutStyle(layout);
+    AsyncStorage.setItem(QURAN_MUSHAF_LAYOUT_KEY, layout).catch(() => {});
+  }, []);
+
+  React.useEffect(() => {
     if (!showTrans) return;
     transScrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [pi, showTrans]);
@@ -447,14 +469,14 @@ function MushafImageViewer({
           <View style={[S.toggleGroup, { backgroundColor: ACCENT_SOFT, borderColor: ACCENT_BORDER }]}>
             <TouchableOpacity
               style={[S.toggleBtn, layoutStyle === '15line' && { backgroundColor: ACCENT }]}
-              onPress={() => setLayoutStyle('15line')}
+              onPress={() => setLayoutAndPersist('15line')}
               activeOpacity={0.8}
             >
               <Text style={[S.toggleBtnText, { color: layoutStyle === '15line' ? '#fff' : META }]}>15L</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[S.toggleBtn, layoutStyle === '16line' && { backgroundColor: ACCENT }]}
-              onPress={() => setLayoutStyle('16line')}
+              onPress={() => setLayoutAndPersist('16line')}
               activeOpacity={0.8}
             >
               <Text style={[S.toggleBtnText, { color: layoutStyle === '16line' ? '#fff' : META }]}>16L</Text>
@@ -469,7 +491,7 @@ function MushafImageViewer({
             <Text style={[S.emptySub, { color:META }]}>
               {`Upload pages ${pageNums[0]}–${pageNums[pageNums.length-1]} of the\n16-line Indo-Pak Mushaf as image attachments.`}
             </Text>
-            <TouchableOpacity style={[S.altBtn, { borderColor: ACCENT, backgroundColor: ACCENT + '18' }]} onPress={() => setLayoutStyle('15line')} activeOpacity={0.8}>
+            <TouchableOpacity style={[S.altBtn, { borderColor: ACCENT, backgroundColor: ACCENT + '18' }]} onPress={() => setLayoutAndPersist('15line')} activeOpacity={0.8}>
               <MaterialIcons name="menu-book" size={16} color={ACCENT} />
               <Text style={[S.altBtnText, { color: ACCENT }]}>Use 15-Line Instead</Text>
             </TouchableOpacity>

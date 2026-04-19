@@ -567,11 +567,20 @@ export async function fetchAllActiveAdhkarGroupsForWarmup(): Promise<AdhkarGroup
     const supabase = getSupabaseClient();
     const { data, error } = await supabase
       .from('adhkar_groups')
-      .select('group_name,name,content_key,content_type,card_subtitle,description,arabic_title,is_active')
+      .select('*')
       .eq('is_active', true);
 
     if (error || !Array.isArray(data)) return [];
-    return data as AdhkarGroupWarmupRow[];
+    return (data as Array<Record<string, unknown>>).map((row) => ({
+      group_name: typeof row.group_name === 'string' ? row.group_name : '',
+      name: typeof row.name === 'string' ? row.name : null,
+      content_key: typeof row.content_key === 'string' ? row.content_key : null,
+      content_type: row.content_type === 'adhkar' || row.content_type === 'quran' ? row.content_type : null,
+      card_subtitle: typeof row.card_subtitle === 'string' ? row.card_subtitle : null,
+      description: typeof row.description === 'string' ? row.description : null,
+      arabic_title: typeof row.arabic_title === 'string' ? row.arabic_title : null,
+      is_active: row.is_active !== false,
+    })).filter((row) => row.group_name.length > 0);
   } catch {
     return [];
   }

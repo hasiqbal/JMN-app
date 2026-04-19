@@ -104,6 +104,10 @@ function getPalette(nightMode?: boolean) {
   return nightMode ? NIGHT : DAY;
 }
 
+function hasUrduGlyphs(value: string) {
+  return /[\u0600-\u06FF]/.test(value);
+}
+
 function SacredPanel({
   label,
   previewFront,
@@ -121,6 +125,7 @@ function SacredPanel({
   const backText = (previewBack ?? '').trim();
   const canFlip = backText.length > 0;
   const activePreview = isFlipped && canFlip ? backText : previewFront;
+  const previewIsUrdu = hasUrduGlyphs(activePreview);
   const flipLabel = isFlipped ? 'Show English' : 'Show Urdu';
 
   return (
@@ -141,7 +146,14 @@ function SacredPanel({
         {label}
       </Text>
 
-      <Text style={[styles.panelPreview, { color: palette.text }]} numberOfLines={3}>
+      <Text
+        style={[
+          styles.panelPreview,
+          { color: palette.text },
+          previewIsUrdu && styles.panelPreviewUrdu,
+        ]}
+        numberOfLines={3}
+      >
         {activePreview}
       </Text>
 
@@ -319,6 +331,10 @@ export function SacredReadingSheet({
   nightMode,
 }: SacredReadingSheetProps) {
   const palette = getPalette(nightMode);
+  const sheetSegments = fullText
+    .split(/\n{2,}/)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
 
   return (
     <Modal
@@ -367,7 +383,25 @@ export function SacredReadingSheet({
               <Text style={[styles.sheetArabicText, { color: palette.sheetArabic }]}>{secondaryText.trim()}</Text>
             )}
 
-            <Text style={[styles.sheetBodyText, { color: palette.sheetText }]}>{fullText}</Text>
+            {sheetSegments.length > 0 ? (
+              sheetSegments.map((segment, index) => {
+                const segmentIsUrdu = hasUrduGlyphs(segment);
+                return (
+                  <Text
+                    key={`${segment.slice(0, 24)}-${index}`}
+                    style={[
+                      styles.sheetBodyText,
+                      { color: palette.sheetText },
+                      segmentIsUrdu && styles.sheetBodyTextUrdu,
+                    ]}
+                  >
+                    {segment}
+                  </Text>
+                );
+              })
+            ) : (
+              <Text style={[styles.sheetBodyText, { color: palette.sheetText }]}>{fullText}</Text>
+            )}
           </ScrollView>
 
           {!!footerActionLabel && !!onFooterAction && (
@@ -430,6 +464,14 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontWeight: '500',
     minHeight: 66,
+  },
+  panelPreviewUrdu: {
+    fontFamily: 'UrduNastaliqBold',
+    writingDirection: 'rtl',
+    textAlign: 'right',
+    fontSize: 22,
+    lineHeight: 34,
+    fontWeight: '400',
   },
   panelReference: {
     marginTop: 8,
@@ -576,6 +618,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 27,
     fontWeight: '500',
+    marginBottom: 12,
+  },
+  sheetBodyTextUrdu: {
+    fontFamily: 'UrduNastaliqBold',
+    writingDirection: 'rtl',
+    textAlign: 'right',
+    fontSize: 24,
+    lineHeight: 40,
+    fontWeight: '400',
   },
   sheetFooterAction: {
     marginTop: 12,
