@@ -39,7 +39,7 @@ import {
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { useNightMode } from '@/hooks/useNightMode';
 import { fetchAdhkarForPrayerTime, fetchAdhkarGroupsForPrayerTime, AdhkarGroupMeta, AdhkarRow, resolveAdhkarUrduTranslation, translateTextToUrdu } from '@/services/contentService';
-import { ImranMushafPlaceholder, LuqmanMushafPlaceholder, MulkMushafPlaceholder, SajdahMushafPlaceholder } from '@/components/MushafimageViewer';
+import { ImranMushafPlaceholder, LuqmanMushafPlaceholder, MulkMushafPlaceholder } from '@/components/MushafimageViewer';
 import { PrayerTimeChipBar } from '@/components/adhkar/PrayerTimeChipBar';
 import { DbAdhkarScreen } from '@/components/adhkar/DbAdhkarScreen';
 import { NIGHT_PALETTE as NIGHT } from '@/components/quran_screen/shared';
@@ -316,8 +316,8 @@ export default function DuasScreen() {
   // no waqiah sources state — expo-image handles caching
 
   // Pre-select prayer time + optional group from navigation param (e.g. from For You Today cards)
-  const { prayerTime: prayerTimeParam, group: groupParam } = useLocalSearchParams<{ prayerTime?: string; group?: string }>();
-  const lastAppliedParam = React.useRef<string | undefined>(undefined);
+  const { prayerTime: prayerTimeParam, group: groupParam, openAt: openAtParam } = useLocalSearchParams<{ prayerTime?: string; group?: string; openAt?: string }>();
+  const lastAppliedDeepLink = React.useRef<string | undefined>(undefined);
   const autoPrayerSyncRef = React.useRef(autoPrayerSyncEnabled);
 
   React.useEffect(() => {
@@ -331,7 +331,7 @@ export default function DuasScreen() {
       if (!autoPrayerSyncRef.current) return;
 
       const data = await getPrayerTimesForDate();
-      if (!data || cancelled) return;
+      if (!data || cancelled || !autoPrayerSyncRef.current) return;
 
       const next = resolvePrayerTimeByClock(data, new Date());
       setSelectedPrayerTime((prev) => (prev === next ? prev : next));
@@ -349,22 +349,25 @@ export default function DuasScreen() {
   }, []);
 
   React.useEffect(() => {
-    if (prayerTimeParam && prayerTimeParam !== lastAppliedParam.current) {
-      lastAppliedParam.current = prayerTimeParam;
-      setAutoPrayerSyncEnabled(false);
-      // Normalise legacy 'after-dhuhr' param to 'after-zuhr'
-      const normParam = prayerTimeParam === 'after-dhuhr' ? 'after-zuhr' : prayerTimeParam;
-      if (PRAYER_TIMES.some(pt => pt.id === normParam)) {
-        setSelectedPrayerTime(normParam as PrayerTimeId);
-        // If a group param is provided, jump straight to that group
-        if (groupParam) {
-          setViewingGroup({ groupName: groupParam, prayerTime: normParam as PrayerTimeId });
-        } else {
-          setViewingGroup(null);
-        }
+    const deepLinkKey = `${prayerTimeParam ?? ''}|${groupParam ?? ''}|${openAtParam ?? ''}`;
+    if (!prayerTimeParam || deepLinkKey === lastAppliedDeepLink.current) return;
+
+    lastAppliedDeepLink.current = deepLinkKey;
+    setAutoPrayerSyncEnabled(false);
+    autoPrayerSyncRef.current = false;
+
+    // Normalise legacy 'after-dhuhr' param to 'after-zuhr'
+    const normParam = prayerTimeParam === 'after-dhuhr' ? 'after-zuhr' : prayerTimeParam;
+    if (PRAYER_TIMES.some(pt => pt.id === normParam)) {
+      setSelectedPrayerTime(normParam as PrayerTimeId);
+      // If a group param is provided, jump straight to that group
+      if (groupParam) {
+        setViewingGroup({ groupName: groupParam, prayerTime: normParam as PrayerTimeId });
+      } else {
+        setViewingGroup(null);
       }
     }
-  }, [prayerTimeParam, groupParam]);
+  }, [prayerTimeParam, groupParam, openAtParam]);
 
   // Preload Surah Yaseen images when Adhkar tab is first focused
   useFocusEffect(
@@ -740,7 +743,7 @@ function PrayerTimeContent({
     case 'after-jumuah':  return <AfterJumuahScreen nightMode={nightMode} onSelect={onSelectSpecial} onSelectGroup={(gn) => onSelectGroup(gn, 'after-jumuah')} />;
     case 'after-asr':     return <AfterAsrScreen nightMode={nightMode} onSelect={onSelectSpecial} onSelectGroup={(gn) => onSelectGroup(gn, 'after-asr')} />;
     case 'after-maghrib': return <AfterMaghribScreen nightMode={nightMode} onSelect={onSelectSpecial} onSelectGroup={(gn) => onSelectGroup(gn, 'after-maghrib')} />;
-    case 'after-isha':    return <AfterIshaScreen nightMode={nightMode} onSelectGroup={(gn) => onSelectGroup(gn, 'after-isha')} />;
+    case 'after-isha':    return <AfterIshaScreen nightMode={nightMode} onSelect={onSelectSpecial} onSelectGroup={(gn) => onSelectGroup(gn, 'after-isha')} />;
     default:              return null;
   }
 }
@@ -1041,84 +1044,10 @@ function AfterMaghribScreen({ nightMode, onSelect, onSelectGroup }: { nightMode:
 }
 
 // ── After Isha Screen ────────────────────────────────────────────────────
-function AfterIshaScreen({ nightMode, onSelectGroup }: { nightMode: boolean; onSelectGroup: (groupName: string) => void }) {
-  const [sel, setSel] = React.useState<AdhkarSelection>(null);
-  const [viewingGroupName, setViewingGroupName] = React.useState<string | null>(null);
-  const N = nightMode ? NIGHT : null;
-
-  const openIshaSpecial = React.useCallback((selection: AdhkarSelection) => {
-    setViewingGroupName(null);
-    setSel(selection);
-  }, []);
-  
-  // If a group is being viewed, show it
-  if (viewingGroupName !== null) {
-    return (
-      <>
-        <TouchableOpacity onPress={() => setViewingGroupName(null)} activeOpacity={0.8} style={[mainBackStyles.bar, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}>
-          <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : DUAS_ACCENT_GREEN} />
-          <Text style={[mainBackStyles.label, { color: N ? N.accent : DUAS_ACCENT_GREEN }]}>Back to Adhkar</Text>
-        </TouchableOpacity>
-        <DbAdhkarScreen
-          prayerTime="after-isha"
-          groupFilter={viewingGroupName}
-          nightMode={nightMode}
-          onBack={() => setViewingGroupName(null)}
-          onOpenSpecialGroup={openIshaSpecial}
-        />
-      </>
-    );
-  }
-  
-  // Dedicated mushaf viewers
-  if (sel === 'sajdah-mushaf') return (
-    <>
-      <TouchableOpacity onPress={() => setSel(null)} activeOpacity={0.8} style={[mainBackStyles.bar, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}>
-        <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : DUAS_ACCENT_GREEN} />
-        <Text style={[mainBackStyles.label, { color: N ? N.accent : DUAS_ACCENT_GREEN }]}>Back to Adhkar</Text>
-      </TouchableOpacity>
-      <SajdahMushafPlaceholder nightMode={nightMode} onBack={() => setSel(null)} />
-    </>
-  );
-  if (sel === 'mulk-mushaf') return (
-    <>
-      <TouchableOpacity onPress={() => setSel(null)} activeOpacity={0.8} style={[mainBackStyles.bar, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}>
-        <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : DUAS_ACCENT_GREEN} />
-        <Text style={[mainBackStyles.label, { color: N ? N.accent : DUAS_ACCENT_GREEN }]}>Back to Adhkar</Text>
-      </TouchableOpacity>
-      <MulkMushafPlaceholder nightMode={nightMode} onBack={() => setSel(null)} />
-    </>
-  );
-  if (sel === 'luqman-mushaf') return (
-    <>
-      <TouchableOpacity onPress={() => setSel(null)} activeOpacity={0.8} style={[mainBackStyles.bar, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}>
-        <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : DUAS_ACCENT_GREEN} />
-        <Text style={[mainBackStyles.label, { color: N ? N.accent : DUAS_ACCENT_GREEN }]}>Back to Adhkar</Text>
-      </TouchableOpacity>
-      <LuqmanMushafPlaceholder nightMode={nightMode} onBack={() => setSel(null)} />
-    </>
-  );
-  if (sel === 'imran-mushaf') return (
-    <>
-      <TouchableOpacity onPress={() => setSel(null)} activeOpacity={0.8} style={[mainBackStyles.bar, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}>
-        <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : DUAS_ACCENT_GREEN} />
-        <Text style={[mainBackStyles.label, { color: N ? N.accent : DUAS_ACCENT_GREEN }]}>Back to Adhkar</Text>
-      </TouchableOpacity>
-      <ImranMushafPlaceholder nightMode={nightMode} onBack={() => setSel(null)} />
-    </>
-  );
-  
-  const handleIshaSelect = (s: AdhkarSelection) => {
-    const mapped = resolveGroupSelection(ISHA_GROUP_TO_SELECTION, s as string);
-    if (mapped) { 
-      setSel(mapped); 
-      return; 
-    }
-    setSel(s);
-  };
-  
+function AfterIshaScreen({ nightMode, onSelect, onSelectGroup }: { nightMode: boolean; onSelect: (s: AdhkarSelection) => void; onSelectGroup: (groupName: string) => void }) {
   return <PrayerTimeSelectionScreen
-    prayerTime="after-isha" nightMode={nightMode} onSelect={handleIshaSelect} onSelectGroup={(gn) => setViewingGroupName(gn)}
+    prayerTime="after-isha" nightMode={nightMode} onSelect={onSelect} onSelectGroup={onSelectGroup}
+    routeMap={ISHA_GROUP_TO_SELECTION}
     icon="nightlight" nightIcon="nightlight" nightColor="#93C5FD" accent="#1565C0"
     title="After Isha Adhkar" subtitle="Choose what to recite after Isha prayer"
     colors={['#1565C0', '#3949AB', '#6A1B9A', DUAS_ACCENT_GREEN, '#00695C', '#AD1457', '#B8860B']}

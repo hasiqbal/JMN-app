@@ -450,7 +450,7 @@ function QuranPortionCard({
             {titleLine}
           </Text>
           {subLine ? (
-            <Text style={[fyStyles.cardSub, { textAlign: 'center', marginTop: 2 }, N && { color: N.textSub }]} numberOfLines={2}>
+            <Text style={[fyStyles.cardSub, { textAlign: 'center', marginTop: 2, fontWeight: '500', opacity: 1, color: '#7A756D' }, N && { color: N.textSub }]} numberOfLines={2}>
               {subLine}
             </Text>
           ) : null}
@@ -941,7 +941,7 @@ function NextAdhkarCountdownCard({
   return (
     <TouchableOpacity
       style={[
-        fyStyles.duroodCard, { width: 158 },
+        fyStyles.duroodCard, { width: 158, padding: 9, gap: 6 },
         N && { backgroundColor: N.surface, borderColor: N.border },
         !isAvailable && { opacity: 0.62 },
       ]}
@@ -960,21 +960,21 @@ function NextAdhkarCountdownCard({
       </View>
 
       {/* Countdown / Available area */}
-      <View style={[fyStyles.duroodTapArea, { backgroundColor: bgTint, borderColor: accentColor + '50', paddingVertical: 10 }]}>
+      <View style={[fyStyles.duroodTapArea, { backgroundColor: bgTint, borderColor: accentColor + '50', paddingVertical: 7 }]}>
         {isAvailable ? (
           <>
-            <MaterialIcons name={meta.icon as any} size={22} color={accentColor} style={{ marginBottom: 4 }} />
-            <Text style={{ fontSize: 13, fontWeight: '800', color: accentColor, textAlign: 'center', lineHeight: 18 }}>
+            <MaterialIcons name={meta.icon as any} size={19} color={accentColor} style={{ marginBottom: 2 }} />
+            <Text style={{ fontSize: 12, fontWeight: '800', color: accentColor, textAlign: 'center', lineHeight: 16 }}>
               Ready to recite
             </Text>
           </>
         ) : (
           <>
-            <MaterialIcons name="schedule" size={18} color={accentColor} style={{ marginBottom: 2 }} />
-            <Text style={{ fontSize: 22, fontWeight: '900', color: accentColor, letterSpacing: 1, fontVariant: ['tabular-nums'] as any }}>
+            <MaterialIcons name="schedule" size={15} color={accentColor} style={{ marginBottom: 1 }} />
+            <Text style={{ fontSize: 18, fontWeight: '900', color: accentColor, letterSpacing: 0.6, fontVariant: ['tabular-nums'] as any }}>
               {countdown}
             </Text>
-            <Text style={{ fontSize: 9, fontWeight: '600', color: N ? N.textMuted : Colors.textSubtle, marginTop: 1 }}>
+            <Text style={{ fontSize: 8, fontWeight: '600', color: N ? N.textMuted : Colors.textSubtle, marginTop: 0 }}>
               until {nextPrayer.name}
             </Text>
           </>
@@ -982,7 +982,7 @@ function NextAdhkarCountdownCard({
       </View>
 
       {/* Details */}
-      <Text style={[fyStyles.cardTitle, { fontSize: 11, lineHeight: 14 }, N && { color: N.text }]} numberOfLines={1}>
+      <Text style={[fyStyles.cardTitle, { fontSize: 10.5, lineHeight: 13 }, N && { color: N.text }]} numberOfLines={1}>
         {meta.title}
       </Text>
       <Text style={[fyStyles.cardSub, N && { color: N.textSub }]} numberOfLines={2}>
@@ -990,7 +990,7 @@ function NextAdhkarCountdownCard({
       </Text>
 
       {/* Open */}
-      <View style={[fyStyles.openRow, { backgroundColor: accentColor + '18', alignSelf: 'stretch', justifyContent: 'center' }]}>
+      <View style={[fyStyles.openRow, { backgroundColor: accentColor + '18', alignSelf: 'stretch', justifyContent: 'center', marginTop: 1, paddingVertical: 3 }]}>
         <MaterialIcons
           name={isAvailable ? 'arrow-forward' : 'lock-clock'}
           size={10}
@@ -1359,6 +1359,12 @@ const fyStyles = StyleSheet.create({
         }),
     elevation: 3,
   },
+  colorBar: {
+    height: 3,
+    borderTopLeftRadius: Radius.lg,
+    borderTopRightRadius: Radius.lg,
+    backgroundColor: '#4FE948',
+  },
   cardBody: { padding: 12, gap: 8 },
   iconBadgeRow: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -1509,7 +1515,7 @@ export function HomeForYouTodaySection({
   const openCard = useCallback((card: FYCardData) => {
     if (card.route) {
       if (card.prayerTab) {
-        router.push(`${card.route}?prayerTime=${card.prayerTab}` as any);
+        router.push(`${card.route}?prayerTime=${card.prayerTab}&openAt=${Date.now()}` as any);
       } else {
         router.push(card.route as any);
       }
@@ -1638,8 +1644,8 @@ export function HomeForYouTodaySection({
     <DuroodCounterCard key="durood" nightMode={nightMode} todayKey={todayKey} dismissed={dismissed} onDismiss={dismissOnly} />,
     <IstighfarCounterCard key="istighfar" nightMode={nightMode} todayKey={todayKey} dismissed={dismissed} onDismiss={dismissOnly} />,
     <QuranPortionCard key="quran-portion" nightMode={nightMode} todayKey={todayKey} dismissed={dismissed} onDismiss={dismissOnly} hijriDay={hijriDay} />,
-    <BedTimeCard key="bedtime" nightMode={nightMode} todayKey={todayKey} dismissed={dismissed} onDismiss={dismissOnly} onOpen={() => router.push('/(tabs)/duas?prayerTime=after-isha&group=Before+Sleep' as any)} />,
-    <NextAdhkarCountdownCard key="next-adhkar" nightMode={nightMode} prayers={augmentedPrayersForCountdown} currentTime={currentTime} onOpen={(prayerTab) => router.push(`/(tabs)/duas?prayerTime=${prayerTab}` as any)} />,
+    ishaHasPassed ? <BedTimeCard key="bedtime" nightMode={nightMode} todayKey={todayKey} dismissed={dismissed} onDismiss={dismissOnly} onOpen={() => router.push(`/(tabs)/duas?prayerTime=after-isha&group=Before+Sleep&openAt=${Date.now()}` as any)} /> : null,
+    <NextAdhkarCountdownCard key="next-adhkar" nightMode={nightMode} prayers={augmentedPrayersForCountdown} currentTime={currentTime} onOpen={(prayerTab) => router.push(`/(tabs)/duas?prayerTime=${prayerTab}&openAt=${Date.now()}` as any)} />,
   ];
 
   return (
@@ -1672,12 +1678,14 @@ export function HomeForYouTodaySection({
           <DuroodCounterCard nightMode={nightMode} todayKey={todayKey} dismissed={dismissed} onDismiss={dismissOnly} />
           <IstighfarCounterCard nightMode={nightMode} todayKey={todayKey} dismissed={dismissed} onDismiss={dismissOnly} />
           <QuranPortionCard nightMode={nightMode} todayKey={todayKey} dismissed={dismissed} onDismiss={dismissOnly} hijriDay={hijriDay} />
-          <BedTimeCard nightMode={nightMode} todayKey={todayKey} dismissed={dismissed} onDismiss={dismissOnly} onOpen={() => router.push('/(tabs)/duas?prayerTime=after-isha&group=Before+Sleep' as any)} />
+          {ishaHasPassed ? (
+            <BedTimeCard nightMode={nightMode} todayKey={todayKey} dismissed={dismissed} onDismiss={dismissOnly} onOpen={() => router.push(`/(tabs)/duas?prayerTime=after-isha&group=Before+Sleep&openAt=${Date.now()}` as any)} />
+          ) : null}
           <NextAdhkarCountdownCard
             nightMode={nightMode}
             prayers={augmentedPrayersForCountdown}
             currentTime={currentTime}
-            onOpen={(prayerTab) => router.push(`/(tabs)/duas?prayerTime=${prayerTab}` as any)}
+            onOpen={(prayerTab) => router.push(`/(tabs)/duas?prayerTime=${prayerTab}&openAt=${Date.now()}` as any)}
           />
           <View style={[
             fyStyles.card, { width: 172, justifyContent: 'center' },

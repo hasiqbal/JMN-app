@@ -35,6 +35,7 @@ import PrayerDrawerSheet from '@/components/prayer/PrayerDrawerSheet';
 import { buildPrayerDrawerRows } from '@/components/prayer/prayerDrawerState';
 import { HomeQuickAccessSection } from '@/components/prayer/HomeQuickAccessSection';
 import { HomeForYouTodaySection } from '@/components/prayer/HomeForYouTodaySection';
+import { SacredContentModule, SacredReadingSheet } from '@/components/prayer/SacredContentModule';
 import { createDonationCheckoutUrl } from '@/services/donationService';
 import WebView from 'react-native-webview';
 
@@ -242,6 +243,13 @@ function isShawwalMonth(hijriMonth: string): boolean {
   );
 }
 
+function formatVerseReference(reference: string): string {
+  const trimmed = reference.trim();
+  if (!trimmed) return '';
+  if (/^surah\s/i.test(trimmed)) return trimmed;
+  return `Surah ${trimmed}`;
+}
+
 // ── Hadith of the Day ────────────────────────────────────────────────────
 const HADITHS = [
   { text: "The best of you are those who learn the Quran and teach it.", ref: "Sahih al-Bukhari 5027" },
@@ -281,6 +289,7 @@ const todayVerse   = QURAN_VERSES[DAY_OF_YEAR % QURAN_VERSES.length];
 
 
 type CardFace = 'sunnah' | 'hadith' | 'verse';
+type SacredPanel = 'hadith' | 'verse';
 const FACE_SEQUENCE: CardFace[] = ['sunnah', 'hadith', 'verse'];
 const FACE_DURATION = 5000;
 
@@ -1968,6 +1977,8 @@ const toggleStyles = StyleSheet.create({
 export default function HomeScreen() {
   // DB-driven sunnah reminders
   const [dbSunnahs, setDbSunnahs] = useState<SunnahReminderRow[]>([]);
+  const [sunnahLoaded, setSunnahLoaded] = useState(false);
+  const [activeSacredPanel, setActiveSacredPanel] = useState<SacredPanel | null>(null);
   const [eidUlFitrJamaats, setEidUlFitrJamaats] = useState<string[]>([]);
   const [eidUlAdhaJamaats, setEidUlAdhaJamaats] = useState<string[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -1981,8 +1992,12 @@ export default function HomeScreen() {
   const loadSunnahReminders = useCallback(async () => {
     try {
       const rows = await fetchSunnahReminders();
-      if (rows.length > 0) setDbSunnahs(rows);
-    } catch {}
+      setDbSunnahs(rows);
+    } catch {
+      setDbSunnahs([]);
+    } finally {
+      setSunnahLoaded(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -2273,6 +2288,59 @@ export default function HomeScreen() {
       icon: row?.icon ?? 'star',
     };
   })();
+
+  const hasHadithSource = computedTodaySunnah.ref.trim().length > 0;
+  const hadithTitle = hasHadithSource ? 'Hadith of the Day' : 'Sunnah of the Day';
+  const hadithPreview = (
+    computedTodaySunnah.detail
+    || computedTodaySunnah.act
+    || 'Adhkar coming soon.'
+  ).trim();
+  const hadithSource = (computedTodaySunnah.ref || 'Reference pending').trim();
+  const hadithFullText = (() => {
+    const parts = [computedTodaySunnah.act, computedTodaySunnah.detail]
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    if (parts.length === 0) return 'Adhkar coming soon.';
+    if (parts.length > 1 && parts[0] === parts[1]) return parts[0];
+    return parts.join('\n\n');
+  })();
+
+  const verseTitle = 'Verse of the Day';
+  const versePreview = (todayVerse.translation || '').trim() || 'Verse coming soon.';
+  const verseReference = formatVerseReference(todayVerse.ref || '') || 'Reference pending';
+  const verseArabic = (todayVerse.arabic || '').trim();
+  const verseFullText = (todayVerse.translation || '').trim() || 'Verse coming soon.';
+
+  const expandedSacredContent = {
+    hadithFullText,
+    hadithSource,
+    hadithTitle,
+    verseFullText,
+    verseReference,
+    verseTitle,
+  };
+
+  const activeSheetTitle =
+    activeSacredPanel === 'hadith'
+      ? expandedSacredContent.hadithTitle
+      : activeSacredPanel === 'verse'
+        ? expandedSacredContent.verseTitle
+        : '';
+  const activeSheetText =
+    activeSacredPanel === 'hadith'
+      ? expandedSacredContent.hadithFullText
+      : activeSacredPanel === 'verse'
+        ? expandedSacredContent.verseFullText
+        : '';
+  const activeSheetReference =
+    activeSacredPanel === 'hadith'
+      ? expandedSacredContent.hadithSource
+      : activeSacredPanel === 'verse'
+        ? expandedSacredContent.verseReference
+        : '';
+  const activeSheetArabic = activeSacredPanel === 'verse' ? verseArabic : '';
 
   const bst = (() => {
     const y = currentTime.getFullYear();
@@ -2724,6 +2792,21 @@ export default function HomeScreen() {
           <View style={[styles.body, N && { backgroundColor: 'transparent' }]}> 
             <HomeQuickAccessSection nightMode={nightMode} />
 
+            <SacredContentModule
+              hadithLabel={hadithTitle}
+              hadithPreview={hadithPreview}
+              hadithSource={hadithSource}
+              onPressHadith={() => setActiveSacredPanel('hadith')}
+              verseLabel={verseTitle}
+              versePreview={versePreview}
+              verseReference={verseReference}
+              onPressVerse={() => setActiveSacredPanel('verse')}
+              hadithExpandHint="Tap to read more"
+              verseExpandHint="Tap to read more"
+              isLoading={!sunnahLoaded}
+              nightMode={nightMode}
+            />
+
             <View style={styles.forYouFadeZone}>
               <HomeForYouTodaySection
                 prayers={data?.prayers ?? []}
@@ -2733,31 +2816,6 @@ export default function HomeScreen() {
                 todaySunnah={computedTodaySunnah}
               />
             </View>
-
-            {/* ── Sunnah of the Day ─────────────────────────────────── */}
-            <TouchableOpacity
-              onPress={() => router.push('/(tabs)/duas' as any)}
-              activeOpacity={0.92}
-              style={styles.sunnahCard}
-            >
-              {/* Gold top border line */}
-              <View style={styles.sunnahTopBorder} />
-              <View style={styles.sunnahInner}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.sunnahKicker}>SUNNAH OF THE DAY</Text>
-                  {!!computedTodaySunnah.act && (
-                    <Text style={styles.sunnahAct} numberOfLines={2}>{computedTodaySunnah.act}</Text>
-                  )}
-                  {!!computedTodaySunnah.ref && (
-                    <Text style={styles.sunnahRef} numberOfLines={1}>\u2014 {computedTodaySunnah.ref}</Text>
-                  )}
-                </View>
-                <MaterialIcons name="star" size={20} color="#C9A227" style={{ alignSelf: 'flex-end', marginBottom: 2 }} />
-              </View>
-              <View style={styles.sunnahFooter}>
-                <Text style={styles.sunnahExplore}>Explore Duas \u2192</Text>
-              </View>
-            </TouchableOpacity>
 
             {/* ── Community Feed ────────────────────────────────────── */}
             <View style={styles.sectionHeader}>
@@ -2826,6 +2884,26 @@ export default function HomeScreen() {
       onIndexChange={() => {}}
       webVisible={webPrayerDrawerVisible}
       onWebClose={closePrayerDrawer}
+    />
+
+    <SacredReadingSheet
+      visible={activeSacredPanel !== null}
+      title={activeSheetTitle}
+      fullText={activeSheetText}
+      reference={activeSheetReference}
+      secondaryText={activeSheetArabic}
+      footerActionLabel={activeSacredPanel === 'hadith' ? 'Open full Hadith' : activeSacredPanel === 'verse' ? 'Open full Verse' : undefined}
+      onFooterAction={
+        activeSacredPanel
+          ? () => {
+              const target = activeSacredPanel;
+              setActiveSacredPanel(null);
+              router.push((target === 'hadith' ? '/(tabs)/duas' : '/(tabs)/quran') as any);
+            }
+          : undefined
+      }
+      onClose={() => setActiveSacredPanel(null)}
+      nightMode={nightMode}
     />
 
     <Modal
@@ -4014,70 +4092,6 @@ const styles = StyleSheet.create({
     gap: 14,
     borderRadius: Radius.lg,
     overflow: 'visible',
-  },
-  // ── Sunnah of the Day card ───────────────────────────────────────────
-  sunnahCard: {
-    marginTop: 8,
-    marginBottom: 12,
-    borderRadius: Radius.xl,
-    backgroundColor: '#FDF8EF',
-    borderWidth: 1,
-    borderColor: 'rgba(201,162,39,0.28)',
-    overflow: 'hidden',
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 4px 16px rgba(201,162,39,0.10)' }
-      : {
-          shadowColor: '#C9A227',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.10,
-          shadowRadius: 16,
-        }),
-    elevation: 3,
-  },
-  sunnahTopBorder: {
-    height: 3,
-    backgroundColor: '#C9A227',
-    width: '100%',
-  },
-  sunnahInner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 4,
-    gap: 10,
-  },
-  sunnahKicker: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-    color: '#2C6A50',
-    textTransform: 'uppercase',
-    marginBottom: 6,
-  },
-  sunnahAct: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#1B2A22',
-    lineHeight: 22,
-  },
-  sunnahRef: {
-    fontSize: 12,
-    fontStyle: 'italic',
-    fontWeight: '500',
-    color: '#607468',
-    marginTop: 4,
-  },
-  sunnahFooter: {
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    paddingTop: 6,
-    alignItems: 'flex-end',
-  },
-  sunnahExplore: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#2C6A50',
   },
   // ── Community feed ──────────────────────────────────────────────────
   communityCard: {
