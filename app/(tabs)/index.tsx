@@ -1777,6 +1777,12 @@ function HeroDonationCard({ onPress }: { nightMode: boolean; onPress: () => void
               end={{ x: 1, y: 1 }}
               style={StyleSheet.absoluteFillObject}
             />
+            <LinearGradient
+              colors={['rgba(245,234,197,0.20)', 'rgba(245,234,197,0.05)', 'rgba(245,234,197,0.00)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={heroSupportStyles.donateInfoSheen}
+            />
             <Image
               source={require('@/assets/images/background/kiswahkaabah.jpg')}
               style={heroSupportStyles.donateInfoPattern}
@@ -1787,8 +1793,16 @@ function HeroDonationCard({ onPress }: { nightMode: boolean; onPress: () => void
               style={[StyleSheet.absoluteFillObject, heroSupportStyles.donateInfoLogo]}
               contentFit="contain"
             />
+            <View style={heroSupportStyles.donateInfoTint} />
             <View style={heroSupportStyles.donateInfoOrb} />
             <View style={heroSupportStyles.donateInfoOrbSecondary} />
+            <LinearGradient
+              colors={['rgba(8,23,17,0.44)', 'rgba(8,23,17,0.14)', 'rgba(8,23,17,0.22)']}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={heroSupportStyles.donateInfoVignette}
+            />
+            <View style={heroSupportStyles.donateFrame} />
             <View style={heroSupportStyles.donateInner}>
               <View style={heroSupportStyles.donateLeft}>
                 <View style={heroSupportStyles.donateKickerRow}>
@@ -1817,15 +1831,20 @@ function HeroDonationCard({ onPress }: { nightMode: boolean; onPress: () => void
               style={[StyleSheet.absoluteFillObject, heroSupportStyles.donatePhotoImage]}
               contentFit="cover"
             />
+            <LinearGradient
+              colors={['rgba(12,31,24,0.10)', 'rgba(12,31,24,0.52)', 'rgba(8,18,14,0.70)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+              style={StyleSheet.absoluteFillObject}
+            />
+            <View style={heroSupportStyles.donateFrame} />
             <View style={heroSupportStyles.donatePhotoOverlay}>
               <View style={heroSupportStyles.donatePhotoTextBlock}>
-                <View style={heroSupportStyles.donatePhotoTextBackdrop}>
-                  <View style={heroSupportStyles.donateKickerRow}>
-                    <View style={heroSupportStyles.donateKickerDot} />
-                    <Text style={heroSupportStyles.donatePhotoEyebrow}>Community Appeal</Text>
-                  </View>
-                  <Text style={heroSupportStyles.donatePhotoLabel}>Jami{'\u2019'} Masjid Noorani</Text>
+                <View style={heroSupportStyles.donateKickerRow}>
+                  <View style={heroSupportStyles.donateKickerDot} />
+                  <Text style={heroSupportStyles.donatePhotoEyebrow}>Community Appeal</Text>
                 </View>
+                <Text style={heroSupportStyles.donatePhotoLabel}>Jami{'\u2019'} Masjid Noorani</Text>
               </View>
               <View style={heroSupportStyles.donateActionCol}>
                 <View style={heroSupportStyles.donateBtn}>
@@ -3396,14 +3415,31 @@ const heroSupportStyles = StyleSheet.create({
     paddingVertical: 14,
     gap: 12,
   },
+  donateFrame: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    bottom: 8,
+    left: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(232,212,139,0.10)',
+    borderRadius: 14,
+  },
   donateInfoLogo: {
     opacity: 0.07,
     transform: [{ scale: 1.05 }],
   },
   donateInfoPattern: {
     ...StyleSheet.absoluteFillObject,
-    opacity: 0.20,
+    opacity: 0.32,
     transform: [{ scale: 1.08 }],
+  },
+  donateInfoSheen: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  donateInfoTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(6,20,15,0.18)',
   },
   donateInfoOrb: {
     position: 'absolute',
@@ -3422,6 +3458,9 @@ const heroSupportStyles = StyleSheet.create({
     bottom: -72,
     left: -26,
     backgroundColor: 'rgba(118, 197, 148, 0.13)',
+  },
+  donateInfoVignette: {
+    ...StyleSheet.absoluteFillObject,
   },
   donateSectionRow: {
     flexDirection: 'row',
@@ -3460,20 +3499,10 @@ const heroSupportStyles = StyleSheet.create({
     bottom: -16,
     left: -20,
     right: -20,
-    opacity: 0.86,
   },
   donatePhotoTextBlock: {
     flex: 1,
     justifyContent: 'flex-end',
-    gap: 4,
-  },
-  donatePhotoTextBackdrop: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(8,24,17,0.56)',
-    borderRadius: 12,
-    paddingHorizontal: 9,
-    paddingVertical: 8,
-    maxWidth: 178,
     gap: 4,
   },
   donatePhotoEyebrow: {

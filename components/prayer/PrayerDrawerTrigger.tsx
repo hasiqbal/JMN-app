@@ -121,13 +121,11 @@ const styles = StyleSheet.create({
   },
   panelAttached: {
     backgroundColor: 'rgba(30, 94, 65, 0.95)',
+    borderRadius: 0,
+    borderWidth: 0,
     borderTopWidth: 1,
     borderTopColor: '#4A7D63',
     paddingHorizontal: 18,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
   },
   handle: {
     alignSelf: 'center',
