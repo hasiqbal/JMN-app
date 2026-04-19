@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Modal,
   Platform,
@@ -15,24 +15,30 @@ import { Colors, Radius, Spacing } from '@/constants/theme';
 export type SacredContentModuleProps = {
   hadithLabel: string;
   hadithPreview: string;
+  hadithPreviewUrdu?: string;
   hadithSource: string;
   onPressHadith: () => void;
   verseLabel: string;
   versePreview: string;
+  versePreviewUrdu?: string;
   verseReference: string;
   onPressVerse: () => void;
   hadithExpandHint?: string;
   verseExpandHint?: string;
+  autoFlipMs?: number;
   isLoading?: boolean;
   nightMode?: boolean;
 };
 
 type SacredPanelProps = {
   label: string;
-  preview: string;
+  previewFront: string;
+  previewBack?: string;
   reference: string;
   hint: string;
   onPress: () => void;
+  isFlipped: boolean;
+  onToggleFlip: () => void;
   tone: 'hadith' | 'verse';
   fullWidth?: boolean;
   nightMode?: boolean;
@@ -100,15 +106,22 @@ function getPalette(nightMode?: boolean) {
 
 function SacredPanel({
   label,
-  preview,
+  previewFront,
+  previewBack,
   reference,
   hint,
   onPress,
+  isFlipped,
+  onToggleFlip,
   tone,
   fullWidth,
   nightMode,
 }: SacredPanelProps) {
   const palette = getPalette(nightMode);
+  const backText = (previewBack ?? '').trim();
+  const canFlip = backText.length > 0;
+  const activePreview = isFlipped && canFlip ? backText : previewFront;
+  const flipLabel = isFlipped ? 'Show English' : 'Show Urdu';
 
   return (
     <Pressable
@@ -129,7 +142,7 @@ function SacredPanel({
       </Text>
 
       <Text style={[styles.panelPreview, { color: palette.text }]} numberOfLines={3}>
-        {preview}
+        {activePreview}
       </Text>
 
       <Text style={[styles.panelReference, { color: palette.reference }]} numberOfLines={1}>
@@ -137,6 +150,21 @@ function SacredPanel({
       </Text>
 
       <View style={styles.hintRow}>
+        {canFlip ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={flipLabel}
+            onPress={onToggleFlip}
+            style={({ pressed }) => [styles.flipBtn, pressed && styles.flipBtnPressed]}
+          >
+            <MaterialIcons
+              name="flip"
+              size={14}
+              color={palette.icon}
+            />
+            <Text style={[styles.flipBtnText, { color: palette.hint }]}>{flipLabel}</Text>
+          </Pressable>
+        ) : null}
         <Text style={[styles.panelHint, { color: palette.hint }]} numberOfLines={1}>
           {hint}
         </Text>
@@ -178,18 +206,37 @@ function LoadingSkeleton({ nightMode }: { nightMode?: boolean }) {
 export function SacredContentModule({
   hadithLabel,
   hadithPreview,
+  hadithPreviewUrdu,
   hadithSource,
   onPressHadith,
   verseLabel,
   versePreview,
+  versePreviewUrdu,
   verseReference,
   onPressVerse,
   hadithExpandHint = 'Tap to expand',
   verseExpandHint = 'Tap to expand',
+  autoFlipMs = 6000,
   isLoading,
   nightMode,
 }: SacredContentModuleProps) {
   const palette = getPalette(nightMode);
+  const [hadithFlipped, setHadithFlipped] = useState(false);
+  const [verseFlipped, setVerseFlipped] = useState(false);
+
+  const canFlipHadith = useMemo(() => (hadithPreviewUrdu ?? '').trim().length > 0, [hadithPreviewUrdu]);
+  const canFlipVerse = useMemo(() => (versePreviewUrdu ?? '').trim().length > 0, [versePreviewUrdu]);
+
+  useEffect(() => {
+    if (!canFlipHadith && !canFlipVerse) return;
+
+    const timerId = setInterval(() => {
+      if (canFlipHadith) setHadithFlipped((prev) => !prev);
+      if (canFlipVerse) setVerseFlipped((prev) => !prev);
+    }, Math.max(3000, autoFlipMs));
+
+    return () => clearInterval(timerId);
+  }, [autoFlipMs, canFlipHadith, canFlipVerse]);
 
   if (isLoading) {
     return <LoadingSkeleton nightMode={nightMode} />;
@@ -218,10 +265,13 @@ export function SacredContentModule({
       {hasHadith ? (
         <SacredPanel
           label={hadithLabel}
-          preview={hadithPreviewSafe || 'Adhkar coming soon.'}
+          previewFront={hadithPreviewSafe || 'Adhkar coming soon.'}
+          previewBack={hadithPreviewUrdu}
           reference={hadithSourceSafe || 'Reference pending'}
           hint={hadithExpandHint}
           onPress={onPressHadith}
+          isFlipped={hadithFlipped}
+          onToggleFlip={() => setHadithFlipped((prev) => !prev)}
           tone="hadith"
           fullWidth={!showBothPanels}
           nightMode={nightMode}
@@ -235,10 +285,13 @@ export function SacredContentModule({
       {hasVerse ? (
         <SacredPanel
           label={verseLabel}
-          preview={versePreviewSafe || 'Verse coming soon.'}
+          previewFront={versePreviewSafe || 'Verse coming soon.'}
+          previewBack={versePreviewUrdu}
           reference={verseReferenceSafe || 'Reference pending'}
           hint={verseExpandHint}
           onPress={onPressVerse}
+          isFlipped={verseFlipped}
+          onToggleFlip={() => setVerseFlipped((prev) => !prev)}
           tone="verse"
           fullWidth={!showBothPanels}
           nightMode={nightMode}
@@ -389,6 +442,25 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
+  },
+  flipBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(122,138,122,0.28)',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  flipBtnPressed: {
+    opacity: 0.76,
+  },
+  flipBtnText: {
+    fontSize: 10.5,
+    lineHeight: 14,
+    fontWeight: '600',
   },
   panelHint: {
     fontSize: 11.5,

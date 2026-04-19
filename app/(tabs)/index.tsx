@@ -26,6 +26,7 @@ import { usePrayerTimes } from '@/hooks/usePrayerTimes';
 import { useNightMode } from '@/hooks/useNightMode';
 import { fetchSunnahReminders, type SunnahReminderRow } from '@/services/contentService';
 import { fetchEidUlAdha, fetchEidUlFitr } from '@/services/eidService';
+import { fetchDailySacredContent, type DailySacredContent } from '@/services/sacredContentService';
 import { MOCK_ANNOUNCEMENTS } from '@/services/eventsService';
 import { PRAYER_BG_IMAGES } from '@/components/prayer/heroConfig';
 import { buildHeroState } from '@/components/prayer/heroState';
@@ -1977,7 +1978,8 @@ const toggleStyles = StyleSheet.create({
 export default function HomeScreen() {
   // DB-driven sunnah reminders
   const [dbSunnahs, setDbSunnahs] = useState<SunnahReminderRow[]>([]);
-  const [sunnahLoaded, setSunnahLoaded] = useState(false);
+  const [dailySacred, setDailySacred] = useState<DailySacredContent | null>(null);
+  const [sacredLoaded, setSacredLoaded] = useState(false);
   const [activeSacredPanel, setActiveSacredPanel] = useState<SacredPanel | null>(null);
   const [eidUlFitrJamaats, setEidUlFitrJamaats] = useState<string[]>([]);
   const [eidUlAdhaJamaats, setEidUlAdhaJamaats] = useState<string[]>([]);
@@ -1995,16 +1997,26 @@ export default function HomeScreen() {
       setDbSunnahs(rows);
     } catch {
       setDbSunnahs([]);
+    }
+  }, []);
+
+  const loadDailySacredContent = useCallback(async () => {
+    try {
+      const content = await fetchDailySacredContent();
+      setDailySacred(content);
+    } catch {
+      setDailySacred(null);
     } finally {
-      setSunnahLoaded(true);
+      setSacredLoaded(true);
     }
   }, []);
 
   useEffect(() => {
     loadSunnahReminders();
+    loadDailySacredContent();
 
     // Yaseen images are bundled as local assets — no preload needed
-  }, [loadSunnahReminders]);
+  }, [loadDailySacredContent, loadSunnahReminders]);
 
   useEffect(() => {
     let mounted = true;
@@ -2290,14 +2302,14 @@ export default function HomeScreen() {
   })();
 
   const hasHadithSource = computedTodaySunnah.ref.trim().length > 0;
-  const hadithTitle = hasHadithSource ? 'Hadith of the Day' : 'Sunnah of the Day';
-  const hadithPreview = (
+  const fallbackHadithTitle = hasHadithSource ? 'Hadith of the Day' : 'Sunnah of the Day';
+  const fallbackHadithPreview = (
     computedTodaySunnah.detail
     || computedTodaySunnah.act
     || 'Adhkar coming soon.'
   ).trim();
-  const hadithSource = (computedTodaySunnah.ref || 'Reference pending').trim();
-  const hadithFullText = (() => {
+  const fallbackHadithSource = (computedTodaySunnah.ref || 'Reference pending').trim();
+  const fallbackHadithFullText = (() => {
     const parts = [computedTodaySunnah.act, computedTodaySunnah.detail]
       .map((value) => value.trim())
       .filter(Boolean);
@@ -2307,11 +2319,41 @@ export default function HomeScreen() {
     return parts.join('\n\n');
   })();
 
+  const hadithTitle = (dailySacred?.hadith.title || fallbackHadithTitle).trim();
+  const hadithPreview = (dailySacred?.hadith.cardEn?.trim() || fallbackHadithPreview).trim();
+  const hadithPreviewUrdu = (dailySacred?.hadith.cardUr?.trim() || '').trim();
+  const hadithSource = (dailySacred?.hadith.reference || fallbackHadithSource).trim();
+  const hadithArabic = dailySacred?.hadith.popupAr?.trim() || '';
+  const hadithFullText = (() => {
+    if (dailySacred) {
+      const localized = [
+        dailySacred.hadith.popupEn?.trim() || dailySacred.hadith.cardEn?.trim() || '',
+        dailySacred.hadith.popupUr?.trim() || dailySacred.hadith.cardUr?.trim() || '',
+      ].filter(Boolean);
+      return localized.length > 0 ? localized.join('\n\n') : 'Adhkar coming soon.';
+    }
+    return fallbackHadithFullText;
+  })();
+
   const verseTitle = 'Verse of the Day';
-  const versePreview = (todayVerse.translation || '').trim() || 'Verse coming soon.';
-  const verseReference = formatVerseReference(todayVerse.ref || '') || 'Reference pending';
-  const verseArabic = (todayVerse.arabic || '').trim();
-  const verseFullText = (todayVerse.translation || '').trim() || 'Verse coming soon.';
+  const fallbackVersePreview = (todayVerse.translation || '').trim() || 'Verse coming soon.';
+  const fallbackVerseReference = formatVerseReference(todayVerse.ref || '') || 'Reference pending';
+  const fallbackVerseArabic = (todayVerse.arabic || '').trim();
+  const fallbackVerseFullText = (todayVerse.translation || '').trim() || 'Verse coming soon.';
+  const versePreview = (dailySacred?.verse.cardEn?.trim() || fallbackVersePreview).trim();
+  const versePreviewUrdu = (dailySacred?.verse.cardUr?.trim() || '').trim();
+  const verseReference = (dailySacred?.verse.reference || fallbackVerseReference).trim();
+  const verseArabic = dailySacred?.verse.popupAr?.trim() || fallbackVerseArabic;
+  const verseFullText = (() => {
+    if (dailySacred) {
+      const localized = [
+        dailySacred.verse.popupEn?.trim() || dailySacred.verse.cardEn?.trim() || '',
+        dailySacred.verse.popupUr?.trim() || dailySacred.verse.cardUr?.trim() || '',
+      ].filter(Boolean);
+      return localized.length > 0 ? localized.join('\n\n') : 'Verse coming soon.';
+    }
+    return fallbackVerseFullText;
+  })();
 
   const expandedSacredContent = {
     hadithFullText,
@@ -2340,7 +2382,12 @@ export default function HomeScreen() {
       : activeSacredPanel === 'verse'
         ? expandedSacredContent.verseReference
         : '';
-  const activeSheetArabic = activeSacredPanel === 'verse' ? verseArabic : '';
+  const activeSheetArabic =
+    activeSacredPanel === 'hadith'
+      ? hadithArabic
+      : activeSacredPanel === 'verse'
+        ? verseArabic
+        : '';
 
   const bst = (() => {
     const y = currentTime.getFullYear();
@@ -2615,11 +2662,11 @@ export default function HomeScreen() {
   const onPullRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await Promise.all([refreshPrayerTimes(), loadSunnahReminders()]);
+      await Promise.all([refreshPrayerTimes(), loadSunnahReminders(), loadDailySacredContent()]);
     } finally {
       setRefreshing(false);
     }
-  }, [refreshPrayerTimes, loadSunnahReminders]);
+  }, [loadDailySacredContent, refreshPrayerTimes, loadSunnahReminders]);
 
   const startDonationCheckout = useCallback(async (priceSlot: 1 | 2) => {
     if (donationLoading) return;
@@ -2795,15 +2842,17 @@ export default function HomeScreen() {
             <SacredContentModule
               hadithLabel={hadithTitle}
               hadithPreview={hadithPreview}
+              hadithPreviewUrdu={hadithPreviewUrdu}
               hadithSource={hadithSource}
               onPressHadith={() => setActiveSacredPanel('hadith')}
               verseLabel={verseTitle}
               versePreview={versePreview}
+              versePreviewUrdu={versePreviewUrdu}
               verseReference={verseReference}
               onPressVerse={() => setActiveSacredPanel('verse')}
               hadithExpandHint="Tap to read more"
               verseExpandHint="Tap to read more"
-              isLoading={!sunnahLoaded}
+              isLoading={!sacredLoaded}
               nightMode={nightMode}
             />
 
