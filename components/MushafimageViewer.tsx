@@ -4,7 +4,7 @@
  *   assets/images/Quran 15 line indo-pak/{Kahf|Mulk|Luqman|Imran|Sajdah}/
  */
 import React from 'react';
-import { View, Text, TouchableOpacity, AppState, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, AppState, StyleSheet, ScrollView, ActivityIndicator, PanResponder } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -222,6 +222,7 @@ export const WAQIAH_TRANSLATIONS = buildVerseTranslationsByPage(WAQIAH_PAGE_AYAT
 // ── Shared internal viewer ───────────────────────────────────────────────
 interface ViewerProps {
   nightMode: boolean;
+  onBack?: () => void;
   pageNums: number[];
   localPages: Partial<Record<number, any>>;
   localPages16?: Partial<Record<number, any>>;
@@ -236,15 +237,17 @@ interface ViewerProps {
   bgDay:  string; hdrBgDay:  string; hdrBorDay:  string;
   chapterNumber?: number;
   enableApiTranslationPicker?: boolean;
+  fullView?: boolean;
 }
 
 function MushafImageViewer({
-  nightMode, pageNums, localPages, localPages16, ayatMap, translations,
+  nightMode, onBack, pageNums, localPages, localPages16, ayatMap, translations,
   nameAr, nameEn, juz,
   accentDay, accentNight, bgNight, hdrBgNight, hdrBorNight, bgDay, hdrBgDay, hdrBorDay,
-  chapterNumber, enableApiTranslationPicker,
+  chapterNumber, enableApiTranslationPicker, fullView,
 }: ViewerProps) {
   const N = nightMode;
+  const isFullView = !!fullView;
   const transScrollRef = React.useRef<ScrollView>(null);
   const [pi, setPi] = React.useState(0);
   const [rk, setRk] = React.useState(0);
@@ -424,8 +427,9 @@ function MushafImageViewer({
       .onEnd(e => {
         txX.value = withSpring(0, { damping:20, stiffness:300 });
         if (sc.value <= 1.05) {
-          if (e.translationX < -35 || e.velocityX < -400) runOnJS(goTo)(pi + 1);
-          else if (e.translationX > 35 || e.velocityX > 400) runOnJS(goTo)(pi - 1);
+          // Quran reading direction: swipe right to move forward.
+          if (e.translationX > 35 || e.velocityX > 400) runOnJS(goTo)(pi + 1);
+          else if (e.translationX < -35 || e.velocityX < -400) runOnJS(goTo)(pi - 1);
         }
       })
       .onFinalize(() => { txX.value = withSpring(0, { damping:20, stiffness:300 }); }),
@@ -442,13 +446,37 @@ function MushafImageViewer({
     )
   );
 
+  const translationPanResponder = React.useMemo(
+    () => PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) => (
+        Math.abs(gestureState.dx) > 16 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) + 6
+      ),
+      onPanResponderRelease: (_, gestureState) => {
+        // Translation panel uses normal swipe direction: swipe left to move forward.
+        if (gestureState.dx < -35 || gestureState.vx < -0.45) goToFromOverlay(pi + 1);
+        else if (gestureState.dx > 35 || gestureState.vx > 0.45) goToFromOverlay(pi - 1);
+      },
+    }),
+    [pi, goToFromOverlay]
+  );
+
   return (
-    <GestureHandlerRootView style={{ flex:1, backgroundColor:BG }}>
-      <View style={{ flex:1, backgroundColor:BG }}>
+    <GestureHandlerRootView style={{ flex:1, backgroundColor:isFullView ? '#000' : BG }}>
+      <View style={{ flex:1, backgroundColor:isFullView ? '#000' : BG }}>
         {/* Header */}
-        <View style={[S.topBar, { backgroundColor:HDR_BG, borderBottomColor:HDR_BOR }]}>
+        <View style={[S.topBar, { backgroundColor:HDR_BG, borderBottomColor:HDR_BOR }, isFullView && S.topBarOverlay]}>
+          {onBack ? (
+            <TouchableOpacity
+              style={[S.backBtn, { borderColor:ACCENT }]}
+              onPress={onBack}
+              activeOpacity={0.8}
+            >
+              <MaterialIcons name="arrow-back" size={16} color={ACCENT} />
+              <Text style={[S.backBtnText, { color:ACCENT }]}>Back</Text>
+            </TouchableOpacity>
+          ) : null}
           <TouchableOpacity
-            style={[S.transBtn, { borderColor:ACCENT }, showTrans && { backgroundColor:ACCENT }]}
+            style={[S.transBtn, isFullView && S.transBtnCompact, { borderColor:ACCENT }, showTrans && { backgroundColor:ACCENT }]}
             onPress={() => {
               setShowTrans((prev) => {
                 const next = !prev;
@@ -463,7 +491,10 @@ function MushafImageViewer({
             activeOpacity={0.8}
           >
             <MaterialIcons name="translate" size={14} color={showTrans ? '#fff' : ACCENT} />
-            <Text style={[S.transBtnText, { color: showTrans ? '#fff' : ACCENT }]}>Translation <Text style={[S.transBtnTextUrdu, { color: showTrans ? '#fff' : ACCENT }]}>اردو ترجمہ</Text></Text>
+            <Text style={[S.transBtnText, { color: showTrans ? '#fff' : ACCENT }]}>
+              Translation
+              {!isFullView ? <Text style={[S.transBtnTextUrdu, { color: showTrans ? '#fff' : ACCENT }]}> اردو ترجمہ</Text> : null}
+            </Text>
           </TouchableOpacity>
           <View style={{ flex:1 }}/>
           <View style={[S.toggleGroup, { backgroundColor: ACCENT_SOFT, borderColor: ACCENT_BORDER }]}>
@@ -507,7 +538,7 @@ function MushafImageViewer({
         ) : (
           <>
             <GestureDetector gesture={gest}>
-              <Reanimated.View style={anim}>
+              <Reanimated.View style={[anim, isFullView && S.fullViewImageStage]}>
                 {src === null ? (
                   <View style={[S.emptyBox, { backgroundColor:BG }]}>
                     <Text style={[S.emptyTitle, { color:ACCENT, fontSize:14 }]}>Page {pageNum} not uploaded yet</Text>
@@ -525,26 +556,41 @@ function MushafImageViewer({
             </GestureDetector>
 
             {/* Nav bar */}
-            <View style={[S.navBar, { backgroundColor:HDR_BG, borderTopColor:HDR_BOR }]}>
-              <TouchableOpacity style={[S.navBtn, pi===0&&{opacity:0.3}]} onPress={() => goTo(pi-1)} disabled={pi===0} activeOpacity={0.8}>
-                <MaterialIcons name="chevron-left" size={26} color={ACCENT}/>
-              </TouchableOpacity>
-              <View style={{ alignItems:'center', gap:4 }}>
-                <Text style={[S.pageNum, { color:ACCENT }]}>Page {pageNum}</Text>
-                <Text style={{ fontSize:10, color:META, fontWeight:'500' }}>
-                  {pi+1}/{pageNums.length}
-                </Text>
-                <View style={{ flexDirection:'row', gap:5 }}>
-                  {pageNums.map((_, i) => (
-                    <TouchableOpacity key={i} onPress={() => goTo(i)} hitSlop={{ top:6, bottom:6, left:4, right:4 }}>
-                      <View style={[S.dot, { backgroundColor: i===pi ? ACCENT : 'rgba(100,100,100,0.3)' }, i===pi && { width:16 }]}/>
-                    </TouchableOpacity>
-                  ))}
+            <View style={[S.navBar, { backgroundColor:HDR_BG, borderTopColor:HDR_BOR }, isFullView && S.navBarOverlay]}>
+              {!isFullView ? (
+                <>
+                  <TouchableOpacity style={[S.navBtn, pi===0&&{opacity:0.3}]} onPress={() => goTo(pi-1)} disabled={pi===0} activeOpacity={0.8}>
+                    <MaterialIcons name="chevron-left" size={26} color={ACCENT}/>
+                  </TouchableOpacity>
+                  <View style={{ alignItems:'center', gap:4 }}>
+                    <Text style={[S.pageNum, { color:ACCENT }]}>Page {pageNum}</Text>
+                    <Text style={{ fontSize:10, color:META, fontWeight:'500' }}>
+                      {pi+1}/{pageNums.length}
+                    </Text>
+                    <View style={{ flexDirection:'row', gap:5 }}>
+                      {pageNums.map((_, i) => (
+                        <TouchableOpacity key={i} onPress={() => goTo(i)} hitSlop={{ top:6, bottom:6, left:4, right:4 }}>
+                          <View style={[S.dot, { backgroundColor: i===pi ? ACCENT : 'rgba(100,100,100,0.3)' }, i===pi && { width:16 }]}/>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                  <TouchableOpacity style={[S.navBtn, pi===pageNums.length-1&&{opacity:0.3}]} onPress={() => goTo(pi+1)} disabled={pi===pageNums.length-1} activeOpacity={0.8}>
+                    <MaterialIcons name="chevron-right" size={26} color={ACCENT}/>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <View style={{ alignItems:'center', gap:4 }}>
+                  <Text style={[S.pageNum, { color:'#E2E8F0' }]}>Page {pageNum}</Text>
+                  <View style={{ flexDirection:'row', gap:5 }}>
+                    {pageNums.map((_, i) => (
+                      <TouchableOpacity key={i} onPress={() => goTo(i)} hitSlop={{ top:6, bottom:6, left:4, right:4 }}>
+                        <View style={[S.dot, { backgroundColor: i===pi ? ACCENT : 'rgba(220,220,220,0.45)' }, i===pi && { width:16 }]}/>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </View>
-              </View>
-              <TouchableOpacity style={[S.navBtn, pi===pageNums.length-1&&{opacity:0.3}]} onPress={() => goTo(pi+1)} disabled={pi===pageNums.length-1} activeOpacity={0.8}>
-                <MaterialIcons name="chevron-right" size={26} color={ACCENT}/>
-              </TouchableOpacity>
+              )}
             </View>
 
             {/* Translation layer (bottom sheet) */}
@@ -555,7 +601,10 @@ function MushafImageViewer({
                   activeOpacity={1}
                   onPress={() => setShowTrans(false)}
                 />
-                <View style={[S.transPanel, { backgroundColor: N ? 'rgba(10,8,8,0.98)' : '#FFFFFF', borderTopColor: N ? ACCENT_BORDER : ACCENT_SOFT }]}>
+                <View
+                  {...translationPanResponder.panHandlers}
+                  style={[S.transPanel, { backgroundColor: N ? 'rgba(10,8,8,0.98)' : '#FFFFFF', borderTopColor: N ? ACCENT_BORDER : ACCENT_SOFT }]}
+                >
                   <View style={S.dragHandleWrap}>
                     <View style={[S.dragHandle, { backgroundColor: N ? ACCENT_BORDER : ACCENT_BORDER }]} />
                   </View>
@@ -751,7 +800,8 @@ export function KahfMushafPlaceholder({ nightMode, onBack }: { nightMode: boolea
 
 export function YaseenMushafPlaceholder({ nightMode, onBack }: { nightMode: boolean; onBack: () => void }) {
   return <MushafImageViewer
-    nightMode={nightMode} pageNums={YASEEN_PAGE_NUMS} localPages={YASEEN_15LINE_LOCAL} localPages16={YASEEN_16LINE_LOCAL}
+    nightMode={nightMode} onBack={onBack} fullView
+    pageNums={YASEEN_PAGE_NUMS} localPages={YASEEN_15LINE_LOCAL} localPages16={YASEEN_16LINE_LOCAL}
     ayatMap={YASEEN_PAGE_AYAT} translations={YASEEN_TRANSLATIONS}
     chapterNumber={36} enableApiTranslationPicker
     nameAr={'سُورَةُ يس'}
@@ -828,16 +878,22 @@ export function SajdahMushafPlaceholder({ nightMode, onBack }: { nightMode: bool
 
 const S = StyleSheet.create({
   topBar:    { flexDirection:'row', alignItems:'center', paddingHorizontal:14, paddingVertical:9, borderBottomWidth:1 },
+  topBarOverlay: { position:'absolute', top:10, left:10, right:10, zIndex:20, borderWidth:1, borderRadius:16, backgroundColor:'rgba(0,0,0,0.52)' },
+  fullViewImageStage: { marginTop:62 },
+  backBtn:   { flexDirection:'row', alignItems:'center', gap:4, paddingHorizontal:12, paddingVertical:8, borderRadius:999, borderWidth:1.2, marginRight:8 },
+  backBtnText: { fontSize:13, fontWeight:'800' },
   surahName: { fontSize:18, fontWeight:'800' } as any,
   emptyBox:  { flex:1, alignItems:'center', justifyContent:'center', padding:32, gap:14 },
   emptyTitle:{ fontSize:16, fontWeight:'800', textAlign:'center' },
   emptySub:  { fontSize:13, lineHeight:20, textAlign:'center' },
   navBar:    { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:8, paddingVertical:6, borderTopWidth:1 },
+  navBarOverlay: { position:'absolute', left:10, right:10, bottom:10, zIndex:15, borderWidth:1, borderRadius:14, borderColor:'rgba(255,255,255,0.2)', backgroundColor:'rgba(0,0,0,0.55)', justifyContent:'center' },
   navBtn:    { width:44, height:44, alignItems:'center', justifyContent:'center' },
   pageNum:   { fontSize:14, fontWeight:'800', letterSpacing:0.3 },
   dot:       { width:6, height:6, borderRadius:3 },
   // Translation toggle
   transBtn:  { flexDirection:'row', alignItems:'center', gap:6, paddingHorizontal:14, paddingVertical:8, borderRadius:999, borderWidth:1.5 },
+  transBtnCompact: { paddingHorizontal:10 },
   transBtnText: { fontSize:13, fontWeight:'800' },
   transBtnTextUrdu: { fontFamily:'UrduNastaliqBold', fontSize:16, lineHeight:24 } as any,
   toggleGroup: {

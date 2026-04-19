@@ -11,7 +11,7 @@ import {
   ImageBackground,
   useWindowDimensions,
 } from 'react-native';
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFonts } from 'expo-font';
@@ -302,6 +302,7 @@ function resolvePrayerTimeByClock(data: PrayerTimesData, now: Date = new Date())
 
 export default function DuasScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const { nightMode } = useNightMode();
   const [selectedPrayerTime, setSelectedPrayerTime] = useState<PrayerTimeId>('after-fajr');
   const [autoPrayerSyncEnabled, setAutoPrayerSyncEnabled] = useState(true);
@@ -397,6 +398,17 @@ export default function DuasScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [lastUpdated, setLastUpdated] = useState(() => new Date());
+  const isYaseenViewerActive = fajrSelection === 'yaseen';
+
+  React.useEffect(() => {
+    navigation.setOptions({
+      tabBarStyle: isYaseenViewerActive ? { display: 'none' } : undefined,
+    } as any);
+
+    return () => {
+      navigation.setOptions({ tabBarStyle: undefined } as any);
+    };
+  }, [navigation, isYaseenViewerActive]);
 
   const debugLog = (...parts: any[]) => {
     if (__DEV__) {
@@ -671,44 +683,44 @@ export default function DuasScreen() {
   const pageBg = N ? N.bg : Colors.background;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }, { backgroundColor: pageBg }]}>
-      {!N ? <View style={[styles.contextOverlay, { pointerEvents: 'none' }]} /> : null}
-      <ImageBackground
-        source={require('@/assets/images/masjid-building.jpg')}
-        style={[styles.heroHeader, { paddingTop: insets.top }]}
-        imageStyle={{ opacity: N ? 0.14 : 0.18 }}
-      >
-        <View style={[styles.heroSoftenOverlay, { pointerEvents: 'none' }]} />
-        <LinearGradient
-          colors={ADHKAR_HERO_GRADIENT}
-          style={StyleSheet.absoluteFillObject}
-        />
-        {/* Nav row */}
-        <View style={styles.heroNav}>
-          <View style={styles.headerTitleRow}>
-            <TouchableOpacity onPress={resetToMain} activeOpacity={0.8}>
-              <Image
-                source={require('@/assets/images/masjid-logo.png')}
-                style={styles.headerLogo}
-                contentFit="contain"
-                tintColor={undefined}
-              />
-            </TouchableOpacity>
-            <View>
-              <Text style={styles.heroMasjidName}>JMN</Text>
-              <Text style={styles.heroTitle}>Quran & Duas</Text>
-              <Text style={{ fontSize: 10, color: '#5E6D63', marginTop: 1 }}>
-                Updated {lastUpdated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-              </Text>
+    <View style={[styles.container, { paddingTop: isYaseenViewerActive ? 0 : insets.top }, { backgroundColor: pageBg }]}>
+      {!isYaseenViewerActive && !N ? <View style={[styles.contextOverlay, { pointerEvents: 'none' }]} /> : null}
+      {!isYaseenViewerActive ? (
+        <ImageBackground
+          source={require('@/assets/images/masjid-building.jpg')}
+          style={[styles.heroHeader, { paddingTop: insets.top }]}
+          imageStyle={{ opacity: N ? 0.14 : 0.18 }}
+        >
+          <View style={[styles.heroSoftenOverlay, { pointerEvents: 'none' }]} />
+          <LinearGradient
+            colors={ADHKAR_HERO_GRADIENT}
+            style={StyleSheet.absoluteFillObject}
+          />
+          {/* Nav row */}
+          <View style={styles.heroNav}>
+            <View style={styles.headerTitleRow}>
+              <TouchableOpacity onPress={resetToMain} activeOpacity={0.8}>
+                <Image
+                  source={require('@/assets/images/masjid-logo.png')}
+                  style={styles.headerLogo}
+                  contentFit="contain"
+                  tintColor={undefined}
+                />
+              </TouchableOpacity>
+              <View>
+                <Text style={styles.heroMasjidName}>JMN</Text>
+                <Text style={styles.heroTitle}>Quran & Duas</Text>
+                <Text style={{ fontSize: 10, color: '#5E6D63', marginTop: 1 }}>
+                  Updated {lastUpdated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
-
-
-      </ImageBackground>
+        </ImageBackground>
+      ) : null}
 
       {/* Back-to-main bar — visible whenever not on the root chip-bar view */}
-      {(fajrSelection !== null || viewingGroup !== null) ? (
+      {(fajrSelection !== null || viewingGroup !== null) && !isYaseenViewerActive ? (
         <TouchableOpacity
           onPress={fajrSelection !== null ? closeSurahFlow : () => setViewingGroup(null)}
           activeOpacity={0.8}

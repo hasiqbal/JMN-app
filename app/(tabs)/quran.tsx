@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/theme';
 import { useNightMode } from '@/hooks/useNightMode';
-import { getJuzEndPage, getJuzStartPage } from '@/constants/mushafJuzPages';
+import { getJuzEndPage, getJuzStartPage, getQuarterStartsInJuz } from '@/constants/mushafJuzPages';
 
 const NIGHT = {
   bg: '#0A0F1E',
@@ -88,15 +88,9 @@ function getSurahsInJuz(layout: MushafLayout, juz: number): number[] {
   return chapters;
 }
 
-function getQuarterStartsInJuz(layout: MushafLayout, juz: number): Array<{ quarter: number; page: number }> {
-  const startPage = getJuzStartPage(layout, juz);
-  const endPage = getJuzEndPage(layout, juz);
-  const totalPages = endPage - startPage + 1;
-
-  return [1, 2, 3, 4].map((quarter) => {
-    const offset = Math.floor(((quarter - 1) * totalPages) / 4);
-    return { quarter, page: startPage + offset };
-  });
+function getDisplayedJuzPage(layout: MushafLayout, page: number): number {
+  if (layout === '16line') return page + 1;
+  return page;
 }
 
 export default function QuranScreen() {
@@ -114,13 +108,14 @@ export default function QuranScreen() {
   const [pendingOpenLabel, setPendingOpenLabel] = useState('None');
   const N = nightMode ? NIGHT : null;
 
-  const openReaderScreen = useCallback((startPage: number, endPage: number) => {
+  const openReaderScreen = useCallback((startPage: number, endPage: number, extraParams?: Record<string, string>) => {
     router.push({
       pathname: '/quran-reader',
       params: {
         startPage: String(startPage),
         endPage: String(endPage),
         mushaf: mushafLayout,
+        ...(extraParams ?? {}),
       },
     } as any);
   }, [router, mushafLayout]);
@@ -176,7 +171,10 @@ export default function QuranScreen() {
     setPendingOpenLabel(`Surah ${chapter} · Page ${targetPage}`);
     setLastUpdated(new Date());
     await AsyncStorage.setItem(PENDING_OPEN_KEY, `${chapter}|${targetPage}`);
-    openReaderScreen(targetPage, getJuzEndPage(mushafLayout, juz));
+    openReaderScreen(targetPage, getJuzEndPage(mushafLayout, juz), {
+      navMode: 'juz',
+      juz: String(juz),
+    });
   }, [mushafLayout, openReaderScreen]);
 
   const chooseQuarterInJuz = useCallback(async (juz: number, quarter: number) => {
@@ -190,7 +188,11 @@ export default function QuranScreen() {
     setPendingOpenLabel(`Surah ${chapter} · Page ${targetPage}`);
     setLastUpdated(new Date());
     await AsyncStorage.setItem(PENDING_OPEN_KEY, `${chapter}|${targetPage}`);
-    openReaderScreen(targetPage, getJuzEndPage(mushafLayout, juz));
+    openReaderScreen(targetPage, getJuzEndPage(mushafLayout, juz), {
+      navMode: 'quarter',
+      juz: String(juz),
+      quarter: String(quarter),
+    });
   }, [mushafLayout, openReaderScreen]);
 
   const chooseSurahInJuz = useCallback(async (chapter: number) => {
@@ -274,13 +276,9 @@ export default function QuranScreen() {
             <View style={styles.juzGroupsWrap}>
               {Array.from({ length: 30 }, (_, index) => index + 1).map((juz) => {
                 const selected = selectedJuz === juz;
-                const open = expandedJuz === juz;
                 const surahsInJuz = getSurahsInJuz(mushafLayout, juz);
                 const firstSurah = surahsInJuz[0] ?? 1;
                 const lastSurah = surahsInJuz[surahsInJuz.length - 1] ?? firstSurah;
-                const surahRange = firstSurah === lastSurah
-                  ? (SURAH_NAMES[firstSurah] ?? `Surah ${firstSurah}`)
-                  : `${SURAH_NAMES[firstSurah] ?? `Surah ${firstSurah}`} - ${SURAH_NAMES[lastSurah] ?? `Surah ${lastSurah}`}`;
 
                 return (
                   <View
@@ -292,64 +290,59 @@ export default function QuranScreen() {
                   >
                     <TouchableOpacity
                       onPress={() => chooseJuz(juz)}
-                      onLongPress={() => setExpandedJuz(open ? null : juz)}
                       style={[styles.juzHeaderBtn, selected && styles.juzHeaderBtnActive]}
                       activeOpacity={0.85}
                     >
                       <Text style={[styles.juzTitle, selected && styles.juzTitleActive]}>Juz {juz}</Text>
-                      <Text style={[styles.juzSub, N && { color: N.textSub }]}>Pages {getJuzStartPage(mushafLayout, juz)}-{getJuzEndPage(mushafLayout, juz)}</Text>
-                      <Text style={[styles.juzRangeSub, N && { color: N.textSub }]} numberOfLines={2}>{surahRange}</Text>
-                      <Text style={[styles.expandHint, N && { color: N.textSub }]}>{open ? 'Tap quarter or surah below' : 'Tap Juz to jump'}</Text>
+                      <Text style={[styles.juzSub, N && { color: N.textSub }]}>Pages {getDisplayedJuzPage(mushafLayout, getJuzStartPage(mushafLayout, juz))}-{getDisplayedJuzPage(mushafLayout, getJuzEndPage(mushafLayout, juz))}</Text>
                     </TouchableOpacity>
 
-                    {open ? (
-                      <View style={styles.optionsWrap}>
-                        <Text style={[styles.optionGroupLabel, N && { color: N.textSub }]}>Quarters</Text>
-                        <View style={styles.chipsWrap}>
-                          {getQuarterStartsInJuz(mushafLayout, juz).map((item) => {
-                            const isQuarterSelected = selectedQuarter?.juz === juz && selectedQuarter.quarter === item.quarter;
-                            const quarterLabel = item.quarter === 1
-                              ? '1st Quarter'
-                              : item.quarter === 2
-                                ? '2nd Quarter'
-                                : item.quarter === 3
-                                  ? '3rd Quarter'
-                                  : '4th Quarter';
-                            return (
-                              <TouchableOpacity
-                                key={`q-${juz}-${item.quarter}`}
-                                onPress={() => chooseQuarterInJuz(juz, item.quarter)}
-                                style={[styles.quarterChip, isQuarterSelected && styles.quarterChipActive]}
-                                activeOpacity={0.85}
-                              >
-                                <Text style={[styles.quarterChipText, isQuarterSelected && styles.quarterChipTextActive]}>
-                                  {quarterLabel}
-                                </Text>
-                              </TouchableOpacity>
-                            );
-                          })}
-                        </View>
-
-                        <Text style={[styles.optionGroupLabel, N && { color: N.textSub }]}>Surahs</Text>
-                        <View style={styles.chipsWrap}>
-                          {surahsInJuz.map((chapter) => {
-                            const isSelected = selectedSurah === chapter;
-                            return (
-                              <TouchableOpacity
-                                key={chapter}
-                                onPress={() => chooseSurahInJuz(chapter)}
-                                style={[styles.surahChip, isSelected && styles.surahChipActive]}
-                                activeOpacity={0.85}
-                              >
-                                <Text style={[styles.surahChipText, isSelected && styles.surahChipTextActive]}>
-                                  {SURAH_NAMES[chapter] ?? `Surah ${chapter}`}
-                                </Text>
-                              </TouchableOpacity>
-                            );
-                          })}
-                        </View>
+                    <View style={styles.optionsWrap}>
+                      <Text style={[styles.optionGroupLabel, N && { color: N.textSub }]}>Quarters</Text>
+                      <View style={styles.chipsWrap}>
+                        {getQuarterStartsInJuz(mushafLayout, juz).map((item) => {
+                          const isQuarterSelected = selectedQuarter?.juz === juz && selectedQuarter.quarter === item.quarter;
+                          const quarterLabel = item.quarter === 1
+                            ? '1st Quarter'
+                            : item.quarter === 2
+                              ? '2nd Quarter'
+                              : item.quarter === 3
+                                ? '3rd Quarter'
+                                : '4th Quarter';
+                          return (
+                            <TouchableOpacity
+                              key={`q-${juz}-${item.quarter}`}
+                              onPress={() => chooseQuarterInJuz(juz, item.quarter)}
+                              style={[styles.quarterChip, isQuarterSelected && styles.quarterChipActive]}
+                              activeOpacity={0.85}
+                            >
+                              <Text style={[styles.quarterChipText, isQuarterSelected && styles.quarterChipTextActive]}>
+                                {quarterLabel}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
                       </View>
-                    ) : null}
+
+                      <Text style={[styles.optionGroupLabel, N && { color: N.textSub }]}>Surahs</Text>
+                      <View style={styles.chipsWrap}>
+                        {surahsInJuz.map((chapter) => {
+                          const isSelected = selectedSurah === chapter;
+                          return (
+                            <TouchableOpacity
+                              key={chapter}
+                              onPress={() => chooseSurahInJuz(chapter)}
+                              style={[styles.surahChip, isSelected && styles.surahChipActive]}
+                              activeOpacity={0.85}
+                            >
+                              <Text style={[styles.surahChipText, isSelected && styles.surahChipTextActive]}>
+                                {SURAH_NAMES[chapter] ?? `Surah ${chapter}`}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </View>
                   </View>
                 );
               })}
