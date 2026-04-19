@@ -109,6 +109,10 @@ const PRAYER_ADHKAR_CARDS: Record<string, FYCardData> = {
   },
 };
 
+const NON_PERSISTED_REMINDER_IDS = new Set(
+  Object.values(PRAYER_ADHKAR_CARDS).map((card) => card.id)
+);
+
 // ── Pre-Fajr adhkar card content ─────────────────────────────────────────
 const PRE_FAJR_CARD_DATA: FYCardData = {
   id: 'adhkar-pre-fajr',
@@ -2128,7 +2132,15 @@ export function HomeForYouTodaySection({
 
       if (val) {
         try {
-          setDismissed(new Set(JSON.parse(val)));
+          const parsed = JSON.parse(val);
+          const next = new Set(Array.isArray(parsed) ? parsed : []);
+          const filtered = new Set(
+            Array.from(next).filter((id) => !NON_PERSISTED_REMINDER_IDS.has(String(id)))
+          );
+          setDismissed(filtered);
+          if (filtered.size !== next.size) {
+            AsyncStorage.setItem(storageKey, JSON.stringify(Array.from(filtered))).catch(() => {});
+          }
         } catch {
           setDismissed(new Set());
         }
