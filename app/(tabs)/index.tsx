@@ -2343,6 +2343,7 @@ export default function HomeScreen() {
   })();
 
   const hadithTitle = (dailySacred?.hadith.title || fallbackHadithTitle).trim();
+  const hadithTitleUrdu = 'آج کی سنت';
   const hadithPreview = (dailySacred?.hadith.cardEn?.trim() || fallbackHadithPreview).trim();
   const hadithPreviewUrdu = (dailySacred?.hadith.cardUr?.trim() || '').trim();
   const hadithSource = (dailySacred?.hadith.reference || fallbackHadithSource).trim();
@@ -2359,6 +2360,7 @@ export default function HomeScreen() {
   })();
 
   const verseTitle = 'Verse of the Day';
+  const verseTitleUrdu = 'آج کی آیت';
   const fallbackVersePreview = (todayVerse.translation || '').trim() || 'Verse coming soon.';
   const fallbackVerseReference = formatVerseReference(todayVerse.ref || '') || 'Reference pending';
   const fallbackVerseArabic = (todayVerse.arabic || '').trim();
@@ -2893,11 +2895,13 @@ export default function HomeScreen() {
 
             <SacredContentModule
               hadithLabel={hadithTitle}
+              hadithLabelUrdu={hadithTitleUrdu}
               hadithPreview={hadithPreview}
               hadithPreviewUrdu={hadithPreviewUrdu}
               hadithSource={hadithSource}
               onPressHadith={() => setActiveSacredPanel('hadith')}
               verseLabel={verseTitle}
+              verseLabelUrdu={verseTitleUrdu}
               versePreview={versePreview}
               versePreviewUrdu={versePreviewUrdu}
               verseReference={verseReference}

@@ -245,7 +245,10 @@ export function CommunityUpdatesSection({
   return (
     <View style={styles.sectionWrap}>
       <View style={styles.headerRow}>
-        <Text style={[styles.sectionTitle, N && { color: N.sectionTitle }]}>{title}</Text>
+        <View style={styles.kickerRow}>
+          <View style={styles.kickerBar} />
+          <Text style={styles.kicker}>{title}</Text>
+        </View>
         <TouchableOpacity onPress={onPressSeeAll} activeOpacity={0.75}>
           <Text style={[styles.seeAllText, N && { color: N.seeAll }]}>See all</Text>
         </TouchableOpacity>
@@ -268,17 +271,30 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 2,
     paddingHorizontal: 2,
   },
-  sectionTitle: {
-    fontSize: 22,
-    lineHeight: 28,
+  kickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+    marginTop: Spacing.sm,
+  },
+  kickerBar: {
+    width: 3,
+    height: 11,
+    borderRadius: 2,
+    backgroundColor: '#2C6A50',
+  },
+  kicker: {
+    fontSize: 10,
     fontWeight: '800',
-    color: Colors.textPrimary,
-    letterSpacing: 0.1,
+    letterSpacing: 1.5,
+    color: '#2C6A50',
+    textTransform: 'uppercase',
   },
   seeAllText: {
     ...Typography.labelMedium,

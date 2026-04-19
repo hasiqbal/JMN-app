@@ -14,11 +14,13 @@ import { Colors, Radius, Spacing } from '@/constants/theme';
 
 export type SacredContentModuleProps = {
   hadithLabel: string;
+  hadithLabelUrdu?: string;
   hadithPreview: string;
   hadithPreviewUrdu?: string;
   hadithSource: string;
   onPressHadith: () => void;
   verseLabel: string;
+  verseLabelUrdu?: string;
   versePreview: string;
   versePreviewUrdu?: string;
   verseReference: string;
@@ -32,6 +34,7 @@ export type SacredContentModuleProps = {
 
 type SacredPanelProps = {
   label: string;
+  labelUrdu?: string;
   previewFront: string;
   previewBack?: string;
   reference: string;
@@ -110,6 +113,7 @@ function hasUrduGlyphs(value: string) {
 
 function SacredPanel({
   label,
+  labelUrdu,
   previewFront,
   previewBack,
   reference,
@@ -126,7 +130,10 @@ function SacredPanel({
   const canFlip = backText.length > 0;
   const activePreview = isFlipped && canFlip ? backText : previewFront;
   const previewIsUrdu = hasUrduGlyphs(activePreview);
-  const flipLabel = isFlipped ? 'Show English' : 'Show Urdu';
+  const defaultUrduLabel = tone === 'hadith' ? 'آج کی سنت' : 'آج کی آیت';
+  const activeLabel = isFlipped && canFlip ? (labelUrdu?.trim() || defaultUrduLabel) : label;
+  const titleIsUrdu = hasUrduGlyphs(activeLabel);
+  const flipLabel = isFlipped ? 'انگلش دکھائیں' : 'اردو دکھائیں';
 
   return (
     <Pressable
@@ -142,8 +149,15 @@ function SacredPanel({
         pressed && styles.panelPressed,
       ]}
     >
-      <Text style={[styles.panelHeading, { color: palette.heading }]} numberOfLines={1}>
-        {label}
+      <Text
+        style={[
+          styles.panelHeading,
+          { color: palette.heading },
+          titleIsUrdu && styles.panelHeadingUrdu,
+        ]}
+        numberOfLines={1}
+      >
+        {activeLabel}
       </Text>
 
       <Text
@@ -217,11 +231,13 @@ function LoadingSkeleton({ nightMode }: { nightMode?: boolean }) {
 
 export function SacredContentModule({
   hadithLabel,
+  hadithLabelUrdu,
   hadithPreview,
   hadithPreviewUrdu,
   hadithSource,
   onPressHadith,
   verseLabel,
+  verseLabelUrdu,
   versePreview,
   versePreviewUrdu,
   verseReference,
@@ -277,6 +293,7 @@ export function SacredContentModule({
       {hasHadith ? (
         <SacredPanel
           label={hadithLabel}
+          labelUrdu={hadithLabelUrdu}
           previewFront={hadithPreviewSafe || 'Adhkar coming soon.'}
           previewBack={hadithPreviewUrdu}
           reference={hadithSourceSafe || 'Reference pending'}
@@ -297,6 +314,7 @@ export function SacredContentModule({
       {hasVerse ? (
         <SacredPanel
           label={verseLabel}
+          labelUrdu={verseLabelUrdu}
           previewFront={versePreviewSafe || 'Verse coming soon.'}
           previewBack={versePreviewUrdu}
           reference={verseReferenceSafe || 'Reference pending'}
@@ -344,8 +362,12 @@ export function SacredReadingSheet({
       statusBarTranslucent
       onRequestClose={onClose}
     >
-      <Pressable style={[styles.sheetOverlay, { backgroundColor: palette.overlay }]} onPress={onClose}>
+      <View style={styles.sheetOverlay}>
         <Pressable
+          style={[styles.sheetBackdrop, { backgroundColor: palette.overlay }]}
+          onPress={onClose}
+        />
+        <View
           style={[
             styles.sheet,
             {
@@ -353,7 +375,6 @@ export function SacredReadingSheet({
               borderColor: palette.sheetBorder,
             },
           ]}
-          onPress={(event) => event.stopPropagation()}
         >
           <View style={[styles.sheetHandle, { backgroundColor: palette.sheetHandle }]} />
 
@@ -376,6 +397,8 @@ export function SacredReadingSheet({
             style={styles.sheetBodyScroll}
             contentContainerStyle={styles.sheetBodyContent}
             showsVerticalScrollIndicator={false}
+            nestedScrollEnabled
+            keyboardShouldPersistTaps="handled"
           >
             <Text style={[styles.sheetReference, { color: palette.sheetSubText }]}>{reference}</Text>
 
@@ -413,8 +436,8 @@ export function SacredReadingSheet({
               <MaterialIcons name="arrow-forward" size={15} color={palette.sheetSubText} />
             </Pressable>
           )}
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -458,6 +481,14 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     fontWeight: '700',
     marginBottom: 8,
+  },
+  panelHeadingUrdu: {
+    fontFamily: 'UrduNastaliqBold',
+    writingDirection: 'rtl',
+    textAlign: 'right',
+    fontSize: 20,
+    lineHeight: 30,
+    fontWeight: '400',
   },
   panelPreview: {
     fontSize: 15,
@@ -558,12 +589,16 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
   },
+  sheetBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
   sheet: {
     borderTopLeftRadius: 26,
     borderTopRightRadius: 26,
     borderWidth: 1,
     borderBottomWidth: 0,
-    maxHeight: '82%',
+    maxHeight: '92%',
+    minHeight: '62%',
     paddingHorizontal: Spacing.md,
     paddingTop: 8,
     paddingBottom: 14,
@@ -597,6 +632,7 @@ const styles = StyleSheet.create({
   },
   sheetBodyScroll: {
     flex: 1,
+    minHeight: 220,
   },
   sheetBodyContent: {
     paddingBottom: 12,
