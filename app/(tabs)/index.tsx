@@ -20,7 +20,6 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
-import { useSkyBackgroundCycle } from '@/hooks/useSkyBackgroundCycle';
 import { formatCountdownSeconds, getNextPrayer, type PrayerTime } from '@/services/prayerService';
 import { usePrayerTimes } from '@/hooks/usePrayerTimes';
 import { useNightMode } from '@/hooks/useNightMode';
@@ -32,7 +31,7 @@ import {
 } from '@/services/contentService';
 import { fetchEidUlAdha, fetchEidUlFitr } from '@/services/eidService';
 import { fetchDailySacredContent, type DailySacredContent } from '@/services/sacredContentService';
-import { PRAYER_BG_IMAGES } from '@/components/prayer/heroConfig';
+import { getPrayerGradient, PRAYER_SKY_DEPTH_OVERLAY } from '@/components/prayer/heroConfig';
 import { buildHeroState } from '@/components/prayer/heroState';
 import { buildActivePrayerState } from '@/components/prayer/activePrayerState';
 import PrayerDrawerTrigger from '@/components/prayer/PrayerDrawerTrigger';
@@ -49,23 +48,6 @@ import { createDonationCheckoutUrl } from '@/services/donationService';
 import WebView from 'react-native-webview';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-
-// ── Time-of-day hero gradient ──────────────────────────────────────────────
-function getHeroImageOpacity(hour: number, prayerName: string, isForbidden: boolean): number {
-  if (isForbidden) return 0.78;
-  if (prayerName === 'Fajr') return 0.96;
-  if (prayerName === 'Sunrise' || prayerName === 'Ishraq') return 0.92;
-  if (prayerName === 'Maghrib') return 0.95;
-  if (prayerName === 'Isha') return 0.84;
-  if (hour >= 22 || hour < 4) return 0.82;
-  if (hour >= 17 && hour < 20) return 0.94;
-  return 0.88;
-}
-
-function getHeroImagePosition(imageKey: string): 'top' | 'center' {
-  if (imageKey === 'Jumuah' || imageKey === 'Eid') return 'top';
-  return 'center';
-}
 
 function getFullDayTimelineProgress(
   prayers: { name: string; timeDate: Date }[] | undefined,
@@ -168,10 +150,6 @@ const HERO_DESIGN_TOKENS = {
   railDot:            'rgba(244,239,231,0.56)',
   donationSurface:    'rgba(9,44,31,0.74)',
   goldSoft:           '#D8C27A',
-  // Overlays & backgrounds
-  overlayStrong:      'rgba(2,9,19,0.34)',  // slight reduction in photo prominence for balanced readability
-  overlayMedium:      'rgba(2,9,19,0.24)',
-  overlayLight:       'rgba(2,9,19,0.15)',
   // Night mode variants
   nightEmerald:       '#2D9D5C',  // softer green for calm appearance
   nightMint:          '#4FE948',
@@ -2141,7 +2119,6 @@ export default function HomeScreen() {
   const asrPrayer = data?.prayers.find(p => p.name === 'Asr');
 
   const {
-    heroImageKey,
     heroProgress,
     heroAthanMarker,
     heroJamaatMarker,
@@ -2484,11 +2461,6 @@ export default function HomeScreen() {
     return currentTime < asrStart;
   })();
 
-  const effectiveHeroImageKey = isNonJumuahEidPostFinalHero
-    ? 'Zawaal'
-    : isEidHeroWindow
-    ? (activeEidType === 'eid_al_adha' ? 'EidAdha' : 'Eid')
-    : (isFridayPostZawaal ? 'Jumuah' : heroImageKey);
   const effectiveHeroPrayerName = isNonJumuahEidPostFinalHero
     ? 'Zawaal'
     : isEidHeroWindow
@@ -2615,6 +2587,7 @@ export default function HomeScreen() {
   const effectiveHeroJamaatMarker = isEidHeroWindow ? null : heroJamaatMarker;
   const effectiveHeroEndMarker = isEidHeroWindow ? null : heroEndMarker;
   const effectiveHeroMidMarker = isEidHeroWindow ? null : heroMidMarker;
+  const effectiveHeroSkyGradientColors = getPrayerGradient(effectiveHeroPrayerName);
   const effectiveHeroGradientColors: readonly [string, string] = nightMode
     ? [HERO_DESIGN_TOKENS.heroTopNight, HERO_DESIGN_TOKENS.heroBottomNight]
     : [HERO_DESIGN_TOKENS.heroTop, HERO_DESIGN_TOKENS.heroBottom];
@@ -2662,9 +2635,6 @@ export default function HomeScreen() {
     nextPrayerName: effectiveNextPrayerName,
   }), [data?.prayers, currentTime, activePrayer?.name, effectiveNextPrayerName]);
 
-  const effectiveHeroImageOpacity = getHeroImageOpacity(currentTime.getHours(), effectiveHeroPrayerName, !!forbiddenInfo);
-  const { currentSkySource, currentSkyKey, nextSkySource, nextSkyKey, nextSkyOpacity } = useSkyBackgroundCycle();
-
   // Keep these computed hero fields alive while the new visual shell still relies on legacy prayer-state logic.
   const heroLegacyState = {
     SCREEN_WIDTH,
@@ -2680,7 +2650,6 @@ export default function HomeScreen() {
     effectiveHeroJamaatMarker,
     effectiveHeroEndMarker,
     effectiveHeroMidMarker,
-    effectiveHeroImageOpacity,
   };
   void heroLegacyState;
 
@@ -2795,24 +2764,14 @@ export default function HomeScreen() {
     >
       {/* New Home layout: image-2 inspired editorial stack */}
       <View style={[styles.heroHeader, { paddingTop: insets.top + 10 }]}> 
-        <Image
-          source={currentSkySource ?? PRAYER_BG_IMAGES[effectiveHeroImageKey] ?? PRAYER_BG_IMAGES['Dhuhr']}
-          style={[StyleSheet.absoluteFillObject, { opacity: effectiveHeroImageOpacity }]}
-          contentFit="cover"
-          contentPosition={getHeroImagePosition(currentSkyKey ?? effectiveHeroImageKey)}
-        />
-        <Animated.View style={[StyleSheet.absoluteFillObject, { pointerEvents: 'none', opacity: nextSkyOpacity }]}> 
-          <Image
-            source={nextSkySource ?? PRAYER_BG_IMAGES[effectiveHeroImageKey] ?? PRAYER_BG_IMAGES['Dhuhr']}
-            style={[StyleSheet.absoluteFillObject, { opacity: effectiveHeroImageOpacity }]}
-            contentFit="cover"
-            contentPosition={getHeroImagePosition(nextSkyKey ?? effectiveHeroImageKey)}
-          />
-        </Animated.View>
         <LinearGradient
-          colors={N
-            ? [HERO_DESIGN_TOKENS.overlayMedium, HERO_DESIGN_TOKENS.overlayStrong]
-            : [HERO_DESIGN_TOKENS.overlayLight, HERO_DESIGN_TOKENS.overlayStrong]}
+          colors={effectiveHeroSkyGradientColors}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <LinearGradient
+          colors={PRAYER_SKY_DEPTH_OVERLAY}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
           style={[StyleSheet.absoluteFillObject, { pointerEvents: 'none' }]}

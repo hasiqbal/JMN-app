@@ -26,6 +26,60 @@ export const PRAYER_GRADIENTS: Record<string, readonly [string, string, ...strin
   EidAdha: ['rgba(126,105,34,0.42)', 'rgba(182,156,74,0.39)'],
 };
 
+export type PrayerSkyKey =
+  | 'tahajjud'
+  | 'fajr'
+  | 'ishraq'
+  | 'zawaal'
+  | 'zuhr'
+  | 'asr'
+  | 'maghrib'
+  | 'isha';
+
+export type PrayerSkyGradient = readonly [string, string, string, string];
+
+export const prayerSkyGradients: Record<PrayerSkyKey, PrayerSkyGradient> = {
+  tahajjud: ['#050D18', '#0A1830', '#10294A', '#1A4368'],
+  fajr: ['#1E314D', '#436287', '#8EAFCC', '#E8F1F8'],
+  ishraq: ['#56759A', '#97B6CF', '#F2D6A0', '#FFF4DA'],
+  zawaal: ['#E3EDF5', '#F0F6FA', '#FAFCFD', '#FFF7EE'],
+  zuhr: ['#7FB3E0', '#A7CFF0', '#DCEFFC', '#F7FCFF'],
+  asr: ['#688CAD', '#9FB7C7', '#D9C39A', '#F3E7CC'],
+  maghrib: ['#62466E', '#A55A56', '#E38A57', '#F8C88E'],
+  isha: ['#06111F', '#0D203A', '#173152', '#264A72'],
+};
+
+const PRAYER_SKY_KEY_ALIASES: Record<string, PrayerSkyKey> = {
+  tahajjud: 'tahajjud',
+  tahjjud: 'tahajjud',
+  fajr: 'fajr',
+  sunrise: 'ishraq',
+  ishraq: 'ishraq',
+  zawaal: 'zawaal',
+  zuhr: 'zuhr',
+  dhuhr: 'zuhr',
+  asr: 'asr',
+  maghrib: 'maghrib',
+  isha: 'isha',
+  jumuah: 'zuhr',
+  jummah: 'zuhr',
+  eid: 'zuhr',
+  eidadha: 'zuhr',
+};
+
+export function getPrayerGradient(prayerName: string | null | undefined): PrayerSkyGradient {
+  const normalized = (prayerName ?? '').trim().toLowerCase().replace(/[^a-z]/g, '');
+  const key = PRAYER_SKY_KEY_ALIASES[normalized] ?? 'zuhr';
+  return prayerSkyGradients[key];
+}
+
+// Optional depth layer above sky gradient to improve text/card contrast.
+export const PRAYER_SKY_DEPTH_OVERLAY: readonly [string, string, string] = [
+  'rgba(2,9,19,0.08)',
+  'rgba(2,9,19,0.16)',
+  'rgba(2,9,19,0.24)',
+];
+
 export const PRAYER_BG_IMAGES: Record<string, any> = {
   Tahjjud: require('@/assets/images/sky/tahjjud.jpg'),
   Fajr: require('@/assets/images/sky/fajr.jpg'),
@@ -40,21 +94,3 @@ export const PRAYER_BG_IMAGES: Record<string, any> = {
   Eid: require('@/assets/images/sky/nabwi.jpg'),
   EidAdha: require('@/assets/images/sky/arafat.jpeg'),
 };
-
-// Equal day segments that cycle through every image in assets/images/sky once per day.
-export const SKY_DAY_CYCLE_KEYS = [
-  'Tahjjud',
-  'Fajr',
-  'Sunrise',
-  'Ishraq',
-  'Dhuhr',
-  'Zawaal',
-  'Asr',
-  'Maghrib',
-  'Isha',
-  'Jumuah',
-  'EidAdha',
-] as const;
-
-export const SKY_CROSS_FADE_DURATION_MS = 8000;
-export const SKY_CYCLE_CHECK_MS = 30000;

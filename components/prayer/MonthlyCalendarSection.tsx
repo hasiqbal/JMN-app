@@ -680,7 +680,7 @@ function CalendarEventPlaceholders({
     <View style={eventStyles.wrap}>
       <View style={[eventStyles.card, N && { backgroundColor: N.surface, borderColor: N.border }]}>
         <View style={eventStyles.headerRow}>
-          <MaterialIcons name="event-important" size={16} color={N ? '#E7C36C' : '#C98500'} />
+          <MaterialIcons name="event-note" size={16} color={N ? '#E7C36C' : '#C98500'} />
           <Text style={[eventStyles.title, N && { color: N.text }]}>Important Date Events</Text>
         </View>
         <Text style={[eventStyles.sub, N && { color: N.textSub }]}>Use this space for notable events linked to the Islamic date of {islamicDateLabel}.</Text>
