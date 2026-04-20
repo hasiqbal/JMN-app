@@ -336,6 +336,7 @@ function MushafImageViewer({
   const ACCENT=N?accentNight:accentDay, META=N?'#94A3B8':'#6B7280';
   const ACCENT_SOFT = ACCENT + '18';
   const ACCENT_BORDER = ACCENT + '32';
+  const QURAN_TINT_OVERLAY = N ? 'rgba(255, 239, 196, 0.06)' : 'rgba(255, 239, 196, 0.14)';
   const hasImages = Object.keys(localPages).length > 0;
   const has16LineImages = Object.keys(localPages16 ?? {}).length > 0;
   const pageNum = pageNums[pi];
@@ -554,13 +555,16 @@ function MushafImageViewer({
                     <Text style={[S.emptyTitle, { color:ACCENT, fontSize:14 }]}>Page {pageNum} not uploaded yet</Text>
                   </View>
                 ) : (
-                  <Image
-                    key={`${pageNum}-${rk}`}
-                    source={src}
-                    style={{ flex:1, width:'100%' }}
-                    contentFit="contain"
-                    transition={0}
-                  />
+                  <>
+                    <Image
+                      key={`${pageNum}-${rk}`}
+                      source={src}
+                      style={{ flex:1, width:'100%' }}
+                      contentFit="contain"
+                      transition={0}
+                    />
+                    <View pointerEvents="none" style={[S.quranTintOverlay, { backgroundColor: QURAN_TINT_OVERLAY }]} />
+                  </>
                 )}
               </Reanimated.View>
             </GestureDetector>
@@ -894,6 +898,9 @@ const S = StyleSheet.create({
   backBtnText: { fontSize:13, fontWeight:'800' },
   surahName: { fontSize:18, fontWeight:'800' } as any,
   emptyBox:  { flex:1, alignItems:'center', justifyContent:'center', padding:32, gap:14 },
+  quranTintOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
   emptyTitle:{ fontSize:16, fontWeight:'800', textAlign:'center' },
   emptySub:  { fontSize:13, lineHeight:20, textAlign:'center' },
   navBar:    { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:8, paddingVertical:6, borderTopWidth:1 },

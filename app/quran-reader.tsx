@@ -81,6 +81,7 @@ export default function QuranReaderScreen() {
 
   const [page, setPage] = useState(activeRange.start);
   const N = nightMode ? NIGHT : null;
+  const quranTintOverlay = nightMode ? 'rgba(255, 239, 196, 0.06)' : 'rgba(255, 239, 196, 0.14)';
   const mushafTotalPages = useMemo(() => getMushafTotalPages(mushaf), [mushaf]);
   const zoomScale = useSharedValue(1);
   const savedZoomScale = useSharedValue(1);
@@ -294,6 +295,7 @@ export default function QuranReaderScreen() {
         {localSource ? (
           <Reanimated.View style={[styles.imageWrap, zoomStyle]}>
             <Image source={localSource} style={styles.image} contentFit="contain" transition={80} />
+            <View pointerEvents="none" style={[styles.quranTintOverlay, { backgroundColor: quranTintOverlay }]} />
           </Reanimated.View>
         ) : (
           <View style={styles.emptyWrap}>
@@ -365,6 +367,9 @@ const styles = StyleSheet.create({
   },
   imageWrap: {
     flex: 1,
+  },
+  quranTintOverlay: {
+    ...StyleSheet.absoluteFillObject,
   },
   emptyWrap: {
     flex: 1,
