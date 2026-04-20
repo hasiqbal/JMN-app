@@ -95,6 +95,62 @@ supabase secrets set STRIPE_SUCCESS_URL="https://jmnhalifax.org.uk/"
 supabase secrets set STRIPE_CANCEL_URL="https://jmnhalifax.org.uk/"
 ```
 
+## Live Status Auto Sync (MyMasjid)
+
+This project includes a Supabase Edge Function that:
+
+- checks the MyMasjid live page
+- updates `app_settings.is_live`
+- sends push notifications on offline -> live transitions
+
+### 1. Deploy the function
+
+```bash
+supabase functions deploy sync-mymasjid-live
+```
+
+### 2. Configure optional secrets
+
+```bash
+supabase secrets set MYMASJID_LIVE_PAGE_URL="https://mymasjid.uk/live/jamimasjidnoorani"
+supabase secrets set MYMASJID_OFFLINE_MARKER="THIS MASJID IS OFFLINE"
+supabase secrets set LIVE_NOTIFY_COOLDOWN_MINUTES="15"
+```
+
+### 3. Run a dry run check (manual)
+
+```bash
+curl -X POST "https://<project-ref>.functions.supabase.co/sync-mymasjid-live" \
+	-H "Authorization: Bearer <anon-or-service-role-key>" \
+	-H "Content-Type: application/json" \
+	-d '{"dryRun": true}'
+```
+
+### 4. Schedule it with pg_cron (recommended)
+
+Run this in the Supabase SQL editor:
+
+```sql
+select cron.schedule(
+	'jmn-sync-mymasjid-live-every-minute',
+	'*/1 * * * *',
+	$$
+	select
+		net.http_post(
+			url := 'https://<project-ref>.functions.supabase.co/sync-mymasjid-live',
+			headers := '{"Content-Type":"application/json","Authorization":"Bearer <anon-or-service-role-key>"}'::jsonb,
+			body := '{"dryRun":false}'::jsonb
+		);
+	$$
+);
+```
+
+To remove the schedule later:
+
+```sql
+select cron.unschedule('jmn-sync-mymasjid-live-every-minute');
+```
+
 ## Notes
 
 - This project is configured as a private application.

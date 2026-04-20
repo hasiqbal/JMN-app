@@ -1,22 +1,20 @@
 import React from 'react';
-import { AppState, AppStateStatus } from 'react-native';
-import { useInAppBanner } from '@/template';
-import { getNextPrayer, getPrayerTimesForDate, PrayerTimesData } from '@/services/prayerService';
+import { AppState, AppStateStatus, Platform } from 'react-native';
+import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
+import { getPrayerTimesForDate, PrayerTime, PrayerTimesData } from '@/services/prayerService';
 
 const JAMAAT_THRESHOLDS_MINUTES = [30, 20, 15, 5];
 const PRAYER_END_THRESHOLDS_MINUTES = [45, 30, 15];
-const CHECK_INTERVAL_MS = 15 * 1000;
-const DATA_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+const RESCHEDULE_INTERVAL_MS = 15 * 60 * 1000;
+const MIN_FUTURE_BUFFER_MS = 10 * 1000;
+const MAX_SCHEDULED_QURAN_REMINDERS = 60;
+const QURAN_NOTIFICATION_CHANNEL_ID = 'quran-prayer';
+const QURAN_NOTIFICATION_TYPE = 'quran-prayer-reminder';
 
-const shownReminderKeys = new Set<string>();
-let lastReminderDayKey = '';
-
-function toDayKey(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
+const EXPO_GO_NOTIFICATIONS_FALLBACK =
+  Constants.appOwnership === 'expo' &&
+  Number((Constants.expoConfig?.sdkVersion ?? '0').split('.')[0] || 0) >= 53;
 
 function parseIqamahDate(iqamah: string | undefined, baseDate: Date): Date | null {
   const value = (iqamah ?? '').trim();
@@ -33,15 +31,6 @@ function parseIqamahDate(iqamah: string | undefined, baseDate: Date): Date | nul
   return out;
 }
 
-function isWithinThresholdWindow(remainingSeconds: number, thresholdMinutes: number): boolean {
-  const thresholdSeconds = thresholdMinutes * 60;
-  return remainingSeconds <= thresholdSeconds && remainingSeconds > thresholdSeconds - 60;
-}
-
-function isJamaatStartedWindow(remainingSeconds: number): boolean {
-  return remainingSeconds <= 0 && remainingSeconds > -60;
-}
-
 function buildReminderKey(
   kind: 'jamaat' | 'prayer-end',
   prayerName: string,
@@ -56,124 +45,210 @@ function getPrayerLabel(name: string): string {
   return name;
 }
 
+interface ReminderEvent {
+  key: string;
+  title: string;
+  message: string;
+  fireAt: Date;
+  prayerName: string;
+}
+
+function shouldIncludePrayer(prayer: PrayerTime): boolean {
+  return !['Sunrise', 'Ishraq', 'Zawaal'].includes(prayer.name);
+}
+
+function buildReminderEventsForPrayer(prayer: PrayerTime): ReminderEvent[] {
+  if (!shouldIncludePrayer(prayer)) return [];
+
+  const prayerName = getPrayerLabel(prayer.name || 'Prayer');
+  const prayerStart = prayer.timeDate;
+  const iqamahDate = parseIqamahDate(prayer.iqamah, prayerStart) ?? prayerStart;
+  const events: ReminderEvent[] = [];
+
+  for (const threshold of JAMAAT_THRESHOLDS_MINUTES) {
+    events.push({
+      key: buildReminderKey('jamaat', prayerName, iqamahDate, String(threshold)),
+      title: 'Jamaat Reminder',
+      message: `${prayerName} jamaat starts in ${threshold} minutes.`,
+      fireAt: new Date(iqamahDate.getTime() - threshold * 60 * 1000),
+      prayerName,
+    });
+  }
+
+  events.push({
+    key: buildReminderKey('jamaat', prayerName, iqamahDate, 'started'),
+    title: 'Jamaat Reminder',
+    message: `${prayerName} jamaat has started.`,
+    fireAt: iqamahDate,
+    prayerName,
+  });
+
+  for (const threshold of PRAYER_END_THRESHOLDS_MINUTES) {
+    events.push({
+      key: buildReminderKey('prayer-end', prayerName, prayerStart, String(threshold)),
+      title: 'Prayer End Reminder',
+      message: `${prayerName} begins in ${threshold} minutes. Current prayer time is ending soon.`,
+      fireAt: new Date(prayerStart.getTime() - threshold * 60 * 1000),
+      prayerName,
+    });
+  }
+
+  return events;
+}
+
+function isQuranNotificationData(data: unknown): data is { type: string } {
+  return !!data && typeof data === 'object' && 'type' in data;
+}
+
+async function ensureQuranNotificationChannel(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+
+  await Notifications.setNotificationChannelAsync(QURAN_NOTIFICATION_CHANNEL_ID, {
+    name: 'Quran Prayer Reminders',
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 250, 150, 250],
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    sound: 'default',
+  }).catch(() => {});
+}
+
+async function clearScheduledQuranNotifications(): Promise<void> {
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  const quranIds = scheduled
+    .filter((item) => isQuranNotificationData(item.content.data) && item.content.data.type === QURAN_NOTIFICATION_TYPE)
+    .map((item) => item.identifier);
+
+  await Promise.all(
+    quranIds.map((id) => Notifications.cancelScheduledNotificationAsync(id).catch(() => {})),
+  );
+}
+
+function dedupeAndSortEvents(events: ReminderEvent[]): ReminderEvent[] {
+  const byKey = new Map<string, ReminderEvent>();
+  events.forEach((event) => byKey.set(event.key, event));
+
+  return Array.from(byKey.values())
+    .sort((a, b) => a.fireAt.getTime() - b.fireAt.getTime())
+    .slice(0, MAX_SCHEDULED_QURAN_REMINDERS);
+}
+
+function futureEventsForDate(data: PrayerTimesData, now: Date): ReminderEvent[] {
+  const minTime = now.getTime() + MIN_FUTURE_BUFFER_MS;
+  return data.prayers
+    .flatMap((prayer) => buildReminderEventsForPrayer(prayer))
+    .filter((event) => event.fireAt.getTime() > minTime);
+}
+
+function tomorrowFajrEvents(data: PrayerTimesData, now: Date): ReminderEvent[] {
+  const fajr = data.prayers.find((prayer) => prayer.name === 'Fajr');
+  if (!fajr) return [];
+  const minTime = now.getTime() + MIN_FUTURE_BUFFER_MS;
+  return buildReminderEventsForPrayer(fajr).filter((event) => event.fireAt.getTime() > minTime);
+}
+
+async function scheduleReminderEvent(event: ReminderEvent): Promise<void> {
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: event.title,
+      body: event.message,
+      sound: 'default',
+      channelId: QURAN_NOTIFICATION_CHANNEL_ID,
+      data: {
+        type: QURAN_NOTIFICATION_TYPE,
+        reminderKey: event.key,
+        prayerName: event.prayerName,
+      },
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: event.fireAt,
+    },
+  });
+}
+
 interface UseQuranPrayerPopupsOptions {
   enabled?: boolean;
 }
 
 export function useQuranPrayerPopups(options: UseQuranPrayerPopupsOptions = {}): void {
   const { enabled = true } = options;
-  const { showBanner } = useInAppBanner();
-
   const appStateRef = React.useRef<AppStateStatus>(AppState.currentState);
-  const prayerDataRef = React.useRef<PrayerTimesData | null>(null);
-  const lastDataLoadAtRef = React.useRef<number>(0);
-  const checkingRef = React.useRef(false);
+  const schedulingRef = React.useRef(false);
+  const lastScheduleAttemptAtRef = React.useRef(0);
 
-  const resetReminderDayIfNeeded = React.useCallback((now: Date) => {
-    const dayKey = toDayKey(now);
-    if (dayKey === lastReminderDayKey) return;
-    lastReminderDayKey = dayKey;
-    shownReminderKeys.clear();
-  }, []);
+  const syncScheduledReminders = React.useCallback(async (force = false) => {
+    if (Platform.OS === 'web' || EXPO_GO_NOTIFICATIONS_FALLBACK || schedulingRef.current) return;
 
-  const loadPrayerData = React.useCallback(async (force = false): Promise<PrayerTimesData | null> => {
-    const now = Date.now();
-    const isFresh = prayerDataRef.current && now - lastDataLoadAtRef.current < DATA_REFRESH_INTERVAL_MS;
-    if (!force && isFresh) return prayerDataRef.current;
+    const nowMs = Date.now();
+    if (!force && nowMs - lastScheduleAttemptAtRef.current < RESCHEDULE_INTERVAL_MS) return;
 
-    const next = await getPrayerTimesForDate();
-    if (next) {
-      prayerDataRef.current = next;
-      lastDataLoadAtRef.current = now;
-    }
-    return prayerDataRef.current;
-  }, []);
-
-  const showReminderOnce = React.useCallback((key: string, title: string, message: string): boolean => {
-    if (shownReminderKeys.has(key)) return false;
-    shownReminderKeys.add(key);
-    showBanner(title, message);
-    return true;
-  }, [showBanner]);
-
-  const checkPopupThresholds = React.useCallback(async () => {
-    if (!enabled || appStateRef.current !== 'active' || checkingRef.current) return;
-
-    checkingRef.current = true;
+    schedulingRef.current = true;
     try {
+      lastScheduleAttemptAtRef.current = nowMs;
+
+      if (!enabled) {
+        await clearScheduledQuranNotifications();
+        return;
+      }
+
+      const permission = await Notifications.getPermissionsAsync();
+      if (permission.status !== 'granted') return;
+
+      await ensureQuranNotificationChannel();
+
       const now = new Date();
-      resetReminderDayIfNeeded(now);
 
-      const data = await loadPrayerData();
-      if (!data) return;
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
 
-      const nextPrayer = getNextPrayer(data.prayers);
-      if (!nextPrayer) return;
+      const [todayData, tomorrowData] = await Promise.all([
+        getPrayerTimesForDate(now),
+        getPrayerTimesForDate(tomorrow),
+      ]);
 
-      const nextPrayerName = getPrayerLabel(nextPrayer.prayer.name || 'Prayer');
-      const nextPrayerStart = nextPrayer.prayer.timeDate;
-      const secondsToPrayerStart = Math.floor((nextPrayerStart.getTime() - now.getTime()) / 1000);
+      const events = dedupeAndSortEvents([
+        ...(todayData ? futureEventsForDate(todayData, now) : []),
+        ...(tomorrowData ? tomorrowFajrEvents(tomorrowData, now) : []),
+      ]);
 
-      const iqamahDate = parseIqamahDate(nextPrayer.prayer.iqamah, nextPrayerStart) ?? nextPrayerStart;
-      const secondsToJamaat = Math.floor((iqamahDate.getTime() - now.getTime()) / 1000);
+      await clearScheduledQuranNotifications();
 
-      for (const threshold of JAMAAT_THRESHOLDS_MINUTES) {
-        if (!isWithinThresholdWindow(secondsToJamaat, threshold)) continue;
-        const key = buildReminderKey('jamaat', nextPrayerName, iqamahDate, String(threshold));
-        if (showReminderOnce(key, 'Jamaat Reminder', `${nextPrayerName} jamaat starts in ${threshold} minutes.`)) {
-          return;
-        }
-      }
-
-      if (isJamaatStartedWindow(secondsToJamaat)) {
-        const key = buildReminderKey('jamaat', nextPrayerName, iqamahDate, 'started');
-        if (showReminderOnce(key, 'Jamaat Reminder', `${nextPrayerName} jamaat has started.`)) {
-          return;
-        }
-      }
-
-      for (const threshold of PRAYER_END_THRESHOLDS_MINUTES) {
-        if (!isWithinThresholdWindow(secondsToPrayerStart, threshold)) continue;
-        const key = buildReminderKey('prayer-end', nextPrayerName, nextPrayerStart, String(threshold));
-        if (showReminderOnce(key, 'Prayer End Reminder', `${nextPrayerName} begins in ${threshold} minutes. Current prayer time is ending soon.`)) {
-          return;
-        }
-      }
+      await Promise.all(events.map((event) => scheduleReminderEvent(event).catch(() => {})));
     } finally {
-      checkingRef.current = false;
+      schedulingRef.current = false;
     }
-  }, [enabled, loadPrayerData, resetReminderDayIfNeeded, showReminderOnce]);
+  }, [enabled]);
 
   React.useEffect(() => {
-    if (!enabled) return;
+    void syncScheduledReminders(true);
+  }, [enabled, syncScheduledReminders]);
 
+  React.useEffect(() => {
     const appSub = AppState.addEventListener('change', (state) => {
       appStateRef.current = state;
       if (state === 'active') {
-        void checkPopupThresholds();
+        void syncScheduledReminders(true);
       }
     });
 
     return () => appSub.remove();
-  }, [enabled, checkPopupThresholds]);
+  }, [syncScheduledReminders]);
 
   React.useEffect(() => {
-    if (!enabled) return;
-
     let cancelled = false;
     const run = async () => {
       if (cancelled) return;
-      await checkPopupThresholds();
+      await syncScheduledReminders();
     };
 
     void run();
     const intervalId = setInterval(() => {
       void run();
-    }, CHECK_INTERVAL_MS);
+    }, RESCHEDULE_INTERVAL_MS);
 
     return () => {
       cancelled = true;
       clearInterval(intervalId);
     };
-  }, [enabled, checkPopupThresholds]);
+  }, [syncScheduledReminders]);
 }

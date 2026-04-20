@@ -1,13 +1,25 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Platform, View, StyleSheet, Animated } from 'react-native';
+import { Alert, Platform, View, StyleSheet, Animated } from 'react-native';
 import { useRef, useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { Colors } from '@/constants/theme';
 import { useNightMode } from '@/hooks/useNightMode';
+import { useQuranPopupReminderSetting } from '@/hooks/useQuranPopupReminderSetting';
+import { useQuranPrayerPopups } from '@/hooks/useQuranPrayerPopups';
 import { fetchLiveStatus } from '@/services/liveService';
 
 const HIDDEN_TAB_OPTIONS = { href: null };
+const LIVE_POLL_MS = 30000;
+const LIVE_NOTIFY_KEY = 'jmn_radio_notify';
+const LIVE_NOTIFY_TS_KEY = 'jmn_last_live_notify_ts';
+const LIVE_NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
+const EXPO_GO_NOTIFICATIONS_FALLBACK =
+  Constants.appOwnership === 'expo' &&
+  Number((Constants.expoConfig?.sdkVersion ?? '0').split('.')[0] || 0) >= 53;
 
 function LiveDot() {
   const pulse = useRef(new Animated.Value(0.4)).current;
@@ -38,16 +50,76 @@ const dotStyles = StyleSheet.create({
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const { nightMode } = useNightMode();
+  const { enabled: quranReminderEnabled } = useQuranPopupReminderSetting();
   const [isLive, setIsLive] = useState(false);
+  const previousLiveRef = useRef<boolean | null>(null);
+
+  useQuranPrayerPopups({ enabled: quranReminderEnabled });
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    Notifications.setNotificationChannelAsync('jmn-live', {
+      name: 'JMN Live Alerts',
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 150, 250],
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      sound: 'default',
+    }).catch(() => {});
+  }, []);
+
+  const maybeNotifyLiveStart = async () => {
+    if (Platform.OS === 'web') return;
+
+    const enabled = (await AsyncStorage.getItem(LIVE_NOTIFY_KEY)) === 'true';
+    if (!enabled) return;
+
+    const permission = await Notifications.getPermissionsAsync();
+    if (permission.status !== 'granted') return;
+
+    const now = Date.now();
+    const lastRaw = await AsyncStorage.getItem(LIVE_NOTIFY_TS_KEY);
+    const lastSentTs = lastRaw ? Number(lastRaw) : 0;
+    if (Number.isFinite(lastSentTs) && now - lastSentTs < LIVE_NOTIFY_COOLDOWN_MS) return;
+
+    if (EXPO_GO_NOTIFICATIONS_FALLBACK) {
+      Alert.alert('JMN Radio is now live', "Open the Live tab to listen now.");
+      await AsyncStorage.setItem(LIVE_NOTIFY_TS_KEY, String(now));
+      return;
+    }
+
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: 'JMN Radio is now live',
+          body: "Tap to open Jami' Masjid Noorani live stream.",
+          sound: 'default',
+          channelId: 'jmn-live',
+          data: { route: '/stream', type: 'jmn-live' },
+        },
+        trigger: null,
+      });
+    } catch {
+      Alert.alert('JMN Radio is now live', "Open the Live tab to listen now.");
+    }
+
+    await AsyncStorage.setItem(LIVE_NOTIFY_TS_KEY, String(now));
+  };
 
   useEffect(() => {
     let cancelled = false;
     const poll = async () => {
       const live = await fetchLiveStatus();
-      if (!cancelled) setIsLive(live);
+      if (cancelled) return;
+
+      if (previousLiveRef.current === false && live) {
+        void maybeNotifyLiveStart();
+      }
+
+      previousLiveRef.current = live;
+      setIsLive(live);
     };
     poll();
-    const id = setInterval(poll, 30000);
+    const id = setInterval(poll, LIVE_POLL_MS);
     return () => { cancelled = true; clearInterval(id); };
   }, []);
 
@@ -69,7 +141,7 @@ export default function TabLayout() {
     borderTopColor: nightMode ? '#1E2D47' : Colors.border,
   };
 
-  const hiddenRoutes = ['howto', 'events'] as const;
+  const hiddenRoutes = ['howto', 'events', 'youtube-live'] as const;
 
   return (
     <Tabs

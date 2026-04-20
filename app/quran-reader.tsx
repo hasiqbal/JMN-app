@@ -7,8 +7,6 @@ import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-g
 import Reanimated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { Colors } from '@/constants/theme';
 import { useNightMode } from '@/hooks/useNightMode';
-import { useQuranPrayerPopups } from '@/hooks/useQuranPrayerPopups';
-import { useQuranPopupReminderSetting } from '@/hooks/useQuranPopupReminderSetting';
 import {
   fetchPageTafsirById,
   fetchPageTranslationById,
@@ -146,8 +144,6 @@ export default function QuranReaderScreen() {
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const { nightMode } = useNightMode();
-  const { enabled: reminderEnabled } = useQuranPopupReminderSetting();
-  useQuranPrayerPopups({ enabled: reminderEnabled });
   const params = useLocalSearchParams();
 
   const startPage = useMemo(() => Math.max(1, toNumber(params.startPage, 1)), [params.startPage]);

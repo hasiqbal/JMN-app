@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
+  Easing,
   Linking,
   Modal,
   Platform,
@@ -15,12 +16,15 @@ import {
   View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import Constants from 'expo-constants';
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import type { AudioPlayer } from 'expo-audio';
+import { useRouter } from 'expo-router';
 import { APP_CONFIG } from '@/constants/config';
 import { Colors, Radius, Spacing, Typography } from '@/constants/theme';
 import { useNightMode } from '@/hooks/useNightMode';
@@ -237,6 +241,13 @@ const SURAH_LIST = Object.entries(SURAH_NAMES).map(([num, name]) => ({
 
 const NOTIF_KEY = 'jmn_radio_notify';
 const LIVE_POLL_MS = 30000;
+const REWIND_STEP_SEC = 10;
+const MAX_TIMESHIFT_SEC = 120;
+const MAX_REWIND_SEEK_ATTEMPTS = 12;
+const REWIND_SEEK_SETTLE_MS = 90;
+const EXPO_GO_NOTIFICATIONS_FALLBACK =
+  Constants.appOwnership === 'expo' &&
+  Number((Constants.expoConfig?.sdkVersion ?? '0').split('.')[0] || 0) >= 53;
 
 function PulsingDot({ active }: { active: boolean }) {
   const opacity = useRef(new Animated.Value(0.35)).current;
@@ -260,17 +271,40 @@ function PulsingDot({ active }: { active: boolean }) {
   return <Animated.View style={[styles.livePulseDot, { opacity }]} />;
 }
 
-function formatClock(value: Date) {
-  return value.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-}
+function EqualizerBars({ active, color }: { active: boolean; color: string }) {
+  const wave = useRef(new Animated.Value(0)).current;
 
-function formatElapsedMs(elapsedMs: number) {
-  const totalMinutes = Math.max(1, Math.floor(elapsedMs / 60000));
-  if (totalMinutes < 60) return `${totalMinutes}m`;
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (!minutes) return `${hours}h`;
-  return `${hours}h ${minutes}m`;
+  useEffect(() => {
+    wave.stopAnimation();
+    if (!active) {
+      wave.setValue(0);
+      return;
+    }
+
+    const loop = Animated.loop(
+      Animated.timing(wave, {
+        toValue: 1,
+        duration: 850,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+    );
+
+    loop.start();
+    return () => loop.stop();
+  }, [active, wave]);
+
+  const barOne = wave.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.4, 1, 0.45] });
+  const barTwo = wave.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.95, 0.45, 0.85] });
+  const barThree = wave.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.5, 0.9, 0.35] });
+
+  return (
+    <View style={styles.eqWrap}>
+      <Animated.View style={[styles.eqBar, { backgroundColor: color, transform: [{ scaleY: barOne }] }]} />
+      <Animated.View style={[styles.eqBar, { backgroundColor: color, transform: [{ scaleY: barTwo }] }]} />
+      <Animated.View style={[styles.eqBar, { backgroundColor: color, transform: [{ scaleY: barThree }] }]} />
+    </View>
+  );
 }
 
 function stationImageSource(id: string) {
@@ -280,6 +314,7 @@ function stationImageSource(id: string) {
 }
 
 export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamScreenProps) {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { nightMode } = useNightMode();
 
@@ -290,22 +325,27 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
   const [notifyEnabled, setNotifyEnabled] = useState(true);
   const [isLive, setIsLive] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState(() => new Date());
   const [liveSince, setLiveSince] = useState<number | null>(null);
-  const [clockNow, setClockNow] = useState(() => Date.now());
   const [basitOpen, setBasitOpen] = useState(false);
   const [surahSearch, setSurahSearch] = useState('');
+  const [rewindNotice, setRewindNotice] = useState<string | null>(null);
+  const [timeshiftSec, setTimeshiftSec] = useState(0);
 
   const soundRef = useRef<AudioPlayer | null>(null);
+  const playbackStartedAtRef = useRef<number | null>(null);
+  const playbackPositionSecRef = useRef(0);
+  const timeshiftSecRef = useRef(0);
+  const seekQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const audioModeReadyRef = useRef(false);
   const autoplayAttempted = useRef(false);
   const previousLive = useRef(false);
+  const revealAnim = useRef(new Animated.Value(0)).current;
 
   const palette = nightMode ? NIGHT : DAY;
   const previewTheme = previewVariant ? PREVIEW_THEME[previewVariant] : null;
   const layoutMode: LayoutMode = previewTheme?.mode ?? 'default';
 
   const accentColor = palette.accent;
-  const heroGradient = previewTheme?.hero ?? palette.hero;
 
   const radioStreams = useMemo(
     () =>
@@ -325,7 +365,6 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
 
   const updateLiveState = useCallback((liveValue: boolean, stamp: Date) => {
     setIsLive(liveValue);
-    setLastUpdated(stamp);
 
     if (liveValue && !previousLive.current) {
       setLiveSince(stamp.getTime());
@@ -362,72 +401,153 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
   }, [updateLiveState]);
 
   useEffect(() => {
-    const ticker = setInterval(() => setClockNow(Date.now()), LIVE_POLL_MS);
-    return () => clearInterval(ticker);
-  }, []);
-
-  useEffect(() => {
     return () => {
       soundRef.current?.remove();
       soundRef.current = null;
     };
   }, []);
 
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    setAudioModeAsync({
+      allowsRecording: false,
+      shouldPlayInBackground: true,
+      playsInSilentMode: true,
+      shouldRouteThroughEarpiece: false,
+      interruptionModeAndroid: 'doNotMix',
+    })
+      .then(() => {
+        audioModeReadyRef.current = true;
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    revealAnim.setValue(0);
+    Animated.timing(revealAnim, {
+      toValue: 1,
+      duration: 420,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [revealAnim]);
+
   const stopAudio = useCallback(async () => {
-    try {
-      if (soundRef.current) {
-        soundRef.current.pause();
-        await soundRef.current.seekTo(0);
-        soundRef.current.remove();
-        soundRef.current = null;
+    const player = soundRef.current;
+    soundRef.current = null;
+
+    if (player) {
+      try {
+        player.pause();
+      } catch {
+        // Ignore pause failures; we still must dispose the player.
       }
-    } catch (_error) {
-      // Intentionally silent: playback errors should never block UI flow.
+
+      try {
+        await player.seekTo(0);
+      } catch {
+        // Some live streams do not support seek. Continue to remove the player.
+      }
+
+      try {
+        player.remove();
+      } catch {
+        // Intentionally silent: disposal errors should never block UI flow.
+      }
     }
 
+    playbackStartedAtRef.current = null;
+    playbackPositionSecRef.current = 0;
+    timeshiftSecRef.current = 0;
+    setTimeshiftSec(0);
     setAudioPlaying(false);
     setAudioLoading(false);
   }, []);
 
-  const playUrl = useCallback(async (url: string) => {
-    try {
-      setAudioLoading(true);
-      setAudioPlaying(true);
+  const playUrl = useCallback(async (
+    url: string,
+    options?: { retries?: number; connectTimeoutMs?: number },
+  ) => {
+    const maxAttempts = Math.max(1, options?.retries ?? 1);
+    const connectTimeoutMs = options?.connectTimeoutMs ?? 2500;
 
-      if (Platform.OS === 'android') {
-        await new Promise((resolve) => setTimeout(resolve, 150));
-      }
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      let connected = false;
 
-      await setAudioModeAsync({
-        allowsRecording: false,
-        shouldPlayInBackground: true,
-        playsInSilentMode: true,
-        shouldRouteThroughEarpiece: false,
-        interruptionModeAndroid: 'doNotMix',
-      });
+      try {
+        setAudioLoading(true);
+        setAudioPlaying(true);
+        playbackStartedAtRef.current = Date.now();
+        playbackPositionSecRef.current = 0;
+        timeshiftSecRef.current = 0;
+        setTimeshiftSec(0);
 
-      const player = createAudioPlayer({ uri: url }, 250);
-      soundRef.current = player;
-
-      player.addListener('playbackStatusUpdate', (status) => {
-        if (status.isLoaded && (status.playing || status.isBuffering)) {
-          setAudioLoading(false);
+        if (!audioModeReadyRef.current) {
+          await setAudioModeAsync({
+            allowsRecording: false,
+            shouldPlayInBackground: true,
+            playsInSilentMode: true,
+            shouldRouteThroughEarpiece: false,
+            interruptionModeAndroid: 'doNotMix',
+          });
+          audioModeReadyRef.current = true;
         }
 
-        if (status.didJustFinish) {
+        if (Platform.OS === 'android') {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+
+        const player = createAudioPlayer({ uri: url }, 250);
+        soundRef.current = player;
+
+        player.addListener('playbackStatusUpdate', (status) => {
+          if (soundRef.current !== player) return;
+
+          const currentTime = (status as { currentTime?: number }).currentTime;
+          if (typeof currentTime === 'number' && Number.isFinite(currentTime)) {
+            playbackPositionSecRef.current = currentTime;
+          } else if (playbackStartedAtRef.current && status.playing) {
+            playbackPositionSecRef.current = (Date.now() - playbackStartedAtRef.current) / 1000;
+          }
+
+          if (status.isLoaded && (status.playing || status.isBuffering)) {
+            connected = true;
+            setAudioLoading(false);
+          }
+
+          if (status.didJustFinish) {
+            playbackStartedAtRef.current = null;
+            playbackPositionSecRef.current = 0;
+            setAudioPlaying(false);
+            setAudioLoading(false);
+          }
+        });
+
+        player.play();
+
+        await new Promise((resolve) => setTimeout(resolve, connectTimeoutMs));
+
+        if (!connected) {
+          if (soundRef.current === player) {
+            soundRef.current = null;
+          }
+          player.remove();
+          throw new Error('connect-timeout');
+        }
+
+        setTimeout(() => {
+          setAudioLoading(false);
+        }, 2200);
+
+        return;
+      } catch (_error) {
+        const hasMoreAttempts = attempt < maxAttempts;
+        if (!hasMoreAttempts) {
+          setAudioLoading(false);
           setAudioPlaying(false);
-          setAudioLoading(false);
+          return;
         }
-      });
-
-      player.play();
-
-      setTimeout(() => {
-        setAudioLoading(false);
-      }, 3000);
-    } catch (_error) {
-      setAudioLoading(false);
-      setAudioPlaying(false);
+      }
     }
   }, []);
 
@@ -447,7 +567,11 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
 
       setActiveStationId(stationId);
       setPlayingSurah(null);
-      await playUrl(stream.url);
+      const isQiraat = stationId === 'qiraat';
+      await playUrl(stream.url, {
+        retries: isQiraat ? 2 : 1,
+        connectTimeoutMs: isQiraat ? 1800 : 2500,
+      });
     },
     [activeStationId, audioLoading, audioPlaying, playUrl, radioStreams, stopAudio],
   );
@@ -461,7 +585,7 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
 
       setActiveStationId('basit');
       setPlayingSurah(surah);
-      await playUrl(basit.url.replace('{SURAH}', String(surah)));
+      await playUrl(basit.url.replace('{SURAH}', String(surah)), { retries: 1, connectTimeoutMs: 2200 });
       setBasitOpen(false);
     },
     [playUrl, radioStreams, stopAudio],
@@ -488,35 +612,138 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
     }
   }, [updateLiveState]);
 
-  const openYouTube = useCallback(() => {
-    Linking.openURL(APP_CONFIG.youtubeChannelUrl).catch(() => {});
+  const resyncActiveStreamToLive = useCallback(async (notice?: string) => {
+    if (!soundRef.current || (!audioPlaying && !audioLoading)) return;
+
+    const activeStream = radioStreams.find((item) => item.id === activeStationId);
+    if (!activeStream) return;
+
+    let targetUrl = activeStream.url;
+    let retries = 1;
+    let connectTimeoutMs = 2200;
+
+    if (activeStationId === 'qiraat') {
+      retries = 2;
+      connectTimeoutMs = 1800;
+    }
+
+    if (activeStationId === 'basit') {
+      const surah = playingSurah ?? 1;
+      targetUrl = activeStream.url.replace('{SURAH}', String(surah));
+    }
+
+    await stopAudio();
+    await playUrl(targetUrl, { retries, connectTimeoutMs });
+    timeshiftSecRef.current = 0;
+    setTimeshiftSec(0);
+    setRewindNotice(notice ?? 'Resynced to current live position.');
+  }, [activeStationId, audioLoading, audioPlaying, playUrl, playingSurah, radioStreams, stopAudio]);
+
+  const readCurrentPlaybackTime = useCallback(() => {
+    const liveValue = soundRef.current?.currentTime;
+    if (typeof liveValue === 'number' && Number.isFinite(liveValue) && liveValue >= 0) {
+      playbackPositionSecRef.current = liveValue;
+      return liveValue;
+    }
+    return Math.max(0, playbackPositionSecRef.current);
   }, []);
 
-  const openWebsite = useCallback(() => {
-    Linking.openURL(APP_CONFIG.website).catch(() => {});
+  const rewindActiveStreamByTen = useCallback(async () => {
+    seekQueueRef.current = seekQueueRef.current.then(async () => {
+      if (!soundRef.current || !audioPlaying) return;
+      const player = soundRef.current;
+
+      try {
+        let before = readCurrentPlaybackTime();
+        let movedTotalSec = 0;
+        let stalledAttempts = 0;
+
+        for (let attempt = 0; attempt < MAX_REWIND_SEEK_ATTEMPTS; attempt += 1) {
+          const remaining = REWIND_STEP_SEC - movedTotalSec;
+          if (remaining <= 0.5) break;
+
+          const target = Math.max(0, before - remaining);
+          await player.seekTo(target);
+          await new Promise((resolve) => setTimeout(resolve, REWIND_SEEK_SETTLE_MS));
+
+          const after = readCurrentPlaybackTime();
+          const movedThisAttempt = Math.max(0, before - after);
+
+          if (movedThisAttempt < 0.25) {
+            stalledAttempts += 1;
+            if (stalledAttempts >= 2) break;
+          } else {
+            stalledAttempts = 0;
+            movedTotalSec += movedThisAttempt;
+          }
+
+          before = after;
+        }
+
+        if (movedTotalSec < 0.75) {
+          throw new Error('seek-not-effective');
+        }
+
+        if (playbackStartedAtRef.current) {
+          playbackStartedAtRef.current = Date.now() - before * 1000;
+        }
+
+        const nextTimeshift = Math.min(MAX_TIMESHIFT_SEC, timeshiftSecRef.current + movedTotalSec);
+        timeshiftSecRef.current = nextTimeshift;
+        setTimeshiftSec(nextTimeshift);
+        setRewindNotice(null);
+      } catch {
+        if (activeStationId === 'qiraat') {
+          await resyncActiveStreamToLive(
+            'Qiraat is a true live stream. 10-second seek is not supported, so it was resynced to current live.',
+          );
+          return;
+        }
+        setRewindNotice('Rewind is not available on this stream source. Use Resync to jump to current live.');
+      }
+    }).catch(() => {});
+
+    await seekQueueRef.current;
+  }, [activeStationId, audioPlaying, readCurrentPlaybackTime, resyncActiveStreamToLive]);
+
+  const ensureNotificationPermission = useCallback(async () => {
+    if (Platform.OS === 'web') return false;
+    if (EXPO_GO_NOTIFICATIONS_FALLBACK) return true;
+
+    const current = await Notifications.getPermissionsAsync();
+    let finalStatus = current.status;
+
+    if (finalStatus !== 'granted') {
+      const requested = await Notifications.requestPermissionsAsync();
+      finalStatus = requested.status;
+    }
+
+    if (finalStatus !== 'granted') return false;
+
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('jmn-live', {
+        name: 'JMN Live Alerts',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 150, 250],
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        sound: 'default',
+      }).catch(() => {});
+    }
+
+    return true;
   }, []);
 
   const toggleNotify = useCallback(async (value: boolean) => {
-    setNotifyEnabled(value);
-    await AsyncStorage.setItem(NOTIF_KEY, String(value));
-  }, []);
-
-  const elapsedLabel = useMemo(() => {
-    if (!isLive) return 'Standby';
-
-    if (liveSince) {
-      return formatElapsedMs(clockNow - liveSince);
+    if (!value) {
+      setNotifyEnabled(false);
+      await AsyncStorage.setItem(NOTIF_KEY, 'false');
+      return;
     }
 
-    return `Approx ${formatElapsedMs(clockNow - lastUpdated.getTime())}`;
-  }, [clockNow, isLive, lastUpdated, liveSince]);
-
-  const heroTitle = previewTheme?.title ?? "Jami' Masjid Noorani Live";
-  const heroSubtitle =
-    previewTheme?.subtitle ??
-    (isLive
-      ? 'Broadcast is live now. Watch or switch to radio instantly.'
-      : 'Unified live page for stream, radio, and quick access actions.');
+    const allowed = await ensureNotificationPermission();
+    setNotifyEnabled(allowed);
+    await AsyncStorage.setItem(NOTIF_KEY, String(allowed));
+  }, [ensureNotificationPermission]);
 
   const renderStationCard = (station: Station, compact = false) => {
     const isActive = station.id === activeStationId;
@@ -524,6 +751,10 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
     const isLoading = isActive && audioLoading;
     const isBasit = station.id === 'basit';
     const isMasjid = station.id === 'masjid';
+    const isEngaged = isPlaying || isLoading;
+    const showRewind = isActive && isEngaged;
+    const stationTimeshiftSec = isActive ? timeshiftSec : 0;
+    const timeshiftFill = Math.max(0, Math.min(1, stationTimeshiftSec / MAX_TIMESHIFT_SEC));
 
     const statusText = isLoading
       ? 'Connecting...'
@@ -562,6 +793,7 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
         key={station.id}
         style={[
           styles.stationCard,
+          isActive && styles.stationCardActive,
           compact && styles.stationCardCompact,
           {
             backgroundColor: palette.surface,
@@ -588,11 +820,42 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
           <Text style={[styles.stationName, { color: palette.text }]} numberOfLines={2}>
             {station.label}
           </Text>
-          <Text style={[styles.stationStatus, { color: isActive ? accentColor : palette.textSub }]} numberOfLines={2}>
-            {statusText}
-          </Text>
+
+          <View style={styles.stationStatusRow}>
+            <EqualizerBars active={isEngaged} color={isActive ? accentColor : palette.textMuted} />
+            <Text style={[styles.stationStatus, { color: isActive ? accentColor : palette.textSub }]} numberOfLines={2}>
+              {statusText}
+            </Text>
+            {isEngaged ? (
+              <View style={[styles.stationStatusPill, { backgroundColor: isLoading ? '#B48925' : accentColor }]}>
+                <Text style={styles.stationStatusPillText}>{isLoading ? 'Buffering' : 'Playing'}</Text>
+              </View>
+            ) : null}
+          </View>
 
           <View style={styles.stationActions}>
+            {showRewind ? (
+              <TouchableOpacity
+                style={[styles.rewindControl, { borderColor: palette.border, backgroundColor: palette.surfaceAlt }]}
+                onPress={() => rewindActiveStreamByTen().catch(() => {})}
+                activeOpacity={0.85}
+              >
+                <MaterialIcons name="replay-10" size={18} color={palette.textSub} />
+                <Text style={[styles.rewindControlText, { color: palette.textSub }]}>-10s</Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {showRewind ? (
+              <TouchableOpacity
+                style={[styles.resyncControl, { borderColor: palette.border, backgroundColor: palette.surfaceAlt }]}
+                onPress={() => resyncActiveStreamToLive().catch(() => {})}
+                activeOpacity={0.85}
+              >
+                <MaterialIcons name="sync" size={16} color={palette.textSub} />
+                <Text style={[styles.resyncControlText, { color: palette.textSub }]}>Resync</Text>
+              </TouchableOpacity>
+            ) : null}
+
             <TouchableOpacity
               style={[
                 styles.primaryControl,
@@ -625,21 +888,49 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
             ) : null}
           </View>
 
+          {isEngaged ? (
+            <View style={styles.timeshiftWrap}>
+              <View style={styles.timeshiftHeader}>
+                <Text style={[styles.timeshiftTitle, { color: palette.textSub }]}>Time Shift</Text>
+                <Text style={[styles.timeshiftValue, { color: palette.text }]}>{Math.round(stationTimeshiftSec)}s</Text>
+              </View>
+              <View style={[styles.timeshiftTrack, { backgroundColor: palette.border }]}>
+                <View
+                  style={[
+                    styles.timeshiftFill,
+                    {
+                      width: `${timeshiftFill * 100}%`,
+                      backgroundColor: isActive ? accentColor : palette.textMuted,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={[styles.timeshiftHint, { color: stationTimeshiftSec > 0 ? palette.textSub : palette.textMuted }]}>
+                {stationTimeshiftSec > 0 ? `-${Math.round(stationTimeshiftSec)}s behind live` : 'Live edge (0s)'}
+              </Text>
+            </View>
+          ) : null}
+
           {isMasjid ? (
-            <View style={[styles.notifyRow, { borderTopColor: palette.border }]}>
-              <MaterialIcons
-                name="notifications"
-                size={16}
-                color={notifyEnabled ? accentColor : palette.textMuted}
-              />
-              <Text style={[styles.notifyLabel, { color: palette.textSub }]}>Notify when live starts</Text>
-              <Switch
-                value={notifyEnabled}
-                onValueChange={toggleNotify}
-                trackColor={{ false: palette.border, true: `${accentColor}80` }}
-                thumbColor={notifyEnabled ? accentColor : palette.textMuted}
-                ios_backgroundColor={palette.border}
-              />
+            <View>
+              <View style={[styles.notifyRow, { borderTopColor: palette.border }]}>
+                <MaterialIcons
+                  name="notifications"
+                  size={16}
+                  color={notifyEnabled ? accentColor : palette.textMuted}
+                />
+                <Text style={[styles.notifyLabel, { color: palette.textSub }]}>Notify when live starts</Text>
+                <Switch
+                  value={notifyEnabled}
+                  onValueChange={toggleNotify}
+                  trackColor={{ false: palette.border, true: `${accentColor}80` }}
+                  thumbColor={notifyEnabled ? accentColor : palette.textMuted}
+                  ios_backgroundColor={palette.border}
+                />
+              </View>
+              {EXPO_GO_NOTIFICATIONS_FALLBACK ? (
+                <Text style={[styles.notifyHint, { color: palette.textMuted }]}>Expo Go SDK 53+ uses in-app alerts. Use a development build for system notifications.</Text>
+              ) : null}
             </View>
           ) : null}
         </View>
@@ -691,6 +982,8 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
     return <View style={styles.stationStack}>{radioStreams.map((station) => renderStationCard(station))}</View>;
   };
 
+  const activeStation = radioStreams.find((station) => station.id === activeStationId);
+
   return (
     <View style={[styles.container, { paddingTop: insets.top, backgroundColor: palette.bg }]}>
       <ScrollView
@@ -716,78 +1009,64 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
           </View>
         </View>
 
-        <LinearGradient colors={heroGradient} style={styles.heroCard}>
-          <View style={[styles.heroGlow, { backgroundColor: palette.heroGlow }]} />
-          <View style={styles.heroTopRow}>
-            <Text style={styles.heroKicker}>{isLive ? 'Live Broadcast' : 'Unified Live Stream'}</Text>
-            <View style={styles.heroStatePill}>
-              <PulsingDot active={isLive} />
-              <Text style={styles.heroStatePillText}>{isLive ? 'On Air' : 'Standby'}</Text>
+        <Animated.View
+          style={{
+            opacity: revealAnim,
+            transform: [{ translateY: revealAnim.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }],
+          }}
+        >
+          <View style={[styles.radioOnlyIntroCard, { backgroundColor: palette.surface, borderColor: palette.border }]}> 
+            <View style={[styles.inlineTabRow, { borderColor: palette.border, backgroundColor: palette.surfaceAlt }]}> 
+              <View style={[styles.inlineTab, { backgroundColor: palette.surface }]}> 
+                <MaterialIcons name="radio" size={15} color={accentColor} />
+                <Text style={[styles.inlineTabText, { color: palette.text }]}>Live Radio</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.inlineTab}
+                activeOpacity={0.85}
+                onPress={() => router.push('/youtube-live')}
+              >
+                <MaterialIcons name="ondemand-video" size={15} color={palette.textSub} />
+                <Text style={[styles.inlineTabText, { color: palette.textSub }]}>YouTube Live</Text>
+              </TouchableOpacity>
             </View>
+            <View style={styles.radioOnlyIntroHead}>
+              <MaterialIcons name="radio" size={16} color={accentColor} />
+              <Text style={[styles.radioOnlyIntroTitle, { color: palette.text }]}>Live Radio</Text>
+            </View>
+            <Text style={[styles.radioOnlyIntroBody, { color: palette.textSub }]}>This page is dedicated to JMN radio streams. Use the tab above to open YouTube Live.</Text>
           </View>
-
-          <Text style={styles.heroTitle}>{heroTitle}</Text>
-          <Text style={styles.heroSubtitle}>{heroSubtitle}</Text>
-
-          <View style={styles.heroActionRow}>
-            <TouchableOpacity style={styles.heroActionPrimary} onPress={openYouTube} activeOpacity={0.88}>
-              <MaterialIcons name="live-tv" size={18} color="#FFFFFF" />
-              <Text style={styles.heroActionPrimaryText}>{isLive ? 'Watch Live Video' : 'Open YouTube'}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.heroActionGhost}
-              onPress={() => playStation('masjid').catch(() => {})}
-              activeOpacity={0.88}
-            >
-              <MaterialIcons name={audioPlaying && activeStationId === 'masjid' ? 'stop' : 'radio'} size={17} color="#FFFFFF" />
-              <Text style={styles.heroActionGhostText}>
-                {audioPlaying && activeStationId === 'masjid' ? 'Stop JMN' : 'Play JMN'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </LinearGradient>
-
-        <View style={styles.metaRow}>
-          <View style={[styles.metaChip, { backgroundColor: palette.surface, borderColor: palette.border }]}> 
-            <MaterialIcons name="schedule" size={14} color={palette.textSub} />
-            <Text style={[styles.metaChipText, { color: palette.textSub }]}>Updated {formatClock(lastUpdated)}</Text>
-          </View>
-          <View style={[styles.metaChip, { backgroundColor: palette.surface, borderColor: palette.border }]}> 
-            <MaterialIcons name="timer" size={14} color={palette.textSub} />
-            <Text style={[styles.metaChipText, { color: palette.textSub }]}>Elapsed {elapsedLabel}</Text>
-          </View>
-          <View style={[styles.metaChip, { backgroundColor: palette.surface, borderColor: palette.border }]}> 
-            <MaterialIcons name="graphic-eq" size={14} color={isLive ? '#BC2F2F' : palette.textMuted} />
-            <Text style={[styles.metaChipText, { color: isLive ? '#BC2F2F' : palette.textMuted }]}>{isLive ? 'Live' : 'Not live'}</Text>
-          </View>
-        </View>
-
-        <View style={[styles.quickActionsCard, { backgroundColor: palette.surface, borderColor: palette.border }]}> 
-          <Text style={[styles.sectionTitle, { color: palette.text }]}>Quick Actions</Text>
-          <View style={styles.quickActionsRow}>
-            <TouchableOpacity style={[styles.quickActionBtn, { backgroundColor: palette.surfaceAlt }]} onPress={openYouTube} activeOpacity={0.85}>
-              <MaterialIcons name="ondemand-video" size={18} color={accentColor} />
-              <Text style={[styles.quickActionText, { color: palette.text }]}>YouTube</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.quickActionBtn, { backgroundColor: palette.surfaceAlt }]} onPress={openWebsite} activeOpacity={0.85}>
-              <MaterialIcons name="language" size={18} color={accentColor} />
-              <Text style={[styles.quickActionText, { color: palette.text }]}>Website</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        </Animated.View>
 
         <View style={styles.sectionHeaderRow}>
           <Text style={[styles.sectionTitle, { color: palette.text }]}>Listen Now</Text>
-          <Text style={[styles.sectionMeta, { color: palette.textMuted }]}>JMN, Qiraat, Basit</Text>
+          <View style={[styles.sectionNowPill, { backgroundColor: palette.surfaceAlt, borderColor: palette.border }]}> 
+            <MaterialIcons
+              name={audioPlaying ? 'graphic-eq' : 'radio'}
+              size={13}
+              color={audioPlaying ? accentColor : palette.textMuted}
+            />
+            <Text style={[styles.sectionNowPillText, { color: audioPlaying ? accentColor : palette.textMuted }]} numberOfLines={1}>
+              {audioPlaying ? `Now: ${activeStation?.label ?? 'Station'}` : 'Ready'}
+            </Text>
+          </View>
         </View>
 
-        {renderStations()}
+        <Animated.View
+          style={{
+            opacity: revealAnim.interpolate({ inputRange: [0, 0.82, 1], outputRange: [0, 0, 1] }),
+            transform: [{ translateY: revealAnim.interpolate({ inputRange: [0, 1], outputRange: [30, 0] }) }],
+          }}
+        >
+          {renderStations()}
+        </Animated.View>
 
-        <View style={[styles.infoCard, { backgroundColor: palette.surfaceAlt, borderColor: palette.border }]}> 
-          <MaterialIcons name="info-outline" size={16} color={accentColor} />
-          <Text style={[styles.infoText, { color: palette.textSub }]}>Stations auto-stop previous playback. Basit uses search-first Surah selection for the quickest start.</Text>
-        </View>
+        {rewindNotice ? (
+          <View style={[styles.infoCard, { backgroundColor: palette.surfaceAlt, borderColor: palette.border }]}> 
+            <MaterialIcons name="info-outline" size={16} color={accentColor} />
+            <Text style={[styles.infoText, { color: palette.textSub }]}>{rewindNotice}</Text>
+          </View>
+        ) : null}
       </ScrollView>
 
       <Modal visible={basitOpen} transparent animationType="slide" onRequestClose={() => setBasitOpen(false)}>
@@ -845,7 +1124,7 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
           </View>
 
           <ScrollView showsVerticalScrollIndicator style={styles.surahList} keyboardShouldPersistTaps="handled">
-            {filteredSurahs.map((surah, index) => (
+            {filteredSurahs.map((surah) => (
               <TouchableOpacity
                 key={surah.num}
                 style={[
@@ -1025,24 +1304,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-  metaRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  metaChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: Radius.full,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    gap: 6,
-  },
-  metaChipText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
   quickActionsCard: {
     borderRadius: Radius.lg,
     borderWidth: 1,
@@ -1080,6 +1341,63 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  radioOnlyIntroCard: {
+    borderWidth: 1,
+    borderRadius: Radius.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 12,
+    gap: 6,
+  },
+  radioOnlyIntroHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  inlineTabRow: {
+    borderWidth: 1,
+    borderRadius: Radius.full,
+    padding: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  inlineTab: {
+    flex: 1,
+    borderRadius: Radius.full,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  inlineTabText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  radioOnlyIntroTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  radioOnlyIntroBody: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: '600',
+  },
+  sectionNowPill: {
+    borderWidth: 1,
+    borderRadius: Radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    maxWidth: '68%',
+  },
+  sectionNowPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
   stationStack: {
     gap: 12,
   },
@@ -1109,6 +1427,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 16,
     elevation: 4,
+  },
+  stationCardActive: {
+    borderWidth: 2,
   },
   stationCardCompact: {
     shadowOpacity: 0.08,
@@ -1164,13 +1485,99 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   stationStatus: {
+    flex: 1,
     fontSize: 12,
     fontWeight: '600',
     lineHeight: 18,
   },
+  stationStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  stationStatusPill: {
+    borderRadius: Radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  stationStatusPillText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  eqWrap: {
+    width: 12,
+    height: 14,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+  },
+  eqBar: {
+    width: 2.5,
+    height: 13,
+    borderRadius: 2,
+  },
   stationActions: {
     flexDirection: 'row',
     gap: 8,
+  },
+  rewindControl: {
+    minWidth: 72,
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    paddingHorizontal: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  rewindControlText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  resyncControl: {
+    minWidth: 82,
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+  },
+  resyncControlText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  timeshiftWrap: {
+    gap: 5,
+  },
+  timeshiftHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  timeshiftTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  timeshiftValue: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  timeshiftTrack: {
+    height: 6,
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  timeshiftFill: {
+    height: '100%',
+    borderRadius: 999,
+  },
+  timeshiftHint: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   primaryControl: {
     flexDirection: 'row',
@@ -1206,6 +1613,12 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 12,
     fontWeight: '600',
+  },
+  notifyHint: {
+    marginTop: 6,
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '500',
   },
   infoCard: {
     borderRadius: Radius.md,

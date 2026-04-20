@@ -1,8 +1,10 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Switch } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Switch, Alert, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
+import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { Colors } from '@/constants/theme';
 import { useNightMode } from '@/hooks/useNightMode';
 import { useQuranPopupReminderSetting } from '@/hooks/useQuranPopupReminderSetting';
@@ -16,6 +18,12 @@ const NIGHT = {
 
 const QURAN_MUSHAF_LAYOUT_KEY = 'quran_mushaf_layout_v1';
 const PENDING_OPEN_KEY = 'quran_pending_open_v1';
+const QURAN_NOTIFICATION_CHANNEL_ID = 'quran-prayer';
+
+const EXPO_GO_NOTIFICATIONS_FALLBACK =
+  Constants.appOwnership === 'expo' &&
+  Number((Constants.expoConfig?.sdkVersion ?? '0').split('.')[0] || 0) >= 53;
+
 type MushafLayout = '15line' | '16line';
 
 const SURAH_NAMES: Record<number, string> = {
@@ -163,6 +171,39 @@ export default function QuranScreen() {
   const { enabled: reminderEnabled, setEnabled: setReminderEnabled } = useQuranPopupReminderSetting();
   const N = nightMode ? NIGHT : null;
 
+  const ensureQuranNotificationPermission = useCallback(async () => {
+    if (Platform.OS === 'web') return false;
+    if (EXPO_GO_NOTIFICATIONS_FALLBACK) return true;
+
+    const current = await Notifications.getPermissionsAsync();
+    let finalStatus = current.status;
+
+    if (finalStatus !== 'granted') {
+      const requested = await Notifications.requestPermissionsAsync();
+      finalStatus = requested.status;
+    }
+
+    if (finalStatus !== 'granted') {
+      Alert.alert(
+        'Permission needed',
+        'Enable notifications to receive Quran prayer reminders on your phone.',
+      );
+      return false;
+    }
+
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync(QURAN_NOTIFICATION_CHANNEL_ID, {
+        name: 'Quran Prayer Reminders',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 150, 250],
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        sound: 'default',
+      }).catch(() => {});
+    }
+
+    return true;
+  }, []);
+
   const openReaderScreen = useCallback((startPage: number, endPage: number, extraParams?: Record<string, string>) => {
     router.push({
       pathname: '/quran-reader',
@@ -303,13 +344,21 @@ export default function QuranScreen() {
         <Text style={[styles.title, N && { color: N.text }]}>Quran</Text>
         <View style={[styles.settingRow, N && styles.settingRowNight]}>
           <View style={{ flex: 1, paddingRight: 10 }}>
-            <Text style={[styles.settingTitle, N && { color: N.text }]}>Quran reminder popups</Text>
-            <Text style={[styles.settingSub, N && { color: N.textSub }]}>Show jamaat and prayer-end reminders while reading Quran</Text>
+            <Text style={[styles.settingTitle, N && { color: N.text }]}>Quran prayer notifications</Text>
+            <Text style={[styles.settingSub, N && { color: N.textSub }]}>Send jamaat and prayer-end reminders as system notifications across the app.</Text>
           </View>
           <Switch
             value={reminderEnabled}
             onValueChange={(next) => {
-              void setReminderEnabled(next);
+              void (async () => {
+                if (!next) {
+                  await setReminderEnabled(false);
+                  return;
+                }
+
+                const allowed = await ensureQuranNotificationPermission();
+                await setReminderEnabled(allowed);
+              })();
             }}
             trackColor={{ false: '#A3B7AA', true: '#4FE948' }}
             thumbColor={reminderEnabled ? '#0B2817' : '#ffffff'}

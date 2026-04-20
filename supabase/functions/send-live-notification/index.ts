@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
         body: message,
         data,
         priority: 'high',
-        channelId: 'live-notifications',
+        channelId: 'jmn-live',
       }));
 
       const res = await fetch(EXPO_PUSH_URL, {
