@@ -75,6 +75,22 @@ const SURAH_START_PAGE_15LINE_BUTTONS: Record<number, number> = {
   108: 609, 109: 609, 110: 610, 111: 610, 112: 610, 113: 611, 114: 611,
 };
 
+const SURAH_START_PAGE_16LINE_BUTTONS: Record<number, number> = {
+  1: 2, 2: 3, 3: 46, 4: 70, 5: 97, 6: 116, 7: 137, 8: 160, 9: 169,
+  10: 188, 11: 200, 12: 213, 13: 225, 14: 231, 15: 236, 16: 241, 17: 255, 18: 265,
+  19: 276, 20: 282, 21: 291, 22: 300, 23: 309, 24: 316, 25: 325, 26: 331, 27: 340,
+  28: 348, 29: 358, 30: 365, 31: 371, 32: 374, 33: 377, 34: 386, 35: 392, 36: 397,
+  37: 402, 38: 409, 39: 413, 40: 421, 41: 430, 42: 435, 43: 441, 44: 447, 45: 449,
+  46: 453, 47: 457, 48: 461, 49: 464, 50: 467, 51: 469, 52: 472, 53: 474, 54: 476,
+  55: 479, 56: 482, 57: 485, 58: 489, 59: 492, 60: 496, 61: 498, 62: 500, 63: 501,
+  64: 503, 65: 505, 66: 507, 67: 509, 68: 511, 69: 513, 70: 515, 71: 517, 72: 519,
+  73: 521, 74: 522, 75: 524, 76: 525, 77: 527, 78: 529, 79: 530, 80: 531, 81: 533,
+  82: 533, 83: 534, 84: 535, 85: 536, 86: 537, 87: 538, 88: 538, 89: 539, 90: 540,
+  91: 541, 92: 541, 93: 542, 94: 542, 95: 543, 96: 543, 97: 544, 98: 544, 99: 545,
+  100: 545, 101: 545, 102: 546, 103: 546, 104: 546, 105: 547, 106: 547, 107: 547,
+  108: 547, 109: 548, 110: 548, 111: 548, 112: 548, 113: 549, 114: 549,
+};
+
 const JUZ_SURAH_MAP: Record<number, number[]> = {
   1: [1, 2],
   2: [2],
@@ -233,8 +249,16 @@ export default function QuranScreen() {
   }, [mushafLayout, openReaderScreen]);
 
   const chooseSurahInJuz = useCallback(async (chapter: number) => {
-    const startMap = mushafLayout === '15line' ? SURAH_START_PAGE_15LINE_BUTTONS : SURAH_START_PAGE;
-    const surahOpenOffset = mushafLayout === '15line' ? -1 : 0;
+    const startMap = mushafLayout === '15line'
+      ? SURAH_START_PAGE_15LINE_BUTTONS
+      : mushafLayout === '16line'
+        ? SURAH_START_PAGE_16LINE_BUTTONS
+        : SURAH_START_PAGE;
+    const surahOpenOffset = mushafLayout === '15line'
+      ? -1
+      : mushafLayout === '16line'
+        ? (chapter === 1 ? -2 : -1)
+        : 0;
     const targetPage = Math.max(1, (startMap[chapter] ?? 1) + surahOpenOffset);
     const nextStart = startMap[chapter + 1];
     const endPage = Math.max(
