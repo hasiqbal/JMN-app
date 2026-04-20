@@ -41,6 +41,10 @@ const DEFAULT_TAFSIR_ID_BY_LANG: Record<'en' | 'ur', number> = {
   ur: 160,
 };
 
+const URDU_TRANSLATOR_LABEL_OVERRIDES: Record<number, string> = {
+  819: 'مولانا وحید الدین خان',
+};
+
 type ContentMode = 'translation' | 'tafsir';
 type ContentLanguage = 'en' | 'ur';
 
@@ -58,6 +62,17 @@ function toNumber(value: string | string[] | undefined, fallback: number): numbe
 
 function toArabicIndicDigits(value: number): string {
   return String(value).replace(/\d/g, (digit) => '٠١٢٣٤٥٦٧٨٩'[Number(digit)]);
+}
+
+function isLanguageMatch(languageName: string | undefined, locale: ContentLanguage): boolean {
+  const raw = (languageName ?? '').trim().toLowerCase();
+  if (!raw) return false;
+  return locale === 'ur' ? raw.includes('urdu') : raw.includes('english');
+}
+
+function shouldExcludeTranslationOption(option: QuranTranslationResource): boolean {
+  const searchable = `${option.name} ${option.translatedName ?? ''} ${option.authorName ?? ''}`.toLowerCase();
+  return /taqi\s*usmani|taqi\s*usman|maududi|tafhim|shaykh\s*al\s*hind|shaikh\s*al\s*hind|mahmud\s*al[-\s]*hasan|mahmood\s*al[-\s]*hasan|tafsir\s*e\s*usmani|tafsir[-\s]*usmani/.test(searchable);
 }
 
 function pickDefaultTranslationId(language: ContentLanguage, options: QuranTranslationResource[]): number | null {
@@ -328,23 +343,48 @@ export default function QuranReaderScreen() {
         if (contentMode === 'translation') {
           const options = await fetchTranslationResources(contentLang);
           if (cancelled) return;
-          setTranslationOptionsByLang((prev) => ({ ...prev, [contentLang]: options }));
-          if (options.length > 0) {
-            const preferredDefaultId = pickDefaultTranslationId(contentLang, options);
+
+          const languageScoped = options.filter((opt) => isLanguageMatch(opt.languageName, contentLang));
+          const scoped = languageScoped.length > 0 ? languageScoped : options;
+          const visible = scoped.filter((opt) => !shouldExcludeTranslationOption(opt));
+          const filtered = visible.length > 0 ? visible : scoped;
+          const preferred = contentLang === 'en' ? [131, 20, 85, 84, 22, 21] : [819, 54];
+          const ordered = [
+            ...preferred.map((id) => filtered.find((opt) => opt.id === id)).filter(Boolean) as QuranTranslationResource[],
+            ...filtered.filter((opt) => !preferred.includes(opt.id)),
+          ];
+          const finalOptions = ordered.length > 0 ? ordered : filtered;
+
+          setTranslationOptionsByLang((prev) => ({ ...prev, [contentLang]: finalOptions }));
+          if (finalOptions.length > 0) {
+            const preferredDefaultId = pickDefaultTranslationId(contentLang, finalOptions);
             setSelectedTranslationIdByLang((prev) => {
               const current = prev[contentLang];
-              const hasCurrent = current !== null && options.some((opt) => opt.id === current);
+              const hasCurrent = current !== null && finalOptions.some((opt) => opt.id === current);
               if (hasCurrent) return prev;
-              return { ...prev, [contentLang]: preferredDefaultId ?? options[0].id };
+              return { ...prev, [contentLang]: preferredDefaultId ?? finalOptions[0].id };
             });
           }
         } else {
           const options = await fetchTafsirResources(contentLang);
           if (cancelled) return;
-          setTafsirOptionsByLang((prev) => ({ ...prev, [contentLang]: options }));
-          if (selectedTafsirIdsByLang[contentLang].length === 0 && options.length > 0) {
-            const preferredDefaultId = pickDefaultTafsirId(contentLang, options);
-            setSelectedTafsirIdsByLang((prev) => ({ ...prev, [contentLang]: [preferredDefaultId ?? options[0].id] }));
+
+          const languageScoped = options.filter((opt) => isLanguageMatch(opt.languageName, contentLang));
+          const filtered = languageScoped.length > 0 ? languageScoped : options;
+          const preferred = contentLang === 'en' ? [169] : [160];
+          const ordered = [
+            ...preferred.map((id) => filtered.find((opt) => opt.id === id)).filter(Boolean) as QuranTafsirResource[],
+            ...filtered.filter((opt) => !preferred.includes(opt.id)),
+          ];
+          const finalOptions = ordered.length > 0 ? ordered : filtered;
+
+          setTafsirOptionsByLang((prev) => ({ ...prev, [contentLang]: finalOptions }));
+          if (selectedTafsirIdsByLang[contentLang].length === 0 && finalOptions.length > 0) {
+            const preferredDefaultId = pickDefaultTafsirId(contentLang, finalOptions);
+            setSelectedTafsirIdsByLang((prev) => ({
+              ...prev,
+              [contentLang]: [preferredDefaultId ?? finalOptions[0].id],
+            }));
           }
         }
       } finally {
@@ -484,6 +524,14 @@ export default function QuranReaderScreen() {
   const translationFallback = contentLang === 'ur' ? 'ترجمہ جلد دستیاب ہوگا۔' : 'Translation coming soon.';
   const tafsirFallback = contentLang === 'ur' ? 'تفسیر جلد دستیاب ہوگی۔' : 'Tafsir coming soon.';
   const toggleButtonLabel = toggleLabelLang === 'ur' ? 'ترجمہ / تفسیر' : 'Translation / Tafsir';
+  const getTranslationOptionLabel = (option: QuranTranslationResource) =>
+    contentLang === 'ur'
+      ? (URDU_TRANSLATOR_LABEL_OVERRIDES[option.id] || option.translatedName || option.name)
+      : option.name;
+  const getTafsirOptionLabel = (option: QuranTafsirResource) =>
+    contentLang === 'ur'
+      ? (option.translatedName || option.name)
+      : option.name;
 
   const imageGestures = useMemo(
     () => Gesture.Simultaneous(
@@ -696,7 +744,12 @@ export default function QuranReaderScreen() {
               </View>
 
               {showSourcePicker ? (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sourceListRow}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={[styles.sourceListScroll, N && { borderBottomColor: 'rgba(255,255,255,0.1)' }]}
+                  contentContainerStyle={styles.sourceListRow}
+                >
                   {contentMode === 'translation'
                     ? activeTranslationOptions.map((opt) => {
                         const selected = selectedTranslationId === opt.id;
@@ -709,7 +762,15 @@ export default function QuranReaderScreen() {
                               setShowSourcePicker(false);
                             }}
                           >
-                            <Text style={[styles.sourceChipText, selected && styles.sourceChipTextActive]}>{contentLang === 'ur' ? (opt.translatedName || opt.name) : opt.name}</Text>
+                            <Text
+                              style={[
+                                styles.sourceChipText,
+                                contentLang === 'ur' && styles.sourceChipTextUrdu,
+                                selected && styles.sourceChipTextActive,
+                              ]}
+                            >
+                              {getTranslationOptionLabel(opt)}
+                            </Text>
                           </TouchableOpacity>
                         );
                       })
@@ -729,7 +790,15 @@ export default function QuranReaderScreen() {
                               });
                             }}
                           >
-                            <Text style={[styles.sourceChipText, selected && styles.sourceChipTextActive]}>{contentLang === 'ur' ? (opt.translatedName || opt.name) : opt.name}</Text>
+                            <Text
+                              style={[
+                                styles.sourceChipText,
+                                contentLang === 'ur' && styles.sourceChipTextUrdu,
+                                selected && styles.sourceChipTextActive,
+                              ]}
+                            >
+                              {getTafsirOptionLabel(opt)}
+                            </Text>
                           </TouchableOpacity>
                         );
                       })}
@@ -740,7 +809,11 @@ export default function QuranReaderScreen() {
                 <Text style={[styles.performanceHint, N && { color: N.textSub }]}>Using more than 3 tafsir sources may be slower on weak networks.</Text>
               ) : null}
 
-              <ScrollView contentContainerStyle={styles.contentBodyWrap} showsVerticalScrollIndicator={false}>
+              <ScrollView
+                style={styles.contentBodyScroll}
+                contentContainerStyle={styles.contentBodyWrap}
+                showsVerticalScrollIndicator={false}
+              >
                 {isLoadingPanelContent ? (
                   <View style={styles.loadingWrap}>
                     <ActivityIndicator size="small" color="#3FAE5A" />
@@ -1057,6 +1130,12 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
+    alignItems: 'center',
+  },
+  sourceListScroll: {
+    minHeight: 54,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.06)',
   },
   sourceChip: {
     borderWidth: 1,
@@ -1075,6 +1154,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#2D5B3C',
   },
+  sourceChipTextUrdu: {
+    fontFamily: 'UrduNastaliq',
+    fontSize: 16,
+    lineHeight: 24,
+    letterSpacing: 0,
+  } as any,
   sourceChipTextActive: {
     color: '#0B2817',
   },
@@ -1085,8 +1170,12 @@ const styles = StyleSheet.create({
     color: '#557767',
     fontWeight: '600',
   },
+  contentBodyScroll: {
+    flex: 1,
+  },
   contentBodyWrap: {
     paddingHorizontal: 12,
+    paddingTop: 8,
     paddingBottom: 22,
   },
   loadingWrap: {
