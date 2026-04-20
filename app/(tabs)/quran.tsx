@@ -433,10 +433,8 @@ export default function QuranScreen() {
               })}
             </View>
 
-            <Text style={[styles.sub, N && { color: N.textSub }]}>Selected Mushaf: {mushafLayout === '16line' ? '16-Line' : '15-Line'}</Text>
           </>
         )}
-        <Text style={[styles.sub, N && { color: N.textSub }]}>Pending open target: {pendingOpenLabel}</Text>
         <Text style={[styles.sub, N && { color: N.textSub }]}>Updated {lastUpdated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</Text>
       </View>
     </ScrollView>

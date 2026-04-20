@@ -75,6 +75,34 @@ function shouldExcludeTranslationOption(option: QuranTranslationResource): boole
   return /taqi\s*usmani|taqi\s*usman|maududi|tafhim|shaykh\s*al\s*hind|shaikh\s*al\s*hind|mahmud\s*al[-\s]*hasan|mahmood\s*al[-\s]*hasan|tafsir\s*e\s*usmani|tafsir[-\s]*usmani/.test(searchable);
 }
 
+function normalizeTranslationOptions(locale: ContentLanguage, options: QuranTranslationResource[]): QuranTranslationResource[] {
+  const languageScoped = options.filter((opt) => isLanguageMatch(opt.languageName, locale));
+  const scoped = languageScoped.length > 0 ? languageScoped : options;
+  const visible = scoped.filter((opt) => !shouldExcludeTranslationOption(opt));
+  const filtered = visible.length > 0 ? visible : scoped;
+  const preferred = locale === 'en' ? [131, 20, 85, 84, 22, 21] : [819, 54];
+  const ordered = [
+    ...preferred.map((id) => filtered.find((opt) => opt.id === id)).filter(Boolean) as QuranTranslationResource[],
+    ...filtered.filter((opt) => !preferred.includes(opt.id)),
+  ];
+  return ordered.length > 0 ? ordered : filtered;
+}
+
+function normalizeTafsirOptions(locale: ContentLanguage, options: QuranTafsirResource[]): QuranTafsirResource[] {
+  const languageScoped = options.filter((opt) => isLanguageMatch(opt.languageName, locale));
+  const filtered = languageScoped.length > 0 ? languageScoped : options;
+  const preferred = locale === 'en' ? [169] : [160];
+  const ordered = [
+    ...preferred.map((id) => filtered.find((opt) => opt.id === id)).filter(Boolean) as QuranTafsirResource[],
+    ...filtered.filter((opt) => !preferred.includes(opt.id)),
+  ];
+  return ordered.length > 0 ? ordered : filtered;
+}
+
+function hasSameIds<T extends { id: number }>(a: T[], b: T[]): boolean {
+  return a.length === b.length && a.every((item, index) => item.id === b[index]?.id);
+}
+
 function pickDefaultTranslationId(language: ContentLanguage, options: QuranTranslationResource[]): number | null {
   if (options.length === 0) return null;
 
@@ -335,8 +363,27 @@ export default function QuranReaderScreen() {
     let cancelled = false;
 
     const loadSources = async () => {
-      if (contentMode === 'translation' && translationOptionsByLang[contentLang].length > 0) return;
-      if (contentMode === 'tafsir' && tafsirOptionsByLang[contentLang].length > 0) return;
+      if (contentMode === 'translation') {
+        const existing = translationOptionsByLang[contentLang] ?? [];
+        if (existing.length > 0) {
+          const normalizedExisting = normalizeTranslationOptions(contentLang, existing);
+          if (!hasSameIds(existing, normalizedExisting)) {
+            setTranslationOptionsByLang((prev) => ({ ...prev, [contentLang]: normalizedExisting }));
+          }
+          return;
+        }
+      }
+
+      if (contentMode === 'tafsir') {
+        const existing = tafsirOptionsByLang[contentLang] ?? [];
+        if (existing.length > 0) {
+          const normalizedExisting = normalizeTafsirOptions(contentLang, existing);
+          if (!hasSameIds(existing, normalizedExisting)) {
+            setTafsirOptionsByLang((prev) => ({ ...prev, [contentLang]: normalizedExisting }));
+          }
+          return;
+        }
+      }
 
       setIsLoadingSources(true);
       try {
@@ -344,16 +391,7 @@ export default function QuranReaderScreen() {
           const options = await fetchTranslationResources(contentLang);
           if (cancelled) return;
 
-          const languageScoped = options.filter((opt) => isLanguageMatch(opt.languageName, contentLang));
-          const scoped = languageScoped.length > 0 ? languageScoped : options;
-          const visible = scoped.filter((opt) => !shouldExcludeTranslationOption(opt));
-          const filtered = visible.length > 0 ? visible : scoped;
-          const preferred = contentLang === 'en' ? [131, 20, 85, 84, 22, 21] : [819, 54];
-          const ordered = [
-            ...preferred.map((id) => filtered.find((opt) => opt.id === id)).filter(Boolean) as QuranTranslationResource[],
-            ...filtered.filter((opt) => !preferred.includes(opt.id)),
-          ];
-          const finalOptions = ordered.length > 0 ? ordered : filtered;
+          const finalOptions = normalizeTranslationOptions(contentLang, options);
 
           setTranslationOptionsByLang((prev) => ({ ...prev, [contentLang]: finalOptions }));
           if (finalOptions.length > 0) {
@@ -369,14 +407,7 @@ export default function QuranReaderScreen() {
           const options = await fetchTafsirResources(contentLang);
           if (cancelled) return;
 
-          const languageScoped = options.filter((opt) => isLanguageMatch(opt.languageName, contentLang));
-          const filtered = languageScoped.length > 0 ? languageScoped : options;
-          const preferred = contentLang === 'en' ? [169] : [160];
-          const ordered = [
-            ...preferred.map((id) => filtered.find((opt) => opt.id === id)).filter(Boolean) as QuranTafsirResource[],
-            ...filtered.filter((opt) => !preferred.includes(opt.id)),
-          ];
-          const finalOptions = ordered.length > 0 ? ordered : filtered;
+          const finalOptions = normalizeTafsirOptions(contentLang, options);
 
           setTafsirOptionsByLang((prev) => ({ ...prev, [contentLang]: finalOptions }));
           if (selectedTafsirIdsByLang[contentLang].length === 0 && finalOptions.length > 0) {
