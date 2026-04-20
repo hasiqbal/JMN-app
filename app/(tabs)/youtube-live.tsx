@@ -1,9 +1,21 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Linking, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import WebView from 'react-native-webview';
 import { APP_CONFIG } from '@/constants/config';
 import { Colors, Radius, Spacing, Typography } from '@/constants/theme';
 import { useNightMode } from '@/hooks/useNightMode';
@@ -25,6 +37,8 @@ export default function YouTubeLiveScreen() {
   const [isLive, setIsLive] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(() => new Date());
+  const [useInAppPlayer, setUseInAppPlayer] = useState(false);
+  const [playerError, setPlayerError] = useState<string | null>(null);
 
   const palette = nightMode ? NIGHT : null;
 
@@ -46,9 +60,33 @@ export default function YouTubeLiveScreen() {
     };
   }, []);
 
-  const openYouTube = () => {
-    Linking.openURL(APP_CONFIG.youtubeChannelUrl).catch(() => {});
-  };
+  useEffect(() => {
+    if (!isLive) {
+      setUseInAppPlayer(false);
+    }
+  }, [isLive]);
+
+  const openYouTube = useCallback(() => {
+    const targetUrl = isLive ? APP_CONFIG.youtubeStreamUrl : APP_CONFIG.youtubeChannelUrl;
+    Linking.openURL(targetUrl).catch(() => {});
+  }, [isLive]);
+
+  const startInAppPlayer = useCallback(() => {
+    if (!isLive || Platform.OS === 'web') {
+      openYouTube();
+      return;
+    }
+
+    setPlayerError(null);
+    setUseInAppPlayer(true);
+  }, [isLive, openYouTube]);
+
+  const handleInAppPlayerError = useCallback(() => {
+    setUseInAppPlayer(false);
+    setPlayerError('In-app playback failed. Opened YouTube instead.');
+    openYouTube();
+    Alert.alert('Playback issue', 'Could not play in-app. Opening YouTube.');
+  }, [openYouTube]);
 
   const updatedAt = useMemo(
     () => lastUpdated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
@@ -92,11 +130,67 @@ export default function YouTubeLiveScreen() {
         <LinearGradient colors={['#A31010', '#4C0909']} style={styles.youtubeHero}>
           <MaterialIcons name="live-tv" size={34} color="#FFFFFF" />
           <Text style={styles.youtubeTitle}>YouTube Live Stream</Text>
-          <Text style={styles.youtubeBody}>Tap below to open the masjid live video on YouTube.</Text>
-          <TouchableOpacity style={styles.openButton} onPress={openYouTube} activeOpacity={0.85}>
-            <MaterialIcons name="play-circle-filled" size={20} color="#FFFFFF" />
-            <Text style={styles.openButtonText}>{isLive ? 'Watch Live on YouTube' : 'Open YouTube Channel'}</Text>
-          </TouchableOpacity>
+          <Text style={styles.youtubeBody}>
+            {isLive
+              ? 'Watch directly in app or open YouTube.'
+              : 'Live is currently offline. Open YouTube for latest uploads.'}
+          </Text>
+
+          {useInAppPlayer && isLive && Platform.OS !== 'web' ? (
+            <View style={styles.playerWrap}>
+              <WebView
+                source={{ uri: APP_CONFIG.youtubeStreamUrl }}
+                style={styles.playerWebView}
+                allowsInlineMediaPlayback
+                mediaPlaybackRequiresUserAction={false}
+                javaScriptEnabled
+                domStorageEnabled
+                startInLoadingState
+                renderLoading={() => (
+                  <View style={styles.playerLoadingOverlay}>
+                    <ActivityIndicator size="large" color="#FFFFFF" />
+                    <Text style={styles.playerLoadingText}>Loading live stream...</Text>
+                  </View>
+                )}
+                onError={handleInAppPlayerError}
+                onHttpError={handleInAppPlayerError}
+              />
+
+              <View style={styles.playerActionRow}>
+                <TouchableOpacity style={styles.secondaryButton} onPress={openYouTube} activeOpacity={0.85}>
+                  <MaterialIcons name="open-in-new" size={18} color="#FFFFFF" />
+                  <Text style={styles.secondaryButtonText}>Open in YouTube</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.secondaryGhostButton}
+                  onPress={() => setUseInAppPlayer(false)}
+                  activeOpacity={0.85}
+                >
+                  <MaterialIcons name="close" size={16} color="#FFFFFF" />
+                  <Text style={styles.secondaryGhostButtonText}>Close Player</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.actionRow}>
+              <TouchableOpacity
+                style={[styles.openButton, !isLive && styles.openButtonDisabled]}
+                onPress={startInAppPlayer}
+                activeOpacity={0.85}
+                disabled={!isLive}
+              >
+                <MaterialIcons name="play-circle-filled" size={20} color="#FFFFFF" />
+                <Text style={styles.openButtonText}>{isLive ? 'Play Here' : 'Play Here (Live only)'}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.secondaryButton} onPress={openYouTube} activeOpacity={0.85}>
+                <MaterialIcons name="open-in-new" size={18} color="#FFFFFF" />
+                <Text style={styles.secondaryButtonText}>{isLive ? 'Open on YouTube' : 'Open Channel'}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {playerError ? <Text style={styles.playerErrorText}>{playerError}</Text> : null}
         </LinearGradient>
 
         <View style={[styles.infoCard, palette && { backgroundColor: palette.surface, borderColor: palette.border }]}> 
@@ -173,7 +267,7 @@ const styles = StyleSheet.create({
   },
   openButton: {
     marginTop: 4,
-    alignSelf: 'flex-start',
+    flex: 1,
     borderRadius: Radius.full,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.28)',
@@ -188,6 +282,81 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '800',
+  },
+  openButtonDisabled: {
+    opacity: 0.6,
+  },
+  actionRow: {
+    marginTop: 4,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  secondaryButton: {
+    flex: 1,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+    backgroundColor: 'rgba(0,0,0,0.22)',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+  },
+  secondaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  playerWrap: {
+    marginTop: 4,
+    gap: 8,
+  },
+  playerWebView: {
+    height: 220,
+    borderRadius: Radius.md,
+    overflow: 'hidden',
+    backgroundColor: '#000000',
+  },
+  playerLoadingOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(0,0,0,0.88)',
+  },
+  playerLoadingText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  playerActionRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  secondaryGhostButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  secondaryGhostButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  playerErrorText: {
+    marginTop: 6,
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.86)',
   },
   infoCard: {
     borderRadius: Radius.md,

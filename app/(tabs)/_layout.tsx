@@ -8,7 +8,6 @@ import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { Colors } from '@/constants/theme';
 import { useNightMode } from '@/hooks/useNightMode';
-import { useQuranPopupReminderSetting } from '@/hooks/useQuranPopupReminderSetting';
 import { useQuranPrayerPopups } from '@/hooks/useQuranPrayerPopups';
 import { fetchLiveStatus } from '@/services/liveService';
 
@@ -50,11 +49,10 @@ const dotStyles = StyleSheet.create({
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const { nightMode } = useNightMode();
-  const { enabled: quranReminderEnabled } = useQuranPopupReminderSetting();
   const [isLive, setIsLive] = useState(false);
   const previousLiveRef = useRef<boolean | null>(null);
 
-  useQuranPrayerPopups({ enabled: quranReminderEnabled });
+  useQuranPrayerPopups();
 
   useEffect(() => {
     if (Platform.OS !== 'android') return;
