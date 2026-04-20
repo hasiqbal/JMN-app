@@ -1,5 +1,5 @@
 ﻿export const QURAN_15LINE_FULL_PAGE_IMAGES: Record<number, any> = {
-  1: require('@/assets/images/Quran 15 line indo-pak/Full/1.jpg'),
+  1: require('@/assets/images/Quran 15 line indo-pak/Full/2.jpg'),
   2: require('@/assets/images/Quran 15 line indo-pak/Full/2.jpg'),
   3: require('@/assets/images/Quran 15 line indo-pak/Full/3.jpg'),
   4: require('@/assets/images/Quran 15 line indo-pak/Full/4.jpg'),
@@ -603,4 +603,12 @@
   602: require('@/assets/images/Quran 15 line indo-pak/Full/602.jpg'),
   603: require('@/assets/images/Quran 15 line indo-pak/Full/603.jpg'),
   604: require('@/assets/images/Quran 15 line indo-pak/Full/604.jpg'),
+  605: require('@/assets/images/Quran 15 line indo-pak/Full/605.jpg'),
+  606: require('@/assets/images/Quran 15 line indo-pak/Full/606.jpg'),
+  607: require('@/assets/images/Quran 15 line indo-pak/Full/607.jpg'),
+  608: require('@/assets/images/Quran 15 line indo-pak/Full/608.jpg'),
+  609: require('@/assets/images/Quran 15 line indo-pak/Full/609.jpg'),
+  610: require('@/assets/images/Quran 15 line indo-pak/Full/610.jpg'),
+  611: require('@/assets/images/Quran 15 line indo-pak/Full/611.jpg'),
+  612: require('@/assets/images/Quran 15 line indo-pak/Full/612.jpg'),
 };

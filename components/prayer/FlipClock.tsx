@@ -124,25 +124,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 0,
-    ...(Platform.OS === 'web'
-      ? { textShadow: '0px 2px 8px rgba(0,0,0,0.5)' }
-      : {
-          textShadowColor: 'rgba(0,0,0,0.5)',
-          textShadowOffset: { width: 0, height: 2 },
-          textShadowRadius: 8,
-        }),
+    textShadow: '0px 2px 8px rgba(0,0,0,0.5)',
   },
   colon: {
     fontSize: 28,
     fontWeight: '800',
     color: '#FFFFFF',
     marginHorizontal: 4,
-    ...(Platform.OS === 'web'
-      ? { textShadow: '0px 2px 8px rgba(0,0,0,0.5)' }
-      : {
-          textShadowColor: 'rgba(0,0,0,0.5)',
-          textShadowOffset: { width: 0, height: 2 },
-          textShadowRadius: 8,
-        }),
+    textShadow: '0px 2px 8px rgba(0,0,0,0.5)',
   },
 });

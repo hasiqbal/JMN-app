@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/theme';
 import { useNightMode } from '@/hooks/useNightMode';
-import { getJuzEndPage, getJuzStartPage, getQuarterStartsInJuz } from '@/constants/mushafJuzPages';
+import { getJuzEndPage, getJuzStartPage, getMushafTotalPages, getQuarterStartsInJuz } from '@/constants/mushafJuzPages';
 
 const NIGHT = {
   bg: '#0A0F1E',
@@ -59,6 +59,55 @@ const SURAH_START_PAGE: Record<number, number> = {
   108: 602, 109: 603, 110: 603, 111: 603, 112: 604, 113: 604, 114: 604,
 };
 
+const SURAH_START_PAGE_15LINE_BUTTONS: Record<number, number> = {
+  1: 2, 2: 3, 3: 51, 4: 78, 5: 107, 6: 129, 7: 152, 8: 178, 9: 188,
+  10: 209, 11: 222, 12: 236, 13: 250, 14: 256, 15: 262, 16: 268, 17: 283, 18: 294,
+  19: 306, 20: 313, 21: 323, 22: 332, 23: 343, 24: 351, 25: 360, 26: 367, 27: 377,
+  28: 386, 29: 397, 30: 405, 31: 412, 32: 416, 33: 419, 34: 429, 35: 435, 36: 441,
+  37: 446, 38: 453, 39: 459, 40: 468, 41: 478, 42: 484, 43: 490, 44: 496, 45: 499,
+  46: 503, 47: 507, 48: 512, 49: 516, 50: 519, 51: 521, 52: 524, 53: 527, 54: 529,
+  55: 532, 56: 535, 57: 538, 58: 543, 59: 546, 60: 550, 61: 552, 62: 554, 63: 555,
+  64: 557, 65: 559, 66: 561, 67: 563, 68: 565, 69: 568, 70: 570, 71: 572, 72: 574,
+  73: 577, 74: 579, 75: 581, 76: 583, 77: 585, 78: 587, 79: 588, 80: 590, 81: 591,
+  82: 592, 83: 593, 84: 595, 85: 596, 86: 597, 87: 598, 88: 599, 89: 600, 90: 601,
+  91: 602, 92: 603, 93: 603, 94: 603, 95: 604, 96: 605, 97: 605, 98: 606, 99: 606,
+  100: 607, 101: 607, 102: 607, 103: 608, 104: 608, 105: 608, 106: 609, 107: 609,
+  108: 609, 109: 610, 110: 610, 111: 610, 112: 610, 113: 611, 114: 611,
+};
+
+const JUZ_SURAH_MAP: Record<number, number[]> = {
+  1: [1, 2],
+  2: [2],
+  3: [2, 3],
+  4: [3, 4],
+  5: [4],
+  6: [4, 5],
+  7: [5, 6],
+  8: [6, 7],
+  9: [7, 8],
+  10: [8, 9],
+  11: [9, 10, 11],
+  12: [11, 12],
+  13: [12, 13, 14, 15],
+  14: [15, 16],
+  15: [17, 18],
+  16: [18, 19, 20],
+  17: [21, 22],
+  18: [23, 24, 25],
+  19: [25, 26, 27],
+  20: [27, 28, 29],
+  21: [29, 30, 31, 32, 33],
+  22: [33, 34, 35, 36],
+  23: [36, 37, 38, 39],
+  24: [39, 40, 41],
+  25: [41, 42, 43, 44, 45],
+  26: [46, 47, 48, 49, 50, 51],
+  27: [51, 52, 53, 54, 55, 56, 57],
+  28: [58, 59, 60, 61, 62, 63, 64, 65, 66],
+  29: [67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77],
+  30: [78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114],
+};
+
 function chapterForMushafPage(targetPage: number): number {
   let chapter = 1;
   for (let s = 1; s <= 114; s += 1) {
@@ -72,20 +121,8 @@ function chapterForMushafPage(targetPage: number): number {
 }
 
 function getSurahsInJuz(layout: MushafLayout, juz: number): number[] {
-  const startPage = getJuzStartPage(layout, juz);
-  const endPage = getJuzEndPage(layout, juz);
-  const chapters: number[] = [];
-
-  for (let chapter = 1; chapter <= 114; chapter += 1) {
-    const surahStart = SURAH_START_PAGE[chapter] ?? 999;
-    const nextStart = SURAH_START_PAGE[chapter + 1] ?? 605;
-    const surahEnd = nextStart - 1;
-    if (surahStart <= endPage && surahEnd >= startPage) {
-      chapters.push(chapter);
-    }
-  }
-
-  return chapters;
+  void layout;
+  return JUZ_SURAH_MAP[juz] ?? [];
 }
 
 function getDisplayedJuzPage(layout: MushafLayout, page: number): number {
@@ -196,15 +233,16 @@ export default function QuranScreen() {
   }, [mushafLayout, openReaderScreen]);
 
   const chooseSurahInJuz = useCallback(async (chapter: number) => {
-    const targetPage = SURAH_START_PAGE[chapter] ?? 1;
-    const endPage = (SURAH_START_PAGE[chapter + 1] ?? 605) - 1;
+    const startMap = mushafLayout === '15line' ? SURAH_START_PAGE_15LINE_BUTTONS : SURAH_START_PAGE;
+    const targetPage = startMap[chapter] ?? 1;
+    const endPage = (startMap[chapter + 1] ?? (getMushafTotalPages(mushafLayout) + 1)) - 1;
     setSelectedSurah(chapter);
     setSelectedQuarter(null);
     setPendingOpenLabel(`Surah ${chapter} · Page ${targetPage}`);
     setLastUpdated(new Date());
     await AsyncStorage.setItem(PENDING_OPEN_KEY, `${chapter}|${targetPage}`);
     openReaderScreen(targetPage, endPage);
-  }, [openReaderScreen]);
+  }, [mushafLayout, openReaderScreen]);
 
   const onPullRefresh = useCallback(async () => {
     setRefreshing(true);

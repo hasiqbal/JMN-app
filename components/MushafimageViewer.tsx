@@ -422,14 +422,24 @@ function MushafImageViewer({
   };
 
   const gest = Gesture.Simultaneous(
-    Gesture.Pan().activeOffsetX([-12,12]).failOffsetY([-15,15])
+    Gesture.Pan().activeOffsetX([-8,8]).activeOffsetY([-8,8])
       .onUpdate(e => { if (sc.value <= 1.05) txX.value = e.translationX * 0.25; })
       .onEnd(e => {
         txX.value = withSpring(0, { damping:20, stiffness:300 });
         if (sc.value <= 1.05) {
-          // Quran reading direction: swipe right to move forward.
-          if (e.translationX > 35 || e.velocityX > 400) runOnJS(goTo)(pi + 1);
-          else if (e.translationX < -35 || e.velocityX < -400) runOnJS(goTo)(pi - 1);
+          const absX = Math.abs(e.translationX);
+          const absY = Math.abs(e.translationY);
+          if (absX < 16 && absY < 16) return;
+
+          // Keep page navigation consistent: right/up = next, left/down = previous.
+          if (absY > absX) {
+            if (e.translationY > 24 || e.velocityY > 250) runOnJS(goTo)(pi - 1);
+            else if (e.translationY < -24 || e.velocityY < -250) runOnJS(goTo)(pi + 1);
+            return;
+          }
+
+          if (e.translationX > 24 || e.velocityX > 250) runOnJS(goTo)(pi + 1);
+          else if (e.translationX < -24 || e.velocityX < -250) runOnJS(goTo)(pi - 1);
         }
       })
       .onFinalize(() => { txX.value = withSpring(0, { damping:20, stiffness:300 }); }),

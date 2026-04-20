@@ -1,13 +1,15 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, PanResponder } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Reanimated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { Colors } from '@/constants/theme';
 import { useNightMode } from '@/hooks/useNightMode';
 import { QURAN_15LINE_FULL_PAGE_IMAGES } from '@/constants/quran15lineFullMap';
 import { QURAN_16LINE_FULL_PAGE_IMAGES } from '@/constants/quran16lineFullMap';
-import { getJuzEndPage, getJuzStartPage, getQuarterStartsInJuz } from '@/constants/mushafJuzPages';
+import { getJuzEndPage, getJuzStartPage, getMushafTotalPages, getQuarterStartsInJuz } from '@/constants/mushafJuzPages';
 
 const NIGHT = {
   bg: '#0A0F1E',
@@ -50,6 +52,7 @@ export default function QuranReaderScreen() {
 
   const [currentJuz, setCurrentJuz] = useState<number | null>(paramJuz);
   const [currentQuarter, setCurrentQuarter] = useState<number | null>(navMode === 'quarter' ? paramQuarter : null);
+  const pendingPageRef = useRef<number | null>(null);
 
   useEffect(() => {
     setCurrentJuz(paramJuz);
@@ -78,10 +81,32 @@ export default function QuranReaderScreen() {
 
   const [page, setPage] = useState(activeRange.start);
   const N = nightMode ? NIGHT : null;
+  const mushafTotalPages = useMemo(() => getMushafTotalPages(mushaf), [mushaf]);
+  const zoomScale = useSharedValue(1);
+  const savedZoomScale = useSharedValue(1);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const savedTranslateX = useSharedValue(0);
+  const savedTranslateY = useSharedValue(0);
 
   useEffect(() => {
+    if (pendingPageRef.current !== null) {
+      const target = pendingPageRef.current;
+      pendingPageRef.current = null;
+      setPage(Math.min(activeRange.end, Math.max(activeRange.start, target)));
+      return;
+    }
     setPage(activeRange.start);
-  }, [activeRange.start]);
+  }, [activeRange.start, activeRange.end]);
+
+  useEffect(() => {
+    zoomScale.value = 1;
+    savedZoomScale.value = 1;
+    translateX.value = 0;
+    translateY.value = 0;
+    savedTranslateX.value = 0;
+    savedTranslateY.value = 0;
+  }, [page, zoomScale, savedZoomScale, translateX, translateY, savedTranslateX, savedTranslateY]);
 
   const goToNextSegment = useMemo(
     () => () => {
@@ -105,58 +130,147 @@ export default function QuranReaderScreen() {
   const goToPreviousSegment = useMemo(
     () => () => {
       if (navMode === 'juz' && currentJuz && currentJuz > 1) {
-        setCurrentJuz(currentJuz - 1);
+        const previousJuz = currentJuz - 1;
+        pendingPageRef.current = getJuzEndPage(mushaf, previousJuz);
+        setCurrentJuz(previousJuz);
       }
       if (navMode === 'quarter' && currentJuz && currentQuarter) {
         if (currentQuarter > 1) {
+          const starts = getQuarterStartsInJuz(mushaf, currentJuz);
+          const currentQuarterStart =
+            starts.find((item) => item.quarter === currentQuarter)?.page ?? getJuzStartPage(mushaf, currentJuz);
+          pendingPageRef.current = Math.max(getJuzStartPage(mushaf, currentJuz), currentQuarterStart - 1);
           setCurrentQuarter(currentQuarter - 1);
           return;
         }
         if (currentJuz > 1) {
-          setCurrentJuz(currentJuz - 1);
+          const previousJuz = currentJuz - 1;
+          pendingPageRef.current = getJuzEndPage(mushaf, previousJuz);
+          setCurrentJuz(previousJuz);
           setCurrentQuarter(4);
         }
       }
     },
-    [navMode, currentJuz, currentQuarter]
+    [navMode, currentJuz, currentQuarter, mushaf]
   );
 
-  const swipeHandlers = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_, gestureState) =>
-          Math.abs(gestureState.dx) > 18 && Math.abs(gestureState.dy) < 24,
-        onPanResponderRelease: (_, gestureState) => {
-          if (gestureState.dx < -40) {
-            if (page > activeRange.start) {
-              setPage((p) => p - 1);
-            } else {
-              goToPreviousSegment();
-            }
+  const goToPreviousPage = useMemo(
+    () => () => {
+      if (page > activeRange.start) {
+        setPage((p) => p - 1);
+        return;
+      }
+
+      if (navMode === 'juz' || navMode === 'quarter') {
+        goToPreviousSegment();
+        return;
+      }
+
+      if (page > 1) {
+        setPage((p) => p - 1);
+      }
+    },
+    [page, activeRange.start, navMode, goToPreviousSegment]
+  );
+
+  const goToNextPage = useMemo(
+    () => () => {
+      if (page < activeRange.end) {
+        setPage((p) => p + 1);
+        return;
+      }
+
+      if (navMode === 'juz' || navMode === 'quarter') {
+        goToNextSegment();
+        return;
+      }
+
+      if (page < mushafTotalPages) {
+        setPage((p) => p + 1);
+      }
+    },
+    [page, activeRange.end, navMode, mushafTotalPages, goToNextSegment]
+  );
+
+  const imageGestures = useMemo(
+    () => Gesture.Simultaneous(
+      Gesture.Pan()
+        .activeOffsetX([-8, 8])
+        .activeOffsetY([-8, 8])
+        .onUpdate((e) => {
+          if (zoomScale.value <= 1.05) return;
+
+          const maxOffset = 320 * (zoomScale.value - 1);
+          const nextX = savedTranslateX.value + e.translationX;
+          const nextY = savedTranslateY.value + e.translationY;
+          translateX.value = Math.max(-maxOffset, Math.min(maxOffset, nextX));
+          translateY.value = Math.max(-maxOffset, Math.min(maxOffset, nextY));
+        })
+        .onEnd((e) => {
+          if (zoomScale.value > 1.05) {
+            savedTranslateX.value = translateX.value;
+            savedTranslateY.value = translateY.value;
             return;
           }
-          if (gestureState.dx > 40) {
-            if (page < activeRange.end) {
-              setPage((p) => p + 1);
-            } else {
-              goToNextSegment();
-            }
+
+          const absX = Math.abs(e.translationX);
+          const absY = Math.abs(e.translationY);
+          if (absX < 16 && absY < 16) return;
+
+          // Support both horizontal and vertical page swipes.
+          if (absY > absX) {
+            if (e.translationY < -24 || e.velocityY < -250) runOnJS(goToNextPage)();
+            else if (e.translationY > 24 || e.velocityY > 250) runOnJS(goToPreviousPage)();
+            return;
           }
-        },
-      }),
-    [page, activeRange.start, activeRange.end, goToNextSegment, goToPreviousSegment]
+
+          if (e.translationX < -24 || e.velocityX < -250) runOnJS(goToPreviousPage)();
+          else if (e.translationX > 24 || e.velocityX > 250) runOnJS(goToNextPage)();
+        }),
+      Gesture.Pinch()
+        .onUpdate((e) => {
+          zoomScale.value = Math.max(1, Math.min(savedZoomScale.value * e.scale, 4));
+        })
+        .onEnd(() => {
+          if (zoomScale.value < 1.05) {
+            zoomScale.value = withSpring(1, { damping: 20, stiffness: 280 });
+            savedZoomScale.value = 1;
+            translateX.value = withSpring(0, { damping: 20, stiffness: 280 });
+            translateY.value = withSpring(0, { damping: 20, stiffness: 280 });
+            savedTranslateX.value = 0;
+            savedTranslateY.value = 0;
+            return;
+          }
+          savedZoomScale.value = zoomScale.value;
+
+          const maxOffset = 320 * (zoomScale.value - 1);
+          translateX.value = Math.max(-maxOffset, Math.min(maxOffset, translateX.value));
+          translateY.value = Math.max(-maxOffset, Math.min(maxOffset, translateY.value));
+          savedTranslateX.value = translateX.value;
+          savedTranslateY.value = translateY.value;
+        })
+    ),
+    [goToNextPage, goToPreviousPage, zoomScale, savedZoomScale, translateX, translateY, savedTranslateX, savedTranslateY]
   );
+
+  const zoomStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }, { translateY: translateY.value }, { scale: zoomScale.value }],
+  }));
 
   const localSource =
     mushaf === '16line'
       ? (QURAN_16LINE_FULL_PAGE_IMAGES[page] ?? null)
-      : (QURAN_15LINE_FULL_PAGE_IMAGES[page] ?? null);
+      : (QURAN_15LINE_FULL_PAGE_IMAGES[page + 1] ?? null);
+  const displayPage = mushaf === '16line' ? page + 1 : page;
+  const displayStart = mushaf === '16line' ? activeRange.start + 1 : activeRange.start;
+  const displayEnd = mushaf === '16line' ? activeRange.end + 1 : activeRange.end;
 
   return (
+    <GestureHandlerRootView style={styles.container}>
     <View style={[styles.container, { backgroundColor: N ? N.bg : '#000' }]}>
+      <GestureDetector gesture={imageGestures}>
       <View
         style={[styles.viewerPanel, N && { backgroundColor: N.panel, borderColor: N.border }]}
-        {...swipeHandlers.panHandlers}
       >
         <View style={[styles.topOverlay, { top: insets.top + 8 }, N && { backgroundColor: 'rgba(16,24,41,0.72)', borderColor: N.border }]}> 
         <TouchableOpacity
@@ -173,25 +287,29 @@ export default function QuranReaderScreen() {
           <Text style={[styles.backBtnText, N && { color: N.text }]}>Back</Text>
         </TouchableOpacity>
         <View style={styles.headerTextWrap}>
-          <Text style={[styles.sub, N && { color: N.textSub }]}>Pages {activeRange.start}-{activeRange.end}</Text>
+          <Text style={[styles.sub, N && { color: N.textSub }]}>Pages {displayStart}-{displayEnd}</Text>
         </View>
       </View>
 
         {localSource ? (
-          <Image source={localSource} style={styles.image} contentFit="contain" transition={80} />
+          <Reanimated.View style={[styles.imageWrap, zoomStyle]}>
+            <Image source={localSource} style={styles.image} contentFit="contain" transition={80} />
+          </Reanimated.View>
         ) : (
           <View style={styles.emptyWrap}>
             <Text style={[styles.emptyTitle, N && { color: N.text }]}>Image not mapped on this test reader</Text>
             <Text style={[styles.emptySub, N && { color: N.textSub }]}>No local image mapped for this page in {mushaf === '16line' ? '16-Line' : '15-Line'} Full folder.</Text>
-            <Text style={[styles.emptySub, N && { color: N.textSub }]}>Requested page: {page}</Text>
+            <Text style={[styles.emptySub, N && { color: N.textSub }]}>Requested page: {displayPage}</Text>
           </View>
         )}
 
         <View style={[styles.bottomOverlay, N && { backgroundColor: 'rgba(16,24,41,0.72)', borderColor: N.border }]}>
-          <Text style={[styles.pageText, N && { color: N.textSub }]}>Page {page}</Text>
+          <Text style={[styles.pageText, N && { color: N.textSub }]}>Page {displayPage}</Text>
         </View>
       </View>
+      </GestureDetector>
     </View>
+    </GestureHandlerRootView>
   );
 }
 
@@ -244,6 +362,9 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
+  },
+  imageWrap: {
+    flex: 1,
   },
   emptyWrap: {
     flex: 1,

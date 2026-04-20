@@ -1699,14 +1699,7 @@ const fyStyles = StyleSheet.create({
     overflow: 'hidden',
     padding: 11,
     gap: 8,
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 6px 16px rgba(11,92,58,0.08)' }
-      : {
-          shadowColor: '#0B5C3A',
-          shadowOffset: { width: 0, height: 6 },
-          shadowOpacity: 0.08,
-          shadowRadius: 16,
-        }),
+    boxShadow: '0px 6px 16px rgba(11,92,58,0.08)',
     elevation: 4,
   },
   duroodHeader: { flexDirection: 'row', alignItems: 'center', gap: 5 },
@@ -1877,14 +1870,7 @@ const fyStyles = StyleSheet.create({
     borderRadius: Radius.lg,
     borderWidth: 1,
     borderColor: Colors.border,
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 4px 12px rgba(11,92,58,0.06)' }
-      : {
-          shadowColor: '#0B5C3A',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.06,
-          shadowRadius: 12,
-        }),
+    boxShadow: '0px 4px 12px rgba(11,92,58,0.06)',
     elevation: 3,
   },
   nextAdhkarStrip: {
