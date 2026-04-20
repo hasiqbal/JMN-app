@@ -69,10 +69,10 @@ const SURAH_START_PAGE_15LINE_BUTTONS: Record<number, number> = {
   55: 532, 56: 535, 57: 538, 58: 543, 59: 546, 60: 550, 61: 552, 62: 554, 63: 555,
   64: 557, 65: 559, 66: 561, 67: 563, 68: 565, 69: 568, 70: 570, 71: 572, 72: 574,
   73: 577, 74: 579, 75: 581, 76: 583, 77: 585, 78: 587, 79: 588, 80: 590, 81: 591,
-  82: 592, 83: 593, 84: 595, 85: 596, 86: 597, 87: 598, 88: 599, 89: 600, 90: 601,
-  91: 602, 92: 603, 93: 603, 94: 603, 95: 604, 96: 605, 97: 605, 98: 606, 99: 606,
-  100: 607, 101: 607, 102: 607, 103: 608, 104: 608, 105: 608, 106: 609, 107: 609,
-  108: 609, 109: 610, 110: 610, 111: 610, 112: 610, 113: 611, 114: 611,
+  82: 592, 83: 593, 84: 595, 85: 596, 86: 597, 87: 598, 88: 599, 89: 599, 90: 601,
+  91: 601, 92: 602, 93: 603, 94: 603, 95: 604, 96: 604, 97: 605, 98: 605, 99: 606,
+  100: 606, 101: 607, 102: 607, 103: 608, 104: 608, 105: 608, 106: 609, 107: 609,
+  108: 609, 109: 609, 110: 610, 111: 610, 112: 610, 113: 611, 114: 611,
 };
 
 const JUZ_SURAH_MAP: Record<number, number[]> = {
@@ -234,8 +234,15 @@ export default function QuranScreen() {
 
   const chooseSurahInJuz = useCallback(async (chapter: number) => {
     const startMap = mushafLayout === '15line' ? SURAH_START_PAGE_15LINE_BUTTONS : SURAH_START_PAGE;
-    const targetPage = startMap[chapter] ?? 1;
-    const endPage = (startMap[chapter + 1] ?? (getMushafTotalPages(mushafLayout) + 1)) - 1;
+    const surahOpenOffset = mushafLayout === '15line' ? -1 : 0;
+    const targetPage = Math.max(1, (startMap[chapter] ?? 1) + surahOpenOffset);
+    const nextStart = startMap[chapter + 1];
+    const endPage = Math.max(
+      targetPage,
+      nextStart !== undefined
+        ? (nextStart + surahOpenOffset - 1)
+        : getMushafTotalPages(mushafLayout)
+    );
     setSelectedSurah(chapter);
     setSelectedQuarter(null);
     setPendingOpenLabel(`Surah ${chapter} · Page ${targetPage}`);
