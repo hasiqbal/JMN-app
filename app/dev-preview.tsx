@@ -73,6 +73,30 @@ const PREVIEW_ITEMS: PreviewItem[] = [
     icon: 'preview',
   },
   {
+    route: 'live-stream-preview-eid',
+    title: 'Live Stream Redesign: Eid',
+    description: 'Unified stream page redesign preview with Eid visual direction',
+    icon: 'live-tv',
+  },
+  {
+    route: 'live-stream-preview-eid-jumuah',
+    title: 'Live Stream Redesign: Eid + Jummah',
+    description: 'Unified stream page redesign preview for Eid and Friday overlap',
+    icon: 'podcasts',
+  },
+  {
+    route: 'live-stream-preview-eid-adha',
+    title: 'Live Stream Redesign: Eid ul Adha',
+    description: 'Unified stream page redesign preview for Eid ul Adha',
+    icon: 'campaign',
+  },
+  {
+    route: 'live-stream-preview-eid-adha-jumuah',
+    title: 'Live Stream Redesign: Eid ul Adha + Jummah',
+    description: 'Unified stream page redesign preview for Eid ul Adha and Friday overlap',
+    icon: 'settings-input-antenna',
+  },
+  {
     route: 'home-preview-eid-jumuah',
     title: 'Homepage Eid + Jummah',
     description: 'Full homepage preview when Eid ul Fitr falls on Friday',

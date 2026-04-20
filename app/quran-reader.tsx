@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -144,6 +144,7 @@ function pickDefaultTafsirId(language: ContentLanguage, options: QuranTafsirReso
 export default function QuranReaderScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const { nightMode } = useNightMode();
   const { enabled: reminderEnabled } = useQuranPopupReminderSetting();
   useQuranPrayerPopups({ enabled: reminderEnabled });
@@ -554,6 +555,7 @@ export default function QuranReaderScreen() {
 
   const translationFallback = contentLang === 'ur' ? 'ترجمہ جلد دستیاب ہوگا۔' : 'Translation coming soon.';
   const tafsirFallback = contentLang === 'ur' ? 'تفسیر جلد دستیاب ہوگی۔' : 'Tafsir coming soon.';
+  const contentPanelHeight = Math.min(windowHeight * 0.9, windowHeight - insets.top - 12);
   const toggleButtonLabel = toggleLabelLang === 'ur' ? 'ترجمہ / تفسیر' : 'Translation / Tafsir';
   const getTranslationOptionLabel = (option: QuranTranslationResource) =>
     contentLang === 'ur'
@@ -567,6 +569,7 @@ export default function QuranReaderScreen() {
   const imageGestures = useMemo(
     () => Gesture.Simultaneous(
       Gesture.Pan()
+        .enabled(!showContentPanel)
         .activeOffsetX([-8, 8])
         .activeOffsetY([-8, 8])
         .onUpdate((e) => {
@@ -600,6 +603,7 @@ export default function QuranReaderScreen() {
           else if (e.translationX > 24 || e.velocityX > 250) runOnJS(goToNextPage)();
         }),
       Gesture.Pinch()
+        .enabled(!showContentPanel)
         .onUpdate((e) => {
           zoomScale.value = Math.max(1, Math.min(savedZoomScale.value * e.scale, 4));
         })
@@ -622,7 +626,7 @@ export default function QuranReaderScreen() {
           savedTranslateY.value = translateY.value;
         })
     ),
-    [goToNextPage, goToPreviousPage, zoomScale, savedZoomScale, translateX, translateY, savedTranslateX, savedTranslateY]
+    [goToNextPage, goToPreviousPage, showContentPanel, zoomScale, savedZoomScale, translateX, translateY, savedTranslateX, savedTranslateY]
   );
 
   const zoomStyle = useAnimatedStyle(() => ({
@@ -699,7 +703,13 @@ export default function QuranReaderScreen() {
         {showContentPanel ? (
           <View style={styles.contentOverlayWrap}>
             <TouchableOpacity style={styles.contentOverlayBackdrop} activeOpacity={1} onPress={() => setShowContentPanel(false)} />
-            <View style={[styles.contentPanel, N && { backgroundColor: N.panel, borderTopColor: N.border }]}> 
+            <View
+              style={[
+                styles.contentPanel,
+                { height: contentPanelHeight },
+                N && { backgroundColor: N.panel, borderTopColor: N.border },
+              ]}
+            >
               <View style={styles.contentPanelHeader}>
                 <View style={styles.contentNavGroup}>
                   <TouchableOpacity
@@ -844,6 +854,7 @@ export default function QuranReaderScreen() {
                 style={styles.contentBodyScroll}
                 contentContainerStyle={styles.contentBodyWrap}
                 showsVerticalScrollIndicator={false}
+                nestedScrollEnabled
               >
                 {isLoadingPanelContent ? (
                   <View style={styles.loadingWrap}>
@@ -1049,7 +1060,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.25)',
   },
   contentPanel: {
-    maxHeight: '66%',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     borderTopWidth: 1,
