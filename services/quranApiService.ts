@@ -50,6 +50,21 @@ export interface QuranTranslationResource {
   authorName?: string;
 }
 
+export interface QuranTafsirResource {
+  id: number;
+  name: string;
+  translatedName?: string;
+  languageName?: string;
+  authorName?: string;
+}
+
+export interface QuranPageVerse {
+  verseKey: string;
+  surahNumber: number;
+  verseNumber: number;
+  transliteration?: string;
+}
+
 const URDU_TRANSLATOR_NAME_OVERRIDES: Record<number, string> = {
   819: 'مولانا وحید الدین خان',
 };
@@ -57,17 +72,51 @@ const URDU_TRANSLATOR_NAME_OVERRIDES: Record<number, string> = {
 const BASE_URL = 'https://api.quran.com/api/v4';
 const TRANSLATION_ID = 131; // Saheeh International
 const QURAN_TRANSLATION_RESOURCE_CACHE_PREFIX = '@quran_trans_resources_v1:';
+const QURAN_TAFSIR_RESOURCE_CACHE_PREFIX = '@quran_tafsir_resources_v2:';
 const QURAN_CHAPTER_TRANSLATION_CACHE_PREFIX = '@quran_chapter_trans_v1:';
 
 const translationResourcesMemoryCache: Partial<Record<string, QuranTranslationResource[]>> = {};
+const tafsirResourcesMemoryCache: Partial<Record<string, QuranTafsirResource[]>> = {};
 const chapterTranslationMemoryCache: Record<string, Record<number, string>> = {};
+const pageVersesMemoryCache: Record<number, QuranPageVerse[]> = {};
+const pageTranslationMemoryCache: Record<string, Record<string, string>> = {};
+const pageTafsirMemoryCache: Record<string, { label: string; byVerseKey: Record<string, string> }> = {};
 
 function getTranslationResourcesCacheKey(language: string): string {
   return `${QURAN_TRANSLATION_RESOURCE_CACHE_PREFIX}${language}`;
 }
 
+function getTafsirResourcesCacheKey(language: string): string {
+  return `${QURAN_TAFSIR_RESOURCE_CACHE_PREFIX}${language}`;
+}
+
 function getChapterTranslationCacheKey(surahNumber: number, translationId: number, language: string): string {
   return `${QURAN_CHAPTER_TRANSLATION_CACHE_PREFIX}${surahNumber}:${translationId}:${language}`;
+}
+
+function stripHtml(value: string): string {
+  const withLineBreaks = value
+    .replace(/<\s*br\s*\/?\s*>/gi, '\n')
+    .replace(/<\s*\/\s*(p|div|li|h[1-6])\s*>/gi, '\n')
+    .replace(/<\s*li[^>]*>/gi, '- ');
+
+  return withLineBreaks
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n[ \t]+/g, '\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function isResourceForLanguage(resourceLanguageName: string | undefined, requestedLanguage: string): boolean {
+  const resourceLang = (resourceLanguageName ?? '').trim().toLowerCase();
+  const requested = requestedLanguage.trim().toLowerCase();
+
+  if (!resourceLang || !requested) return true;
+  if (requested.startsWith('ur')) return resourceLang.includes('urdu');
+  if (requested.startsWith('en')) return resourceLang.includes('english');
+  return resourceLang.includes(requested);
 }
 
 async function fetchVersePage(
@@ -171,6 +220,201 @@ export async function fetchTranslationResources(language = 'en'): Promise<QuranT
   } catch {
     return translationResourcesMemoryCache[language] ?? [];
   }
+}
+
+export async function fetchTafsirResources(language = 'en'): Promise<QuranTafsirResource[]> {
+  const memoryHit = tafsirResourcesMemoryCache[language];
+  if (memoryHit && memoryHit.length > 0) {
+    return memoryHit;
+  }
+
+  const cacheKey = getTafsirResourcesCacheKey(language);
+
+  try {
+    const stored = await AsyncStorage.getItem(cacheKey);
+    if (stored) {
+      const parsed = JSON.parse(stored) as QuranTafsirResource[];
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        tafsirResourcesMemoryCache[language] = parsed;
+      }
+    }
+  } catch {
+    // ignore cache read issues
+  }
+
+  try {
+    const url = `${BASE_URL}/resources/tafsirs?language=${encodeURIComponent(language)}&per_page=100`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`quran.com API error: ${res.status}`);
+    const json = await res.json();
+    const rows: any[] = json?.tafsirs ?? [];
+
+    const normalized = rows
+      .map((r: any) => {
+        const preferredName = language === 'ur'
+          ? (r.translated_name?.name ?? r.name ?? `Tafsir ${r.id}`)
+          : (r.name ?? r.translated_name?.name ?? `Tafsir ${r.id}`);
+        return {
+          id: Number(r.id),
+          name: stripHtml(String(preferredName)),
+          translatedName: r.translated_name?.name ? stripHtml(String(r.translated_name.name)) : undefined,
+          languageName: r.language_name ? String(r.language_name) : undefined,
+          authorName: r.author_name ? String(r.author_name) : undefined,
+        } as QuranTafsirResource;
+      })
+      .filter((r) => Number.isFinite(r.id));
+
+    const languageMatched = normalized.filter((r) => isResourceForLanguage(r.languageName, language));
+    const finalList = languageMatched.length > 0 ? languageMatched : normalized;
+
+    if (finalList.length > 0) {
+      tafsirResourcesMemoryCache[language] = finalList;
+      try {
+        await AsyncStorage.setItem(cacheKey, JSON.stringify(finalList));
+      } catch {
+        // ignore cache write issues
+      }
+    }
+
+    return finalList;
+  } catch {
+    return tafsirResourcesMemoryCache[language] ?? [];
+  }
+}
+
+async function fetchVersesByPageRaw(pageNumber: number): Promise<any[]> {
+  const out: any[] = [];
+  const PER_PAGE = 50;
+
+  for (let page = 1; page <= 10; page += 1) {
+    const url =
+      `${BASE_URL}/verses/by_page/${pageNumber}` +
+      `?per_page=${PER_PAGE}` +
+      `&page=${page}` +
+      `&fields=verse_key,verse_number` +
+      `&words=true` +
+      `&word_fields=transliteration` +
+      `&language=en`;
+
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`quran.com API error: ${res.status}`);
+    const json = await res.json();
+    const verses: any[] = json?.verses ?? [];
+    out.push(...verses);
+    if (verses.length < PER_PAGE) break;
+  }
+
+  return out;
+}
+
+export async function fetchPageVerses(pageNumber: number): Promise<QuranPageVerse[]> {
+  if (pageVersesMemoryCache[pageNumber]) {
+    return pageVersesMemoryCache[pageNumber];
+  }
+
+  try {
+    const verses = await fetchVersesByPageRaw(pageNumber);
+    const mapped = verses.map((v) => {
+      const verseKey = String(v?.verse_key ?? '');
+      const [surahRaw, verseRaw] = verseKey.split(':');
+      const transliteration = (v?.words ?? [])
+        .map((w: any) => w?.transliteration?.text ?? '')
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+      return {
+        verseKey,
+        surahNumber: Number(surahRaw),
+        verseNumber: Number(verseRaw),
+        transliteration: transliteration || undefined,
+      } as QuranPageVerse;
+    }).filter((v) => v.verseKey && Number.isFinite(v.surahNumber) && Number.isFinite(v.verseNumber));
+
+    pageVersesMemoryCache[pageNumber] = mapped;
+    return mapped;
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchPageTranslationById(
+  pageNumber: number,
+  translationId: number,
+  language = 'en',
+): Promise<Record<string, string>> {
+  const cacheKey = `${pageNumber}:${translationId}:${language}`;
+  const memoryHit = pageTranslationMemoryCache[cacheKey];
+  if (memoryHit) return memoryHit;
+
+  const out: Record<string, string> = {};
+  try {
+    const PER_PAGE = 50;
+    for (let page = 1; page <= 10; page += 1) {
+      const url =
+        `${BASE_URL}/verses/by_page/${pageNumber}` +
+        `?per_page=${PER_PAGE}` +
+        `&page=${page}` +
+        `&translations=${translationId}` +
+        `&fields=verse_key` +
+        `&language=${encodeURIComponent(language)}`;
+
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`quran.com API error: ${res.status}`);
+      const json = await res.json();
+      const verses: any[] = json?.verses ?? [];
+
+      for (const v of verses) {
+        const verseKey = String(v?.verse_key ?? '');
+        if (!verseKey) continue;
+        const text = stripHtml(String(v?.translations?.[0]?.text ?? ''));
+        if (text) out[verseKey] = text;
+      }
+
+      if (verses.length < PER_PAGE) break;
+    }
+
+    pageTranslationMemoryCache[cacheKey] = out;
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+export async function fetchPageTafsirById(
+  pageNumber: number,
+  tafsirId: number,
+  language = 'en',
+): Promise<{ label: string; byVerseKey: Record<string, string> }> {
+  const cacheKey = `${pageNumber}:${tafsirId}:${language}`;
+  const memoryHit = pageTafsirMemoryCache[cacheKey];
+  if (memoryHit) return memoryHit;
+
+  const verses = await fetchPageVerses(pageNumber);
+  if (verses.length === 0) {
+    return { label: 'Tafsir', byVerseKey: {} };
+  }
+
+  const byVerseKey: Record<string, string> = {};
+  let label = 'Tafsir';
+
+  for (const verse of verses) {
+    try {
+      const url = `${BASE_URL}/tafsirs/${tafsirId}/by_ayah/${verse.verseKey}?language=${encodeURIComponent(language)}`;
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const json = await res.json();
+      const text = stripHtml(String(json?.tafsir?.text ?? ''));
+      if (text) byVerseKey[verse.verseKey] = text;
+      const fetchedLabel = stripHtml(String(json?.tafsir?.translated_name?.name ?? json?.tafsir?.resource_name ?? ''));
+      if (fetchedLabel) label = fetchedLabel;
+    } catch {
+      // continue with remaining ayahs
+    }
+  }
+
+  const out = { label, byVerseKey };
+  pageTafsirMemoryCache[cacheKey] = out;
+  return out;
 }
 
 /**

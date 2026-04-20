@@ -12,6 +12,8 @@ import { GestureHandlerRootView, Gesture, GestureDetector } from 'react-native-g
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
 import { fetchChapterTranslationById, fetchTranslationResources, QuranTranslationResource } from '@/services/quranApiService';
 import { SURAH_WAQIAH, SURAH_YASEEN } from '@/services/quranService';
+import { useQuranPrayerPopups } from '@/hooks/useQuranPrayerPopups';
+import { useQuranPopupReminderSetting } from '@/hooks/useQuranPopupReminderSetting';
 import {
   IMRAN_PAGE_AYAT,
   KAHF_PAGE_AYAT,
@@ -246,6 +248,8 @@ function MushafImageViewer({
   accentDay, accentNight, bgNight, hdrBgNight, hdrBorNight, bgDay, hdrBgDay, hdrBorDay,
   chapterNumber, enableApiTranslationPicker, fullView,
 }: ViewerProps) {
+  const { enabled: reminderEnabled } = useQuranPopupReminderSetting();
+  useQuranPrayerPopups({ enabled: reminderEnabled });
   const N = nightMode;
   const isFullView = !!fullView;
   const transScrollRef = React.useRef<ScrollView>(null);

@@ -4,7 +4,7 @@ import { LogBox } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
-import { AlertProvider } from '@/template';
+import { AlertProvider, InAppBannerProvider } from '@/template';
 import { runInitialTranslationWarmup } from '@/services/translationWarmupService';
 
 LogBox.ignoreLogs([
@@ -16,6 +16,7 @@ LogBox.ignoreLogs([
 
 export default function RootLayout() {
   useFonts({
+    UrduNastaliq: require('@/assets/fonts/UrduNastaliq.ttf'),
     UrduNastaliqBold: require('@/assets/fonts/UrduNastaliqBold.ttf'),
   });
 
@@ -27,9 +28,11 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AlertProvider>
         <SafeAreaProvider>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)" />
-          </Stack>
+          <InAppBannerProvider>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(tabs)" />
+            </Stack>
+          </InAppBannerProvider>
         </SafeAreaProvider>
       </AlertProvider>
     </GestureHandlerRootView>

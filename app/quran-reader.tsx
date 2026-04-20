@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -7,6 +7,18 @@ import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-g
 import Reanimated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { Colors } from '@/constants/theme';
 import { useNightMode } from '@/hooks/useNightMode';
+import { useQuranPrayerPopups } from '@/hooks/useQuranPrayerPopups';
+import { useQuranPopupReminderSetting } from '@/hooks/useQuranPopupReminderSetting';
+import {
+  fetchPageTafsirById,
+  fetchPageTranslationById,
+  fetchPageVerses,
+  fetchTafsirResources,
+  fetchTranslationResources,
+  QuranPageVerse,
+  QuranTafsirResource,
+  QuranTranslationResource,
+} from '@/services/quranApiService';
 import { QURAN_15LINE_FULL_PAGE_IMAGES } from '@/constants/quran15lineFullMap';
 import { QURAN_16LINE_FULL_PAGE_IMAGES } from '@/constants/quran16lineFullMap';
 import { getJuzEndPage, getJuzStartPage, getMushafTotalPages, getQuarterStartsInJuz } from '@/constants/mushafJuzPages';
@@ -19,16 +31,79 @@ const NIGHT = {
   border: '#1E2D47',
 };
 
+const DEFAULT_TRANSLATION_ID_BY_LANG: Record<'en' | 'ur', number> = {
+  en: 131,
+  ur: 819,
+};
+
+const DEFAULT_TAFSIR_ID_BY_LANG: Record<'en' | 'ur', number> = {
+  en: 169,
+  ur: 160,
+};
+
+type ContentMode = 'translation' | 'tafsir';
+type ContentLanguage = 'en' | 'ur';
+
+interface TafsirBlock {
+  id: number;
+  label: string;
+  byVerseKey: Record<string, string>;
+}
+
 function toNumber(value: string | string[] | undefined, fallback: number): number {
   const text = Array.isArray(value) ? value[0] : value;
   const parsed = Number(text);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function toArabicIndicDigits(value: number): string {
+  return String(value).replace(/\d/g, (digit) => '٠١٢٣٤٥٦٧٨٩'[Number(digit)]);
+}
+
+function pickDefaultTranslationId(language: ContentLanguage, options: QuranTranslationResource[]): number | null {
+  if (options.length === 0) return null;
+
+  const normalized = options.map((option) => ({
+    ...option,
+    search: `${option.name} ${option.translatedName ?? ''} ${option.authorName ?? ''}`.toLowerCase(),
+  }));
+
+  if (language === 'en') {
+    const clearQuran = normalized.find((option) => /clear\s*quran|mustafa\s*khattab/.test(option.search));
+    if (clearQuran) return clearQuran.id;
+    const fallbackEn = normalized.find((option) => option.id === DEFAULT_TRANSLATION_ID_BY_LANG.en);
+    return fallbackEn?.id ?? normalized[0].id;
+  }
+
+  const urduPreferred = normalized.find((option) => /waheed\s*uddin|wahid\s*uddin|وحید\s*الدین/.test(option.search));
+  if (urduPreferred) return urduPreferred.id;
+  const fallbackUrdu = normalized.find(
+    (option) => option.id === DEFAULT_TRANSLATION_ID_BY_LANG.ur || option.id === 54,
+  );
+  return fallbackUrdu?.id ?? normalized[0].id;
+}
+
+function pickDefaultTafsirId(language: ContentLanguage, options: QuranTafsirResource[]): number | null {
+  if (options.length === 0) return null;
+
+  const normalized = options.map((option) => ({
+    ...option,
+    search: `${option.name} ${option.translatedName ?? ''} ${option.authorName ?? ''}`.toLowerCase(),
+  }));
+
+  const ibnKathir = normalized.find((option) => /ibn\s*kathir|ibn\s*katheer|ابن\s*کثیر|ابن\s*كثير/.test(option.search));
+  if (ibnKathir) return ibnKathir.id;
+
+  const fallback = normalized.find((option) => option.id === DEFAULT_TAFSIR_ID_BY_LANG[language]);
+  return fallback?.id ?? normalized[0].id;
+}
+
 export default function QuranReaderScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { nightMode } = useNightMode();
+  const { enabled: reminderEnabled } = useQuranPopupReminderSetting();
+  useQuranPrayerPopups({ enabled: reminderEnabled });
   const params = useLocalSearchParams();
 
   const startPage = useMemo(() => Math.max(1, toNumber(params.startPage, 1)), [params.startPage]);
@@ -83,6 +158,36 @@ export default function QuranReaderScreen() {
   const N = nightMode ? NIGHT : null;
   const quranTintOverlay = nightMode ? 'rgba(255, 239, 196, 0.06)' : 'rgba(255, 239, 196, 0.14)';
   const mushafTotalPages = useMemo(() => getMushafTotalPages(mushaf), [mushaf]);
+  const displayPage = page + 1;
+  const displayStart = activeRange.start + 1;
+  const displayEnd = activeRange.end + 1;
+
+  const [showContentPanel, setShowContentPanel] = useState(false);
+  const [contentMode, setContentMode] = useState<ContentMode>('translation');
+  const [contentLang, setContentLang] = useState<ContentLanguage>('en');
+  const [toggleLabelLang, setToggleLabelLang] = useState<ContentLanguage>('en');
+  const [showSourcePicker, setShowSourcePicker] = useState(false);
+  const [showTranslit, setShowTranslit] = useState(false);
+  const [isLoadingPanelContent, setIsLoadingPanelContent] = useState(false);
+  const [isLoadingSources, setIsLoadingSources] = useState(false);
+  const [translationOptionsByLang, setTranslationOptionsByLang] = useState<Record<ContentLanguage, QuranTranslationResource[]>>({ en: [], ur: [] });
+  const [tafsirOptionsByLang, setTafsirOptionsByLang] = useState<Record<ContentLanguage, QuranTafsirResource[]>>({ en: [], ur: [] });
+  const [selectedTranslationIdByLang, setSelectedTranslationIdByLang] = useState<Record<ContentLanguage, number | null>>({
+    en: DEFAULT_TRANSLATION_ID_BY_LANG.en,
+    ur: DEFAULT_TRANSLATION_ID_BY_LANG.ur,
+  });
+  const [selectedTafsirIdsByLang, setSelectedTafsirIdsByLang] = useState<Record<ContentLanguage, number[]>>({
+    en: [DEFAULT_TAFSIR_ID_BY_LANG.en],
+    ur: [DEFAULT_TAFSIR_ID_BY_LANG.ur],
+  });
+  const [pageVerses, setPageVerses] = useState<QuranPageVerse[]>([]);
+  const [translationByVerseKey, setTranslationByVerseKey] = useState<Record<string, string>>({});
+  const [tafsirBlocks, setTafsirBlocks] = useState<TafsirBlock[]>([]);
+
+  const pageVersesCacheRef = useRef<Record<number, QuranPageVerse[]>>({});
+  const pageTranslationCacheRef = useRef<Record<string, Record<string, string>>>({});
+  const pageTafsirCacheRef = useRef<Record<string, TafsirBlock>>({});
+
   const zoomScale = useSharedValue(1);
   const savedZoomScale = useSharedValue(1);
   const translateX = useSharedValue(0);
@@ -193,6 +298,193 @@ export default function QuranReaderScreen() {
     [page, activeRange.end, navMode, mushafTotalPages, goToNextSegment]
   );
 
+  useEffect(() => {
+    if (!showContentPanel) {
+      setShowSourcePicker(false);
+    }
+  }, [showContentPanel]);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setToggleLabelLang((prev) => (prev === 'en' ? 'ur' : 'en'));
+    }, 4000);
+    return () => clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    setShowSourcePicker(false);
+  }, [contentMode, contentLang]);
+
+  useEffect(() => {
+    if (!showContentPanel) return;
+    let cancelled = false;
+
+    const loadSources = async () => {
+      if (contentMode === 'translation' && translationOptionsByLang[contentLang].length > 0) return;
+      if (contentMode === 'tafsir' && tafsirOptionsByLang[contentLang].length > 0) return;
+
+      setIsLoadingSources(true);
+      try {
+        if (contentMode === 'translation') {
+          const options = await fetchTranslationResources(contentLang);
+          if (cancelled) return;
+          setTranslationOptionsByLang((prev) => ({ ...prev, [contentLang]: options }));
+          if (options.length > 0) {
+            const preferredDefaultId = pickDefaultTranslationId(contentLang, options);
+            setSelectedTranslationIdByLang((prev) => {
+              const current = prev[contentLang];
+              const hasCurrent = current !== null && options.some((opt) => opt.id === current);
+              if (hasCurrent) return prev;
+              return { ...prev, [contentLang]: preferredDefaultId ?? options[0].id };
+            });
+          }
+        } else {
+          const options = await fetchTafsirResources(contentLang);
+          if (cancelled) return;
+          setTafsirOptionsByLang((prev) => ({ ...prev, [contentLang]: options }));
+          if (selectedTafsirIdsByLang[contentLang].length === 0 && options.length > 0) {
+            const preferredDefaultId = pickDefaultTafsirId(contentLang, options);
+            setSelectedTafsirIdsByLang((prev) => ({ ...prev, [contentLang]: [preferredDefaultId ?? options[0].id] }));
+          }
+        }
+      } finally {
+        if (!cancelled) setIsLoadingSources(false);
+      }
+    };
+
+    void loadSources();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    contentLang,
+    contentMode,
+    selectedTafsirIdsByLang,
+    selectedTranslationIdByLang,
+    showContentPanel,
+    tafsirOptionsByLang,
+    translationOptionsByLang,
+  ]);
+
+  useEffect(() => {
+    if (contentMode !== 'translation') return;
+    const options = translationOptionsByLang[contentLang] ?? [];
+    if (options.length === 0) return;
+
+    const validIds = new Set(options.map((opt) => opt.id));
+    const preferredDefaultId = pickDefaultTranslationId(contentLang, options);
+    const fallbackId = preferredDefaultId && validIds.has(preferredDefaultId) ? preferredDefaultId : options[0].id;
+
+    setSelectedTranslationIdByLang((prev) => {
+      const current = prev[contentLang];
+      const next = current !== null && validIds.has(current) ? current : fallbackId;
+      if (current === next) return prev;
+      return { ...prev, [contentLang]: next };
+    });
+  }, [contentLang, contentMode, translationOptionsByLang]);
+
+  useEffect(() => {
+    if (contentMode !== 'tafsir') return;
+    const options = tafsirOptionsByLang[contentLang] ?? [];
+    if (options.length === 0) return;
+
+    const validIds = new Set(options.map((opt) => opt.id));
+    const preferredDefaultId = pickDefaultTafsirId(contentLang, options);
+    const fallbackId = preferredDefaultId && validIds.has(preferredDefaultId) ? preferredDefaultId : options[0].id;
+    setSelectedTafsirIdsByLang((prev) => {
+      const current = prev[contentLang] ?? [];
+      const retained = current.filter((id) => validIds.has(id));
+      const next = retained.length > 0 ? retained : [fallbackId];
+      const unchanged = current.length === next.length && current.every((id, index) => id === next[index]);
+      if (unchanged) return prev;
+      return { ...prev, [contentLang]: next };
+    });
+  }, [contentLang, contentMode, tafsirOptionsByLang]);
+
+  useEffect(() => {
+    if (!showContentPanel) return;
+
+    let cancelled = false;
+    const selectedTranslationId = selectedTranslationIdByLang[contentLang] ?? null;
+    const selectedTafsirIds = selectedTafsirIdsByLang[contentLang] ?? [];
+
+    const loadPanelContent = async () => {
+      setIsLoadingPanelContent(true);
+      try {
+        let verses = pageVersesCacheRef.current[displayPage];
+        if (!verses) {
+          verses = await fetchPageVerses(displayPage);
+          pageVersesCacheRef.current[displayPage] = verses;
+        }
+        if (cancelled) return;
+        setPageVerses(verses);
+
+        if (contentMode === 'translation') {
+          setTafsirBlocks([]);
+          if (!selectedTranslationId) {
+            setTranslationByVerseKey({});
+            return;
+          }
+
+          const cacheKey = `${displayPage}:${contentLang}:${selectedTranslationId}`;
+          let nextMap = pageTranslationCacheRef.current[cacheKey];
+          if (!nextMap) {
+            nextMap = await fetchPageTranslationById(displayPage, selectedTranslationId, contentLang);
+            pageTranslationCacheRef.current[cacheKey] = nextMap;
+          }
+          if (cancelled) return;
+          setTranslationByVerseKey(nextMap);
+          return;
+        }
+
+        setTranslationByVerseKey({});
+        if (selectedTafsirIds.length === 0) {
+          setTafsirBlocks([]);
+          return;
+        }
+
+        const blocks: TafsirBlock[] = [];
+        for (const tafsirId of selectedTafsirIds) {
+          const cacheKey = `${displayPage}:${contentLang}:${tafsirId}`;
+          let cachedBlock = pageTafsirCacheRef.current[cacheKey];
+          if (!cachedBlock) {
+            const payload = await fetchPageTafsirById(displayPage, tafsirId, contentLang);
+            cachedBlock = {
+              id: tafsirId,
+              label: payload.label || `Tafsir ${tafsirId}`,
+              byVerseKey: payload.byVerseKey,
+            };
+            pageTafsirCacheRef.current[cacheKey] = cachedBlock;
+          }
+          blocks.push(cachedBlock);
+        }
+        if (cancelled) return;
+        setTafsirBlocks(blocks);
+      } finally {
+        if (!cancelled) setIsLoadingPanelContent(false);
+      }
+    };
+
+    void loadPanelContent();
+    return () => {
+      cancelled = true;
+    };
+  }, [contentLang, contentMode, displayPage, selectedTafsirIdsByLang, selectedTranslationIdByLang, showContentPanel]);
+
+  const activeTranslationOptions = translationOptionsByLang[contentLang] ?? [];
+  const activeTafsirOptions = tafsirOptionsByLang[contentLang] ?? [];
+  const selectedTranslationId = selectedTranslationIdByLang[contentLang] ?? null;
+  const selectedTafsirIds = selectedTafsirIdsByLang[contentLang] ?? [];
+  const hasTranslationRows = pageVerses.some((verse) => !!translationByVerseKey[verse.verseKey]);
+
+  const formatVerseNumber = (verseNumber: number) => {
+    return contentLang === 'ur' ? toArabicIndicDigits(verseNumber) : String(verseNumber);
+  };
+
+  const translationFallback = contentLang === 'ur' ? 'ترجمہ جلد دستیاب ہوگا۔' : 'Translation coming soon.';
+  const tafsirFallback = contentLang === 'ur' ? 'تفسیر جلد دستیاب ہوگی۔' : 'Tafsir coming soon.';
+  const toggleButtonLabel = toggleLabelLang === 'ur' ? 'ترجمہ / تفسیر' : 'Translation / Tafsir';
+
   const imageGestures = useMemo(
     () => Gesture.Simultaneous(
       Gesture.Pan()
@@ -262,9 +554,6 @@ export default function QuranReaderScreen() {
     mushaf === '16line'
       ? (QURAN_16LINE_FULL_PAGE_IMAGES[page] ?? null)
       : (QURAN_15LINE_FULL_PAGE_IMAGES[page + 1] ?? null);
-  const displayPage = mushaf === '16line' ? page + 1 : page;
-  const displayStart = mushaf === '16line' ? activeRange.start + 1 : activeRange.start;
-  const displayEnd = mushaf === '16line' ? activeRange.end + 1 : activeRange.end;
 
   return (
     <GestureHandlerRootView style={styles.container}>
@@ -290,6 +579,25 @@ export default function QuranReaderScreen() {
         <View style={styles.headerTextWrap}>
           <Text style={[styles.sub, N && { color: N.textSub }]}>Pages {displayStart}-{displayEnd}</Text>
         </View>
+        <View style={{ flex: 1 }} />
+        <TouchableOpacity
+          style={[
+            styles.translateToggleBtn,
+            N && { borderColor: N.border },
+            showContentPanel && styles.translateToggleBtnActive,
+          ]}
+          onPress={() => setShowContentPanel((prev) => !prev)}
+          activeOpacity={0.85}
+        >
+          <Text style={[
+            styles.translateToggleText,
+            toggleLabelLang === 'ur' && styles.translateToggleTextUrdu,
+            N && { color: N.text },
+            showContentPanel && styles.translateToggleTextActive,
+          ]}>
+            {toggleButtonLabel}
+          </Text>
+        </TouchableOpacity>
       </View>
 
         {localSource ? (
@@ -308,6 +616,202 @@ export default function QuranReaderScreen() {
         <View style={[styles.bottomOverlay, N && { backgroundColor: 'rgba(16,24,41,0.72)', borderColor: N.border }]}>
           <Text style={[styles.pageText, N && { color: N.textSub }]}>Page {displayPage}</Text>
         </View>
+
+        {showContentPanel ? (
+          <View style={styles.contentOverlayWrap}>
+            <TouchableOpacity style={styles.contentOverlayBackdrop} activeOpacity={1} onPress={() => setShowContentPanel(false)} />
+            <View style={[styles.contentPanel, N && { backgroundColor: N.panel, borderTopColor: N.border }]}> 
+              <View style={styles.contentPanelHeader}>
+                <View style={styles.contentNavGroup}>
+                  <TouchableOpacity
+                    style={[styles.contentNavBtn, page <= 1 && styles.contentNavBtnDisabled]}
+                    onPress={goToPreviousPage}
+                    disabled={page <= 1}
+                  >
+                    <Text style={styles.contentNavBtnText}>{'<'}</Text>
+                  </TouchableOpacity>
+                  <Text style={[styles.contentPanelPage, N && { color: N.textSub }]}>
+                    {contentLang === 'ur' ? `صفحہ ${toArabicIndicDigits(displayPage)}` : `Page ${displayPage}`}
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.contentNavBtn, page >= mushafTotalPages && styles.contentNavBtnDisabled]}
+                    onPress={goToNextPage}
+                    disabled={page >= mushafTotalPages}
+                  >
+                    <Text style={styles.contentNavBtnText}>{'>'}</Text>
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity onPress={() => setShowContentPanel(false)} style={styles.contentCloseBtn}>
+                  <Text style={styles.contentCloseBtnText}>Close</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.selectorRow}>
+                <TouchableOpacity
+                  style={[styles.selectorChip, contentMode === 'translation' && styles.selectorChipActive]}
+                  onPress={() => setContentMode('translation')}
+                >
+                  <Text style={[styles.selectorChipText, contentMode === 'translation' && styles.selectorChipTextActive]}>Translation</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.selectorChip, contentMode === 'tafsir' && styles.selectorChipActive]}
+                  onPress={() => setContentMode('tafsir')}
+                >
+                  <Text style={[styles.selectorChipText, contentMode === 'tafsir' && styles.selectorChipTextActive]}>Tafsir</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.selectorChip, contentLang === 'en' && styles.selectorChipActive]}
+                  onPress={() => setContentLang('en')}
+                >
+                  <Text style={[styles.selectorChipText, contentLang === 'en' && styles.selectorChipTextActive]}>English</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.selectorChip, contentLang === 'ur' && styles.selectorChipActive]}
+                  onPress={() => setContentLang('ur')}
+                >
+                  <Text style={[styles.selectorChipText, contentLang === 'ur' && styles.selectorChipTextActive]}>اردو</Text>
+                </TouchableOpacity>
+                {contentMode === 'translation' ? (
+                  <TouchableOpacity
+                    style={[styles.selectorChip, showTranslit && styles.selectorChipActive]}
+                    onPress={() => setShowTranslit((prev) => !prev)}
+                  >
+                    <Text style={[styles.selectorChipText, showTranslit && styles.selectorChipTextActive]}>Translit</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+
+              <View style={styles.sourceToggleRow}>
+                <TouchableOpacity
+                  style={[styles.sourcePickerBtn, showSourcePicker && styles.sourcePickerBtnActive]}
+                  onPress={() => setShowSourcePicker((prev) => !prev)}
+                >
+                  <Text style={[styles.sourcePickerBtnText, showSourcePicker && styles.sourcePickerBtnTextActive]}>
+                    {contentMode === 'translation'
+                      ? (contentLang === 'ur' ? 'مترجم منتخب کریں' : 'Select Translation')
+                      : (contentLang === 'ur' ? 'تفسیر منتخب کریں' : 'Select Tafsir')}
+                  </Text>
+                </TouchableOpacity>
+                {isLoadingSources ? <ActivityIndicator size="small" color="#3FAE5A" /> : null}
+              </View>
+
+              {showSourcePicker ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sourceListRow}>
+                  {contentMode === 'translation'
+                    ? activeTranslationOptions.map((opt) => {
+                        const selected = selectedTranslationId === opt.id;
+                        return (
+                          <TouchableOpacity
+                            key={`tr-${opt.id}`}
+                            style={[styles.sourceChip, selected && styles.sourceChipActive]}
+                            onPress={() => {
+                              setSelectedTranslationIdByLang((prev) => ({ ...prev, [contentLang]: opt.id }));
+                              setShowSourcePicker(false);
+                            }}
+                          >
+                            <Text style={[styles.sourceChipText, selected && styles.sourceChipTextActive]}>{contentLang === 'ur' ? (opt.translatedName || opt.name) : opt.name}</Text>
+                          </TouchableOpacity>
+                        );
+                      })
+                    : activeTafsirOptions.map((opt) => {
+                        const selected = selectedTafsirIds.includes(opt.id);
+                        return (
+                          <TouchableOpacity
+                            key={`tf-${opt.id}`}
+                            style={[styles.sourceChip, selected && styles.sourceChipActive]}
+                            onPress={() => {
+                              setSelectedTafsirIdsByLang((prev) => {
+                                const current = prev[contentLang] ?? [];
+                                if (current.includes(opt.id)) {
+                                  return { ...prev, [contentLang]: current.filter((id) => id !== opt.id) };
+                                }
+                                return { ...prev, [contentLang]: [...current, opt.id] };
+                              });
+                            }}
+                          >
+                            <Text style={[styles.sourceChipText, selected && styles.sourceChipTextActive]}>{contentLang === 'ur' ? (opt.translatedName || opt.name) : opt.name}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                </ScrollView>
+              ) : null}
+
+              {contentMode === 'tafsir' && selectedTafsirIds.length > 3 ? (
+                <Text style={[styles.performanceHint, N && { color: N.textSub }]}>Using more than 3 tafsir sources may be slower on weak networks.</Text>
+              ) : null}
+
+              <ScrollView contentContainerStyle={styles.contentBodyWrap} showsVerticalScrollIndicator={false}>
+                {isLoadingPanelContent ? (
+                  <View style={styles.loadingWrap}>
+                    <ActivityIndicator size="small" color="#3FAE5A" />
+                    <Text style={[styles.loadingText, N && { color: N.textSub }]}>Loading page content...</Text>
+                  </View>
+                ) : contentMode === 'translation' ? (
+                  hasTranslationRows ? (
+                    pageVerses.map((verse) => (
+                      <View
+                        key={`tr-row-${verse.verseKey}`}
+                        style={[
+                          styles.verseRow,
+                          contentLang === 'ur' && styles.verseRowUrdu,
+                          N && { borderBottomColor: 'rgba(255,255,255,0.1)' },
+                        ]}
+                      >
+                        <View style={styles.verseNumberPill}>
+                          <Text style={styles.verseNumberText}>{formatVerseNumber(verse.verseNumber)}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.verseText, contentLang === 'ur' && styles.verseTextUrdu, N && { color: N.text }]}>
+                            {translationByVerseKey[verse.verseKey] || translationFallback}
+                          </Text>
+                          {showTranslit && verse.transliteration ? (
+                            <Text style={[styles.translitText, N && { color: N.textSub }]}>{verse.transliteration}</Text>
+                          ) : null}
+                        </View>
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={[styles.fallbackText, contentLang === 'ur' && styles.fallbackTextUrdu, N && { color: N.textSub }]}>{translationFallback}</Text>
+                  )
+                ) : tafsirBlocks.length > 0 ? (
+                  tafsirBlocks.map((block) => {
+                    const hasRows = pageVerses.some((verse) => !!block.byVerseKey[verse.verseKey]);
+                    return (
+                      <View key={`tf-block-${block.id}`} style={styles.tafsirBlock}>
+                        <Text style={[styles.tafsirTitle, contentLang === 'ur' && styles.tafsirTitleUrdu, N && { color: N.text }]}>{block.label}</Text>
+                        {hasRows ? (
+                          pageVerses.map((verse) => {
+                            const text = block.byVerseKey[verse.verseKey];
+                            if (!text) return null;
+                            return (
+                              <View
+                                key={`tf-row-${block.id}-${verse.verseKey}`}
+                                style={[
+                                  styles.verseRow,
+                                  contentLang === 'ur' && styles.verseRowUrdu,
+                                  N && { borderBottomColor: 'rgba(255,255,255,0.1)' },
+                                ]}
+                              >
+                                <View style={styles.verseNumberPill}>
+                                  <Text style={styles.verseNumberText}>{formatVerseNumber(verse.verseNumber)}</Text>
+                                </View>
+                                <Text style={[styles.verseText, contentLang === 'ur' && styles.verseTextUrdu, N && { color: N.text }]}>{text}</Text>
+                              </View>
+                            );
+                          })
+                        ) : (
+                          <Text style={[styles.fallbackText, contentLang === 'ur' && styles.fallbackTextUrdu, N && { color: N.textSub }]}>{tafsirFallback}</Text>
+                        )}
+                      </View>
+                    );
+                  })
+                ) : (
+                  <Text style={[styles.fallbackText, contentLang === 'ur' && styles.fallbackTextUrdu, N && { color: N.textSub }]}>{tafsirFallback}</Text>
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        ) : null}
       </View>
       </GestureDetector>
     </View>
@@ -352,6 +856,31 @@ const styles = StyleSheet.create({
   sub: {
     fontSize: 12,
     color: '#E2E8F0',
+  },
+  translateToggleBtn: {
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.28)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  translateToggleBtnActive: {
+    backgroundColor: '#4FE948',
+    borderColor: '#4FE948',
+  },
+  translateToggleText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#E2E8F0',
+  },
+  translateToggleTextUrdu: {
+    fontFamily: 'UrduNastaliq',
+    fontSize: 15,
+    lineHeight: 22,
+    letterSpacing: 0,
+  } as any,
+  translateToggleTextActive: {
+    color: '#0B2817',
   },
   viewerPanel: {
     flex: 1,
@@ -406,4 +935,248 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#E2E8F0',
   },
+  contentOverlayWrap: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 30,
+    justifyContent: 'flex-end',
+  },
+  contentOverlayBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.25)',
+  },
+  contentPanel: {
+    maxHeight: '66%',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderTopWidth: 1,
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+  },
+  contentPanelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.08)',
+  },
+  contentNavGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  contentNavBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(79,233,72,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  contentNavBtnDisabled: {
+    opacity: 0.35,
+  },
+  contentNavBtnText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#1D5A2A',
+  },
+  contentPanelPage: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#4A5568',
+  },
+  contentCloseBtn: {
+    borderWidth: 1,
+    borderColor: '#C7D8CE',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  contentCloseBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#3E5F4D',
+  },
+  selectorRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+  },
+  selectorChip: {
+    borderWidth: 1,
+    borderColor: '#A3C5AB',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#F8FCF9',
+  },
+  selectorChipActive: {
+    backgroundColor: '#4FE948',
+    borderColor: '#4FE948',
+  },
+  selectorChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#2F5B40',
+  },
+  selectorChipTextActive: {
+    color: '#0B2817',
+  },
+  sourceToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingTop: 10,
+  },
+  sourcePickerBtn: {
+    borderWidth: 1,
+    borderColor: '#8DB79B',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#F5FBF7',
+  },
+  sourcePickerBtnActive: {
+    backgroundColor: '#4FE948',
+    borderColor: '#4FE948',
+  },
+  sourcePickerBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#24573A',
+  },
+  sourcePickerBtnTextActive: {
+    color: '#0B2817',
+  },
+  sourceListRow: {
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  sourceChip: {
+    borderWidth: 1,
+    borderColor: '#9EC0A7',
+    borderRadius: 999,
+    backgroundColor: '#F8FCF9',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  sourceChipActive: {
+    backgroundColor: '#4FE948',
+    borderColor: '#4FE948',
+  },
+  sourceChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#2D5B3C',
+  },
+  sourceChipTextActive: {
+    color: '#0B2817',
+  },
+  performanceHint: {
+    paddingHorizontal: 12,
+    paddingBottom: 6,
+    fontSize: 11,
+    color: '#557767',
+    fontWeight: '600',
+  },
+  contentBodyWrap: {
+    paddingHorizontal: 12,
+    paddingBottom: 22,
+  },
+  loadingWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 18,
+  },
+  loadingText: {
+    fontSize: 12,
+    color: '#5A6F63',
+    fontWeight: '600',
+  },
+  verseRow: {
+    flexDirection: 'row',
+    gap: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.06)',
+    paddingVertical: 9,
+    alignItems: 'flex-start',
+  },
+  verseRowUrdu: {
+    flexDirection: 'row-reverse',
+  },
+  verseNumberPill: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(79,233,72,0.22)',
+    marginTop: 2,
+  },
+  verseNumberText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#1E5F30',
+  },
+  verseText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 20,
+    color: '#1F2937',
+    fontWeight: '500',
+  },
+  verseTextUrdu: {
+    writingDirection: 'rtl',
+    fontFamily: 'UrduNastaliq',
+    fontSize: 21,
+    lineHeight: 38,
+    textAlign: 'right',
+    letterSpacing: 0,
+  } as any,
+  translitText: {
+    marginTop: 4,
+    fontSize: 12,
+    fontStyle: 'italic',
+    lineHeight: 18,
+    color: '#6B7280',
+  },
+  fallbackText: {
+    paddingVertical: 16,
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+  fallbackTextUrdu: {
+    writingDirection: 'rtl',
+    textAlign: 'right',
+    fontFamily: 'UrduNastaliq',
+    fontSize: 20,
+    lineHeight: 34,
+    letterSpacing: 0,
+  } as any,
+  tafsirBlock: {
+    marginBottom: 12,
+  },
+  tafsirTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#1E3A2E',
+    marginBottom: 4,
+  },
+  tafsirTitleUrdu: {
+    writingDirection: 'rtl',
+    textAlign: 'right',
+    fontFamily: 'UrduNastaliq',
+    fontSize: 17,
+    lineHeight: 28,
+    letterSpacing: 0,
+  } as any,
 });

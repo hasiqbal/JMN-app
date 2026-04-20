@@ -1,10 +1,11 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Switch } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/theme';
 import { useNightMode } from '@/hooks/useNightMode';
+import { useQuranPopupReminderSetting } from '@/hooks/useQuranPopupReminderSetting';
 import { getJuzEndPage, getJuzStartPage, getMushafTotalPages, getQuarterStartsInJuz } from '@/constants/mushafJuzPages';
 
 const NIGHT = {
@@ -142,8 +143,8 @@ function getSurahsInJuz(layout: MushafLayout, juz: number): number[] {
 }
 
 function getDisplayedJuzPage(layout: MushafLayout, page: number): number {
-  if (layout === '16line') return page + 1;
-  return page;
+  void layout;
+  return page + 1;
 }
 
 export default function QuranScreen() {
@@ -159,6 +160,7 @@ export default function QuranScreen() {
   const [selectedQuarter, setSelectedQuarter] = useState<{ juz: number; quarter: number } | null>(null);
   const [selectedSurah, setSelectedSurah] = useState<number | null>(null);
   const [pendingOpenLabel, setPendingOpenLabel] = useState('None');
+  const { enabled: reminderEnabled, setEnabled: setReminderEnabled } = useQuranPopupReminderSetting();
   const N = nightMode ? NIGHT : null;
 
   const openReaderScreen = useCallback((startPage: number, endPage: number, extraParams?: Record<string, string>) => {
@@ -299,6 +301,20 @@ export default function QuranScreen() {
     >
       <View style={styles.inner}>
         <Text style={[styles.title, N && { color: N.text }]}>Quran</Text>
+        <View style={[styles.settingRow, N && styles.settingRowNight]}>
+          <View style={{ flex: 1, paddingRight: 10 }}>
+            <Text style={[styles.settingTitle, N && { color: N.text }]}>Quran reminder popups</Text>
+            <Text style={[styles.settingSub, N && { color: N.textSub }]}>Show jamaat and prayer-end reminders while reading Quran</Text>
+          </View>
+          <Switch
+            value={reminderEnabled}
+            onValueChange={(next) => {
+              void setReminderEnabled(next);
+            }}
+            trackColor={{ false: '#A3B7AA', true: '#4FE948' }}
+            thumbColor={reminderEnabled ? '#0B2817' : '#ffffff'}
+          />
+        </View>
         {!selectedMushaf ? (
           <>
             <Text style={[styles.sub, styles.sectionTitle, N && { color: N.textSub }]}>Choose Quran First</Text>
@@ -442,6 +458,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 20,
     paddingTop: 96,
+  },
+  settingRow: {
+    width: '100%',
+    marginTop: 4,
+    marginBottom: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#D6E1DB',
+    backgroundColor: '#EEF4F0',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  settingRowNight: {
+    borderColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  settingTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+  },
+  settingSub: {
+    marginTop: 3,
+    fontSize: 12,
+    lineHeight: 16,
+    color: Colors.textSubtle,
   },
   title: {
     fontSize: 24,
