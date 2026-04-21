@@ -17,52 +17,7 @@ export interface Announcement {
 }
 
 // Mocked events — replace with real API/backend
-export const MOCK_EVENTS: MasjidEvent[] = [
-  {
-    id: '1',
-    title: 'Friday Jumuah Khutbah',
-    description: 'Weekly Friday prayer and sermon. Brothers and sisters welcome.',
-    date: 'Every Friday',
-    time: '1:15 PM',
-    category: 'special',
-    speaker: 'Sheikh Abdullah',
-  },
-  {
-    id: '2',
-    title: 'Quran Tafseer Circle',
-    description: 'In-depth explanation of Surah Al-Baqarah, open to all levels.',
-    date: 'Every Sunday',
-    time: '10:00 AM',
-    category: 'class',
-    speaker: 'Ustadh Ibrahim',
-  },
-  {
-    id: '3',
-    title: 'Islamic Parenting Workshop',
-    description: 'Practical guidance on raising children with Islamic values.',
-    date: 'Sat, 12 Apr 2026',
-    time: '2:00 PM',
-    category: 'lecture',
-    speaker: 'Dr. Fatima Hassan',
-  },
-  {
-    id: '4',
-    title: 'Community Iftar Dinner',
-    description: 'Monthly community gathering. All families welcome. Bring a dish!',
-    date: 'Sat, 19 Apr 2026',
-    time: '7:00 PM',
-    category: 'community',
-  },
-  {
-    id: '5',
-    title: "Arabic Language for Beginner's",
-    description: 'Learn to read and understand the Quran in its original language.',
-    date: 'Every Tue & Thu',
-    time: '7:30 PM',
-    category: 'class',
-    speaker: 'Ustadh Yusuf',
-  },
-];
+export const MOCK_EVENTS: MasjidEvent[] = [];
 
 export const MOCK_ANNOUNCEMENTS: Announcement[] = [
   {

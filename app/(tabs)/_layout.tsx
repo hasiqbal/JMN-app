@@ -4,12 +4,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Alert, Platform, View, StyleSheet, Animated } from 'react-native';
 import { useRef, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { Colors } from '@/constants/theme';
 import { useNightMode } from '@/hooks/useNightMode';
 import { useQuranPrayerPopups } from '@/hooks/useQuranPrayerPopups';
 import { fetchLiveStatus } from '@/services/liveService';
+
+type ExpoNotificationsModule = typeof import('expo-notifications');
+
+const Notifications: ExpoNotificationsModule | null =
+  Platform.OS === 'web' ? null : require('expo-notifications');
 
 const HIDDEN_TAB_OPTIONS = { href: null };
 const LIVE_POLL_MS = 30000;
@@ -55,7 +59,7 @@ export default function TabLayout() {
   useQuranPrayerPopups();
 
   useEffect(() => {
-    if (Platform.OS !== 'android') return;
+    if (Platform.OS !== 'android' || !Notifications) return;
     Notifications.setNotificationChannelAsync('jmn-live', {
       name: 'JMN Live Alerts',
       importance: Notifications.AndroidImportance.HIGH,
@@ -66,7 +70,7 @@ export default function TabLayout() {
   }, []);
 
   const maybeNotifyLiveStart = async () => {
-    if (Platform.OS === 'web') return;
+    if (Platform.OS === 'web' || !Notifications) return;
 
     const enabled = (await AsyncStorage.getItem(LIVE_NOTIFY_KEY)) === 'true';
     if (!enabled) return;

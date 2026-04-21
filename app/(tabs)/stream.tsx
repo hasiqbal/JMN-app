@@ -16,7 +16,6 @@ import {
   View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Notifications from 'expo-notifications';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -29,6 +28,11 @@ import { APP_CONFIG } from '@/constants/config';
 import { Colors, Radius, Spacing, Typography } from '@/constants/theme';
 import { useNightMode } from '@/hooks/useNightMode';
 import { fetchLiveStatus } from '@/services/liveService';
+
+type ExpoNotificationsModule = typeof import('expo-notifications');
+
+const Notifications: ExpoNotificationsModule | null =
+  Platform.OS === 'web' ? null : require('expo-notifications');
 
 type StreamId = 'masjid' | 'qiraat' | 'basit';
 
@@ -707,7 +711,7 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
   }, [activeStationId, audioPlaying, readCurrentPlaybackTime, resyncActiveStreamToLive]);
 
   const ensureNotificationPermission = useCallback(async () => {
-    if (Platform.OS === 'web') return false;
+    if (Platform.OS === 'web' || !Notifications) return false;
     if (EXPO_GO_NOTIFICATIONS_FALLBACK) return true;
 
     const current = await Notifications.getPermissionsAsync();

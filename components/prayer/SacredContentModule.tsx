@@ -294,9 +294,9 @@ export function SacredContentModule({
         <SacredPanel
           label={hadithLabel}
           labelUrdu={hadithLabelUrdu}
-          previewFront={hadithPreviewSafe || 'Adhkar coming soon.'}
+          previewFront={hadithPreviewSafe}
           previewBack={hadithPreviewUrdu}
-          reference={hadithSourceSafe || 'Reference pending'}
+          reference={hadithSourceSafe}
           hint={hadithExpandHint}
           onPress={onPressHadith}
           isFlipped={hadithFlipped}
@@ -315,9 +315,9 @@ export function SacredContentModule({
         <SacredPanel
           label={verseLabel}
           labelUrdu={verseLabelUrdu}
-          previewFront={versePreviewSafe || 'Verse coming soon.'}
+          previewFront={versePreviewSafe}
           previewBack={versePreviewUrdu}
-          reference={verseReferenceSafe || 'Reference pending'}
+          reference={verseReferenceSafe}
           hint={verseExpandHint}
           onPress={onPressVerse}
           isFlipped={verseFlipped}
@@ -330,7 +330,7 @@ export function SacredContentModule({
 
       {!hasHadith && !hasVerse ? (
         <View style={styles.emptyState}>
-          <Text style={[styles.emptyStateText, { color: palette.reference }]}>Adhkar coming soon.</Text>
+          <Text style={[styles.emptyStateText, { color: palette.reference }]}>No sacred content available.</Text>
         </View>
       ) : null}
     </View>

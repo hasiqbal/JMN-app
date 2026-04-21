@@ -25,9 +25,7 @@ import { usePrayerTimes } from '@/hooks/usePrayerTimes';
 import { useNightMode } from '@/hooks/useNightMode';
 import {
   fetchAnnouncements,
-  fetchSunnahReminders,
   type AnnouncementRow,
-  type SunnahReminderRow,
 } from '@/services/contentService';
 import { fetchEidUlAdha, fetchEidUlFitr } from '@/services/eidService';
 import { fetchDailySacredContent, type DailySacredContent } from '@/services/sacredContentService';
@@ -1962,8 +1960,6 @@ const toggleStyles = StyleSheet.create({
 
 // ── Home Screen ────────────────────────────────────────────────────────────
 export default function HomeScreen() {
-  // DB-driven sunnah reminders
-  const [dbSunnahs, setDbSunnahs] = useState<SunnahReminderRow[]>([]);
   const [communityUpdates, setCommunityUpdates] = useState<AnnouncementRow[]>([]);
   const [communityLoading, setCommunityLoading] = useState(false);
   const [dailySacred, setDailySacred] = useState<DailySacredContent | null>(null);
@@ -1979,14 +1975,6 @@ export default function HomeScreen() {
   const [donationStatusMessage, setDonationStatusMessage] = useState<string | null>(null);
   const [webPrayerDrawerVisible, setWebPrayerDrawerVisible] = useState(false);
   const prayerSheetRef = useRef<BottomSheet>(null);
-  const loadSunnahReminders = useCallback(async () => {
-    try {
-      const rows = await fetchSunnahReminders();
-      setDbSunnahs(rows);
-    } catch {
-      setDbSunnahs([]);
-    }
-  }, []);
 
   const loadCommunityUpdates = useCallback(async () => {
     setCommunityLoading(true);
@@ -2012,12 +2000,11 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
-    loadSunnahReminders();
     loadDailySacredContent();
     loadCommunityUpdates();
 
     // Yaseen images are bundled as local assets — no preload needed
-  }, [loadCommunityUpdates, loadDailySacredContent, loadSunnahReminders]);
+  }, [loadCommunityUpdates, loadDailySacredContent]);
 
   useEffect(() => {
     let mounted = true;
@@ -2285,77 +2272,27 @@ export default function HomeScreen() {
   const isFriday = currentTime.getDay() === 5;
   const isThursday = currentTime.getDay() === 4;
 
-  // Compute today's sunnah from DB (fallback to SUNNAH_REMINDERS)
-  const computedTodaySunnah: SunnahEntry = (() => {
-    if (dbSunnahs.length === 0) {
-      return { act: '', detail: '', ref: '', icon: 'star' };
-    }
-    const filtered = isFriday ? dbSunnahs : dbSunnahs.filter(s => !s.friday_only);
-    const pool = filtered.length > 0 ? filtered : dbSunnahs;
-    const row = pool[DAY_OF_YEAR % pool.length];
-    return {
-      act: row?.title ?? '',
-      detail: row?.description ?? '',
-      ref: row?.reference ?? '',
-      icon: row?.icon ?? 'star',
-    };
-  })();
-
-  const hasHadithSource = computedTodaySunnah.ref.trim().length > 0;
-  const fallbackHadithTitle = hasHadithSource ? 'Hadith of the Day' : 'Sunnah of the Day';
-  const fallbackHadithPreview = (
-    computedTodaySunnah.detail
-    || computedTodaySunnah.act
-    || 'Adhkar coming soon.'
-  ).trim();
-  const fallbackHadithSource = (computedTodaySunnah.ref || 'Reference pending').trim();
-  const fallbackHadithFullText = (() => {
-    const parts = [computedTodaySunnah.act, computedTodaySunnah.detail]
-      .map((value) => value.trim())
-      .filter(Boolean);
-
-    if (parts.length === 0) return 'Adhkar coming soon.';
-    if (parts.length > 1 && parts[0] === parts[1]) return parts[0];
-    return parts.join('\n\n');
-  })();
-
-  const hadithTitle = (dailySacred?.hadith.title || fallbackHadithTitle).trim();
+  const hadithTitle = 'Hadith of the Day';
   const hadithTitleUrdu = 'آج کی سنت';
-  const hadithPreview = (dailySacred?.hadith.cardEn?.trim() || fallbackHadithPreview).trim();
+  const hadithPreview = (dailySacred?.hadith.cardEn || '').trim();
   const hadithPreviewUrdu = (dailySacred?.hadith.cardUr?.trim() || '').trim();
-  const hadithSource = (dailySacred?.hadith.reference || fallbackHadithSource).trim();
+  const hadithSource = (dailySacred?.hadith.reference || '').trim();
   const hadithArabic = dailySacred?.hadith.popupAr?.trim() || '';
-  const hadithFullText = (() => {
-    if (dailySacred) {
-      const localized = [
-        dailySacred.hadith.popupEn?.trim() || dailySacred.hadith.cardEn?.trim() || '',
-        dailySacred.hadith.popupUr?.trim() || dailySacred.hadith.cardUr?.trim() || '',
-      ].filter(Boolean);
-      return localized.length > 0 ? localized.join('\n\n') : 'Adhkar coming soon.';
-    }
-    return fallbackHadithFullText;
-  })();
+  const hadithFullText = [
+    dailySacred?.hadith.popupEn?.trim() || dailySacred?.hadith.cardEn?.trim() || '',
+    dailySacred?.hadith.popupUr?.trim() || dailySacred?.hadith.cardUr?.trim() || '',
+  ].filter(Boolean).join('\n\n');
 
   const verseTitle = 'Verse of the Day';
   const verseTitleUrdu = 'آج کی آیت';
-  const fallbackVersePreview = (todayVerse.translation || '').trim() || 'Verse coming soon.';
-  const fallbackVerseReference = formatVerseReference(todayVerse.ref || '') || 'Reference pending';
-  const fallbackVerseArabic = (todayVerse.arabic || '').trim();
-  const fallbackVerseFullText = (todayVerse.translation || '').trim() || 'Verse coming soon.';
-  const versePreview = (dailySacred?.verse.cardEn?.trim() || fallbackVersePreview).trim();
+  const versePreview = (dailySacred?.verse.cardEn || '').trim();
   const versePreviewUrdu = (dailySacred?.verse.cardUr?.trim() || '').trim();
-  const verseReference = (dailySacred?.verse.reference || fallbackVerseReference).trim();
-  const verseArabic = dailySacred?.verse.popupAr?.trim() || fallbackVerseArabic;
-  const verseFullText = (() => {
-    if (dailySacred) {
-      const localized = [
-        dailySacred.verse.popupEn?.trim() || dailySacred.verse.cardEn?.trim() || '',
-        dailySacred.verse.popupUr?.trim() || dailySacred.verse.cardUr?.trim() || '',
-      ].filter(Boolean);
-      return localized.length > 0 ? localized.join('\n\n') : 'Verse coming soon.';
-    }
-    return fallbackVerseFullText;
-  })();
+  const verseReference = (dailySacred?.verse.reference || '').trim();
+  const verseArabic = dailySacred?.verse.popupAr?.trim() || '';
+  const verseFullText = [
+    dailySacred?.verse.popupEn?.trim() || dailySacred?.verse.cardEn?.trim() || '',
+    dailySacred?.verse.popupUr?.trim() || dailySacred?.verse.cardUr?.trim() || '',
+  ].filter(Boolean).join('\n\n');
 
   const expandedSacredContent = {
     hadithFullText,
@@ -2658,14 +2595,13 @@ export default function HomeScreen() {
     try {
       await Promise.all([
         refreshPrayerTimes(),
-        loadSunnahReminders(),
         loadDailySacredContent(),
         loadCommunityUpdates(),
       ]);
     } finally {
       setRefreshing(false);
     }
-  }, [loadCommunityUpdates, loadDailySacredContent, refreshPrayerTimes, loadSunnahReminders]);
+  }, [loadCommunityUpdates, loadDailySacredContent, refreshPrayerTimes]);
 
   const homeCommunityItems = React.useMemo<CommunityUpdateItem[]>(() => {
     return communityUpdates.map((row) => {
@@ -2684,6 +2620,7 @@ export default function HomeScreen() {
           month: 'short',
           year: 'numeric',
         }),
+        sortTime: Date.parse(row.published_at || '') || 0,
         priority: row.pinned ? 100 : 0,
         isPinned: row.pinned,
         excerpt: row.body,
@@ -2850,6 +2787,20 @@ export default function HomeScreen() {
       <View style={[styles.dayCanvas, N && { backgroundColor: N.bg, marginTop: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0 }]}>
         <View style={styles.dayCanvasContent}>
           <View style={[styles.body, N && { backgroundColor: 'transparent' }]}> 
+            <View style={{ marginTop: Spacing.xs, marginBottom: Spacing.sm }}>
+              <CommunityUpdatesSection
+                title="Community Updates"
+                items={homeCommunityItems}
+                isLoading={communityLoading}
+                nightMode={nightMode}
+                onPressSeeAll={() => router.push('/(tabs)/events')}
+                onPressItem={(item) => router.push({
+                  pathname: '/(tabs)/events',
+                  params: { announcementId: item.id },
+                } as any)}
+              />
+            </View>
+
             <HomeQuickAccessSection nightMode={nightMode} />
 
             <SacredContentModule
@@ -2880,18 +2831,6 @@ export default function HomeScreen() {
                 hijriMonthName={rawHijriMonthName}
               />
             </View>
-
-            <CommunityUpdatesSection
-              title="Community Updates"
-              items={homeCommunityItems}
-              isLoading={communityLoading}
-              nightMode={nightMode}
-              onPressSeeAll={() => router.push('/(tabs)/events')}
-              onPressItem={(item) => router.push({
-                pathname: '/(tabs)/events',
-                params: { announcementId: item.id },
-              } as any)}
-            />
 
             <View style={{ height: Spacing.xl }} />
           </View>

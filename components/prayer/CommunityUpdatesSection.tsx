@@ -1,6 +1,8 @@
 import React from 'react';
 import { MaterialIcons } from '@expo/vector-icons';
 import {
+  Animated,
+  Easing,
   Platform,
   Pressable,
   StyleSheet,
@@ -26,6 +28,7 @@ export interface CommunityUpdateItem {
   category: AnnouncementCategory;
   title: string;
   date: string;
+  sortTime?: number;
   priority?: number;
   isPinned?: boolean;
   excerpt?: string;
@@ -182,6 +185,55 @@ export function AnnouncementListCard({
   nightMode: boolean;
 }) {
   const N = nightMode ? NIGHT : null;
+  const [activeIndex, setActiveIndex] = React.useState(0);
+  const [incomingIndex, setIncomingIndex] = React.useState<number | null>(null);
+  const activeIndexRef = React.useRef(0);
+  const isAnimatingRef = React.useRef(false);
+  const flipAnim = React.useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    activeIndexRef.current = activeIndex;
+  }, [activeIndex]);
+
+  React.useEffect(() => {
+    setActiveIndex(0);
+    setIncomingIndex(null);
+    activeIndexRef.current = 0;
+    isAnimatingRef.current = false;
+    flipAnim.setValue(0);
+  }, [flipAnim, items]);
+
+  const animateToIndex = React.useCallback((nextIndex: number) => {
+    if (nextIndex === activeIndexRef.current || isAnimatingRef.current) return;
+
+    isAnimatingRef.current = true;
+    setIncomingIndex(nextIndex);
+    flipAnim.setValue(0);
+
+    Animated.timing(flipAnim, {
+      toValue: 1,
+      duration: 460,
+      easing: Easing.inOut(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => {
+      setActiveIndex(nextIndex);
+      activeIndexRef.current = nextIndex;
+      setIncomingIndex(null);
+      flipAnim.setValue(0);
+      isAnimatingRef.current = false;
+    });
+  }, [flipAnim]);
+
+  React.useEffect(() => {
+    if (isLoading || items.length <= 1) return;
+
+    const interval = setInterval(() => {
+      const next = (activeIndexRef.current + 1) % items.length;
+      animateToIndex(next);
+    }, 4500);
+
+    return () => clearInterval(interval);
+  }, [animateToIndex, isLoading, items.length]);
 
   if (isLoading) {
     return (
@@ -210,14 +262,104 @@ export function AnnouncementListCard({
     );
   }
 
+  const activeItem = items[Math.min(activeIndex, items.length - 1)];
+  const nextItem = incomingIndex === null ? null : items[Math.min(incomingIndex, items.length - 1)];
+
+  const outgoingOpacity = flipAnim.interpolate({
+    inputRange: [0, 0.45, 1],
+    outputRange: [1, 0.35, 0],
+  });
+  const incomingOpacity = flipAnim.interpolate({
+    inputRange: [0, 0.55, 1],
+    outputRange: [0, 0.4, 1],
+  });
+
   return (
     <View style={[styles.card, N && { backgroundColor: N.cardBg, borderColor: N.cardBorder }]}> 
-      {items.map((item, idx) => (
-        <View key={item.id}>
-          {idx > 0 ? <View style={[styles.divider, N && { backgroundColor: N.divider }]} /> : null}
-          <AnnouncementRow item={item} nightMode={nightMode} onPress={onPressItem} />
+      <Animated.View
+        style={[
+          styles.animatedRowWrap,
+          {
+            transform: [{ perspective: 1300 }],
+          },
+        ]}
+      >
+        <Animated.View
+          pointerEvents={nextItem ? 'none' : 'auto'}
+          style={[
+            styles.flipFace,
+            {
+              opacity: outgoingOpacity,
+              transform: [
+                {
+                  rotateY: flipAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ['0deg', '88deg'],
+                  }),
+                },
+                {
+                  scale: flipAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1, 0.97],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <AnnouncementRow item={activeItem} nightMode={nightMode} onPress={onPressItem} />
+        </Animated.View>
+
+        {nextItem ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.flipFace,
+              styles.flipFaceOverlay,
+              {
+                opacity: incomingOpacity,
+                transform: [
+                  {
+                    rotateY: flipAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['-88deg', '0deg'],
+                    }),
+                  },
+                  {
+                    scale: flipAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.97, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <AnnouncementRow item={nextItem} nightMode={nightMode} onPress={onPressItem} />
+          </Animated.View>
+        ) : null}
+      </Animated.View>
+      {items.length > 1 ? (
+        <View style={styles.paginationRow}>
+          {items.map((item, idx) => {
+            const isActive = idx === activeIndex;
+            return (
+              <TouchableOpacity
+                key={`dot-${item.id}`}
+                onPress={() => animateToIndex(idx)}
+                activeOpacity={0.75}
+                style={[
+                  styles.pageDot,
+                  N && { backgroundColor: N.divider },
+                  isActive && [styles.pageDotActive, N && { backgroundColor: N.seeAll }],
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={`Show update ${idx + 1}`}
+              />
+            );
+          })}
         </View>
-      ))}
+      ) : null}
     </View>
   );
 }
@@ -229,17 +371,27 @@ export function CommunityUpdatesSection({
   onPressItem,
   onPressSeeAll,
   nightMode = false,
-  maxItems = 3,
+  maxItems,
 }: CommunityUpdatesSectionProps) {
   const N = nightMode ? NIGHT : null;
 
   const orderedItems = React.useMemo(() => {
-    return [...items]
+    const sorted = [...items]
       .sort((a, b) => {
+        const aTime = Number.isFinite(a.sortTime) ? (a.sortTime as number) : Date.parse(a.date);
+        const bTime = Number.isFinite(b.sortTime) ? (b.sortTime as number) : Date.parse(b.date);
+        if (Number.isFinite(aTime) && Number.isFinite(bTime) && aTime !== bTime) {
+          return bTime - aTime;
+        }
         if (!!a.isPinned !== !!b.isPinned) return a.isPinned ? -1 : 1;
         return (b.priority ?? 0) - (a.priority ?? 0);
-      })
-      .slice(0, maxItems);
+      });
+
+    if (typeof maxItems === 'number' && maxItems > 0) {
+      return sorted.slice(0, maxItems);
+    }
+
+    return sorted;
   }, [items, maxItems]);
 
   return (
@@ -321,6 +473,38 @@ const styles = StyleSheet.create({
     marginHorizontal: Spacing.md,
     height: 1,
     backgroundColor: '#E6ECE5',
+  },
+  animatedRowWrap: {
+    minHeight: 76,
+    position: 'relative',
+  },
+  flipFace: {
+    backfaceVisibility: 'hidden',
+  },
+  flipFaceOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+  },
+  paginationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingBottom: 10,
+    paddingHorizontal: Spacing.md,
+  },
+  pageDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#C3D4C8',
+  },
+  pageDotActive: {
+    width: 16,
+    borderRadius: Radius.full,
+    backgroundColor: '#2A6A47',
   },
   row: {
     flexDirection: 'row',

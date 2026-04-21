@@ -8,6 +8,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const URDU_TRANSLATION_CACHE_PREFIX = '@adhkar_urdu_cache_v1:';
 const urduTranslationMemoryCache = new Map<string, string>();
+const ANNOUNCEMENTS_CACHE_KEY = '@announcements_feed_cache_v1';
+const ANNOUNCEMENTS_FETCH_TIMEOUT_MS = 8000;
+
+type AnnouncementsCachePayload = {
+  updatedAt: number;
+  rows: AnnouncementRow[];
+};
+
+let announcementsMemoryCache: AnnouncementsCachePayload | null = null;
 
 function normalizeTranslationSourceKey(text: string): string {
   return text.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -281,6 +290,33 @@ export interface AnnouncementRow {
   pinned: boolean;
   published_at: string;
   expires_at: string | null;
+  type?: string | null;
+  tag?: boolean;
+  body_html?: string | null;
+  body_plain?: string | null;
+  urdu_title?: string | null;
+  urdu_body?: string | null;
+  lead_names?: string | null;
+  urdu_lead_names?: string | null;
+  start_time?: string | null;
+  image_url?: string | null;
+  link_url?: string | null;
+  display_order?: number | null;
+  updated_at?: string | null;
+}
+
+export interface AnnouncementFetchMeta {
+  source: 'edge' | 'fallback-table' | 'cache' | 'empty';
+  usedFallback: boolean;
+  fromCache: boolean;
+  notice: string | null;
+  error: string | null;
+  fetchedAt: number;
+}
+
+export interface AnnouncementFetchResult {
+  rows: AnnouncementRow[];
+  meta: AnnouncementFetchMeta;
 }
 
 // ── Prayer Times ─────────────────────────────────────────────────────────
@@ -636,18 +672,345 @@ export async function fetchSunnahReminders(): Promise<SunnahReminderRow[]> {
 
 // ── Announcements ─────────────────────────────────────────────────────────
 
-export async function fetchAnnouncements(): Promise<AnnouncementRow[]> {
+type AnnouncementFeedItem = Record<string, unknown>;
+
+type AnnouncementFeedResponse = {
+  announcements?: AnnouncementFeedItem[];
+  data?: AnnouncementFeedItem[];
+};
+
+function getSupabaseEnv() {
+  const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  const anonKey =
+    process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+    || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+  return { url, anonKey };
+}
+
+function asTrimmedString(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function asBoolean(value: unknown): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return normalized === 'true' || normalized === '1' || normalized === 'yes';
+  }
+  return false;
+}
+
+function normalizeNameList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+      .filter((entry) => entry.length > 0);
+  }
+
+  if (typeof value === 'string') {
+    return value
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+  }
+
+  return [];
+}
+
+function joinNameList(value: unknown): string | null {
+  const names = normalizeNameList(value);
+  return names.length > 0 ? names.join(', ') : null;
+}
+
+function stripHtml(input: string): string {
+  return input
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function mapAnnouncementRow(raw: Record<string, unknown>): AnnouncementRow {
+  const typeValue =
+    asTrimmedString(raw.type)
+    ?? asTrimmedString(raw.event_type)
+    ?? asTrimmedString(raw.category)
+    ?? null;
+
+  const bodyHtml =
+    asTrimmedString(raw.body_html)
+    ?? asTrimmedString(raw.body)
+    ?? null;
+
+  const bodyPlain =
+    asTrimmedString(raw.body_plain)
+    ?? (bodyHtml ? stripHtml(bodyHtml) : '');
+
+  const legacyUrduTitle = asTrimmedString(raw['Urdu title']);
+  const legacyUrduGuests = raw['Urdu guests'];
+
+  const urduTitle =
+    asTrimmedString(raw.urdu_title)
+    ?? legacyUrduTitle
+    ?? null;
+
+  const urduBody =
+    asTrimmedString(raw.urdu_body)
+    ?? asTrimmedString(raw.urdu_translation)
+    ?? null;
+
+  const leadNames =
+    joinNameList(raw.lead_names)
+    ?? joinNameList(raw.guests)
+    ?? joinNameList(raw.guest_speakers)
+    ?? joinNameList(raw.teacher_name)
+    ?? null;
+
+  const urduLeadNames =
+    joinNameList(raw.urdu_lead_names)
+    ?? joinNameList(raw.guest_urdu)
+    ?? joinNameList(legacyUrduGuests)
+    ?? joinNameList(raw.urdu_guest_speakers)
+    ?? joinNameList(raw.urdu_teacher_name)
+    ?? null;
+
+  const publishedAt =
+    asTrimmedString(raw.published_at)
+    ?? asTrimmedString(raw.created_at)
+    ?? new Date().toISOString();
+
+  const category =
+    asTrimmedString(raw.category)
+    ?? typeValue
+    ?? 'General';
+
+  return {
+    id: asTrimmedString(raw.id) ?? `${publishedAt}-${Math.random().toString(16).slice(2, 8)}`,
+    title: asTrimmedString(raw.title) ?? 'Announcement',
+    body: bodyPlain,
+    category,
+    is_active: raw.is_active !== false,
+    pinned: asBoolean(raw.pinned),
+    published_at: publishedAt,
+    expires_at: asTrimmedString(raw.expires_at),
+    type: typeValue,
+    tag: asBoolean(raw.tag),
+    body_html: bodyHtml,
+    body_plain: bodyPlain,
+    urdu_title: urduTitle,
+    urdu_body: urduBody,
+    lead_names: leadNames,
+    urdu_lead_names: urduLeadNames,
+    start_time:
+      asTrimmedString(raw.start_time)
+      ?? asTrimmedString(raw.time)
+      ?? asTrimmedString(raw.event_time)
+      ?? null,
+    image_url: asTrimmedString(raw.image_url),
+    link_url: asTrimmedString(raw.link_url),
+    display_order: typeof raw.display_order === 'number' ? raw.display_order : null,
+    updated_at: asTrimmedString(raw.updated_at),
+  };
+}
+
+function applyTypeFilter(rows: AnnouncementRow[], typeFilter?: string | null): AnnouncementRow[] {
+  const typeValue = (typeFilter ?? '').trim();
+  if (!typeValue || typeValue.toLowerCase() === 'all') {
+    return rows;
+  }
+
+  const normalized = typeValue.toLowerCase();
+  return rows.filter((row) => {
+    const typeCandidate = (row.type ?? row.category ?? '').trim().toLowerCase();
+    return typeCandidate === normalized;
+  });
+}
+
+function sortAnnouncements(rows: AnnouncementRow[]): AnnouncementRow[] {
+  return [...rows].sort((a, b) => {
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+    const aDate = Date.parse(a.published_at || '');
+    const bDate = Date.parse(b.published_at || '');
+    const safeADate = Number.isFinite(aDate) ? aDate : 0;
+    const safeBDate = Number.isFinite(bDate) ? bDate : 0;
+    if (safeADate !== safeBDate) return safeBDate - safeADate;
+    const aOrder = typeof a.display_order === 'number' ? a.display_order : Number.MAX_SAFE_INTEGER;
+    const bOrder = typeof b.display_order === 'number' ? b.display_order : Number.MAX_SAFE_INTEGER;
+    return aOrder - bOrder;
+  });
+}
+
+function isAnnouncementArray(value: unknown): value is AnnouncementRow[] {
+  return Array.isArray(value);
+}
+
+async function writeAnnouncementsCache(rows: AnnouncementRow[]): Promise<void> {
+  const payload: AnnouncementsCachePayload = {
+    updatedAt: Date.now(),
+    rows,
+  };
+  announcementsMemoryCache = payload;
+
+  try {
+    await AsyncStorage.setItem(ANNOUNCEMENTS_CACHE_KEY, JSON.stringify(payload));
+  } catch {
+    // ignore storage failures and continue with memory cache
+  }
+}
+
+async function readAnnouncementsCache(): Promise<AnnouncementRow[]> {
+  if (announcementsMemoryCache && isAnnouncementArray(announcementsMemoryCache.rows)) {
+    return announcementsMemoryCache.rows;
+  }
+
+  try {
+    const stored = await AsyncStorage.getItem(ANNOUNCEMENTS_CACHE_KEY);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored) as Partial<AnnouncementsCachePayload>;
+    if (!parsed || !Array.isArray(parsed.rows)) return [];
+    const rows = parsed.rows
+      .map((row) => mapAnnouncementRow(row as Record<string, unknown>));
+    announcementsMemoryCache = {
+      updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : Date.now(),
+      rows,
+    };
+    return rows;
+  } catch {
+    return [];
+  }
+}
+
+async function invokeAnnouncementsFeed(typeFilter?: string | null): Promise<AnnouncementRow[] | null> {
+  const { url, anonKey } = getSupabaseEnv();
+  if (!url || !anonKey) return null;
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), ANNOUNCEMENTS_FETCH_TIMEOUT_MS);
+
+    const response = await fetch(`${url}/functions/v1/announcements-feed-format`, {
+      method: 'POST',
+      headers: {
+        apikey: anonKey,
+        Authorization: `Bearer ${anonKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        limit: 100,
+        offset: 0,
+        type: (typeFilter ?? '').trim() || undefined,
+        includeUrdu: true,
+        formatRichText: true,
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = (await response.json()) as AnnouncementFeedResponse;
+    const sourceRows = Array.isArray(payload.announcements)
+      ? payload.announcements
+      : (Array.isArray(payload.data) ? payload.data : []);
+
+    return sortAnnouncements(sourceRows.map((row) => mapAnnouncementRow(row)));
+  } catch {
+    return null;
+  }
+}
+
+async function fetchAnnouncementsDirect(): Promise<AnnouncementRow[] | null> {
   try {
     const supabase = getSupabaseClient();
     const { data, error } = await supabase
       .from('announcements')
       .select('*')
-      .eq('is_active', true)
-      .order('pinned', { ascending: false })
-      .order('published_at', { ascending: false });
-    if (error || !data) return [];
-    return data as AnnouncementRow[];
+      .eq('is_active', true);
+
+    if (error || !Array.isArray(data)) return null;
+
+    const rows = data
+      .map((row) => mapAnnouncementRow(row as Record<string, unknown>));
+
+    return sortAnnouncements(rows);
   } catch {
-    return [];
+    return null;
   }
+}
+
+export async function fetchAnnouncementsWithMeta(options?: { typeFilter?: string | null }): Promise<AnnouncementFetchResult> {
+  const fetchedAt = Date.now();
+  const typeFilter = options?.typeFilter ?? null;
+
+  const edgeRows = await invokeAnnouncementsFeed(typeFilter);
+  if (edgeRows) {
+    const filtered = applyTypeFilter(edgeRows, typeFilter);
+    await writeAnnouncementsCache(filtered);
+    return {
+      rows: filtered,
+      meta: {
+        source: 'edge',
+        usedFallback: false,
+        fromCache: false,
+        notice: null,
+        error: null,
+        fetchedAt,
+      },
+    };
+  }
+
+  const directRows = await fetchAnnouncementsDirect();
+  if (directRows) {
+    const filtered = applyTypeFilter(directRows, typeFilter);
+    await writeAnnouncementsCache(filtered);
+    return {
+      rows: filtered,
+      meta: {
+        source: 'fallback-table',
+        usedFallback: true,
+        fromCache: false,
+        notice: 'Live feed unavailable. Showing fallback data.',
+        error: null,
+        fetchedAt,
+      },
+    };
+  }
+
+  const cachedRows = await readAnnouncementsCache();
+  if (cachedRows.length > 0) {
+    const filtered = applyTypeFilter(cachedRows, typeFilter);
+    return {
+      rows: filtered,
+      meta: {
+        source: 'cache',
+        usedFallback: true,
+        fromCache: true,
+        notice: 'Offline mode. Showing cached announcements.',
+        error: null,
+        fetchedAt,
+      },
+    };
+  }
+
+  return {
+    rows: [],
+    meta: {
+      source: 'empty',
+      usedFallback: true,
+      fromCache: false,
+      notice: null,
+      error: 'Refresh failed. Please retry.',
+      fetchedAt,
+    },
+  };
+}
+
+export async function fetchAnnouncements(): Promise<AnnouncementRow[]> {
+  const result = await fetchAnnouncementsWithMeta();
+  return result.rows;
 }

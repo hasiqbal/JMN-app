@@ -75,30 +75,6 @@ function toLocalDateKey(date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
-function fallbackHadith(): SacredPanelContent {
-  return {
-    title: 'Hadith of the Day',
-    reference: 'Reference pending',
-    cardEn: 'Adhkar coming soon.',
-    cardUr: '',
-    popupAr: '',
-    popupEn: 'Adhkar coming soon.',
-    popupUr: '',
-  };
-}
-
-function fallbackVerse(): SacredPanelContent {
-  return {
-    title: 'Verse of the Day',
-    reference: 'Reference pending',
-    cardEn: 'Verse coming soon.',
-    cardUr: '',
-    popupAr: '',
-    popupEn: 'Verse coming soon.',
-    popupUr: '',
-  };
-}
-
 async function invokeDailyFunction<T>(
   functionName: 'daily-hadith' | 'daily-verse',
   body: Record<string, unknown>
@@ -153,23 +129,23 @@ export async function fetchDailySacredContent(): Promise<DailySacredContent> {
   ]);
 
   const hadith: SacredPanelContent = {
-    title: hadithRes?.title?.trim() || fallbackHadith().title,
-    reference: hadithRes?.reference?.trim() || fallbackHadith().reference,
-    cardEn: hadithRes?.card?.en?.trim() || fallbackHadith().cardEn,
-    cardUr: hadithRes?.card?.ur?.trim() || fallbackHadith().cardUr,
-    popupAr: hadithRes?.popup?.ar?.trim() || fallbackHadith().popupAr,
-    popupEn: hadithRes?.popup?.en?.trim() || hadithRes?.card?.en?.trim() || fallbackHadith().popupEn,
-    popupUr: hadithRes?.popup?.ur?.trim() || hadithRes?.card?.ur?.trim() || fallbackHadith().popupUr,
+    title: hadithRes?.title?.trim() || '',
+    reference: hadithRes?.reference?.trim() || '',
+    cardEn: hadithRes?.card?.en?.trim() || '',
+    cardUr: hadithRes?.card?.ur?.trim() || '',
+    popupAr: hadithRes?.popup?.ar?.trim() || '',
+    popupEn: hadithRes?.popup?.en?.trim() || hadithRes?.card?.en?.trim() || '',
+    popupUr: hadithRes?.popup?.ur?.trim() || hadithRes?.card?.ur?.trim() || '',
   };
 
   const verse: SacredPanelContent = {
-    title: 'Verse of the Day',
-    reference: verseRes?.verse?.reference?.trim() || fallbackVerse().reference,
-    cardEn: verseRes?.card?.en?.trim() || fallbackVerse().cardEn,
-    cardUr: verseRes?.card?.ur?.trim() || fallbackVerse().cardUr,
-    popupAr: verseRes?.popup?.ar?.trim() || fallbackVerse().popupAr,
-    popupEn: verseRes?.popup?.en?.trim() || verseRes?.card?.en?.trim() || fallbackVerse().popupEn,
-    popupUr: verseRes?.popup?.ur?.trim() || verseRes?.card?.ur?.trim() || fallbackVerse().popupUr,
+    title: '',
+    reference: verseRes?.verse?.reference?.trim() || '',
+    cardEn: verseRes?.card?.en?.trim() || '',
+    cardUr: verseRes?.card?.ur?.trim() || '',
+    popupAr: verseRes?.popup?.ar?.trim() || '',
+    popupEn: verseRes?.popup?.en?.trim() || verseRes?.card?.en?.trim() || '',
+    popupUr: verseRes?.popup?.ur?.trim() || verseRes?.card?.ur?.trim() || '',
   };
 
   return {

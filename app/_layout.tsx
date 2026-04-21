@@ -4,11 +4,15 @@ import { LogBox, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
-import * as Notifications from 'expo-notifications';
 import { AlertProvider, InAppBannerProvider } from '@/template';
 import { runInitialTranslationWarmup } from '@/services/translationWarmupService';
 
-if (Platform.OS !== 'web') {
+type ExpoNotificationsModule = typeof import('expo-notifications');
+
+const Notifications: ExpoNotificationsModule | null =
+  Platform.OS === 'web' ? null : require('expo-notifications');
+
+if (Platform.OS !== 'web' && Notifications) {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowBanner: true,
