@@ -32,6 +32,7 @@ LogBox.ignoreLogs([
 
 export default function RootLayout() {
   useFonts({
+    IndopakNastaleeq: require('@/assets/fonts/IndopakNastaleeq.ttf'),
     UrduNastaliq: require('@/assets/fonts/UrduNastaliq.ttf'),
     UrduNastaliqBold: require('@/assets/fonts/UrduNastaliqBold.ttf'),
   });
