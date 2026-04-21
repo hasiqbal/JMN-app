@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Colors } from '@/constants/theme';
 import { useNightMode } from '@/hooks/useNightMode';
 import { getJuzEndPage, getJuzStartPage, getMushafTotalPages, getQuarterStartsInJuz } from '@/constants/mushafJuzPages';
@@ -17,6 +17,8 @@ const QURAN_MUSHAF_LAYOUT_KEY = 'quran_mushaf_layout_v1';
 const PENDING_OPEN_KEY = 'quran_pending_open_v1';
 
 type MushafLayout = '15line' | '16line';
+
+const ADHKAR_QURAN_SOURCE = 'adhkar-duas';
 
 const SURAH_NAMES: Record<number, string> = {
   1: 'Al-Fatihah', 2: 'Al-Baqarah', 3: 'Ali Imran', 4: 'An-Nisa', 5: 'Al-Maidah',
@@ -147,8 +149,51 @@ function getDisplayedJuzPage(layout: MushafLayout, page: number): number {
   return page + 1;
 }
 
+function pickParamValue(value: string | string[] | undefined): string | undefined {
+  if (!value) return undefined;
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function normalizePrayerTimeParam(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  return value === 'after-dhuhr' ? 'after-zuhr' : value;
+}
+
+function getSurahPageRange(layout: MushafLayout, chapter: number): { startPage: number; endPage: number } {
+  const startMap = layout === '15line'
+    ? SURAH_START_PAGE_15LINE_BUTTONS
+    : layout === '16line'
+      ? SURAH_START_PAGE_16LINE_BUTTONS
+      : SURAH_START_PAGE;
+
+  const surahOpenOffset = layout === '15line'
+    ? -1
+    : layout === '16line'
+      ? (chapter === 1 ? -2 : -1)
+      : 0;
+
+  const startPage = Math.max(1, (startMap[chapter] ?? 1) + surahOpenOffset);
+  const nextStart = startMap[chapter + 1];
+  const endPage = Math.max(
+    startPage,
+    nextStart !== undefined
+      ? (nextStart + surahOpenOffset - 1)
+      : getMushafTotalPages(layout)
+  );
+
+  return { startPage, endPage };
+}
+
 export default function QuranScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{
+    source?: string | string[];
+    autoOpen?: string | string[];
+    chapter?: string | string[];
+    page?: string | string[];
+    prayerTime?: string | string[];
+    group?: string | string[];
+  }>();
   const insets = useSafeAreaInsets();
   const { nightMode } = useNightMode();
   const [refreshing, setRefreshing] = useState(false);
@@ -160,7 +205,16 @@ export default function QuranScreen() {
   const [selectedQuarter, setSelectedQuarter] = useState<{ juz: number; quarter: number } | null>(null);
   const [selectedSurah, setSelectedSurah] = useState<number | null>(null);
   const [pendingOpenLabel, setPendingOpenLabel] = useState('None');
+  const [isStateHydrated, setIsStateHydrated] = useState(false);
+  const processedAdhkarAutoOpenRef = React.useRef<string | null>(null);
   const N = nightMode ? NIGHT : null;
+
+  const sourceParam = pickParamValue(params.source);
+  const autoOpenParam = pickParamValue(params.autoOpen);
+  const chapterParam = Number(pickParamValue(params.chapter));
+  const pageParam = Number(pickParamValue(params.page));
+  const prayerTimeParam = normalizePrayerTimeParam(pickParamValue(params.prayerTime));
+  const groupParam = pickParamValue(params.group);
 
   const openReaderScreen = useCallback((startPage: number, endPage: number, extraParams?: Record<string, string>) => {
     router.push({
@@ -175,34 +229,41 @@ export default function QuranScreen() {
   }, [router, mushafLayout]);
 
   const loadQuranState = useCallback(async () => {
-    const [storedLayout, pendingOpen] = await Promise.all([
-      AsyncStorage.getItem(QURAN_MUSHAF_LAYOUT_KEY),
-      AsyncStorage.getItem(PENDING_OPEN_KEY),
-    ]);
+    try {
+      const [storedLayout, pendingOpen] = await Promise.all([
+        AsyncStorage.getItem(QURAN_MUSHAF_LAYOUT_KEY),
+        AsyncStorage.getItem(PENDING_OPEN_KEY),
+      ]);
 
-    if (storedLayout === '15line' || storedLayout === '16line') {
-      setMushafLayout(storedLayout);
-    }
+      if (storedLayout === '15line' || storedLayout === '16line') {
+        setMushafLayout(storedLayout);
+      }
 
-    if (!pendingOpen) {
-      setPendingOpenLabel('None');
-      return;
-    }
+      if (!pendingOpen) {
+        setPendingOpenLabel('None');
+        return;
+      }
 
-    const [chapterRaw, pageRaw] = pendingOpen.split('|');
-    const chapter = Number(chapterRaw);
-    const page = Number(pageRaw);
-    if (Number.isFinite(chapter) && Number.isFinite(page)) {
-      setPendingOpenLabel(`Surah ${chapter} · Page ${page}`);
-    } else if (Number.isFinite(chapter)) {
-      setPendingOpenLabel(`Surah ${chapter}`);
-    } else {
-      setPendingOpenLabel('None');
+      const [chapterRaw, pageRaw] = pendingOpen.split('|');
+      const chapter = Number(chapterRaw);
+      const page = Number(pageRaw);
+      if (Number.isFinite(chapter) && Number.isFinite(page)) {
+        setPendingOpenLabel(`Surah ${chapter} · Page ${page}`);
+      } else if (Number.isFinite(chapter)) {
+        setPendingOpenLabel(`Surah ${chapter}`);
+      } else {
+        setPendingOpenLabel('None');
+      }
+    } finally {
+      setIsStateHydrated(true);
     }
   }, []);
 
   useEffect(() => {
-    loadQuranState().catch(() => {});
+    setIsStateHydrated(false);
+    loadQuranState().catch(() => {
+      setPendingOpenLabel('None');
+    });
   }, [loadQuranState]);
 
   const chooseMushaf = useCallback(async (nextLayout: MushafLayout) => {
@@ -250,24 +311,7 @@ export default function QuranScreen() {
   }, [mushafLayout, openReaderScreen]);
 
   const chooseSurahInJuz = useCallback(async (chapter: number) => {
-    const startMap = mushafLayout === '15line'
-      ? SURAH_START_PAGE_15LINE_BUTTONS
-      : mushafLayout === '16line'
-        ? SURAH_START_PAGE_16LINE_BUTTONS
-        : SURAH_START_PAGE;
-    const surahOpenOffset = mushafLayout === '15line'
-      ? -1
-      : mushafLayout === '16line'
-        ? (chapter === 1 ? -2 : -1)
-        : 0;
-    const targetPage = Math.max(1, (startMap[chapter] ?? 1) + surahOpenOffset);
-    const nextStart = startMap[chapter + 1];
-    const endPage = Math.max(
-      targetPage,
-      nextStart !== undefined
-        ? (nextStart + surahOpenOffset - 1)
-        : getMushafTotalPages(mushafLayout)
-    );
+    const { startPage: targetPage, endPage } = getSurahPageRange(mushafLayout, chapter);
     setSelectedSurah(chapter);
     setSelectedQuarter(null);
     setPendingOpenLabel(`Surah ${chapter} · Page ${targetPage}`);
@@ -275,6 +319,48 @@ export default function QuranScreen() {
     await AsyncStorage.setItem(PENDING_OPEN_KEY, `${chapter}|${targetPage}`);
     openReaderScreen(targetPage, endPage);
   }, [mushafLayout, openReaderScreen]);
+
+  useEffect(() => {
+    if (!isStateHydrated) return;
+
+    const hasAutoOpenRequest = sourceParam === ADHKAR_QURAN_SOURCE && autoOpenParam === '1' && Number.isFinite(chapterParam);
+    if (!hasAutoOpenRequest) return;
+
+    const chapter = Math.floor(chapterParam);
+    if (chapter < 1 || chapter > 114) return;
+    const pageOverride = Number.isFinite(pageParam) && pageParam >= 1
+      ? Math.floor(pageParam) - 1
+      : null;
+
+    const requestKey = `${mushafLayout}|${chapter}|${pageOverride ?? ''}|${prayerTimeParam ?? ''}|${groupParam ?? ''}`;
+    if (processedAdhkarAutoOpenRef.current === requestKey) return;
+    processedAdhkarAutoOpenRef.current = requestKey;
+
+    const { startPage, endPage } = getSurahPageRange(mushafLayout, chapter);
+    const effectiveStartPage = pageOverride ?? startPage;
+    const sourceParams: Record<string, string> = {
+      navMode: 'surah',
+      chapter: String(chapter),
+      source: ADHKAR_QURAN_SOURCE,
+    };
+    if (prayerTimeParam) {
+      sourceParams.prayerTime = prayerTimeParam;
+    }
+    if (groupParam && groupParam.trim().length > 0) {
+      sourceParams.group = groupParam;
+    }
+
+    setSelectedMushaf(mushafLayout);
+    setSelectedSurah(chapter);
+    setSelectedQuarter(null);
+    setSelectedJuz(null);
+    setExpandedJuz(1);
+    setPendingOpenLabel(`Surah ${chapter} · Page ${effectiveStartPage}`);
+    setLastUpdated(new Date());
+
+    AsyncStorage.setItem(PENDING_OPEN_KEY, `${chapter}|${effectiveStartPage}`).catch(() => {});
+    openReaderScreen(effectiveStartPage, endPage, sourceParams);
+  }, [autoOpenParam, chapterParam, groupParam, isStateHydrated, mushafLayout, openReaderScreen, pageParam, prayerTimeParam, sourceParam]);
 
   const onPullRefresh = useCallback(async () => {
     setRefreshing(true);

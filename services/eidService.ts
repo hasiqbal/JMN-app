@@ -66,7 +66,9 @@ export async function fetchEidPrayers(): Promise<EidPrayerEntry[]> {
       .order('jamaat_number');
 
     if (error) {
-      console.error('Error fetching Eid prayers:', error);
+      if (__DEV__) {
+        console.warn('[Eid] fetch error:', error.message ?? error);
+      }
       return [];
     }
 
@@ -75,7 +77,9 @@ export async function fetchEidPrayers(): Promise<EidPrayerEntry[]> {
       time: normalizeTime(row.time),
     })) as EidPrayerEntry[];
   } catch (err) {
-    console.error('Exception fetching Eid prayers:', err);
+    if (__DEV__) {
+      console.warn('[Eid] fetch exception:', err);
+    }
     return [];
   }
 }

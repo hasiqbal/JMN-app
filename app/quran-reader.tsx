@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, useWindowDimensions } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { BackHandler, View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, useWindowDimensions } from 'react-native';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -42,6 +42,17 @@ const DEFAULT_TAFSIR_ID_BY_LANG: Record<'en' | 'ur', number> = {
 const URDU_TRANSLATOR_LABEL_OVERRIDES: Record<number, string> = {
   819: 'مولانا وحید الدین خان',
 };
+
+const ADHKAR_QURAN_SOURCE = 'adhkar-duas';
+const VALID_PRAYER_TIME_IDS = new Set([
+  'before-fajr',
+  'after-fajr',
+  'after-zuhr',
+  'after-jumuah',
+  'after-asr',
+  'after-maghrib',
+  'after-isha',
+]);
 
 type ContentMode = 'translation' | 'tafsir';
 type ContentLanguage = 'en' | 'ur';
@@ -164,6 +175,20 @@ export default function QuranReaderScreen() {
     const raw = Array.isArray(params.mushaf) ? params.mushaf[0] : params.mushaf;
     return raw === '16line' ? '16line' : '15line';
   }, [params.mushaf]);
+  const source = useMemo(() => {
+    const raw = Array.isArray(params.source) ? params.source[0] : params.source;
+    return raw === ADHKAR_QURAN_SOURCE ? ADHKAR_QURAN_SOURCE : null;
+  }, [params.source]);
+  const sourcePrayerTime = useMemo(() => {
+    const raw = Array.isArray(params.prayerTime) ? params.prayerTime[0] : params.prayerTime;
+    const normalized = raw === 'after-dhuhr' ? 'after-zuhr' : raw;
+    return normalized && VALID_PRAYER_TIME_IDS.has(normalized) ? normalized : null;
+  }, [params.prayerTime]);
+  const sourceGroup = useMemo(() => {
+    const raw = Array.isArray(params.group) ? params.group[0] : params.group;
+    const trimmed = raw?.trim();
+    return trimmed ? trimmed : null;
+  }, [params.group]);
 
   const [currentJuz, setCurrentJuz] = useState<number | null>(paramJuz);
   const [currentQuarter, setCurrentQuarter] = useState<number | null>(navMode === 'quarter' ? paramQuarter : null);
@@ -220,6 +245,45 @@ export default function QuranReaderScreen() {
     en: [DEFAULT_TAFSIR_ID_BY_LANG.en],
     ur: [DEFAULT_TAFSIR_ID_BY_LANG.ur],
   });
+
+  const goBackFromReader = React.useCallback(() => {
+    if (source === ADHKAR_QURAN_SOURCE) {
+      const nextParams: Record<string, string> = {};
+      if (sourcePrayerTime) {
+        nextParams.prayerTime = sourcePrayerTime;
+      }
+      if (sourceGroup) {
+        nextParams.group = sourceGroup;
+      }
+
+      if (Object.keys(nextParams).length > 0) {
+        router.replace({ pathname: '/(tabs)/duas', params: nextParams } as any);
+      } else {
+        router.replace('/(tabs)/duas');
+      }
+      return;
+    }
+
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace('/(tabs)/quran');
+  }, [router, source, sourceGroup, sourcePrayerTime]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (source !== ADHKAR_QURAN_SOURCE) return undefined;
+
+      const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+        goBackFromReader();
+        return true;
+      });
+
+      return () => subscription.remove();
+    }, [goBackFromReader, source])
+  );
   const [pageVerses, setPageVerses] = useState<QuranPageVerse[]>([]);
   const [translationByVerseKey, setTranslationByVerseKey] = useState<Record<string, string>>({});
   const [tafsirBlocks, setTafsirBlocks] = useState<TafsirBlock[]>([]);
@@ -643,13 +707,7 @@ export default function QuranReaderScreen() {
       >
         <View style={[styles.topOverlay, { top: insets.top + 8 }, N && { backgroundColor: 'rgba(16,24,41,0.72)', borderColor: N.border }]}> 
         <TouchableOpacity
-          onPress={() => {
-            if (router.canGoBack()) {
-              router.back();
-            } else {
-              router.replace('/(tabs)/quran');
-            }
-          }}
+          onPress={goBackFromReader}
           style={[styles.backBtn, N && { borderColor: N.border }]}
           activeOpacity={0.8}
         >

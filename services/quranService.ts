@@ -416,9 +416,15 @@ export const HOW_TO_GUIDES: HowToGuide[] = [
       {
         heading: "Du'a for the Deceased (3rd Takbir)",
         steps: [
-          { step: 8, title: 'Adult (Male)', detail: '\u0627\u0644\u0644\u0651\u064e\u0647\u064f\u0645\u0651\u064e \u0627\u063a\u0652\u0641\u0650\u0631\u0652 \u0644\u064e\u0647\u064f \u0648\u064e\u0627\u0631\u0652\u062d\u064e\u0645\u0652\u0647\u064f \u0648\u064e\u0639\u064e\u0627\u0641\u0650\u0647\u0650 \u0648\u064e\u0627\u0639\u0652\u0641\u064f \u0639\u064e\u0646\u0652\u0647\u064f\nAllahummaghfir lahu warhamhu wa Aafih wa Afu Anhu\nO Allah, forgive him, have mercy on him, grant him wellbeing and pardon him.' },
-          { step: 9, title: 'Adult (Female)', detail: "Same du'a replacing masculine pronouns with feminine: Allahummaghfir LAHA warhamHA wa AafiHA wa Afu AnHA." },
-          { step: 10, title: 'Child Du\'a', detail: '\u0627\u0644\u0644\u0651\u064e\u0647\u064f\u0645\u0651\u064e \u0627\u062c\u0652\u0639\u064e\u0644\u0652\u0647\u064f \u0644\u064e\u0646\u064e\u0627 \u0641\u064e\u0631\u064e\u0637\u064b\u0627 \u0648\u064e\u0627\u062c\u0652\u0639\u064e\u0644\u0652\u0647\u064f \u0644\u064e\u0646\u064e\u0627 \u0623\u062c\u0652\u0631\u064b\u0627 \u0648\u064e\u0630\u064f\u062e\u0652\u0631\u064b\u0627\nAllahumma-jAlhu lana faratan wa-jAlhu lana ajran wa dhukhran\nO Allah, make him/her a forerunner for us and a source of reward.' },
+          { step: 8, title: 'Adult (Male)', detail: `اللَّهُمَّ اغْفِرْ لِحَيِّنَا وَمَيِّتِنَا وَشَاهِدِنَا وَغَائِبِنَا وَصَغِيرِنَا وَكَبِيرِنَا وَذَكَرِنَا وَأُنْثَانَا، اللَّهُمَّ مَنْ أَحْيَيْتَهُ مِنَّا فَأَحْيِهِ عَلَى الْإِسْلَامِ، وَمَنْ تَوَفَّيْتَهُ مِنَّا فَتَوَفَّهُ عَلَى الْإِيمَانِ، وَلا تُضِلَّنَا بَعْدَهُ.
+Allahummaghfir lihayyina wa mayyitina wa shahidina wa gha'ibina wa saghirina wa kabirina wa dhakarina wa unthana. Allahumma man ahyaytahu minna fa ahyihi ala al-Islam, wa man tawaffaytahu minna fatawaffahu ala al-iman, wa la tudillana ba'dahu.
+O Allah, forgive our living and our dead, those present and those absent, our young and our old, our males and our females. O Allah, whoever You keep alive among us, keep him alive upon Islam, and whoever You cause to die among us, cause him to die upon faith. Do not let us go astray after him.` },
+          { step: 9, title: 'Adult (Female)', detail: `اللَّهُمَّ اغْفِرْ لِحَيِّنَا وَمَيِّتِنَا وَشَاهِدِنَا وَغَائِبِنَا وَصَغِيرِنَا وَكَبِيرِنَا وَذَكَرِنَا وَأُنْثَانَا، اللَّهُمَّ مَنْ أَحْيَيْتَهُ مِنَّا فَأَحْيِهِ عَلَى الْإِسْلَامِ، وَمَنْ تَوَفَّيْتَهُ مِنَّا فَتَوَفَّهُ عَلَى الْإِيمَانِ، وَلا تُضِلَّنَا بَعْدَهَا.
+Allahummaghfir lihayyina wa mayyitina wa shahidina wa gha'ibina wa saghirina wa kabirina wa dhakarina wa unthana. Allahumma man ahyaytahu minna fa ahyihi ala al-Islam, wa man tawaffaytahu minna fatawaffahu ala al-iman, wa la tudillana ba'daha.
+O Allah, forgive our living and our dead, those present and those absent, our young and our old, our males and our females. O Allah, whoever You keep alive among us, keep her alive upon Islam, and whoever You cause to die among us, cause her to die upon faith. Do not let us go astray after her.` },
+          { step: 10, title: 'Child Du\'a', detail: `اللَّهُمَّ اجْعَلْهُ لَنَا فَرَطًا وَاجْعَلْهُ لَنَا أَجْرًا وَذُخْرًا وَاجْعَلْهُ لَنَا شَافِعًا وَمُشَفَّعًا. (لِلْبِنْتِ: اللَّهُمَّ اجْعَلْهَا لَنَا فَرَطًا ... وَمُشَفَّعَةً)
+Allahumma-jalhu lana faratan, wa-jalhu lana ajran wa dhukhran, wa-jalhu lana shafi'an wa mushaffa'an. (For a girl: Allahumma-jalha ... wa mushaffa'ah.)
+O Allah, make this child a forerunner for us, a source of reward and treasure for us, and an intercessor whose intercession is accepted for us.` },
         ],
       },
       {
@@ -545,163 +551,7 @@ export const HOW_TO_GUIDES: HowToGuide[] = [
       'Neighbours and relatives should provide food for the bereaved family \u2014 not the family themselves.',
     ],
   },
-  {
-    id: 'janazah-2',
-    title: 'Salat al-Janazah',
-    subtitle: 'Funeral Prayer · Hanafi Method',
-    icon: 'self-improvement',
-    color: '#3949AB',
-    intro: 'Salat al-Janazah is Fard Kifayah (collective obligation). It is performed standing, with no ruku or sujud, after the deceased has been washed and shrouded.',
-    sections: [
-      {
-        heading: 'Preparation',
-        steps: [
-          { step: 1, title: 'Purity', detail: 'Ensure you have wudu. The deceased must be washed (ghusl) and wrapped in a kafan before the prayer.' },
-          { step: 2, title: 'Positioning', detail: 'The Imam stands near the chest of a male or the middle of a female. Congregation forms behind in at least three rows, facing the Qiblah.' },
-          { step: 3, title: 'Intention', detail: 'Make intention in the heart: "I intend Salat al-Janazah for this deceased, for the sake of Allah, following the Imam."' },
-        ],
-      },
-      {
-        heading: 'The Four Takbirs',
-        steps: [
-          { step: 4, title: '1st Takbir', detail: 'Raise both hands to earlobes, say "Allahu Akbar", fold hands on chest. Recite Thana silently (Subhanakallahumma...) then Surah al-Fatihah.' },
-          { step: 5, title: '2nd Takbir', detail: 'Say "Allahu Akbar" (no hand raise). Recite full Salawat Ibrahimiyyah silently upon the Prophet.' },
-          { step: 6, title: '3rd Takbir', detail: 'Say "Allahu Akbar" (no hand raise). Recite the du\'a for the deceased (see below).', note: "Du'a: Allahummaghfir lahu warhamhu wa Aafih wa Afu Anhu wa akrim nuzulahu wa wassi' mudkhalahu..." },
-          { step: 7, title: '4th Takbir', detail: 'Say "Allahu Akbar" (no hand raise). Pause briefly, then make ONE Taslim to the RIGHT only: Assalamu Alaykum wa Rahmatullah.' },
-        ],
-      },
-      {
-        heading: "Du'a for the Deceased (3rd Takbir)",
-        steps: [
-          { step: 8, title: 'Adult (Male)', detail: '\u0627\u0644\u0644\u0651\u064e\u0647\u064f\u0645\u0651\u064e \u0627\u063a\u0652\u0641\u0650\u0631\u0652 \u0644\u064e\u0647\u064f \u0648\u064e\u0627\u0631\u0652\u062d\u064e\u0645\u0652\u0647\u064f \u0648\u064e\u0639\u064e\u0627\u0641\u0650\u0647\u0650 \u0648\u064e\u0627\u0639\u0652\u0641\u064f \u0639\u064e\u0646\u0652\u0647\u064f\nAllahummaghfir lahu warhamhu wa Aafih wa Afu Anhu\nO Allah, forgive him, have mercy on him, grant him wellbeing and pardon him.' },
-          { step: 9, title: 'Adult (Female)', detail: 'Same du\'a replacing masculine pronouns with feminine: Allahummaghfir LAHA warhamHA wa AafiHA wa Afu AnHA.' },
-          { step: 10, title: 'Child Du\'a', detail: '\u0627\u0644\u0644\u0651\u064e\u0647\u064f\u0645\u0651\u064e \u0627\u062c\u0652\u0639\u064e\u0644\u0652\u0647\u064f \u0644\u064e\u0646\u064e\u0627 \u0641\u064e\u0631\u064e\u0637\u064b\u0627 \u0648\u064e\u0627\u062c\u0652\u0639\u064e\u0644\u0652\u0647\u064f \u0644\u064e\u0646\u064e\u0627 \u0623\u062c\u0652\u0631\u064b\u0627 \u0648\u064e\u0630\u064f\u062e\u0652\u0631\u064b\u0627\nAllahumma-jAlhu lana faratan wa-jAlhu lana ajran wa dhukhran\nO Allah, make him/her a forerunner for us and a source of reward.' },
-        ],
-      },
-      {
-        heading: '🚶 The Funeral Procession — Sunnahs',
-        steps: [
-          {
-            step: 11,
-            title: 'Walk behind the bier, not in front',
-            detail: 'It is Sunnah to walk BEHIND the bier (janazah). Walking in front is permitted but against the Sunnah according to the Hanafi school.\n\nThe Prophet ﷺ said: "Walk behind the janazah, for it reminds you of death and the Hereafter."',
-            note: 'Hanafi position: walking behind is Sunnah; walking in front is permitted but less virtuous.',
-          },
-          {
-            step: 12,
-            title: 'Hurry with a dignified pace',
-            detail: 'The Prophet ﷺ instructed: "Hasten with the janazah — if the deceased was righteous, you are bringing him to goodness; if otherwise, you are placing an evil away from your necks."\n\nThis means walking briskly but not running — with dignity and purpose.',
-            note: '[Bukhari 1315, Muslim 944]',
-          },
-          {
-            step: 13,
-            title: 'Those on foot walk; those in vehicles follow behind',
-            detail: 'Those on foot walk near or behind the bier. Those travelling by vehicle should position themselves behind the procession, not driving ahead of the body.',
-          },
-          {
-            step: 14,
-            title: 'Recite dhikr quietly — not aloud as a group',
-            detail: 'It is recommended to reflect on death and the Hereafter during the procession. Reciting dhikr quietly in the heart or under the breath is good.\n\n⚠️ Calling out dhikr or Quran ALOUD as a group chant during the procession is NOT established in the Sunnah and is disliked (makruh) in the Hanafi school.',
-          },
-          {
-            step: 15,
-            title: 'Do NOT sit until the bier is set down',
-            detail: 'The Prophet ﷺ commanded: "When you see a janazah, stand up. Whoever follows it, let him not sit until it is placed on the ground."\n\nIf you are accompanying the bier, do NOT sit until it has been set down — either for the prayer or at the graveside.',
-            note: '[Bukhari 1307, Muslim 959]',
-          },
-          {
-            step: 16,
-            title: 'Non-Muslims present: remain respectful',
-            detail: 'The Prophet ﷺ once stood for the janazah of a Jewish man passing by. When asked, he said: "Was it not a soul?" [Bukhari 1312].\n\nAll human life is honoured. Non-Muslim attendees should maintain silence and respectful behaviour throughout.',
-          },
-        ],
-      },
-      {
-        heading: '⚰️ At the Graveside — Sunnahs & Duas',
-        steps: [
-          {
-            step: 17,
-            title: 'Stand at the graveside respectfully',
-            detail: 'Stand facing the Qiblah at the graveside. Lower your gaze. Reflect on the reality of death. The Prophet ﷺ would stand at graves and remind the Companions of the Hereafter.',
-          },
-          {
-            step: 18,
-            title: 'Cast three handfuls of earth',
-            detail: 'It is Sunnah for those present to cast three handfuls of earth into the grave from the head-end, saying after each handful:\n\n① "Minha khalaqnakum" (From it We created you)\n② "Wa fiha nuAidukum" (And into it We return you)\n③ "Wa minha nukhrijukum taratan ukhra" (And from it We will bring you out once more)',
-            note: '[Quran 20:55] — Ibn Majah, Abu Dawud; Hanafi scholars affirm this practice.',
-          },
-          {
-            step: 19,
-            title: "Dua after burial — Talqin",
-            detail: 'After the burial is complete and people are about to leave, the Imam (or a knowledgeable person) may make dua for the deceased aloud.\n\nThe Prophet ﷺ said: "Seek forgiveness for your brother and ask for him to be made firm, for he is now being questioned." [Abu Dawud 3221]\n\nIt is Sunnah to spend a moment in dua before dispersing — do not rush away immediately after the burial.',
-          },
-          {
-            step: 20,
-            title: 'Dua to recite at the graveside',
-            detail: 'اللَّهُمَّ اغْفِرْ لَهُ وَارْحَمْهُ وَعَافِهِ وَاعْفُ عَنْهُ\n\nAllahummaghfir lahu warhamhu wa Aafihi wa Afu Anhu.\n\n"O Allah, forgive him, have mercy on him, grant him wellbeing, and pardon him."\n\nFor a female: replace lahu/hu with laha/ha throughout.',
-          },
-          {
-            step: 21,
-            title: 'Placing a green branch on the grave',
-            detail: 'The Prophet ﷺ placed a green date-palm branch on a grave and said: "Perhaps it will reduce their punishment as long as it remains fresh." [Bukhari 1361]\n\nThis is a recognised Sunnah. Placing fresh flowers or greenery on the grave is therefore permissible and carries this Sunnah basis.',
-          },
-          {
-            step: 22,
-            title: 'Avoid sitting or walking on graves',
-            detail: 'The Prophet ﷺ said: "It is better for one of you to sit on burning coal until his clothes burn than to sit on a grave." [Muslim 971]\n\nDo not sit, lean, stand unnecessarily on, or walk over graves without need. Treat the graveyard with full respect at all times.',
-          },
-        ],
-      },
-      {
-        heading: '🤝 Condolence Etiquette (Ta\'ziyah)',
-        steps: [
-          {
-            step: 23,
-            title: 'What is Ta\'ziyah?',
-            detail: 'Ta\'ziyah means offering condolences to the family of the deceased — comforting them, reminding them of patience (sabr), and making dua for the deceased and the family.\n\nThis is a communal Sunnah (Sunnah Muakkadah) and should be done once. Repeating it multiple times with the same person is disliked.',
-          },
-          {
-            step: 24,
-            title: 'What to say when giving condolences',
-            detail: 'The Prophet ﷺ taught us to say:\n\nإِنَّ لِلَّهِ مَا أَخَذَ وَلَهُ مَا أَعْطَى وَكُلُّ شَيْءٍ عِنْدَهُ بِأَجَلٍ مُسَمًّى\n\nInna lillahi ma akhada wa lahu ma aAta wa kullu shayIn indahu bi-ajalin musamma.\n\n"Verily to Allah belongs what He took, and to Him belongs what He gave. Everything with Him is by an appointed term."\n\nThen advise them: "So be patient and expect Allah\'s reward." [Bukhari & Muslim]',
-            note: 'You may say this in English or Arabic — the message is what matters.',
-          },
-          {
-            step: 25,
-            title: 'Inna lillahi wa inna ilayhi raji\'un',
-            detail: 'إِنَّا لِلَّهِ وَإِنَّا إِلَيْهِ رَاجِعُونَ\n\nInna lillahi wa inna ilayhi raji\'un.\n\n"Indeed we belong to Allah, and indeed to Him we shall return."\n\n[Quran 2:156]\n\nSay this upon hearing of a death. Encourage the family to say it too — Allah promises reward and mercy for those who say it with sincerity.',
-          },
-          {
-            step: 26,
-            title: 'When to visit for condolences',
-            detail: 'The period of ta\'ziyah is THREE days from the time of death. It is best to visit within this window.\n\nAvoid visiting BEFORE the burial — the family are occupied with preparations. Visit after the janazah has been performed.\n\nIf you live far away and could not attend, it is permissible to phone or message — the intention and dua are what count.',
-          },
-          {
-            step: 27,
-            title: 'Preparing food for the bereaved family',
-            detail: 'It is Sunnah for NEIGHBOURS and RELATIVES to prepare and send food to the bereaved family for the day of the death and one day after.\n\nThe Prophet ﷺ said: "Prepare food for the family of Ja\'far, for something has come upon them that has preoccupied them." [Abu Dawud 3132; Ibn Majah 1610]\n\n⚠️ The family of the deceased should NOT be the ones cooking and feeding visitors — this is burdensome and against the Sunnah.',
-          },
-          {
-            step: 28,
-            title: 'Period of mourning',
-            detail: 'General mourning for a Muslim: THREE days maximum, according to the Sunnah.\n\nFor a widow: mourning her husband is FOUR months and ten days (the Iddah period). During this time she stays in her home as much as possible.\n\nExcessive wailing, beating the chest or face, tearing clothing, and loudly lamenting are all prohibited in Islam.',
-            note: 'Shedding tears out of grief is natural and permitted — the Prophet ﷺ himself wept at the death of his son Ibrahim.',
-          },
-        ],
-      },
-    ],
-    notes: [
-      'The Imam says Takbirs aloud; congregation follows silently throughout.',
-      'No adhan, iqamah, ruku, sujud or tashahud in Janazah prayer.',
-      'If you join late, match the Imam on whichever Takbir he is on.',
-      'Women are permitted to pray Salat al-Janazah.',
-      'All recitation is silent (sirr) according to the Hanafi school.',
-      'Walk behind the bier, not in front — this is the established Sunnah.',
-      'Do not sit until the bier has been set down on the ground.',
-      'Offer condolences (ta\'ziyah) once within three days of the death.',
-      'Neighbours and relatives should provide food for the bereaved family — not the family themselves.',
-    ],
-  },
+  
   {
     id: 'eid',
     title: 'Salat al-Eid',
@@ -1210,7 +1060,7 @@ export const HIZB_AL_BAHR_PAGES: HizbPage[] = [
   },
 ];
 
-const _HIZB_AL_BAHR_PLACEHOLDER: HizbSection[] = [
+export const HIZB_AL_BAHR_PLACEHOLDER: HizbSection[] = [
   {
     id: 'hb-opening',
     title: 'Opening — Bismillah & Fatiha',

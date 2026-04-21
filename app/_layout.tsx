@@ -37,6 +37,29 @@ export default function RootLayout() {
   });
 
   React.useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+
+    const html = document.documentElement;
+    const body = document.body;
+
+    html.setAttribute('translate', 'no');
+    html.classList.add('notranslate');
+
+    if (body) {
+      body.setAttribute('translate', 'no');
+      body.classList.add('notranslate');
+    }
+
+    let meta = document.querySelector('meta[name="google"]');
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.setAttribute('name', 'google');
+      document.head.appendChild(meta);
+    }
+    meta.setAttribute('content', 'notranslate');
+  }, []);
+
+  React.useEffect(() => {
     void runInitialTranslationWarmup();
   }, []);
 

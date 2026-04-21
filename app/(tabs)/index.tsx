@@ -28,7 +28,6 @@ import {
   type AnnouncementRow,
 } from '@/services/contentService';
 import { fetchEidUlAdha, fetchEidUlFitr } from '@/services/eidService';
-import { fetchDailySacredContent, type DailySacredContent } from '@/services/sacredContentService';
 import { getPrayerGradient, PRAYER_SKY_DEPTH_OVERLAY } from '@/components/prayer/heroConfig';
 import { buildHeroState } from '@/components/prayer/heroState';
 import { buildActivePrayerState } from '@/components/prayer/activePrayerState';
@@ -43,6 +42,11 @@ import {
 } from '@/components/prayer/CommunityUpdatesSection';
 import { SacredContentModule, SacredReadingSheet } from '@/components/prayer/SacredContentModule';
 import { createDonationCheckoutUrl } from '@/services/donationService';
+import {
+  DONATION_MONTHLY_OPTIONS,
+  DONATION_ONE_OFF_OPTIONS,
+  type DonationPriceSlot,
+} from '@/constants/donationTypes';
 import WebView from 'react-native-webview';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -1962,8 +1966,6 @@ const toggleStyles = StyleSheet.create({
 export default function HomeScreen() {
   const [communityUpdates, setCommunityUpdates] = useState<AnnouncementRow[]>([]);
   const [communityLoading, setCommunityLoading] = useState(false);
-  const [dailySacred, setDailySacred] = useState<DailySacredContent | null>(null);
-  const [sacredLoaded, setSacredLoaded] = useState(true);
   const [activeSacredPanel, setActiveSacredPanel] = useState<SacredPanel | null>(null);
   const [eidUlFitrJamaats, setEidUlFitrJamaats] = useState<string[]>([]);
   const [eidUlAdhaJamaats, setEidUlAdhaJamaats] = useState<string[]>([]);
@@ -1988,23 +1990,11 @@ export default function HomeScreen() {
     }
   }, []);
 
-  const loadDailySacredContent = useCallback(async () => {
-    try {
-      const content = await fetchDailySacredContent();
-      setDailySacred(content);
-    } catch {
-      setDailySacred(null);
-    } finally {
-      setSacredLoaded(true);
-    }
-  }, []);
-
   useEffect(() => {
-    loadDailySacredContent();
     loadCommunityUpdates();
 
     // Yaseen images are bundled as local assets — no preload needed
-  }, [loadCommunityUpdates, loadDailySacredContent]);
+  }, [loadCommunityUpdates]);
 
   useEffect(() => {
     let mounted = true;
@@ -2020,7 +2010,9 @@ export default function HomeScreen() {
           setEidUlFitrJamaats(times);
         }
       } catch (err) {
-        console.error('Error fetching Eid ul Fitr times:', err);
+        if (__DEV__) {
+          console.warn('[Home] Eid ul Fitr load failed:', err);
+        }
       }
     };
 
@@ -2035,7 +2027,9 @@ export default function HomeScreen() {
           setEidUlAdhaJamaats(times);
         }
       } catch (err) {
-        console.error('Error fetching Eid ul Adha times:', err);
+        if (__DEV__) {
+          console.warn('[Home] Eid ul Adha load failed:', err);
+        }
       }
     };
 
@@ -2272,27 +2266,30 @@ export default function HomeScreen() {
   const isFriday = currentTime.getDay() === 5;
   const isThursday = currentTime.getDay() === 4;
 
-  const hadithTitle = 'Hadith of the Day';
+  const fallbackHadithTitle = 'Sunnah Reminder';
+  const fallbackHadithPreview = 'Adhkar coming soon.';
+  const fallbackHadithSource = 'Reference pending';
+  const fallbackHadithFullText = 'Adhkar coming soon.';
+
+  const fallbackVersePreview = 'Adhkar coming soon.';
+  const fallbackVerseReference = '';
+  const fallbackVerseFullText = 'Adhkar coming soon.';
+
+  const hadithTitle = fallbackHadithTitle;
   const hadithTitleUrdu = 'آج کی سنت';
-  const hadithPreview = (dailySacred?.hadith.cardEn || '').trim();
-  const hadithPreviewUrdu = (dailySacred?.hadith.cardUr?.trim() || '').trim();
-  const hadithSource = (dailySacred?.hadith.reference || '').trim();
-  const hadithArabic = dailySacred?.hadith.popupAr?.trim() || '';
-  const hadithFullText = [
-    dailySacred?.hadith.popupEn?.trim() || dailySacred?.hadith.cardEn?.trim() || '',
-    dailySacred?.hadith.popupUr?.trim() || dailySacred?.hadith.cardUr?.trim() || '',
-  ].filter(Boolean).join('\n\n');
+  const hadithPreview = fallbackHadithPreview;
+  const hadithPreviewUrdu = '';
+  const hadithSource = fallbackHadithSource;
+  const hadithArabic = '';
+  const hadithFullText = fallbackHadithFullText;
 
   const verseTitle = 'Verse of the Day';
   const verseTitleUrdu = 'آج کی آیت';
-  const versePreview = (dailySacred?.verse.cardEn || '').trim();
-  const versePreviewUrdu = (dailySacred?.verse.cardUr?.trim() || '').trim();
-  const verseReference = (dailySacred?.verse.reference || '').trim();
-  const verseArabic = dailySacred?.verse.popupAr?.trim() || '';
-  const verseFullText = [
-    dailySacred?.verse.popupEn?.trim() || dailySacred?.verse.cardEn?.trim() || '',
-    dailySacred?.verse.popupUr?.trim() || dailySacred?.verse.cardUr?.trim() || '',
-  ].filter(Boolean).join('\n\n');
+  const versePreview = fallbackVersePreview;
+  const versePreviewUrdu = '';
+  const verseReference = fallbackVerseReference;
+  const verseArabic = '';
+  const verseFullText = fallbackVerseFullText;
 
   const expandedSacredContent = {
     hadithFullText,
@@ -2595,13 +2592,15 @@ export default function HomeScreen() {
     try {
       await Promise.all([
         refreshPrayerTimes(),
-        loadDailySacredContent(),
         loadCommunityUpdates(),
       ]);
     } finally {
       setRefreshing(false);
     }
-  }, [loadCommunityUpdates, loadDailySacredContent, refreshPrayerTimes]);
+  }, [
+    loadCommunityUpdates,
+    refreshPrayerTimes,
+  ]);
 
   const homeCommunityItems = React.useMemo<CommunityUpdateItem[]>(() => {
     return communityUpdates.map((row) => {
@@ -2628,7 +2627,7 @@ export default function HomeScreen() {
     });
   }, [communityUpdates]);
 
-  const startDonationCheckout = useCallback(async (priceSlot: 1 | 2) => {
+  const startDonationCheckout = useCallback(async (priceSlot: DonationPriceSlot) => {
     if (donationLoading) return;
 
     try {
@@ -2657,12 +2656,30 @@ export default function HomeScreen() {
     }
   }, [donationLoading]);
 
-  const openDonationCheckout = useCallback(() => {
+  const resetDonationFlowToSelection = useCallback(() => {
     setDonationCheckoutUrl(null);
     setShowDonationOptions(true);
     setDonationStatusMessage(null);
-    setDonationModalVisible(true);
   }, []);
+
+  const closeDonationModal = useCallback(() => {
+    setDonationModalVisible(false);
+    resetDonationFlowToSelection();
+  }, [resetDonationFlowToSelection]);
+
+  const handleDonationModalClose = useCallback(() => {
+    if (showDonationOptions) {
+      closeDonationModal();
+      return;
+    }
+
+    resetDonationFlowToSelection();
+  }, [closeDonationModal, resetDonationFlowToSelection, showDonationOptions]);
+
+  const openDonationCheckout = useCallback(() => {
+    resetDonationFlowToSelection();
+    setDonationModalVisible(true);
+  }, [resetDonationFlowToSelection]);
 
   const openPrayerDrawer = useCallback(() => {
     if (Platform.OS === 'web') {
@@ -2816,9 +2833,9 @@ export default function HomeScreen() {
               versePreviewUrdu={versePreviewUrdu}
               verseReference={verseReference}
               onPressVerse={() => setActiveSacredPanel('verse')}
-              hadithExpandHint="Tap to read more"
-              verseExpandHint="Tap to read more"
-              isLoading={!sacredLoaded}
+              hadithExpandHint="Read more"
+              verseExpandHint="Read more"
+              isLoading={false}
               nightMode={nightMode}
             />
 
@@ -2874,34 +2891,43 @@ export default function HomeScreen() {
       visible={donationModalVisible}
       animationType="slide"
       presentationStyle="fullScreen"
-      onRequestClose={() => {
-        setDonationModalVisible(false);
-        setDonationCheckoutUrl(null);
-        setShowDonationOptions(true);
-        setDonationStatusMessage(null);
-      }}
+      onRequestClose={handleDonationModalClose}
     >
       <View style={styles.donationModalRoot}>
-        <View style={styles.donationModalHeader}>
-          <Text style={styles.donationModalTitle}>Secure Donation</Text>
+        <Image
+          source={require('@/assets/images/masjid/JMN_page_7.png')}
+          style={styles.donationModalBgImage}
+          contentFit="cover"
+        />
+        <View style={styles.donationModalBgOverlay} />
+        <View style={styles.donationModalContentLayer}>
           <TouchableOpacity
-            onPress={() => {
-              setDonationModalVisible(false);
-              setDonationCheckoutUrl(null);
-              setShowDonationOptions(true);
-              setDonationStatusMessage(null);
-            }}
-            style={styles.donationModalCloseBtn}
+            onPress={handleDonationModalClose}
+            style={[
+              styles.donationModalCloseBtn,
+              styles.donationModalCloseFloating,
+              { top: insets.top + 10 },
+            ]}
             activeOpacity={0.85}
           >
             <MaterialIcons name="close" size={20} color="#123524" />
             <Text style={styles.donationModalCloseText}>Close</Text>
           </TouchableOpacity>
-        </View>
 
         {showDonationOptions ? (
-          <View style={styles.donationOptionsWrap}>
-            <Text style={styles.donationOptionsTitle}>Choose Donation Type</Text>
+          <ScrollView
+            style={styles.donationOptionsWrap}
+            contentContainerStyle={[
+              styles.donationOptionsContent,
+              {
+                paddingTop: insets.top + 58,
+                paddingBottom: Math.max(insets.bottom + 20, 28),
+              },
+            ]}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <Text style={styles.donationOptionsTitle}>Choose Donation Amount</Text>
 
             {Platform.OS === 'web' ? (
               <View style={styles.donationWebNotice}>
@@ -2917,25 +2943,41 @@ export default function HomeScreen() {
               </View>
             ) : null}
 
-            <TouchableOpacity
-              style={styles.donationOptionBtn}
-              activeOpacity={0.9}
-              onPress={() => startDonationCheckout(1)}
-              disabled={donationLoading}
-            >
-              <Text style={styles.donationOptionTitle}>Masjid Donation</Text>
-              <Text style={styles.donationOptionSub}>General donation for the masjid.</Text>
-            </TouchableOpacity>
+            <View style={styles.donationOptionSection}>
+              <Text style={styles.donationOptionSectionTitle}>One-off donation</Text>
+              <View style={styles.donationOptionGrid}>
+                {DONATION_ONE_OFF_OPTIONS.map((option) => (
+                  <TouchableOpacity
+                    key={option.priceSlot}
+                    style={styles.donationOptionBtn}
+                    activeOpacity={0.9}
+                    onPress={() => startDonationCheckout(option.priceSlot)}
+                    disabled={donationLoading}
+                  >
+                    <Text style={styles.donationOptionTitle}>{option.title}</Text>
+                    <Text style={styles.donationOptionSub}>{option.subtitle}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
 
-            <TouchableOpacity
-              style={styles.donationOptionBtn}
-              activeOpacity={0.9}
-              onPress={() => startDonationCheckout(2)}
-              disabled={donationLoading}
-            >
-              <Text style={styles.donationOptionTitle}>Project Donation</Text>
-              <Text style={styles.donationOptionSub}>Donate to the additional project fund.</Text>
-            </TouchableOpacity>
+            <View style={styles.donationOptionSection}>
+              <Text style={styles.donationOptionSectionTitle}>Monthly subscription</Text>
+              <View style={styles.donationOptionGrid}>
+                {DONATION_MONTHLY_OPTIONS.map((option) => (
+                  <TouchableOpacity
+                    key={option.priceSlot}
+                    style={styles.donationOptionBtn}
+                    activeOpacity={0.9}
+                    onPress={() => startDonationCheckout(option.priceSlot)}
+                    disabled={donationLoading}
+                  >
+                    <Text style={styles.donationOptionTitle}>{option.title}</Text>
+                    <Text style={styles.donationOptionSub}>{option.subtitle}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
 
             {donationLoading ? (
               <View style={{ marginTop: 16, alignItems: 'center' }}>
@@ -2943,7 +2985,7 @@ export default function HomeScreen() {
                 <Text style={styles.donationWebviewLoadingText}>Preparing checkout...</Text>
               </View>
             ) : null}
-          </View>
+          </ScrollView>
         ) : donationCheckoutUrl ? (
           <WebView
             source={{ uri: donationCheckoutUrl }}
@@ -2956,18 +2998,12 @@ export default function HomeScreen() {
             )}
             onShouldStartLoadWithRequest={(request) => {
               if (request.url.includes('jmn://donation-success') || request.url.startsWith('jmn://donation-success')) {
-                setDonationModalVisible(false);
-                setDonationCheckoutUrl(null);
-                setShowDonationOptions(true);
-                setDonationStatusMessage(null);
+                closeDonationModal();
                 Alert.alert('JazakAllahu Khayran', 'Your donation was successful. May Allah accept it from you.');
                 return false;
               }
               if (request.url.includes('jmn://donation-cancel') || request.url.startsWith('jmn://donation-cancel')) {
-                setDonationModalVisible(false);
-                setDonationCheckoutUrl(null);
-                setShowDonationOptions(true);
-                setDonationStatusMessage(null);
+                resetDonationFlowToSelection();
                 return false;
               }
               return true;
@@ -2981,6 +3017,7 @@ export default function HomeScreen() {
             <ActivityIndicator size="large" color="#0B6B45" />
           </View>
         )}
+        </View>
       </View>
     </Modal>
 
@@ -3718,22 +3755,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F4F9F6',
   },
-  donationModalHeader: {
-    paddingTop: 54,
-    paddingBottom: 10,
-    paddingHorizontal: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(9,52,31,0.15)',
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  donationModalBgImage: {
+    ...StyleSheet.absoluteFillObject,
   },
-  donationModalTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0A2A1B',
-    letterSpacing: 0.2,
+  donationModalBgOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(244,249,246,0.84)',
+  },
+  donationModalContentLayer: {
+    flex: 1,
   },
   donationModalCloseBtn: {
     flexDirection: 'row',
@@ -3743,6 +3773,11 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 999,
     backgroundColor: '#E6F3EC',
+  },
+  donationModalCloseFloating: {
+    position: 'absolute',
+    right: 14,
+    zIndex: 5,
   },
   donationModalCloseText: {
     fontSize: 13,
@@ -3763,8 +3798,9 @@ const styles = StyleSheet.create({
   },
   donationOptionsWrap: {
     flex: 1,
+  },
+  donationOptionsContent: {
     paddingHorizontal: 20,
-    paddingTop: 24,
   },
   donationOptionsTitle: {
     fontSize: 18,
@@ -3840,11 +3876,31 @@ const styles = StyleSheet.create({
     color: '#29533F',
     fontWeight: '600',
   },
+  donationOptionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  donationOptionSection: {
+    marginBottom: 12,
+  },
+  donationOptionSectionTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1A4632',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
   donationOptionBtn: {
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
     borderWidth: 1,
     borderColor: 'rgba(9,52,31,0.15)',
+    width: '48%',
+    aspectRatio: 1,
+    justifyContent: 'center',
     paddingHorizontal: 14,
     paddingVertical: 14,
     marginBottom: 10,
@@ -3853,11 +3909,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#123524',
+    textAlign: 'center',
   },
   donationOptionSub: {
     marginTop: 4,
     fontSize: 12,
     color: '#466858',
+    textAlign: 'center',
   },
   heroHeader: {
     paddingBottom: 0,

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React from 'react';
 import {
   Modal,
   Platform,
@@ -11,6 +11,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 
 import { Colors, Radius, Spacing } from '@/constants/theme';
+import { ReminderCard } from '@/components/prayer/ReminderCard';
 
 export type SacredContentModuleProps = {
   hadithLabel: string;
@@ -32,21 +33,6 @@ export type SacredContentModuleProps = {
   nightMode?: boolean;
 };
 
-type SacredPanelProps = {
-  label: string;
-  labelUrdu?: string;
-  previewFront: string;
-  previewBack?: string;
-  reference: string;
-  hint: string;
-  onPress: () => void;
-  isFlipped: boolean;
-  onToggleFlip: () => void;
-  tone: 'hadith' | 'verse';
-  fullWidth?: boolean;
-  nightMode?: boolean;
-};
-
 export type SacredReadingSheetProps = {
   visible: boolean;
   title: string;
@@ -63,14 +49,18 @@ const DAY = {
   cardBg: '#F8F3E8',
   cardBorder: 'rgba(128, 101, 46, 0.18)',
   cardShadow: 'rgba(70, 49, 14, 0.08)',
-  divider: 'rgba(127, 102, 50, 0.18)',
   hadithTint: 'rgba(55, 105, 69, 0.08)',
   verseTint: 'rgba(166, 129, 56, 0.09)',
   heading: '#305540',
   text: '#1F2B22',
   reference: '#55695B',
-  hint: '#6E7B72',
-  icon: '#7A8A7A',
+  arabicSecondary: '#355541',
+  cta: '#4E5D50',
+  segmentedText: '#55695B',
+  segmentedTextActive: '#1F2B22',
+  segmentedBorder: 'rgba(122, 138, 122, 0.3)',
+  segmentedBg: 'rgba(255, 255, 255, 0.48)',
+  segmentedActiveBg: 'rgba(255, 255, 255, 0.9)',
   skeleton: '#E8E0D2',
   sheetBg: '#FBF7EE',
   sheetBorder: 'rgba(120, 92, 42, 0.2)',
@@ -85,14 +75,18 @@ const NIGHT = {
   cardBg: '#141C2C',
   cardBorder: 'rgba(193, 210, 190, 0.14)',
   cardShadow: 'rgba(0, 0, 0, 0.25)',
-  divider: 'rgba(193, 210, 190, 0.18)',
   hadithTint: 'rgba(99, 152, 113, 0.14)',
   verseTint: 'rgba(170, 144, 90, 0.14)',
   heading: '#B9D9C0',
   text: '#E9EFEA',
   reference: '#B8C3BC',
-  hint: '#9DA9A1',
-  icon: '#9FB5A4',
+  arabicSecondary: '#D3E6DA',
+  cta: '#C1CEC7',
+  segmentedText: '#B8C3BC',
+  segmentedTextActive: '#EAF2EE',
+  segmentedBorder: 'rgba(193, 210, 190, 0.28)',
+  segmentedBg: 'rgba(0, 0, 0, 0.12)',
+  segmentedActiveBg: 'rgba(255, 255, 255, 0.12)',
   skeleton: '#273145',
   sheetBg: '#182338',
   sheetBorder: 'rgba(192, 214, 206, 0.16)',
@@ -111,100 +105,6 @@ function hasUrduGlyphs(value: string) {
   return /[\u0600-\u06FF]/.test(value);
 }
 
-function SacredPanel({
-  label,
-  labelUrdu,
-  previewFront,
-  previewBack,
-  reference,
-  hint,
-  onPress,
-  isFlipped,
-  onToggleFlip,
-  tone,
-  fullWidth,
-  nightMode,
-}: SacredPanelProps) {
-  const palette = getPalette(nightMode);
-  const backText = (previewBack ?? '').trim();
-  const canFlip = backText.length > 0;
-  const activePreview = isFlipped && canFlip ? backText : previewFront;
-  const previewIsUrdu = hasUrduGlyphs(activePreview);
-  const defaultUrduLabel = tone === 'hadith' ? 'آج کی سنت' : 'آج کی آیت';
-  const activeLabel = isFlipped && canFlip ? (labelUrdu?.trim() || defaultUrduLabel) : label;
-  const titleIsUrdu = hasUrduGlyphs(activeLabel);
-  const flipLabel = isFlipped ? 'انگلش دکھائیں' : 'اردو دکھائیں';
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${label}. ${hint}`}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.panel,
-        {
-          backgroundColor: tone === 'hadith' ? palette.hadithTint : palette.verseTint,
-        },
-        fullWidth && styles.panelFull,
-        pressed && styles.panelPressed,
-      ]}
-    >
-      <Text
-        style={[
-          styles.panelHeading,
-          { color: palette.heading },
-          titleIsUrdu && styles.panelHeadingUrdu,
-        ]}
-        numberOfLines={1}
-      >
-        {activeLabel}
-      </Text>
-
-      <Text
-        style={[
-          styles.panelPreview,
-          { color: palette.text },
-          previewIsUrdu && styles.panelPreviewUrdu,
-        ]}
-        numberOfLines={3}
-      >
-        {activePreview}
-      </Text>
-
-      <Text style={[styles.panelReference, { color: palette.reference }]} numberOfLines={1}>
-        {reference}
-      </Text>
-
-      <View style={styles.hintRow}>
-        {canFlip ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={flipLabel}
-            onPress={onToggleFlip}
-            style={({ pressed }) => [styles.flipBtn, pressed && styles.flipBtnPressed]}
-          >
-            <MaterialIcons
-              name="flip"
-              size={14}
-              color={palette.icon}
-            />
-            <Text style={[styles.flipBtnText, { color: palette.hint }]}>{flipLabel}</Text>
-          </Pressable>
-        ) : null}
-        <Text style={[styles.panelHint, { color: palette.hint }]} numberOfLines={1}>
-          {hint}
-        </Text>
-        <MaterialIcons
-          name="chevron-right"
-          size={16}
-          color={palette.icon}
-          style={styles.hintIcon}
-        />
-      </View>
-    </Pressable>
-  );
-}
-
 function LoadingSkeleton({ nightMode }: { nightMode?: boolean }) {
   const palette = getPalette(nightMode);
 
@@ -216,8 +116,6 @@ function LoadingSkeleton({ nightMode }: { nightMode?: boolean }) {
         <View style={[styles.skeletonLine, styles.skeletonBodyShort, { backgroundColor: palette.skeleton }]} />
         <View style={[styles.skeletonLine, styles.skeletonHint, { backgroundColor: palette.skeleton }]} />
       </View>
-
-      <View style={[styles.innerDivider, { backgroundColor: palette.divider }]} />
 
       <View style={styles.skeletonPanel}>
         <View style={[styles.skeletonLine, styles.skeletonHeading, { backgroundColor: palette.skeleton }]} />
@@ -242,42 +140,38 @@ export function SacredContentModule({
   versePreviewUrdu,
   verseReference,
   onPressVerse,
-  hadithExpandHint = 'Tap to expand',
-  verseExpandHint = 'Tap to expand',
-  autoFlipMs = 6000,
+  hadithExpandHint = 'Read more',
+  verseExpandHint = 'Read more',
   isLoading,
   nightMode,
 }: SacredContentModuleProps) {
   const palette = getPalette(nightMode);
-  const [hadithFlipped, setHadithFlipped] = useState(false);
-  const [verseFlipped, setVerseFlipped] = useState(false);
-
-  const canFlipHadith = useMemo(() => (hadithPreviewUrdu ?? '').trim().length > 0, [hadithPreviewUrdu]);
-  const canFlipVerse = useMemo(() => (versePreviewUrdu ?? '').trim().length > 0, [versePreviewUrdu]);
-
-  useEffect(() => {
-    if (!canFlipHadith && !canFlipVerse) return;
-
-    const timerId = setInterval(() => {
-      if (canFlipHadith) setHadithFlipped((prev) => !prev);
-      if (canFlipVerse) setVerseFlipped((prev) => !prev);
-    }, Math.max(3000, autoFlipMs));
-
-    return () => clearInterval(timerId);
-  }, [autoFlipMs, canFlipHadith, canFlipVerse]);
 
   if (isLoading) {
     return <LoadingSkeleton nightMode={nightMode} />;
   }
 
   const hadithPreviewSafe = hadithPreview.trim();
+  const hadithPreviewUrduSafe = (hadithPreviewUrdu ?? '').trim();
   const hadithSourceSafe = hadithSource.trim();
   const versePreviewSafe = versePreview.trim();
+  const versePreviewUrduSafe = (versePreviewUrdu ?? '').trim();
   const verseReferenceSafe = verseReference.trim();
+
+  const cardPalette = {
+    title: palette.heading,
+    text: palette.text,
+    source: palette.reference,
+    switchText: palette.segmentedText,
+    switchActiveText: palette.segmentedTextActive,
+    switchBorder: palette.segmentedBorder,
+    switchBg: palette.segmentedBg,
+    switchActiveBg: palette.segmentedActiveBg,
+    ctaText: palette.cta,
+  };
 
   const hasHadith = hadithPreviewSafe.length > 0 || hadithSourceSafe.length > 0;
   const hasVerse = versePreviewSafe.length > 0 || verseReferenceSafe.length > 0;
-  const showBothPanels = hasHadith && hasVerse;
 
   return (
     <View
@@ -291,41 +185,37 @@ export function SacredContentModule({
       ]}
     >
       {hasHadith ? (
-        <SacredPanel
-          label={hadithLabel}
-          labelUrdu={hadithLabelUrdu}
-          previewFront={hadithPreviewSafe}
-          previewBack={hadithPreviewUrdu}
-          reference={hadithSourceSafe}
-          hint={hadithExpandHint}
-          onPress={onPressHadith}
-          isFlipped={hadithFlipped}
-          onToggleFlip={() => setHadithFlipped((prev) => !prev)}
-          tone="hadith"
-          fullWidth={!showBothPanels}
-          nightMode={nightMode}
-        />
-      ) : null}
-
-      {showBothPanels ? (
-        <View style={[styles.innerDivider, { backgroundColor: palette.divider }]} />
+        <View style={styles.cardRow}>
+          <ReminderCard
+            title={hadithLabel}
+            titleUrdu={hadithLabelUrdu}
+            textEn={hadithPreviewSafe}
+            textUr={hadithPreviewUrduSafe}
+            source={hadithSourceSafe}
+            tone="hadith"
+            accentTint={palette.hadithTint}
+            readMoreLabel={hadithExpandHint}
+            onPressReadMore={onPressHadith}
+            palette={cardPalette}
+          />
+        </View>
       ) : null}
 
       {hasVerse ? (
-        <SacredPanel
-          label={verseLabel}
-          labelUrdu={verseLabelUrdu}
-          previewFront={versePreviewSafe}
-          previewBack={versePreviewUrdu}
-          reference={verseReferenceSafe}
-          hint={verseExpandHint}
-          onPress={onPressVerse}
-          isFlipped={verseFlipped}
-          onToggleFlip={() => setVerseFlipped((prev) => !prev)}
-          tone="verse"
-          fullWidth={!showBothPanels}
-          nightMode={nightMode}
-        />
+        <View style={styles.cardRow}>
+          <ReminderCard
+            title={verseLabel}
+            titleUrdu={verseLabelUrdu}
+            textEn={versePreviewSafe}
+            textUr={versePreviewUrduSafe}
+            source={verseReferenceSafe}
+            tone="verse"
+            accentTint={palette.verseTint}
+            readMoreLabel={verseExpandHint}
+            onPressReadMore={onPressVerse}
+            palette={cardPalette}
+          />
+        </View>
       ) : null}
 
       {!hasHadith && !hasVerse ? (
@@ -449,8 +339,9 @@ const styles = StyleSheet.create({
     borderRadius: Radius.xl,
     borderWidth: 1,
     overflow: 'hidden',
-    flexDirection: 'row',
-    minHeight: 158,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    gap: 8,
     ...(Platform.OS === 'web'
       ? { boxShadow: '0px 6px 20px rgba(42, 33, 18, 0.08)' }
       : {
@@ -460,95 +351,14 @@ const styles = StyleSheet.create({
         }),
     elevation: 3,
   },
-  panel: {
-    flex: 1,
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 12,
-  },
-  panelFull: {
-    flex: 1,
-  },
-  panelPressed: {
-    opacity: 0.92,
-    transform: [{ scale: 0.994 }],
-  },
-  innerDivider: {
-    width: 1,
-  },
-  panelHeading: {
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  panelHeadingUrdu: {
-    fontFamily: 'UrduNastaliqBold',
-    writingDirection: 'rtl',
-    textAlign: 'right',
-    fontSize: 20,
-    lineHeight: 30,
-    fontWeight: '400',
-  },
-  panelPreview: {
-    fontSize: 15,
-    lineHeight: 22,
-    fontWeight: '500',
-    minHeight: 66,
-  },
-  panelPreviewUrdu: {
-    fontFamily: 'UrduNastaliqBold',
-    writingDirection: 'rtl',
-    textAlign: 'right',
-    fontSize: 22,
-    lineHeight: 34,
-    fontWeight: '400',
-  },
-  panelReference: {
-    marginTop: 8,
-    fontSize: 12.5,
-    lineHeight: 17,
-    fontWeight: '600',
-  },
-  hintRow: {
-    marginTop: 'auto',
-    paddingTop: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  flipBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: 'rgba(122,138,122,0.28)',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-  },
-  flipBtnPressed: {
-    opacity: 0.76,
-  },
-  flipBtnText: {
-    fontSize: 10.5,
-    lineHeight: 14,
-    fontWeight: '600',
-  },
-  panelHint: {
-    fontSize: 11.5,
-    lineHeight: 15,
-    fontWeight: '500',
-    flex: 1,
-  },
-  hintIcon: {
-    marginLeft: 2,
+  cardRow: {
+    width: '100%',
   },
   emptyState: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: Spacing.md,
+    minHeight: 128,
   },
   emptyStateText: {
     fontSize: 14,
@@ -558,7 +368,7 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
   },
   skeletonPanel: {
-    flex: 1,
+    borderRadius: Radius.lg,
     paddingHorizontal: 14,
     paddingVertical: 14,
   },
@@ -578,12 +388,11 @@ const styles = StyleSheet.create({
   skeletonBodyShort: {
     width: '72%',
     height: 14,
-    marginBottom: 18,
+    marginBottom: 12,
   },
   skeletonHint: {
-    width: '42%',
+    width: '28%',
     height: 12,
-    marginTop: 'auto',
   },
   sheetOverlay: {
     flex: 1,

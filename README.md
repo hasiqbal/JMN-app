@@ -88,6 +88,18 @@ supabase secrets set STRIPE_SECRET_KEY="sk_live_..."
 supabase secrets set STRIPE_DONATION_PRICE_ID="price_..."
 ```
 
+Additional per-slot price IDs (for the expanded one-off/monthly options):
+
+```bash
+# One-off
+supabase secrets set STRIPE_DONATION_PRICE_ID_6="price_for_one_off_10"
+
+# Monthly subscriptions
+supabase secrets set STRIPE_DONATION_PRICE_ID_7="price_for_monthly_50"
+supabase secrets set STRIPE_DONATION_PRICE_ID_8="price_for_monthly_75"
+supabase secrets set STRIPE_DONATION_PRICE_ID_9="price_for_monthly_100"
+```
+
 Optional redirect URLs (used for Option B):
 
 ```bash

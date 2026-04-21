@@ -1,4 +1,4 @@
-import { DonationWallet } from '@/constants/donationTypes';
+import type { DonationPriceSlot } from '@/constants/donationTypes';
 
 interface DonationCheckoutResponse {
   url?: string;
@@ -19,8 +19,7 @@ interface DonationSummaryResponse {
  * Secrets stay server-side; the app only receives the hosted checkout URL.
  */
 export async function createDonationCheckoutUrl(
-  priceSlot: 1 | 2 = 1,
-  preferredWallet?: DonationWallet,
+  priceSlot: DonationPriceSlot = 1,
 ): Promise<string> {
   const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -37,7 +36,7 @@ export async function createDonationCheckoutUrl(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${anonKey}`,
     },
-    body: JSON.stringify({ priceSlot, preferredWallet }),
+    body: JSON.stringify({ priceSlot }),
   });
 
   if (!response.ok) {

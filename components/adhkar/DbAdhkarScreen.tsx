@@ -247,6 +247,7 @@ function resolveSpecialSelectionForDbGroup(
   if (/(surah\s*32|sajdah|sajda|sajadah|السجدة)/.test(normalized)) return 'sajdah-mushaf';
   if (/(surah\s*67|mulk|الملك)/.test(normalized)) return 'mulk-mushaf';
   if (/(surah\s*31|luqman|luqmaan|لقمان)/.test(normalized)) return 'luqman-mushaf';
+  if (/(last\s*rukoo|last\s*ruku|last\s*rukuu)/.test(normalized) && /(ali?\s*imran|aal\s*imran|al\s*imran|imran|عمران)/.test(normalized)) return 'imran-last-rukoo';
   if (/(ali?\s*imran|aal\s*imran|al\s*imran|عمران)/.test(normalized)) return 'imran-mushaf';
 
   return undefined;
@@ -287,6 +288,9 @@ function resolveSpecialSelectionForDbEntry(
   }
   if (/(surah\s*31|luqman|luqmaan|لقمان)/.test(searchable)) {
     return 'luqman-mushaf';
+  }
+  if (/(last\s*rukoo|last\s*ruku|last\s*rukuu)/.test(searchable) && /(ali?\s*imran|aal\s*imran|al\s*imran|imran|عمران)/.test(searchable)) {
+    return 'imran-last-rukoo';
   }
   if (/(ali?\s*imran|aal\s*imran|al\s*imran|عمران)/.test(searchable)) {
     return 'imran-mushaf';

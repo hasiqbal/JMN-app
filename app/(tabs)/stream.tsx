@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Animated,
   Easing,
-  Linking,
   Modal,
   Platform,
   Pressable,
@@ -253,6 +252,11 @@ const EXPO_GO_NOTIFICATIONS_FALLBACK =
   Constants.appOwnership === 'expo' &&
   Number((Constants.expoConfig?.sdkVersion ?? '0').split('.')[0] || 0) >= 53;
 
+function getNextSurahNumber(current: number): number {
+  if (!Number.isFinite(current) || current < 1 || current > 114) return 1;
+  return current >= 114 ? 1 : current + 1;
+}
+
 function PulsingDot({ active }: { active: boolean }) {
   const opacity = useRef(new Animated.Value(0.35)).current;
 
@@ -336,6 +340,11 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
   const [timeshiftSec, setTimeshiftSec] = useState(0);
 
   const soundRef = useRef<AudioPlayer | null>(null);
+  const webAudioRef = useRef<any>(null);
+  const playBasitSurahRef = useRef<((surah: number) => Promise<void>) | null>(null);
+  const activeStationIdRef = useRef<StreamId>('masjid');
+  const playingSurahRef = useRef<number | null>(null);
+  const basitAutoAdvanceLockRef = useRef(false);
   const playbackStartedAtRef = useRef<number | null>(null);
   const playbackPositionSecRef = useRef(0);
   const timeshiftSecRef = useRef(0);
@@ -366,6 +375,14 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
       (item) => item.name.toLowerCase().includes(term) || String(item.num).startsWith(term),
     );
   }, [surahSearch]);
+
+  useEffect(() => {
+    activeStationIdRef.current = activeStationId;
+  }, [activeStationId]);
+
+  useEffect(() => {
+    playingSurahRef.current = playingSurah;
+  }, [playingSurah]);
 
   const updateLiveState = useCallback((liveValue: boolean, stamp: Date) => {
     setIsLive(liveValue);
@@ -408,6 +425,18 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
     return () => {
       soundRef.current?.remove();
       soundRef.current = null;
+
+      const webAudio = webAudioRef.current;
+      if (webAudio) {
+        try {
+          webAudio.pause();
+          webAudio.src = '';
+          if (typeof webAudio.load === 'function') webAudio.load();
+        } catch {
+          // Ignore web audio cleanup errors during unmount.
+        }
+      }
+      webAudioRef.current = null;
     };
   }, []);
 
@@ -439,6 +468,8 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
   const stopAudio = useCallback(async () => {
     const player = soundRef.current;
     soundRef.current = null;
+    const webAudio = webAudioRef.current;
+    webAudioRef.current = null;
 
     if (player) {
       try {
@@ -457,6 +488,27 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
         player.remove();
       } catch {
         // Intentionally silent: disposal errors should never block UI flow.
+      }
+    }
+
+    if (webAudio) {
+      try {
+        webAudio.pause();
+      } catch {
+        // Ignore pause failures for web audio.
+      }
+
+      try {
+        webAudio.currentTime = 0;
+      } catch {
+        // Some streams don't support setting current time.
+      }
+
+      try {
+        webAudio.src = '';
+        if (typeof webAudio.load === 'function') webAudio.load();
+      } catch {
+        // Ignore web cleanup failures.
       }
     }
 
@@ -485,6 +537,97 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
         playbackPositionSecRef.current = 0;
         timeshiftSecRef.current = 0;
         setTimeshiftSec(0);
+
+        if (Platform.OS === 'web') {
+          const AudioCtor = (globalThis as { Audio?: new (src?: string) => any }).Audio;
+          if (!AudioCtor) {
+            throw new Error('web-audio-not-supported');
+          }
+
+          const audio = new AudioCtor(url);
+          webAudioRef.current = audio;
+
+          audio.preload = 'none';
+          audio.playsInline = true;
+
+          audio.ontimeupdate = () => {
+            if (webAudioRef.current !== audio) return;
+            const currentTime = audio.currentTime;
+            if (typeof currentTime === 'number' && Number.isFinite(currentTime)) {
+              playbackPositionSecRef.current = currentTime;
+            }
+          };
+
+          audio.onplaying = () => {
+            if (webAudioRef.current !== audio) return;
+            connected = true;
+            setAudioLoading(false);
+          };
+
+          audio.oncanplay = () => {
+            if (webAudioRef.current !== audio) return;
+            connected = true;
+            setAudioLoading(false);
+          };
+
+          audio.onended = () => {
+            if (webAudioRef.current !== audio) return;
+
+            if (
+              activeStationIdRef.current === 'basit'
+              && !basitAutoAdvanceLockRef.current
+              && typeof playingSurahRef.current === 'number'
+            ) {
+              const playNext = playBasitSurahRef.current;
+              const nextSurah = getNextSurahNumber(playingSurahRef.current);
+              if (playNext) {
+                basitAutoAdvanceLockRef.current = true;
+                setTimeout(() => {
+                  playNext(nextSurah)
+                    .catch(() => {})
+                    .finally(() => {
+                      basitAutoAdvanceLockRef.current = false;
+                    });
+                }, 140);
+                return;
+              }
+            }
+
+            playbackStartedAtRef.current = null;
+            playbackPositionSecRef.current = 0;
+            setAudioPlaying(false);
+            setAudioLoading(false);
+          };
+
+          const playResult = audio.play();
+          if (playResult && typeof playResult.then === 'function') {
+            await playResult;
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, connectTimeoutMs));
+
+          if (!connected) {
+            if (webAudioRef.current === audio) {
+              webAudioRef.current = null;
+            }
+            try {
+              audio.pause();
+              audio.src = '';
+              if (typeof audio.load === 'function') audio.load();
+            } catch {
+              // Ignore cleanup failures.
+            }
+            throw new Error('connect-timeout');
+          }
+
+          setTimeout(() => {
+            setAudioLoading(false);
+          }, 1200);
+
+          setRewindNotice(null);
+
+          return;
+        }
 
         if (!audioModeReadyRef.current) {
           await setAudioModeAsync({
@@ -520,6 +663,26 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
           }
 
           if (status.didJustFinish) {
+            if (
+              activeStationIdRef.current === 'basit'
+              && !basitAutoAdvanceLockRef.current
+              && typeof playingSurahRef.current === 'number'
+            ) {
+              const playNext = playBasitSurahRef.current;
+              const nextSurah = getNextSurahNumber(playingSurahRef.current);
+              if (playNext) {
+                basitAutoAdvanceLockRef.current = true;
+                setTimeout(() => {
+                  playNext(nextSurah)
+                    .catch(() => {})
+                    .finally(() => {
+                      basitAutoAdvanceLockRef.current = false;
+                    });
+                }, 140);
+                return;
+              }
+            }
+
             playbackStartedAtRef.current = null;
             playbackPositionSecRef.current = 0;
             setAudioPlaying(false);
@@ -543,12 +706,15 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
           setAudioLoading(false);
         }, 2200);
 
+        setRewindNotice(null);
+
         return;
       } catch (_error) {
         const hasMoreAttempts = attempt < maxAttempts;
         if (!hasMoreAttempts) {
           setAudioLoading(false);
           setAudioPlaying(false);
+          setRewindNotice('Unable to play this station in-app right now. Please try again in a moment.');
           return;
         }
       }
@@ -561,13 +727,13 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
       if (!stream) return;
 
       const tappingSame = activeStationId === stationId;
-      if (tappingSame && (audioPlaying || audioLoading || soundRef.current)) {
+      if (tappingSame && (audioPlaying || audioLoading || soundRef.current || webAudioRef.current)) {
         await stopAudio();
         if (stationId === 'basit') setPlayingSurah(null);
         return;
       }
 
-      if (soundRef.current) await stopAudio();
+      if (soundRef.current || webAudioRef.current) await stopAudio();
 
       setActiveStationId(stationId);
       setPlayingSurah(null);
@@ -585,7 +751,7 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
       const basit = radioStreams.find((item) => item.id === 'basit');
       if (!basit) return;
 
-      if (soundRef.current) await stopAudio();
+      if (soundRef.current || webAudioRef.current) await stopAudio();
 
       setActiveStationId('basit');
       setPlayingSurah(surah);
@@ -594,6 +760,10 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
     },
     [playUrl, radioStreams, stopAudio],
   );
+
+  useEffect(() => {
+    playBasitSurahRef.current = playBasitSurah;
+  }, [playBasitSurah]);
 
   useEffect(() => {
     if (!autoPlayOnMount || autoplayAttempted.current) return;
@@ -617,7 +787,7 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
   }, [updateLiveState]);
 
   const resyncActiveStreamToLive = useCallback(async (notice?: string) => {
-    if (!soundRef.current || (!audioPlaying && !audioLoading)) return;
+    if ((!soundRef.current && !webAudioRef.current) || (!audioPlaying && !audioLoading)) return;
 
     const activeStream = radioStreams.find((item) => item.id === activeStationId);
     if (!activeStream) return;
@@ -644,6 +814,12 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
   }, [activeStationId, audioLoading, audioPlaying, playUrl, playingSurah, radioStreams, stopAudio]);
 
   const readCurrentPlaybackTime = useCallback(() => {
+    const webTime = webAudioRef.current?.currentTime;
+    if (typeof webTime === 'number' && Number.isFinite(webTime) && webTime >= 0) {
+      playbackPositionSecRef.current = webTime;
+      return webTime;
+    }
+
     const liveValue = soundRef.current?.currentTime;
     if (typeof liveValue === 'number' && Number.isFinite(liveValue) && liveValue >= 0) {
       playbackPositionSecRef.current = liveValue;
@@ -654,8 +830,9 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
 
   const rewindActiveStreamByTen = useCallback(async () => {
     seekQueueRef.current = seekQueueRef.current.then(async () => {
-      if (!soundRef.current || !audioPlaying) return;
+      if ((!soundRef.current && !webAudioRef.current) || !audioPlaying) return;
       const player = soundRef.current;
+      const webAudio = webAudioRef.current;
 
       try {
         let before = readCurrentPlaybackTime();
@@ -667,7 +844,13 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
           if (remaining <= 0.5) break;
 
           const target = Math.max(0, before - remaining);
-          await player.seekTo(target);
+          if (webAudio) {
+            webAudio.currentTime = target;
+          } else if (player) {
+            await player.seekTo(target);
+          } else {
+            break;
+          }
           await new Promise((resolve) => setTimeout(resolve, REWIND_SEEK_SETTLE_MS));
 
           const after = readCurrentPlaybackTime();
@@ -891,6 +1074,21 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
               </TouchableOpacity>
             ) : null}
           </View>
+
+          {isBasit ? (
+            <View
+              style={[
+                styles.basitAutoNextRow,
+                {
+                  borderColor: palette.border,
+                  backgroundColor: palette.surfaceAlt,
+                },
+              ]}
+            >
+              <MaterialIcons name="autorenew" size={14} color={accentColor} />
+              <Text style={[styles.basitAutoNextText, { color: palette.textSub }]}>Auto-next enabled</Text>
+            </View>
+          ) : null}
 
           {isEngaged ? (
             <View style={styles.timeshiftWrap}>
@@ -1525,6 +1723,20 @@ const styles = StyleSheet.create({
   stationActions: {
     flexDirection: 'row',
     gap: 8,
+  },
+  basitAutoNextRow: {
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+  },
+  basitAutoNextText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   rewindControl: {
     minWidth: 72,

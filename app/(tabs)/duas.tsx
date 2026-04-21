@@ -11,7 +11,7 @@ import {
   ImageBackground,
   useWindowDimensions,
 } from 'react-native';
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFonts } from 'expo-font';
@@ -39,11 +39,9 @@ import {
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { useNightMode } from '@/hooks/useNightMode';
 import { fetchAdhkarForPrayerTime, fetchAdhkarGroupsForPrayerTime, AdhkarGroupMeta, AdhkarRow, resolveAdhkarUrduTranslation, translateTextToUrdu } from '@/services/contentService';
-import { ImranMushafPlaceholder, LuqmanMushafPlaceholder, MulkMushafPlaceholder } from '@/components/MushafimageViewer';
 import { PrayerTimeChipBar } from '@/components/adhkar/PrayerTimeChipBar';
 import { DbAdhkarScreen } from '@/components/adhkar/DbAdhkarScreen';
 import { NIGHT_PALETTE as NIGHT } from '@/components/quran_screen/shared';
-import { SurahKahfScreen, SurahSajdahScreen, SurahWaqiahMushafScreen, SurahYaseenScreen } from '@/components/quran_screen';
 import { getPrayerTimesForDate, PrayerTimesData } from '@/services/prayerService';
 import RenderHtml from 'react-native-render-html';
 
@@ -51,7 +49,6 @@ const DUAS_ACCENT_GREEN = '#3FAE5A';
 const DUAS_ACCENT_GREEN_SOFT = '#E7F4EA';
 const FLOW_ACCENT = '#3FAE5A';
 const FLOW_ACCENT_DARK = '#2C7A41';
-const UNIFIED_QURAN_ACCENT = '#3FAE5A';
 const ADHKAR_SURFACE_OVERLAY = 'rgba(245, 247, 245, 0.82)';
 const ADHKAR_CONTEXT_OVERLAY = 'rgba(63, 174, 90, 0.03)';
 const ADHKAR_HERO_GRADIENT: [string, string, string] = ['rgba(255,255,255,0.22)', 'rgba(230,244,234,0.74)', 'rgba(245,247,245,0.96)'];
@@ -67,6 +64,36 @@ const WIRD_LATIF_GROUP_THUMB = require('../../assets/images/Group icons/alawi2.j
 const WIRD_ABU_BAKR_GROUP_THUMB = require('../../assets/images/Group icons/binsalim.jpg');
 const DUA_AFTER_YASEEN_GROUP_THUMB = require('../../assets/images/Group icons/dua.jpg');
 const SALAWAAT_GROUP_THUMB = require('../../assets/images/Group icons/nabwi.jpg');
+
+const ADHKAR_SELECTION_TO_SURAH_CHAPTER: Record<string, number> = {
+  yaseen: 36,
+  waqiah: 56,
+  kahf: 18,
+  'kahf-mushaf': 18,
+  'sajdah-mushaf': 32,
+  'mulk-mushaf': 67,
+  'luqman-mushaf': 31,
+  'imran-mushaf': 3,
+  'imran-last-rukoo': 3,
+};
+
+function resolveSurahChapter(selection: AdhkarSelection): number | null {
+  if (!selection) return null;
+  return ADHKAR_SELECTION_TO_SURAH_CHAPTER[selection] ?? null;
+}
+
+function isLastRukooImranGroup(groupName?: string | null): boolean {
+  const normalized = (groupName ?? '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\u0600-\u06ff]+/g, ' ')
+    .trim();
+
+  const hasLastRukoo = /(last\s*rukoo|last\s*ruku|last\s*rukuu)/.test(normalized);
+  const hasImran = /(ali?\s*imran|aal\s*imran|al\s*imran|imran|عمران)/.test(normalized);
+  return hasLastRukoo && hasImran;
+}
 
 const GUIDED_FLOW_META: Record<PrayerTimeId, { accent: string; background: string; doneTitle: string; icon: string }> = {
   'before-fajr': { accent: DUAS_ACCENT_GREEN, background: Colors.background, doneTitle: 'Before Fajr Adhkar', icon: 'nights-stay' },
@@ -127,6 +154,9 @@ function resolveSelectionFromGroupMeta(
   }
   if (/(surah\s*31|luqman|luqmaan|لقمان)/.test(normalized)) {
     return 'luqman-mushaf';
+  }
+  if (/(last\s*rukoo|last\s*ruku|last\s*rukuu)/.test(normalized) && /(ali?\s*imran|aal\s*imran|al\s*imran|imran|عمران)/.test(normalized)) {
+    return 'imran-last-rukoo';
   }
   if (/(ali?\s*imran|aal\s*imran|al\s*imran|عمران)/.test(normalized)) {
     return 'imran-mushaf';
@@ -301,6 +331,7 @@ function resolvePrayerTimeByClock(data: PrayerTimesData, now: Date = new Date())
 }
 
 export default function DuasScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { nightMode } = useNightMode();
   const [selectedPrayerTime, setSelectedPrayerTime] = useState<PrayerTimeId>('after-fajr');
@@ -388,12 +419,6 @@ export default function DuasScreen() {
     'UrduNastaliq': require('@/assets/fonts/UrduNastaliq.ttf'),
     'UrduNastaliqBold': require('@/assets/fonts/UrduNastaliqBold.ttf'),
   });
-  const [surahFlowContext, setSurahFlowContext] = useState<{
-    prayerTime: PrayerTimeId;
-    surahs: AdhkarSelection[];
-    currentIndex: number;
-    completed: Set<number>;
-  } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [lastUpdated, setLastUpdated] = useState(() => new Date());
@@ -425,7 +450,6 @@ export default function DuasScreen() {
   const resetToMain = () => {
     setFajrSelection(null);
     setViewingGroup(null);
-    setSurahFlowContext(null);
     setSurahReturnState(null);
   };
 
@@ -440,13 +464,40 @@ export default function DuasScreen() {
     }
   }, []);
 
-  const openSpecialSelection = (selection: AdhkarSelection) => {
+  const openSpecialSelection = (
+    selection: AdhkarSelection,
+    sourceContext?: { prayerTime: PrayerTimeId; groupName?: string | null }
+  ) => {
+    const surahChapter = resolveSurahChapter(selection);
+    if (surahChapter) {
+      const sourcePrayerTime = sourceContext?.prayerTime ?? viewingGroup?.prayerTime ?? selectedPrayerTime;
+      const sourceGroupName = sourceContext?.groupName ?? viewingGroup?.groupName ?? groupParam;
+      const params: Record<string, string> = {
+        source: 'adhkar-duas',
+        autoOpen: '1',
+        chapter: String(surahChapter),
+        prayerTime: sourcePrayerTime,
+      };
+      if (sourceGroupName && sourceGroupName.trim().length > 0) {
+        params.group = sourceGroupName;
+      }
+      if (selection === 'imran-last-rukoo' || (selection === 'imran-mushaf' && isLastRukooImranGroup(sourceGroupName))) {
+        // Quran reader uses zero-based indices internally; passing page 76 here is user-facing.
+        params.page = '76';
+      }
+
+      router.push({
+        pathname: '/(tabs)/quran',
+        params,
+      } as any);
+      return;
+    }
+
     setSurahReturnState({
       selection: fajrSelection,
       viewingGroup,
     });
     setViewingGroup(null);
-    setSurahFlowContext(null);
     setFajrSelection(selection);
   };
 
@@ -494,7 +545,7 @@ export default function DuasScreen() {
 
     if (mapped) {
       debugLog('openGroupOrSpecial -> special', { groupName, prayerTime, mapped });
-      openSpecialSelection(mapped);
+      openSpecialSelection(mapped, { prayerTime, groupName });
       return;
     }
 
@@ -534,7 +585,7 @@ export default function DuasScreen() {
           nightMode={nightMode}
           onSelectSpecial={(selection) => {
             debugLog('onSelectSpecial', { selection, selectedPrayerTime });
-            openSpecialSelection(selection);
+            openSpecialSelection(selection, { prayerTime: selectedPrayerTime });
           }}
           onSelectGroup={openGroupOrSpecial}
         />
@@ -542,16 +593,7 @@ export default function DuasScreen() {
     </ScrollView>
   );
 
-  const handleOpenSpecialGroupFromFlow = (
-    selection: AdhkarSelection,
-    availableSurahs?: AdhkarSelection[],
-    currentIndex?: number
-  ) => {
-    openSpecialSelection(selection);
-  };
-
   const closeSurahFlow = () => {
-    setSurahFlowContext(null);
     if (surahReturnState) {
       setFajrSelection(surahReturnState.selection);
       setViewingGroup(surahReturnState.viewingGroup);
@@ -562,51 +604,8 @@ export default function DuasScreen() {
     setViewingGroup(null);
   };
 
-  const moveSurahFlow = (markCompleted: boolean) => {
-    if (!surahFlowContext) {
-      closeSurahFlow();
-      return;
-    }
-
-    const completed = new Set(surahFlowContext.completed);
-    if (markCompleted) {
-      completed.add(surahFlowContext.currentIndex);
-    }
-
-    const nextIndex = surahFlowContext.currentIndex + 1;
-    if (nextIndex >= surahFlowContext.surahs.length) {
-      closeSurahFlow();
-      return;
-    }
-
-    setFajrSelection(surahFlowContext.surahs[nextIndex]);
-    setSurahFlowContext({
-      ...surahFlowContext,
-      currentIndex: nextIndex,
-      completed,
-    });
-  };
-
-  const getSurahFlowAccent = (selection: AdhkarSelection) => {
-    return UNIFIED_QURAN_ACCENT;
-  };
-
-  const renderSurahWithFlow = (surahComponent: React.ReactNode, selection: AdhkarSelection) => (
-    <SurahFlowWrapper
-      surahFlowContext={surahFlowContext}
-      nightMode={nightMode}
-      accentColor={getSurahFlowAccent(selection)}
-      onSkip={() => moveSurahFlow(false)}
-      onNext={() => moveSurahFlow(true)}
-    >
-      {surahComponent}
-    </SurahFlowWrapper>
-  );
-
   const renderActiveContent = () => {
     switch (fajrSelection) {
-      case 'yaseen':
-        return renderSurahWithFlow(<SurahYaseenScreen nightMode={nightMode} onBack={closeSurahFlow} />, 'yaseen');
       case 'wird-al-latif':
         return (
           <DbAdhkarScreen
@@ -615,7 +614,10 @@ export default function DuasScreen() {
             nightMode={nightMode}
             onBack={closeSurahFlow}
             onOpenSpecialGroup={(selection) => {
-              openSpecialSelection(selection);
+              openSpecialSelection(selection, {
+                prayerTime: viewingGroup?.prayerTime ?? selectedPrayerTime,
+                groupName: viewingGroup?.groupName,
+              });
             }}
           />
         );
@@ -623,28 +625,14 @@ export default function DuasScreen() {
         return <WirdAbuBakrFullScreen nightMode={nightMode} onBack={closeSurahFlow} />;
       case 'yaseen-dua':
         return <DuaYaseenScreen nightMode={nightMode} onBack={closeSurahFlow} />;
-      case 'waqiah':
-        return renderSurahWithFlow(<SurahWaqiahMushafScreen nightMode={nightMode} onBack={closeSurahFlow} />, 'waqiah');
       case 'hizb-bahr':
         return <DbAdhkarScreen prayerTime="after-asr" groupFilter="Hizb ul Bahr" nightMode={nightMode} onBack={closeSurahFlow} />;
-      case 'kahf-mushaf':
-        return renderSurahWithFlow(<SurahKahfScreen nightMode={nightMode} onBack={closeSurahFlow} />, 'kahf-mushaf');
-      case 'mulk-mushaf':
-        return renderSurahWithFlow(<MulkMushafPlaceholder nightMode={nightMode} onBack={closeSurahFlow} />, 'mulk-mushaf');
-      case 'luqman-mushaf':
-        return renderSurahWithFlow(<LuqmanMushafPlaceholder nightMode={nightMode} onBack={closeSurahFlow} />, 'luqman-mushaf');
-      case 'imran-mushaf':
-        return renderSurahWithFlow(<ImranMushafPlaceholder nightMode={nightMode} onBack={closeSurahFlow} />, 'imran-mushaf');
-      case 'sajdah-mushaf':
-        return renderSurahWithFlow(<SurahSajdahScreen nightMode={nightMode} onBack={closeSurahFlow} />, 'sajdah-mushaf');
-      case 'kahf':
-        return renderSurahWithFlow(<SurahKahfScreen nightMode={nightMode} onBack={closeSurahFlow} />, 'kahf');
       case '__all-dhuhr__':
-        return <DbAdhkarScreen prayerTime={'after-zuhr' as any} nightMode={nightMode} onBack={closeSurahFlow} onOpenSpecialGroup={(selection) => { openSpecialSelection(selection); }} />;
+        return <DbAdhkarScreen prayerTime={'after-zuhr' as any} nightMode={nightMode} onBack={closeSurahFlow} onOpenSpecialGroup={(selection) => { openSpecialSelection(selection, { prayerTime: 'after-zuhr' }); }} />;
       case '__all-jumuah__':
-        return <DbAdhkarScreen prayerTime="after-jumuah" nightMode={nightMode} onBack={closeSurahFlow} onOpenSpecialGroup={(selection) => { openSpecialSelection(selection); }} />;
+        return <DbAdhkarScreen prayerTime="after-jumuah" nightMode={nightMode} onBack={closeSurahFlow} onOpenSpecialGroup={(selection) => { openSpecialSelection(selection, { prayerTime: 'after-jumuah' }); }} />;
       case 'morning-adhkar':
-        return <DbAdhkarScreen prayerTime="after-fajr" nightMode={nightMode} onBack={closeSurahFlow} onOpenSpecialGroup={(selection) => { openSpecialSelection(selection); }} />;
+        return <DbAdhkarScreen prayerTime="after-fajr" nightMode={nightMode} onBack={closeSurahFlow} onOpenSpecialGroup={(selection) => { openSpecialSelection(selection, { prayerTime: 'after-fajr' }); }} />;
       case 'waqiah-dua':
         return <DuaWaqiahScreen nightMode={nightMode} onBack={closeSurahFlow} />;
       default:
@@ -659,7 +647,10 @@ export default function DuasScreen() {
           nightMode={nightMode}
           onBack={() => setViewingGroup(null)}
           onOpenSpecialGroup={(selection) => {
-            openSpecialSelection(selection);
+            openSpecialSelection(selection, {
+              prayerTime: viewingGroup.prayerTime,
+              groupName: viewingGroup.groupName,
+            });
           }}
         />
       );
@@ -714,12 +705,12 @@ export default function DuasScreen() {
           activeOpacity={0.8}
           style={[
             mainBackStyles.bar,
-            fajrSelection !== null && !N && { backgroundColor: getSurahFlowAccent(fajrSelection) + '10', borderBottomColor: getSurahFlowAccent(fajrSelection) + '30' },
+            fajrSelection !== null && !N && { backgroundColor: DUAS_ACCENT_GREEN + '10', borderBottomColor: DUAS_ACCENT_GREEN + '30' },
             N && { backgroundColor: N.surface, borderBottomColor: N.border },
           ]}
         >
-          <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : (fajrSelection !== null ? getSurahFlowAccent(fajrSelection) : DUAS_ACCENT_GREEN)} />
-          <Text style={[mainBackStyles.label, { color: N ? N.accent : (fajrSelection !== null ? getSurahFlowAccent(fajrSelection) : DUAS_ACCENT_GREEN) }]}> 
+          <MaterialIcons name="arrow-back" size={18} color={N ? N.accent : DUAS_ACCENT_GREEN} />
+          <Text style={[mainBackStyles.label, { color: N ? N.accent : DUAS_ACCENT_GREEN }]}> 
             Back to Adhkar
           </Text>
         </TouchableOpacity>
@@ -2310,6 +2301,7 @@ function resolveGroupToSurah(groupName: string): AdhkarSelection | null {
   if (/(surah\s*32|sajdah|sajda|sajadah|السجدة)/.test(normalized)) return 'sajdah-mushaf';
   if (/(surah\s*67|mulk|الملك)/.test(normalized)) return 'mulk-mushaf';
   if (/(surah\s*31|luqman|luqmaan|لقمان)/.test(normalized)) return 'luqman-mushaf';
+  if (/(last\s*rukoo|last\s*ruku|last\s*rukuu)/.test(normalized) && /(ali?\s*imran|aal\s*imran|al\s*imran|imran|عمران)/.test(normalized)) return 'imran-last-rukoo';
   if (/(ali?\s*imran|aal\s*imran|al\s*imran|عمران)/.test(normalized)) return 'imran-mushaf';
 
   return null;
@@ -2429,81 +2421,6 @@ function PrayerGuidedFlowScreen({
   );
 }
 
-function SurahFlowWrapper({
-  surahFlowContext,
-  nightMode,
-  accentColor,
-  onSkip,
-  onNext,
-  children,
-}: {
-  surahFlowContext: {
-    prayerTime: PrayerTimeId;
-    surahs: AdhkarSelection[];
-    currentIndex: number;
-    completed: Set<number>;
-  } | null;
-  nightMode: boolean;
-  accentColor: string;
-  onSkip: () => void;
-  onNext: () => void;
-  children: React.ReactNode;
-}) {
-  const N = nightMode ? NIGHT : null;
-
-  if (!surahFlowContext) {
-    return <>{children}</>;
-  }
-
-  const { surahs, currentIndex, completed } = surahFlowContext;
-  const isLastSurah = currentIndex >= surahs.length - 1;
-
-  return (
-    <View style={{ flex: 1 }}>
-      <View style={[surahFlowStyles.progressBar, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}>
-        <Text style={[surahFlowStyles.progressCount, N && { color: N.text }]}>
-          {currentIndex + 1}/{surahs.length}
-        </Text>
-        <View style={surahFlowStyles.progressDots}>
-          {surahs.map((_, index) => {
-            const isCurrent = index === currentIndex;
-            const isCompleted = completed.has(index);
-            return (
-              <View
-                key={`${index}-${surahs[index]}`}
-                style={[
-                  surahFlowStyles.progressDot,
-                  isCurrent && surahFlowStyles.progressDotCurrent,
-                  {
-                    backgroundColor: isCompleted || isCurrent ? accentColor : (N ? N.border : Colors.border),
-                  },
-                ]}
-              >
-                {isCompleted ? <MaterialIcons name="check" size={10} color="#fff" /> : null}
-              </View>
-            );
-          })}
-        </View>
-      </View>
-
-      <View style={{ flex: 1 }}>{children}</View>
-
-      <View style={[surahFlowStyles.navBar, N && { backgroundColor: N.surface, borderTopColor: N.border }]}>
-        <TouchableOpacity style={[surahFlowStyles.skipBtn, N && { borderColor: N.border }]} onPress={onSkip} activeOpacity={0.8}>
-          <Text style={[surahFlowStyles.skipBtnText, N && { color: N.textSub }]}>
-            {isLastSurah ? 'Exit' : 'Skip Surah'}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[surahFlowStyles.nextBtn, { backgroundColor: accentColor, shadowColor: accentColor }]} onPress={onNext} activeOpacity={0.85}>
-          <MaterialIcons name="check-circle" size={16} color="#fff" />
-          <Text style={surahFlowStyles.nextBtnText}>{isLastSurah ? 'Finish Flow' : 'Next Surah'}</Text>
-          <MaterialIcons name="chevron-right" size={18} color="rgba(255,255,255,0.9)" />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-}
-
 function FlowNavBar({
   color, nightMode, showSkip, skipLabel, nextLabel, onSkip, onNext,
 }: {
@@ -2609,81 +2526,6 @@ const flowStyles = StyleSheet.create({
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
   doneBtnText: { fontSize: 15, fontWeight: '800', color: '#fff', letterSpacing: 0.2 },
-});
-
-const surahFlowStyles = StyleSheet.create({
-  progressBar: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: Spacing.md, paddingVertical: 10,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
-  },
-  progressCount: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-    minWidth: 34,
-  },
-  progressDots: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  progressDot: {
-    width: 18,
-    height: 18,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  progressDotCurrent: {
-    transform: [{ scale: 1.08 }],
-  },
-  navBar: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: Spacing.md, paddingVertical: 12,
-    backgroundColor: Colors.surface,
-    borderTopWidth: 1, borderTopColor: Colors.border,
-    shadowColor: '#000', shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.06, shadowRadius: 6, elevation: 4,
-  },
-  skipBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  skipBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-  },
-  nextBtn: {
-    flex: 1.4,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 7,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: Radius.lg,
-    backgroundColor: FLOW_ACCENT,
-    shadowColor: FLOW_ACCENT_DARK,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.22,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  nextBtnText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#fff',
-  },
 });
 
 const mainBackStyles = StyleSheet.create({

@@ -41,6 +41,10 @@ export function resolveGroupSelection(
 function resolveFuzzySurahSelection(normalizedInput: string): AdhkarSelection | undefined {
   const compactInput = normalizedInput.replace(/\s+/g, '');
 
+  if (/(lastrukoo|lastruku|lastrukuu)/.test(compactInput) && /(imran|alimran|alimraan|aliimran)/.test(compactInput)) {
+    return 'imran-last-rukoo';
+  }
+
   if (/(kahf|kaaf|kahaf|kahff|kahef|kafh|khaf|khf)/.test(compactInput)) {
     return 'kahf-mushaf';
   }
@@ -226,6 +230,10 @@ export const ISHA_GROUP_TO_SELECTION: Record<string, AdhkarSelection> = {
   'Surah Aal Imran': 'imran-mushaf',
   'Surah Al Imran': 'imran-mushaf',
   'Surah Al-Imran': 'imran-mushaf',
+  'Last Rukoo of Surah Al-Imran': 'imran-last-rukoo',
+  "Last Rukoo of Surah Ali 'Imran": 'imran-last-rukoo',
+  'Last Ruku of Surah Al-Imran': 'imran-last-rukoo',
+  'Last Rukuu of Surah Al-Imran': 'imran-last-rukoo',
   'Imran': 'imran-mushaf',
 };
 

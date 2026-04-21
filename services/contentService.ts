@@ -10,6 +10,9 @@ const URDU_TRANSLATION_CACHE_PREFIX = '@adhkar_urdu_cache_v1:';
 const urduTranslationMemoryCache = new Map<string, string>();
 const ANNOUNCEMENTS_CACHE_KEY = '@announcements_feed_cache_v1';
 const ANNOUNCEMENTS_FETCH_TIMEOUT_MS = 8000;
+const TRANSLATE_URDU_BACKOFF_MS = 5 * 60 * 1000;
+
+let translateUrduBackoffUntil = 0;
 
 type AnnouncementsCachePayload = {
   updatedAt: number;
@@ -214,6 +217,14 @@ export async function translateTextToUrdu(text: string): Promise<string> {
     }
   };
 
+  if (Date.now() < translateUrduBackoffUntil) {
+    const fallbackUrdu = await translateViaGoogleFallback();
+    if (fallbackUrdu) {
+      await writeCachedUrduTranslation(source, fallbackUrdu);
+    }
+    return fallbackUrdu;
+  }
+
   try {
     const supabase = getSupabaseClient();
     const { data, error } = await supabase.functions.invoke('translate-urdu', {
@@ -221,6 +232,7 @@ export async function translateTextToUrdu(text: string): Promise<string> {
     });
 
     if (error) {
+      translateUrduBackoffUntil = Date.now() + TRANSLATE_URDU_BACKOFF_MS;
       const fallbackUrdu = await translateViaGoogleFallback();
       if (fallbackUrdu) {
         await writeCachedUrduTranslation(source, fallbackUrdu);
@@ -240,6 +252,7 @@ export async function translateTextToUrdu(text: string): Promise<string> {
     }
     return fallbackUrdu;
   } catch {
+    translateUrduBackoffUntil = Date.now() + TRANSLATE_URDU_BACKOFF_MS;
     const fallbackUrdu = await translateViaGoogleFallback();
     if (fallbackUrdu) {
       await writeCachedUrduTranslation(source, fallbackUrdu);
@@ -437,6 +450,43 @@ export interface AdhkarGroupWarmupRow {
   is_active: boolean | null;
 }
 
+const ADHKAR_GROUPS_SCHEMA_BACKOFF_MS = 5 * 60 * 1000;
+let adhkarGroupsSchemaBackoffUntil = 0;
+
+function shouldSkipAdhkarGroupsMetadataQuery(now = Date.now()): boolean {
+  return now < adhkarGroupsSchemaBackoffUntil;
+}
+
+function markAdhkarGroupsSchemaBackoff(): void {
+  adhkarGroupsSchemaBackoffUntil = Date.now() + ADHKAR_GROUPS_SCHEMA_BACKOFF_MS;
+}
+
+function isAdhkarGroupsSchemaMismatch(message: string | null | undefined): boolean {
+  const value = (message ?? '').toLowerCase();
+  if (!value) return false;
+
+  return (
+    (value.includes('adhkar_groups')
+      && (value.includes('schema cache') || value.includes('column') || value.includes('relation') || value.includes('does not exist')))
+    || (value.includes('is_active') && value.includes('schema cache'))
+  );
+}
+
+function mapWarmupRows(rows: Array<Record<string, unknown>>): AdhkarGroupWarmupRow[] {
+  return rows
+    .map((row) => ({
+      group_name: typeof row.group_name === 'string' ? row.group_name : '',
+      name: typeof row.name === 'string' ? row.name : null,
+      content_key: typeof row.content_key === 'string' ? row.content_key : null,
+      content_type: row.content_type === 'adhkar' || row.content_type === 'quran' ? row.content_type : null,
+      card_subtitle: typeof row.card_subtitle === 'string' ? row.card_subtitle : null,
+      description: typeof row.description === 'string' ? row.description : null,
+      arabic_title: typeof row.arabic_title === 'string' ? row.arabic_title : null,
+      is_active: row.is_active !== false,
+    }))
+    .filter((row) => row.group_name.length > 0 && row.is_active !== false);
+}
+
 function normalizeGroupKey(value: string | null | undefined): string {
   return (value ?? '')
     .toLowerCase()
@@ -505,6 +555,10 @@ export async function fetchAdhkarGroupsForPrayerTime(
     // Merge portal-managed group metadata when available.
     // This keeps UI coupled to `adhkar_groups.description` and related fields.
     try {
+      if (shouldSkipAdhkarGroupsMetadataQuery()) {
+        return Array.from(map.values()).sort((a, b) => a.group_order - b.group_order);
+      }
+
       const supabase = getSupabaseClient();
       const prayerTimeAliases = resolvePrayerTimeAliases(prayerTime);
       const { data: groupRows, error: groupError } = await supabase
@@ -587,6 +641,8 @@ export async function fetchAdhkarGroupsForPrayerTime(
 
           map.set(groupName, merged);
         }
+      } else if (groupError && isAdhkarGroupsSchemaMismatch(groupError.message)) {
+        markAdhkarGroupsSchemaBackoff();
       }
     } catch {
       // Keep row-derived group metadata when adhkar_groups is unavailable.
@@ -600,23 +656,33 @@ export async function fetchAdhkarGroupsForPrayerTime(
 
 export async function fetchAllActiveAdhkarGroupsForWarmup(): Promise<AdhkarGroupWarmupRow[]> {
   try {
+    if (shouldSkipAdhkarGroupsMetadataQuery()) return [];
+
     const supabase = getSupabaseClient();
     const { data, error } = await supabase
       .from('adhkar_groups')
       .select('*')
       .eq('is_active', true);
 
-    if (error || !Array.isArray(data)) return [];
-    return (data as Array<Record<string, unknown>>).map((row) => ({
-      group_name: typeof row.group_name === 'string' ? row.group_name : '',
-      name: typeof row.name === 'string' ? row.name : null,
-      content_key: typeof row.content_key === 'string' ? row.content_key : null,
-      content_type: row.content_type === 'adhkar' || row.content_type === 'quran' ? row.content_type : null,
-      card_subtitle: typeof row.card_subtitle === 'string' ? row.card_subtitle : null,
-      description: typeof row.description === 'string' ? row.description : null,
-      arabic_title: typeof row.arabic_title === 'string' ? row.arabic_title : null,
-      is_active: row.is_active !== false,
-    })).filter((row) => row.group_name.length > 0);
+    if (error) {
+      if (!isAdhkarGroupsSchemaMismatch(error.message)) return [];
+
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('adhkar_groups')
+        .select('*');
+
+      if (fallbackError || !Array.isArray(fallbackData)) {
+        if (fallbackError && isAdhkarGroupsSchemaMismatch(fallbackError.message)) {
+          markAdhkarGroupsSchemaBackoff();
+        }
+        return [];
+      }
+
+      return mapWarmupRows(fallbackData as Array<Record<string, unknown>>);
+    }
+
+    if (!Array.isArray(data)) return [];
+    return mapWarmupRows(data as Array<Record<string, unknown>>);
   } catch {
     return [];
   }
@@ -636,6 +702,11 @@ export interface SunnahReminderRow {
   is_active: boolean;
 }
 
+function isMissingSunnahIconColumn(message: string | null | undefined): boolean {
+  const value = (message ?? '').toLowerCase();
+  return value.includes('sunnah_reminders.icon') && value.includes('does not exist');
+}
+
 export async function fetchSunnahReminders(): Promise<SunnahReminderRow[]> {
   try {
     const supabase = getSupabaseClient();
@@ -644,7 +715,41 @@ export async function fetchSunnahReminders(): Promise<SunnahReminderRow[]> {
       .select('id, title, description, reference, icon, category, display_order, is_active')
       .eq('is_active', true)
       .order('display_order', { ascending: true });
-    if (error || !data || data.length === 0) return [];
+
+    if (error) {
+      if (!isMissingSunnahIconColumn(error.message)) return [];
+
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('sunnah_reminders')
+        .select('id, title, description, reference, category, display_order, is_active')
+        .eq('is_active', true)
+        .order('display_order', { ascending: true });
+
+      if (fallbackError || !fallbackData || fallbackData.length === 0) return [];
+
+      return (fallbackData as Array<{
+        id: string;
+        title: string;
+        description: string | null;
+        reference: string | null;
+        category: string | null;
+        display_order: number;
+        is_active: boolean;
+      }>).map((row) => ({
+        id: row.id,
+        title: row.title,
+        description: row.description,
+        reference: row.reference,
+        icon: 'star',
+        friday_only: (row.category ?? '').toLowerCase() === 'friday',
+        category: row.category,
+        display_order: row.display_order,
+        is_active: row.is_active,
+      }));
+    }
+
+    if (!data || data.length === 0) return [];
+
     return (data as Array<{
       id: string;
       title: string;
