@@ -27,7 +27,7 @@ create table if not exists public.adhkar (
   description      text,
   file_url         text,
   card_color       text,
-  content_type     text check (content_type in ('adhkar', 'quran')),
+  content_type     text check (content_type in ('adhkar', 'quran', 'qaseedah', 'naat')),
   content_source   text check (content_source in ('db', 'local', 'api')),
   content_key      text,
   card_icon        text,

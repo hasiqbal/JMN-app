@@ -22,21 +22,24 @@ export const JANAZAH_GUIDE: HowToGuide = {
       steps: [
         { step: 4, title: '1st Takbir', detail: 'Raise both hands to earlobes, say "Allahu Akbar", fold hands on chest. Recite Thana silently (Subhanakallahumma...) then Surah al-Fatihah.' },
         { step: 5, title: '2nd Takbir', detail: 'Say "Allahu Akbar" (no hand raise). Recite full Salawat Ibrahimiyyah silently upon the Prophet.' },
-        { step: 6, title: '3rd Takbir', detail: "Say \"Allahu Akbar\" (no hand raise). Recite the du'a for the deceased (see below).", note: "Du'a: Allahummaghfir lahu warhamhu wa Aafih wa Afu Anhu wa akrim nuzulahu wa wassi' mudkhalahu..." },
-        { step: 7, title: '4th Takbir', detail: 'Say "Allahu Akbar" (no hand raise). Pause briefly, then make ONE Taslim to the RIGHT only: Assalamu Alaykum wa Rahmatullah.' },
+        { step: 6, title: '3rd Takbir', detail: "Say \"Allahu Akbar\" (no hand raise). Recite the du'a for the deceased (see below)."},
+        { step: 7, title: '4th Takbir', detail: 'Say "Allahu Akbar" (no hand raise). Pause briefly, drop both hands and make salaam'}, 
       ],
     },
     {
       heading: "Du'a for the Deceased (3rd Takbir)",
       steps: [
         { step: 8, title: 'Adult (Male)', detail: `اللَّهُمَّ اغْفِرْ لِحَيِّنَا وَمَيِّتِنَا وَشَاهِدِنَا وَغَائِبِنَا وَصَغِيرِنَا وَكَبِيرِنَا وَذَكَرِنَا وَأُنْثَانَا، اللَّهُمَّ مَنْ أَحْيَيْتَهُ مِنَّا فَأَحْيِهِ عَلَى الْإِسْلَامِ، وَمَنْ تَوَفَّيْتَهُ مِنَّا فَتَوَفَّهُ عَلَى الْإِيمَانِ، وَلا تُضِلَّنَا بَعْدَهُ.
-Allahummaghfir lihayyina wa mayyitina wa shahidina wa gha'ibina wa saghirina wa kabirina wa dhakarina wa unthana. Allahumma man ahyaytahu minna fa ahyihi ala al-Islam, wa man tawaffaytahu minna fatawaffahu ala al-iman, wa la tudillana ba'dahu.
+
+Translation:
 O Allah, forgive our living and our dead, those present and those absent, our young and our old, our males and our females. O Allah, whoever You keep alive among us, keep him alive upon Islam, and whoever You cause to die among us, cause him to die upon faith. Do not let us go astray after him.` },
         { step: 9, title: 'Adult (Female)', detail: `اللَّهُمَّ اغْفِرْ لِحَيِّنَا وَمَيِّتِنَا وَشَاهِدِنَا وَغَائِبِنَا وَصَغِيرِنَا وَكَبِيرِنَا وَذَكَرِنَا وَأُنْثَانَا، اللَّهُمَّ مَنْ أَحْيَيْتَهُ مِنَّا فَأَحْيِهِ عَلَى الْإِسْلَامِ، وَمَنْ تَوَفَّيْتَهُ مِنَّا فَتَوَفَّهُ عَلَى الْإِيمَانِ، وَلا تُضِلَّنَا بَعْدَهَا.
-Allahummaghfir lihayyina wa mayyitina wa shahidina wa gha'ibina wa saghirina wa kabirina wa dhakarina wa unthana. Allahumma man ahyaytahu minna fa ahyihi ala al-Islam, wa man tawaffaytahu minna fatawaffahu ala al-iman, wa la tudillana ba'daha.
+
+Translation:
 O Allah, forgive our living and our dead, those present and those absent, our young and our old, our males and our females. O Allah, whoever You keep alive among us, keep her alive upon Islam, and whoever You cause to die among us, cause her to die upon faith. Do not let us go astray after her.` },
         { step: 10, title: 'Child Dua', detail: `اللَّهُمَّ اجْعَلْهُ لَنَا فَرَطًا وَاجْعَلْهُ لَنَا أَجْرًا وَذُخْرًا وَاجْعَلْهُ لَنَا شَافِعًا وَمُشَفَّعًا. (لِلْبِنْتِ: اللَّهُمَّ اجْعَلْهَا لَنَا فَرَطًا ... وَمُشَفَّعَةً)
-Allahumma-jalhu lana faratan, wa-jalhu lana ajran wa dhukhran, wa-jalhu lana shafi'an wa mushaffa'an. (For a girl: Allahumma-jalha ... wa mushaffa'ah.)
+
+Translation:
 O Allah, make this child a forerunner for us, a source of reward and treasure for us, and an intercessor whose intercession is accepted for us.` },
       ],
     },
@@ -83,34 +86,58 @@ O Allah, make this child a forerunner for us, a source of reward and treasure fo
       steps: [
         {
           step: 17,
-          title: 'Stand at the graveside respectfully',
-          detail: 'Stand facing qiblah, lower gaze, and reflect on the Hereafter.',
+          title: 'When lowering into the grave',
+          detail: 'When lowering the body into the grave, recite:\nبِسْمِ اللَّهِ وَبِاللَّهِ وَعَلَى مِلَّةِ رَسُولِ اللَّهِ\n\nTranslation:\nIn the name of Allah, with the help of Allah, and on the religion of the Messenger of Allah.',
+          note: 'Jami al-Tirmidhi 1046',
         },
         {
           step: 18,
           title: 'Cast three handfuls of earth',
-          detail: 'It is Sunnah to place three handfuls of earth into the grave from the head-side.',
-          note: '[Quran 20:55] - Ibn Majah, Abu Dawud',
+          detail: 'It is Sunnah to place three handfuls of earth into the grave from the head-side. Family and attendees may join by placing the three handfuls respectfully.',
+          note: 'Ibn Majah 1565',
         },
         {
           step: 19,
-          title: 'Dua after burial',
-          detail: 'After burial, pause briefly and ask Allah to grant firmness and forgiveness to the deceased.',
+          title: 'Optional verse while placing earth',
+          detail: 'Some scholars considered it mustahab (preferable), though not established Sunnah, to read from Surah Taha (20:55) while placing the three handfuls:\nFirst: مِنۡهَا خَلَقۡنٰكُمۡ (From it We created you)\nSecond: وَفِيهَا نُعِيدُكُمْ (Into it We will return you)\nThird: وَمِنْهَا نُخْرِجُكُمْ تَارَةً أُخْرَى (From it We will raise you again).',
+          note: '[Quran 20:55]',
         },
         {
           step: 20,
-          title: 'Dua to recite',
-          detail: 'اللهم اغفر له وارحمه وعافه واعف عنه\nAllahummaghfir lahu warhamhu wa aafihi wa fu anhu\nO Allah, forgive him, have mercy on him, grant him wellbeing, and pardon him.',
+          title: 'Dua after burial for steadfastness',
+          detail: 'After burial, pause and make istighfar and dua for firmness:\nاسْتَغْفِرُوا لِأَخِيكُمْ وَسَلُوا لَهُ بِالتَّثْبِيتِ فَإِنَّهُ الْآنَ يُسْأَلُ\n\nTranslation:\nPray for forgiveness for your brother and ask that he be made steadfast, for he is being questioned now.',
+          note: 'Abu Dawud 3221',
         },
         {
           step: 21,
-          title: 'Placing greenery on the grave',
-          detail: 'Placing fresh greenery is considered permissible with precedent in hadith literature.',
+          title: 'Graveside dua',
+          detail: 'اللهم اغفر له وارحمه وعافه واعف عنه\n\nTranslation:\nO Allah, forgive him, have mercy on him, grant him wellbeing, and pardon him.',
         },
         {
           step: 22,
+          title: 'Speak good of the deceased',
+          detail: 'Avoid speaking ill of the deceased and mention their good. The Prophet taught:\nلاَ تَسُبُّوا الأَمْوَاتَ\n\nTranslation:\nDo not abuse the dead, for they have reached what they sent forward.',
+          note: 'Sahih al-Bukhari 6516',
+        },
+        {
+          step: 23,
+          title: 'Remain in dhikr and remembrance',
+          detail: 'At the graveside, remain in dhikr, reflect on death and the Hereafter, and avoid idle talk.',
+        },
+        {
+          step: 24,
           title: 'Avoid sitting or walking on graves',
           detail: 'Do not sit, stand, or walk unnecessarily over graves; maintain full respect.',
+        },
+        {
+          step: 25,
+          title: 'Giving adhan at the grave',
+          detail: 'It is recommended by some scholars to give adhan at the grave.',
+        },
+        {
+          step: 26,
+          title: 'Reciting final verses of Surah al-Baqarah',
+          detail: 'It is recommended to recite the final verses of Surah al-Baqarah at or after burial.',
         },
       ],
     },
@@ -118,33 +145,33 @@ O Allah, make this child a forerunner for us, a source of reward and treasure fo
       heading: 'Condolence Etiquette (Taziyah)',
       steps: [
         {
-          step: 23,
+          step: 27,
           title: 'What is Taziyah?',
           detail: 'Offering condolences means comforting the bereaved family and encouraging sabr with dua.',
         },
         {
-          step: 24,
+          step: 28,
           title: 'What to say when giving condolences',
           detail: 'A known wording is: Inna lillahi ma akhadha wa lahu ma aata wa kullu shayin indahu bi-ajalin musamma.',
           note: 'English or Arabic may be used; meaning and sincerity matter.',
         },
         {
-          step: 25,
+          step: 29,
           title: 'Inna lillahi wa inna ilayhi rajiun',
-          detail: 'إنا لله وإنا إليه راجعون\nInna lillahi wa inna ilayhi rajiun\nIndeed we belong to Allah and to Him we return.',
+          detail: 'إنا لله وإنا إليه راجعون\n\nTranslation:\nIndeed we belong to Allah and to Him we return.',
         },
         {
-          step: 26,
+          step: 30,
           title: 'When to visit for condolences',
           detail: 'Offer condolences within three days where possible, usually after burial when family is less occupied.',
         },
         {
-          step: 27,
+          step: 31,
           title: 'Preparing food for the bereaved family',
           detail: 'Relatives and neighbors should provide food to the bereaved; burden should not be on grieving family.',
         },
         {
-          step: 28,
+          step: 32,
           title: 'Period of mourning',
           detail: 'General mourning is up to three days; widow observes her iddah period as prescribed.',
           note: 'Natural tears are permitted; prohibited mourning practices should be avoided.',
@@ -156,11 +183,10 @@ O Allah, make this child a forerunner for us, a source of reward and treasure fo
     'The Imam says Takbirs aloud; congregation follows silently throughout.',
     'No adhan, iqamah, ruku, sujud or tashahud in Janazah prayer.',
     'If you join late, match the Imam on whichever Takbir he is on.',
-    'Women are permitted to pray Salat al-Janazah.',
-    'All recitation is silent (sirr) according to the Hanafi school.',
-    'Walk behind the bier, not in front - this is the established Sunnah.',
-    'Do not sit until the bier has been set down on the ground.',
-    "Offer condolences (taziyah) once within three days of the death.",
-    'Neighbours and relatives should provide food for the bereaved family - not the family themselves.',
-  ],
+    'If the deceased left unpaid debts, they should be settled from the estate before distribution to heirs.',
+    'consult a scholar to ensure inehritence is handled according to Islamic law.',
+    'If there is a valid wasiyyah (will), execute it after funeral costs and debts, up to one-third of the estate for non-heirs.',
+    'For missed prayers and fasts generally, follow Hanafi guidance of local scholars regarding fidyah and related arrangements.',
+    'For detailed cases, consult a qualified local scholar.',],
 };
+  

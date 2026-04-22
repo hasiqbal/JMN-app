@@ -847,7 +847,7 @@ function JumuahSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMo
       <View style={fajrSelStyles.headerBand}>
         <MaterialIcons name="star" size={22} color={N ? N.textSub : DUAS_ACCENT_GREEN} />
         <View style={{ flex: 1 }}>
-          <Text style={[fajrSelStyles.headerTitle, N && { color: N.text }]}>After Jumu'ah Adhkar</Text>
+          <Text style={[fajrSelStyles.headerTitle, N && { color: N.text }]}>After Jumu&apos;ah Adhkar</Text>
           <Text style={[fajrSelStyles.headerSub, N && { color: N.textSub }]}>{"Choose what to recite after Jumu'ah"}</Text>
         </View>
       </View>

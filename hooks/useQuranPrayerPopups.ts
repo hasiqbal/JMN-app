@@ -5,6 +5,7 @@ import { getNextPrayer, getPrayerTimesForDate, PrayerTimesData } from '@/service
 
 const JAMAAT_THRESHOLDS_MINUTES = [30, 20, 15, 5];
 const PRAYER_END_THRESHOLDS_MINUTES = [45, 30, 15];
+const ASR_MAKROOH_WARNING_MINUTES = 21;
 const CHECK_INTERVAL_MS = 15 * 1000;
 const DATA_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -34,7 +35,7 @@ function parseIqamahDate(iqamah: string | undefined, baseDate: Date): Date | nul
 }
 
 function buildReminderKey(
-  kind: 'jamaat' | 'prayer-end',
+  kind: 'jamaat' | 'prayer-end' | 'makrooh-warning',
   prayerName: string,
   targetDate: Date,
   threshold: string,
@@ -54,6 +55,22 @@ function isWithinThresholdWindow(remainingSeconds: number, thresholdMinutes: num
 
 function isJamaatStartedWindow(remainingSeconds: number): boolean {
   return remainingSeconds <= 0 && remainingSeconds > -60;
+}
+
+function findPrayerDate(prayers: PrayerTimesData['prayers'], name: string): Date | null {
+  return prayers.find((p) => p.name === name)?.timeDate ?? null;
+}
+
+function isWithinAsrWindow(prayers: PrayerTimesData['prayers'], now: Date): boolean {
+  const asr = findPrayerDate(prayers, 'Asr');
+  const maghrib = findPrayerDate(prayers, 'Maghrib');
+  return !!(asr && maghrib && now >= asr && now < maghrib);
+}
+
+function isWithinZawaalWindow(prayers: PrayerTimesData['prayers'], now: Date): boolean {
+  const zawaal = findPrayerDate(prayers, 'Zawaal');
+  const dhuhr = findPrayerDate(prayers, 'Dhuhr');
+  return !!(zawaal && dhuhr && now >= zawaal && now < dhuhr);
 }
 
 export function useQuranPrayerPopups(): void {
@@ -83,10 +100,15 @@ export function useQuranPrayerPopups(): void {
     return prayerDataRef.current;
   }, []);
 
-  const showReminderOnce = React.useCallback((key: string, title: string, message: string): boolean => {
+  const showReminderOnce = React.useCallback((
+    key: string,
+    title: string,
+    message: string,
+    variant: 'default' | 'warning' = 'default',
+  ): boolean => {
     if (shownReminderKeys.has(key)) return false;
     shownReminderKeys.add(key);
-    showBanner(title, message);
+    showBanner(title, message, undefined, variant);
     return true;
   }, [showBanner]);
 
@@ -107,6 +129,8 @@ export function useQuranPrayerPopups(): void {
       const nextPrayerName = getPrayerLabel(nextPrayer.prayer.name || 'Prayer');
       const nextPrayerStart = nextPrayer.prayer.timeDate;
       const secondsToPrayerStart = Math.floor((nextPrayerStart.getTime() - now.getTime()) / 1000);
+      const isZawaalWindow = isWithinZawaalWindow(data.prayers, now);
+      const isAsrWindow = isWithinAsrWindow(data.prayers, now);
 
       const iqamahDate = parseIqamahDate(nextPrayer.prayer.iqamah, nextPrayerStart) ?? nextPrayerStart;
       const secondsToJamaat = Math.floor((iqamahDate.getTime() - now.getTime()) / 1000);
@@ -126,10 +150,27 @@ export function useQuranPrayerPopups(): void {
         }
       }
 
+      if (isAsrWindow && nextPrayerName === 'Maghrib' && isWithinThresholdWindow(secondsToPrayerStart, ASR_MAKROOH_WARNING_MINUTES)) {
+        const key = buildReminderKey('makrooh-warning', 'Asr', nextPrayerStart, String(ASR_MAKROOH_WARNING_MINUTES));
+        if (showReminderOnce(
+          key,
+          'Makrooh Time Warning',
+          'Makrooh time is about to enter. The last 20 minutes of Asr are about to start.',
+          'warning',
+        )) {
+          return;
+        }
+      }
+
       for (const threshold of PRAYER_END_THRESHOLDS_MINUTES) {
         if (!isWithinThresholdWindow(secondsToPrayerStart, threshold)) continue;
         const key = buildReminderKey('prayer-end', nextPrayerName, nextPrayerStart, String(threshold));
-        if (showReminderOnce(key, 'Prayer End Reminder', `${nextPrayerName} begins in ${threshold} minutes. Current prayer time is ending soon.`)) {
+        const isDhuhrAfterZawaal = isZawaalWindow && nextPrayerName === 'Dhuhr';
+        const title = isDhuhrAfterZawaal ? 'Zawaal Reminder' : 'Prayer End Reminder';
+        const message = isDhuhrAfterZawaal
+          ? `Zawaal ends in ${threshold} minutes. Dhuhr begins soon.`
+          : `${nextPrayerName} begins in ${threshold} minutes. Current prayer time is ending soon.`;
+        if (showReminderOnce(key, title, message)) {
           return;
         }
       }

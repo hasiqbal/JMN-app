@@ -7,10 +7,13 @@ interface BannerPayload {
   title: string;
   message?: string;
   durationMs: number;
+  variant: BannerVariant;
 }
 
+type BannerVariant = 'default' | 'warning';
+
 interface InAppBannerContextType {
-  showBanner: (title: string, message?: string, durationMs?: number) => void;
+  showBanner: (title: string, message?: string, durationMs?: number, variant?: BannerVariant) => void;
 }
 
 const InAppBannerContext = React.createContext<InAppBannerContextType | undefined>(undefined);
@@ -53,13 +56,14 @@ export function InAppBannerProvider({ children }: InAppBannerProviderProps) {
     });
   }, [clearHideTimer, opacity, translateY]);
 
-  const showBanner = React.useCallback((title: string, message?: string, durationMs = DEFAULT_DURATION_MS) => {
+  const showBanner = React.useCallback((title: string, message?: string, durationMs = DEFAULT_DURATION_MS, variant: BannerVariant = 'default') => {
     clearHideTimer();
     const next: BannerPayload = {
       id: Date.now(),
       title,
       message,
       durationMs,
+      variant,
     };
     setBanner(next);
   }, [clearHideTimer]);
@@ -108,9 +112,31 @@ export function InAppBannerProvider({ children }: InAppBannerProviderProps) {
               },
             ]}
           >
-            <Pressable style={styles.bannerCard} onPress={hideBanner}>
-              <Text style={styles.bannerTitle}>{banner.title}</Text>
-              {banner.message ? <Text style={styles.bannerMessage}>{banner.message}</Text> : null}
+            <Pressable
+              style={[
+                styles.bannerCard,
+                banner.variant === 'warning' && styles.bannerCardWarning,
+              ]}
+              onPress={hideBanner}
+            >
+              <Text
+                style={[
+                  styles.bannerTitle,
+                  banner.variant === 'warning' && styles.bannerTitleWarning,
+                ]}
+              >
+                {banner.title}
+              </Text>
+              {banner.message ? (
+                <Text
+                  style={[
+                    styles.bannerMessage,
+                    banner.variant === 'warning' && styles.bannerMessageWarning,
+                  ]}
+                >
+                  {banner.message}
+                </Text>
+              ) : null}
             </Pressable>
           </Animated.View>
         </View>
@@ -144,10 +170,17 @@ const styles = StyleSheet.create({
     boxShadow: '0px 6px 16px rgba(0,0,0,0.15)',
     elevation: 6,
   },
+  bannerCardWarning: {
+    borderColor: 'rgba(161, 98, 7, 0.28)',
+    backgroundColor: '#FFF8E8',
+  },
   bannerTitle: {
     fontSize: 13,
     fontWeight: '800',
     color: '#114528',
+  },
+  bannerTitleWarning: {
+    color: '#7A3E00',
   },
   bannerMessage: {
     marginTop: 4,
@@ -155,5 +188,8 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     color: '#2A5A3F',
     fontWeight: '500',
+  },
+  bannerMessageWarning: {
+    color: '#8A5208',
   },
 });

@@ -19,7 +19,7 @@ export type AdhkarSelection =
 /**
  * Content rendering type — how should this group's content be displayed?
  */
-export type ContentType = 'adhkar' | 'quran';
+export type ContentType = 'adhkar' | 'quran' | 'qaseedah' | 'naat';
 
 /**
  * Content source — where is the content stored?

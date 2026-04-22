@@ -36,7 +36,7 @@ export const SALAH_BREAKERS_GUIDE: HowToGuide = {
       heading: 'Movement, Form, and Direction',
       steps: [
         { step: 1, title: 'Eating or drinking', detail: 'Any eating or drinking during prayer invalidates salah.' },
-        { step: 2, title: 'Excessive movement (amal kathir)', detail: 'Movement invalidates when an observer would think the person is no longer praying; jurists also describe this as repeated unnecessary movement. 3 small movements in the same rukn are can be considered excessive movement.' },
+        { step: 2, title: 'Excessive movement (amal kathir)', detail: 'Movement invalidates when an observer would think the person is no longer praying; jurists also describe this as repeated unnecessary movement. 3 small movements in the same rukn are can be considered excessive movement. Using both hands or doing an action with one hand which would usually require 2 hands is also excessive movement' },
         { step: 3, title: 'Action destroying form of salah', detail: 'Any foreign act that breaks the outward form of prayer invalidates it.' },
         { step: 4, title: 'Turning chest away from qiblah', detail: 'Turning the chest away invalidates prayer; turning only the face is makruh but does not itself invalidate.' },
         { step: 5, title: 'Exposure of awrah', detail: 'If required awrah remains uncovered for the duration of prayer of one rukn, prayer is invalidated.' },
@@ -73,6 +73,14 @@ export const SALAH_BREAKERS_GUIDE: HowToGuide = {
         { step: 4, title: 'Woman directly beside/in front in jama`ah case', detail: 'Under known Hanafi conditions in same congregational prayer and no separator, this can invalidate the man’s prayer.' },
         { step: 5, title: 'Sahib al-tartib remembering prior missed fard', detail: 'If one is sahib al-tartib and realises anearlier fard is still due, current prayer is invalidated unless he owes 6 or more prayers or the time for 6 prayers has elasped}.' },
         { step: 6, title: 'Time expiry during prayer', detail: 'Examples include sunrise during Fajr; your notes also include timing-related Jumu`ah/`Asr transition cases.' },
+      ],
+    },
+    {
+      heading: 'When It Is Wajib to Break Salah',
+      steps: [
+        { step: 1, title: 'Saving life from immediate danger', detail: 'It is wajib to break salah when immediate action is needed to save a life or prevent severe harm (for example, a child in danger or a person about to fall).' },
+        { step: 2, title: 'Stopping serious emergency harm', detail: 'If there is an urgent fire, attack, or similar emergency requiring immediate action, one must break salah and respond.' },
+        { step: 3, title: 'Urgent call where real harm is feared', detail: 'If a person calls for urgent help and delaying response is likely to cause serious harm, breaking salah becomes wajib.' },
       ],
     },
   ],

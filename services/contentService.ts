@@ -141,7 +141,7 @@ export interface PrayerTimeRow {
 
 export interface AdhkarRow {
   id: string;
-  prayer_time: 'before-fajr' | 'after-fajr' | 'after-dhuhr' | 'after-jumuah' | 'after-asr' | 'after-maghrib' | 'after-isha';
+  prayer_time: string;
   title: string;
   arabic_title: string | null;
   arabic: string;
@@ -161,7 +161,7 @@ export interface AdhkarRow {
   tafsir?: string | null;
   description: string | null;
   card_color?: string | null;
-  content_type?: 'adhkar' | 'quran' | null;     // New: how to render this group
+  content_type?: 'adhkar' | 'quran' | 'qaseedah' | 'naat' | null;     // New: how to render this group
   content_source?: 'db' | 'local' | 'api' | null;  // New: where is content stored
   content_key?: string | null;                    // New: e.g., 'surah-36' for local Quran
   card_icon?: string | null;                      // New: card display icon
@@ -385,17 +385,43 @@ export async function hasPrayerTimesInDB(): Promise<boolean> {
 // ── Adhkar ────────────────────────────────────────────────────────────────
 
 export async function fetchAdhkarForPrayerTime(
-  prayerTime: AdhkarRow['prayer_time']
+  prayerTime: AdhkarRow['prayer_time'],
+  options?: { contentTypes?: Array<'adhkar' | 'quran' | 'qaseedah' | 'naat'> }
 ): Promise<AdhkarRow[]> {
   try {
     const supabase = getSupabaseClient();
-    const { data, error } = await supabase
+    let query = supabase
       .from('adhkar')
       .select('*')
       .eq('prayer_time', prayerTime)
       .eq('is_active', true)
       .order('group_order', { ascending: true })
       .order('display_order', { ascending: true });
+
+    if (options?.contentTypes && options.contentTypes.length > 0) {
+      query = query.in('content_type', options.contentTypes);
+    }
+
+    const { data, error } = await query;
+    if (error || !data) return [];
+    return data as AdhkarRow[];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchQaseedahNaatEntries(): Promise<AdhkarRow[]> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('adhkar')
+      .select('*')
+      .eq('is_active', true)
+      .in('content_type', ['qaseedah', 'naat'])
+      .order('content_type', { ascending: true })
+      .order('group_order', { ascending: true })
+      .order('display_order', { ascending: true });
+
     if (error || !data) return [];
     return data as AdhkarRow[];
   } catch {
@@ -432,7 +458,7 @@ export interface AdhkarGroupMeta {
   description: string | null;
   card_reference: string | null;
   card_color: string | null;
-  content_type: 'adhkar' | 'quran' | null;     // New: portal-defined rendering type
+  content_type: 'adhkar' | 'quran' | 'qaseedah' | 'naat' | null;     // New: portal-defined rendering type
   content_source: 'db' | 'local' | 'api' | null;  // New: where content is stored
   content_key: string | null;                   // New: e.g., 'surah-36' for local Quran
   card_icon: string | null;                     // New: portal-defined card icon
@@ -443,7 +469,7 @@ export interface AdhkarGroupWarmupRow {
   group_name: string | null;
   name: string | null;
   content_key: string | null;
-  content_type: 'adhkar' | 'quran' | null;
+  content_type: 'adhkar' | 'quran' | 'qaseedah' | 'naat' | null;
   card_subtitle: string | null;
   description: string | null;
   arabic_title: string | null;
@@ -472,13 +498,20 @@ function isAdhkarGroupsSchemaMismatch(message: string | null | undefined): boole
   );
 }
 
+function normalizeAdhkarContentType(value: unknown): AdhkarGroupWarmupRow['content_type'] {
+  if (value === 'adhkar' || value === 'quran' || value === 'qaseedah' || value === 'naat') {
+    return value;
+  }
+  return null;
+}
+
 function mapWarmupRows(rows: Array<Record<string, unknown>>): AdhkarGroupWarmupRow[] {
   return rows
     .map((row) => ({
       group_name: typeof row.group_name === 'string' ? row.group_name : '',
       name: typeof row.name === 'string' ? row.name : null,
       content_key: typeof row.content_key === 'string' ? row.content_key : null,
-      content_type: row.content_type === 'adhkar' || row.content_type === 'quran' ? row.content_type : null,
+      content_type: normalizeAdhkarContentType(row.content_type),
       card_subtitle: typeof row.card_subtitle === 'string' ? row.card_subtitle : null,
       description: typeof row.description === 'string' ? row.description : null,
       arabic_title: typeof row.arabic_title === 'string' ? row.arabic_title : null,
@@ -615,10 +648,7 @@ export async function fetchAdhkarGroupsForPrayerTime(
               typeof raw.card_color === 'string'
                 ? raw.card_color
                 : existing?.card_color ?? null,
-            content_type:
-              raw.content_type === 'adhkar' || raw.content_type === 'quran'
-                ? raw.content_type
-                : existing?.content_type ?? null,
+            content_type: normalizeAdhkarContentType(raw.content_type) ?? existing?.content_type ?? null,
             content_source:
               raw.content_source === 'db' || raw.content_source === 'local' || raw.content_source === 'api'
                 ? raw.content_source
@@ -976,7 +1006,7 @@ async function readAnnouncementsCache(): Promise<AnnouncementRow[]> {
     const parsed = JSON.parse(stored) as Partial<AnnouncementsCachePayload>;
     if (!parsed || !Array.isArray(parsed.rows)) return [];
     const rows = parsed.rows
-      .map((row) => mapAnnouncementRow(row as Record<string, unknown>));
+      .map((row) => mapAnnouncementRow(row as unknown as Record<string, unknown>));
     announcementsMemoryCache = {
       updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : Date.now(),
       rows,

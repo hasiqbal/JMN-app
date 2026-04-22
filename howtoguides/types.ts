@@ -1,8 +1,15 @@
+export interface HowToStepImage {
+  uri: string;
+  caption: string;
+  source?: string;
+}
+
 export interface HowToStep {
   step: number;
   title: string;
   detail: string;
   note?: string;
+  images?: HowToStepImage[];
 }
 
 export interface HowToSection {

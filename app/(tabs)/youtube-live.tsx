@@ -119,7 +119,7 @@ export default function YouTubeLiveScreen() {
         <View style={[styles.headerRow, palette && { backgroundColor: palette.surface, borderColor: palette.border }]}> 
           <Image source={require('@/assets/images/masjid-logo.png')} style={styles.logo} contentFit="contain" />
           <View style={{ flex: 1 }}>
-            <Text style={[styles.name, palette && { color: palette.text }]}>Jami' Masjid Noorani</Text>
+            <Text style={[styles.name, palette && { color: palette.text }]}>Jami&apos; Masjid Noorani</Text>
             <Text style={[styles.sub, palette && { color: palette.textSub }]}>YouTube Live</Text>
           </View>
           <View style={[styles.livePill, { backgroundColor: isLive ? '#BC2F2F' : '#637084' }]}> 
