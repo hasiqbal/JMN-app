@@ -66,13 +66,13 @@ export const UMRAH_HANAFI_GUIDE: HowToGuide = {
           step: 4,
           title: 'Make niyyah close to Miqat',
           detail:
-            'Make intention for Umrah as Miqat approaches so Ihram restrictions do not start unnecessarily early.\n\nNiyyah (Arabic):\nاَللّٰهُمَّ إِنِّيْ أُرِيْدُ الْعُمْرَةَ فَيَسِّرْهَا لِيْ وَتَقَبَّلْهَا مِنِّيْ\n\nTransliteration:\nAllahumma inni uridu al-\'umrata fa-yassirha li wa-taqabbalha minni\n\nTranslation:\nO Allah, I intend Umrah, so make it easy for me and accept it from me.',
+            'Make intention for Umrah as Miqat approaches so Ihram restrictions do not start unnecessarily early.\n\nNiyyah (Arabic):\nاَللّٰهُمَّ إِنِّيْ أُرِيْدُ الْعُمْرَةَ فَيَسِّرْهَا لِيْ وَتَقَبَّلْهَا مِنِّيْ\n\nTransliteration:\nAllahumma inni uridu al-\'umrata fa-yassirha li wa-taqabbalha minni\n\nMeaning:\nO Allah, I intend Umrah, so make it easy for me and accept it from me.',
         },
         {
           step: 5,
           title: 'Recite Talbiyah to enter Ihram',
           detail:
-            'After niyyah, recite Talbiyah at least once. In Hanafi fiqh, reciting Talbiyah is wajib for entering the Ihram state.\n\nTalbiyah (Arabic):\nلَبَّيْكَ اللّٰهُمَّ لَبَّيْكَ، لَبَّيْكَ لَا شَرِيْكَ لَكَ لَبَّيْكَ، إِنَّ الْحَمْدَ وَالنِّعْمَةَ لَكَ وَالْمُلْكَ، لَا شَرِيْكَ لَكَ\n\nTransliteration:\nLabbayk Allahumma labbayk, labbayka la sharika laka labbayk, inna al-hamda wa-n-ni\'mata laka wa-l-mulk, la sharika lak\n\nTranslation:\nHere I am, O Allah, here I am. Here I am, You have no partner, here I am. Indeed, all praise, favour, and sovereignty are Yours. You have no partner.',
+            'After niyyah, recite Talbiyah at least once. In Hanafi fiqh, reciting Talbiyah is wajib for entering the Ihram state.\n\nTalbiyah (Arabic):\nلَبَّيْكَ اللّٰهُمَّ لَبَّيْكَ، لَبَّيْكَ لَا شَرِيْكَ لَكَ لَبَّيْكَ، إِنَّ الْحَمْدَ وَالنِّعْمَةَ لَكَ وَالْمُلْكَ، لَا شَرِيْكَ لَكَ\n\nTransliteration:\nLabbayk Allahumma labbayk, labbayka la sharika laka labbayk, inna al-hamda wa-n-ni\'mata laka wa-l-mulk, la sharika lak\n\nMeaning:\nHere I am, O Allah, here I am. Here I am, You have no partner, here I am. Indeed, all praise, favour, and sovereignty are Yours. You have no partner.',
         },
         {
           step: 6,
@@ -101,7 +101,7 @@ export const UMRAH_HANAFI_GUIDE: HowToGuide = {
           step: 3,
           title: 'Entering Makkah and crossing Haram boundary',
           detail:
-            'As you approach and enter the Haram boundary, continue Talbiyah, dhikr, Salawat, and dua.\n\nRecommended dua on entering the Haram:\nاَللَّهُمَّ هَذَا حَرَمُكَ وَأَمْنُكَ فَحَرِّمْنِي عَلَى النَّارِ وَأَمِنِّي مِنْ عَذَابِكَ يَوْمَ تَبْعَثُ عِبَادَكَ وَاجْعَلْنِي مِنْ أَوْلِيَائِكَ وَأَهْلِ طَاعَتِكَ\n\nTransliteration:\nAllahumma hadha haramuka wa amnuka fa harrimni ala n-nar, wa aminni min adhabi ka yawma tabathu ibadak, wajalni min awliyaika wa ahli taatik.\n\nTranslation:\nO Allah, this is Your sanctuary and security. Make me forbidden to the Fire, keep me safe from punishment on the Day of Resurrection, and make me among Your obedient servants.',
+            'As you approach and enter the Haram boundary, continue Talbiyah, dhikr, Salawat, and dua.\n\nRecommended dua on entering the Haram:\nاَللَّهُمَّ هَذَا حَرَمُكَ وَأَمْنُكَ فَحَرِّمْنِي عَلَى النَّارِ وَأَمِنِّي مِنْ عَذَابِكَ يَوْمَ تَبْعَثُ عِبَادَكَ وَاجْعَلْنِي مِنْ أَوْلِيَائِكَ وَأَهْلِ طَاعَتِكَ\n\nTransliteration:\nAllahumma hadha haramuka wa amnuka fa harrimni ala n-nar, wa aminni min adhabi ka yawma tabathu ibadak, wajalni min awliyaika wa ahli taatik.\n\nMeaning:\nO Allah, this is Your sanctuary and security. Make me forbidden to the Fire, keep me safe from punishment on the Day of Resurrection, and make me among Your obedient servants.',
         },
         {
           step: 4,
@@ -117,8 +117,25 @@ export const UMRAH_HANAFI_GUIDE: HowToGuide = {
         {
           step: 1,
           title: 'Enter through available gate with mosque dua',
-          detail:
-            'Bab al-Salam is sunnah when accessible, but follow designated Umrah entrances if directed. Enter with right foot and recite mosque-entering supplications.\n\nSupplication 1:\nبِسْمِ اللهِ اَللَّهُمَّ صَلِّ عَلَى مُحَمَّدٍ اللّٰهُمَّ اغْفِرْ لِي وَافْتَحْ لِي أَبْوَابَ رَحْمَتِكَ\n\nTransliteration:\nBismi Llah. Allahumma salli ala Muhammad. Allahumma-ghfir li wa-ftah li abwaba rahmatik.\n\nSupplication 2:\nأَعُوذُ بِاللهِ الْعَظِيمِ وَبِوَجْهِهِ الْكَرِيمِ وَسُلْطَانِهِ الْقَدِيمِ مِنَ الشَّيْطَانِ الرَّجِيمِ\n\nTransliteration:\nAudhu billahi l-azim wa bi wajhihi l-karim wa sultanihi l-qadim mina sh-shaytani r-rajim.',
+          detail: `Bab al-Salam is sunnah when accessible, but follow designated Umrah entrances if directed. Enter with right foot and recite mosque-entering supplications.
+
+Supplication 1 (Arabic):
+بِسْمِ اللهِ اَللَّهُمَّ صَلِّ عَلَى مُحَمَّدٍ اللّٰهُمَّ اغْفِرْ لِي وَافْتَحْ لِي أَبْوَابَ رَحْمَتِكَ
+
+Transliteration:
+Bismi Llah. Allahumma salli ala Muhammad. Allahumma-ghfir li wa-ftah li abwaba rahmatik.
+
+Meaning:
+In the name of Allah. O Allah, send blessings upon Muhammad. O Allah, forgive me and open for me the doors of Your mercy.
+
+Supplication 2 (Arabic):
+أَعُوذُ بِاللهِ الْعَظِيمِ وَبِوَجْهِهِ الْكَرِيمِ وَسُلْطَانِهِ الْقَدِيمِ مِنَ الشَّيْطَانِ الرَّجِيمِ
+
+Transliteration:
+Audhu billahi l-azim wa bi wajhihi l-karim wa sultanihi l-qadim mina sh-shaytani r-rajim.
+
+Meaning:
+I seek refuge in Allah the Magnificent, by His noble countenance and eternal authority, from the accursed Satan.`,
         },
         {
           step: 2,
@@ -135,8 +152,34 @@ export const UMRAH_HANAFI_GUIDE: HowToGuide = {
         {
           step: 4,
           title: 'Recommended adhkar at first sight',
-          detail:
-            'Recite three times:\nاللّٰهُ أَكْبَرُ اللّٰهُ أَكْبَرُ لَا إِلٰهَ إِلَّا اللّٰهُ\n\nThen make abundant personal dua.\n\nAlso recommended:\nاَللَّهُمَّ زِدْ هَذَا الْبَيْتَ تَشْرِيفًا وَتَعْظِيمًا وَتَكْرِيمًا وَمَهَابَةً وَزِدْ مَنْ شَرَّفَهُ وَكَرَّمَهُ مِمَّنْ حَجَّهُ أَوِ اعْتَمَرَهُ تَشْرِيفًا وَتَكْرِيمًا وَتَعْظِيمًا وَبِرًّا\n\nAnd:\nاَللَّهُمَّ أَنْتَ السَّلَامُ وَمِنْكَ السَّلَامُ حَيِّنَا رَبَّنَا بِالسَّلَامِ',
+          detail: `Recite three times:
+اللّٰهُ أَكْبَرُ اللّٰهُ أَكْبَرُ لَا إِلٰهَ إِلَّا اللّٰهُ
+
+Transliteration:
+Allahu akbar, Allahu akbar, la ilaha illa Allah.
+
+Meaning:
+Allah is the Greatest, Allah is the Greatest, there is no deity except Allah.
+
+Then make abundant personal dua.
+
+Also recommended:
+اَللَّهُمَّ زِدْ هَذَا الْبَيْتَ تَشْرِيفًا وَتَعْظِيمًا وَتَكْرِيمًا وَمَهَابَةً وَزِدْ مَنْ شَرَّفَهُ وَكَرَّمَهُ مِمَّنْ حَجَّهُ أَوِ اعْتَمَرَهُ تَشْرِيفًا وَتَكْرِيمًا وَتَعْظِيمًا وَبِرًّا
+
+Transliteration:
+Allahumma zid hadha l-bayta tashrifan wa taziman wa takriman wa mahabatan, wa zid man sharrafahu wa karramahu mimman hajjahu aw itamarahu tashrifan wa takriman wa taziman wa birra.
+
+Meaning:
+O Allah, increase this House in honor, reverence, dignity, and awe, and increase all who honor it through Hajj or Umrah in honor, dignity, reverence, and righteousness.
+
+And:
+اَللَّهُمَّ أَنْتَ السَّلَامُ وَمِنْكَ السَّلَامُ حَيِّنَا رَبَّنَا بِالسَّلَامِ
+
+Transliteration:
+Allahumma anta s-salam wa minka s-salam, hayyina Rabbana bi s-salam.
+
+Meaning:
+O Allah, You are Peace and from You is peace. O our Lord, grant us life in peace.`,
         },
       ],
     },
@@ -170,8 +213,25 @@ export const UMRAH_HANAFI_GUIDE: HowToGuide = {
         {
           step: 3,
           title: 'Niyyah and Istilam safely',
-          detail:
-            'Make intention for Tawaf (verbal or in heart). You may say:\nاَللَّهُمَّ إِنِّي أُرِيدُ طَوَافَ بَيْتِكَ الْحَرَامِ فَيَسِّرْهُ لِي وَتَقَبَّلْهُ مِنِّي\n\nIf possible, kiss/touch Hajar al-Aswad. If crowd is intense, perform Istilam from distance by raising hands toward it and saying: بِسْمِ اللّٰهِ وَاللّٰهُ أَكْبَرُ. Do not push or harm others.',
+          detail: `Make intention for Tawaf (verbal or in heart). You may say:
+اَللَّهُمَّ إِنِّي أُرِيدُ طَوَافَ بَيْتِكَ الْحَرَامِ فَيَسِّرْهُ لِي وَتَقَبَّلْهُ مِنِّي
+
+Transliteration:
+Allahumma inni uridu tawafa baytika l-harami fa yassirhu li wa taqabbalhu minni.
+
+Meaning:
+O Allah, I intend Tawaf of Your Sacred House, so make it easy for me and accept it from me.
+
+If possible, kiss or touch Hajar al-Aswad. If crowd is intense, perform Istilam from distance by raising hands toward it and saying:
+بِسْمِ اللّٰهِ وَاللّٰهُ أَكْبَرُ
+
+Transliteration:
+Bismi Llahi wa Allahu akbar.
+
+Meaning:
+In the name of Allah, and Allah is the Greatest.
+
+Do not push or harm others.`,
         },
         {
           step: 4,
@@ -188,8 +248,14 @@ export const UMRAH_HANAFI_GUIDE: HowToGuide = {
         {
           step: 6,
           title: 'Rukn al-Yamani and the final stretch dua',
-          detail:
-            'At Rukn al-Yamani, touch it if easy; if not, continue without gesturing. Between Rukn al-Yamani and Hajar al-Aswad, recite:\nرَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الْآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ',
+          detail: `At Rukn al-Yamani, touch it if easy; if not, continue without gesturing. Between Rukn al-Yamani and Hajar al-Aswad, recite:
+رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الْآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ
+
+Transliteration:
+Rabbana atina fi d-dunya hasanatan wa fi l-akhirati hasanatan wa qina adhaba n-nar.
+
+Meaning:
+Our Lord, grant us good in this world and good in the Hereafter, and protect us from the punishment of the Fire.`,
           images: [
             {
               uri: 'https://hajjumrahplanner.com/wp-content/uploads/2017/02/rukn-yamani.jpg',
@@ -201,8 +267,14 @@ export const UMRAH_HANAFI_GUIDE: HowToGuide = {
         {
           step: 7,
           title: 'Two rakah after Tawaf',
-          detail:
-            'After seven circuits, cover right shoulder again (for men), then pray two rakah preferably where Maqam Ibrahim is between you and the Kabah if space allows. Recite softly while moving to prayer place: وَاتَّخِذُوا مِنْ مَقَامِ إِبْرَاهِيمَ مُصَلًّى',
+          detail: `After seven circuits, cover right shoulder again (for men), then pray two rakah preferably where Maqam Ibrahim is between you and the Kabah if space allows. Recite softly while moving to prayer place:
+وَاتَّخِذُوا مِنْ مَقَامِ إِبْرَاهِيمَ مُصَلًّى
+
+Transliteration:
+Wa ttakhidhu min maqami Ibrahima musalla.
+
+Meaning:
+Take the standing place of Ibrahim as a place of prayer.`,
           images: [
             {
               uri: 'https://hajjumrahplanner.com/wp-content/uploads/2017/02/maqam-ibrahim.jpg',
@@ -214,8 +286,16 @@ export const UMRAH_HANAFI_GUIDE: HowToGuide = {
         {
           step: 8,
           title: 'Drink Zamzam and visit Multazam if possible',
-          detail:
-            'Drink Zamzam with intention and dua. You may stand facing the Kabah, say Bismillah, drink in three breaths, and praise Allah. Recommended dua:\nاللّٰهُمَّ إِنِّي أَسْأَلُكَ عِلْمًا نَافِعًا وَرِزْقًا وَاسِعًا وَعَمَلًا مُتَقَبَّلًا وَشِفَاءً مِنْ كُلِّ دَاءٍ\n\nIf accessible, make dua at Multazam (between Hajar al-Aswad and Kabah door). If crowded, face it from distance and supplicate.',
+          detail: `Drink Zamzam with intention and dua. You may stand facing the Kabah, say Bismillah, drink in three breaths, and praise Allah. Recommended dua:
+اللّٰهُمَّ إِنِّي أَسْأَلُكَ عِلْمًا نَافِعًا وَرِزْقًا وَاسِعًا وَعَمَلًا مُتَقَبَّلًا وَشِفَاءً مِنْ كُلِّ دَاءٍ
+
+Transliteration:
+Allahumma inni asaluka ilman nafian wa rizqan wasian wa amalan mutaqabbalan wa shifaan min kulli da.
+
+Meaning:
+O Allah, I ask You for beneficial knowledge, abundant provision, accepted deeds, and healing from every illness.
+
+If accessible, make dua at Multazam (between Hajar al-Aswad and Kabah door). If crowded, face it from distance and supplicate.`,
         },
       ],
     },
@@ -260,11 +340,21 @@ If returning is difficult due to crowds or fatigue, it may be left. You may also
           title: 'Proceed to Safa and recite opening adhkar once',
           detail: `As you approach Safa, recite once:
 إِنَّ الصَّفَا وَالْمَرْوَةَ مِنْ شَعَائِرِ الله
-Inna s-Safa wa l-Marwata min shaaa'iri Llah.
+
+      Transliteration:
+      Inna s-Safa wa l-Marwata min shaaa'iri Llah.
+
+      Meaning:
+      Surely Safa and Marwa are among the symbols of Allah.
 
 Then recite:
 أَبْدَأُ بِمَا بَدَأَ اللهُ بِهِ
-Abda'u bima bada'a Llahu bih.
+
+      Transliteration:
+      Abda'u bima bada'a Llahu bih.
+
+      Meaning:
+      I begin with what Allah began with.
 
 These opening recitations are done once before Sai, not at the start of every lap.`,
         },
@@ -273,14 +363,32 @@ These opening recitations are done once before Sai, not at the start of every la
           title: 'Make dua at Safa, then move to Marwa',
           detail: `At Safa, face the Kaaba, raise your hands for dua (not like Tawaf gesturing), and begin with takbir/tahlil/salawat.
 
-      Sunnah recitations include:
-      اللّٰهُ أَكْبَرُ ❁ اللّٰهُ أَكْبَرُ ❁ اللّٰهُ أَكْبَرُ ❁ وَلِلّٰهِ الْحَمْدُ ❁
+Sunnah recitations include:
+اللّٰهُ أَكْبَرُ ❁ اللّٰهُ أَكْبَرُ ❁ اللّٰهُ أَكْبَرُ ❁ وَلِلّٰهِ الْحَمْدُ ❁
 
-      لَا إِلٰهَ إِلَّا اللّٰهُ وَحْدَهُ لاَ شَرِيكَ لَهُ ❁ لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ ❁ يُحْيِي وَيُمِيتُ ❁ وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ ❁
+Transliteration:
+Allahu akbar, Allahu akbar, Allahu akbar, wa liLlahi l-hamd.
 
-      لَا إِلٰهَ إِلَّا اللّٰهُ وَحْدَهُ ❁ أَنْجَزَ وَعْدَهُ وَنَصَرَ عَبْدَهُ وَهَزَمَ الْأَحْزَابَ وَحْدَهُ ❁
+Meaning:
+Allah is the Greatest, and all praise belongs to Allah.
 
-      Repeat this cycle three times, making personal dua between each repetition, then proceed from Safa to Marwa.`,
+لَا إِلٰهَ إِلَّا اللّٰهُ وَحْدَهُ لاَ شَرِيكَ لَهُ ❁ لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ ❁ يُحْيِي وَيُمِيتُ ❁ وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ ❁
+
+Transliteration:
+La ilaha illa Allahu wahdahu la sharika lah, lahu l-mulku wa lahu l-hamd, yuhyi wa yumit, wa huwa ala kulli shayin qadir.
+
+Meaning:
+There is no deity except Allah alone without partner. His is the dominion and praise. He gives life and causes death, and He has power over all things.
+
+لَا إِلٰهَ إِلَّا اللّٰهُ وَحْدَهُ ❁ أَنْجَزَ وَعْدَهُ وَنَصَرَ عَبْدَهُ وَهَزَمَ الْأَحْزَابَ وَحْدَهُ ❁
+
+Transliteration:
+La ilaha illa Allahu wahdah, anjaza wadah, wa nasara abdah, wa hazama l-ahzaba wahdah.
+
+Meaning:
+There is no deity except Allah alone. He fulfilled His promise, aided His servant, and defeated the confederates alone.
+
+Repeat this cycle three times, making personal dua between each repetition, then proceed from Safa to Marwa.`,
         },
         {
           step: 6,
@@ -327,13 +435,25 @@ If any part of the route is left uncovered, Sai remains incomplete until correct
           title: 'Dua and dhikr during the walk',
           detail: `No fixed dhikr is compulsory between Safa and Marwa. You may recite Quran, salawat, and personal duas.
 
-      Commonly recited duas include:
-      رَبِّ اغْفِرْ وَارْحَمْ ❁ تَجَاوَزْ عَمَّا تَعْلَمْ ❁ إِنَّكَ أَنْتَ الْأَعَزُّ الْأَكْرَمُ ❁
+Commonly recited duas include:
+رَبِّ اغْفِرْ وَارْحَمْ ❁ تَجَاوَزْ عَمَّا تَعْلَمْ ❁ إِنَّكَ أَنْتَ الْأَعَزُّ الْأَكْرَمُ ❁
 
-      and:
-      رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الْآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ ❁
+Transliteration:
+Rabbi ghfir warham, tajawaz amma talam, innaka anta l-azzu l-akram.
 
-      On reaching Marwa, face the Kaaba and repeat the same supplication pattern used at Safa.`,
+Meaning:
+My Lord, forgive and have mercy, overlook what You know of my faults; You are the Most Mighty, the Most Generous.
+
+and:
+رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الْآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ ❁
+
+Transliteration:
+Rabbana atina fi d-dunya hasanatan wa fi l-akhirati hasanatan wa qina adhaba n-nar.
+
+Meaning:
+Our Lord, grant us good in this world and good in the Hereafter, and protect us from the punishment of the Fire.
+
+On reaching Marwa, face the Kaaba and repeat the same supplication pattern used at Safa.`,
         },
         {
           step: 10,
@@ -350,6 +470,12 @@ If you pause for necessity (restroom, heavy fatigue, or congregational prayer), 
 As you leave the Haram, step out with the left foot and recite:
 بِسْمِ اللهِ وَالصَّلَاةُ وَالسَّلَّامُ عَلَى رَسُولِ اللهِ ❁ اللّٰهُمَّ إِنِّي أَسْأَلُكَ مِنْ فَضْلِكَ ❁
 
+Transliteration:
+Bismi Llahi wa s-salatu wa s-salamu ala rasuli Llah, Allahumma inni asaluka min fadlik.
+
+Meaning:
+In the name of Allah, and blessings and peace be upon the Messenger of Allah. O Allah, I ask You from Your bounty.
+
 Then complete Halq/Taqsir to exit Ihram for Umrah. If performing Hajj al-Qiran, you remain in Ihram and do not cut hair at this stage.`,
           images: [
             {
@@ -365,6 +491,12 @@ Then complete Halq/Taqsir to exit Ihram for Umrah. If performing Hajj al-Qiran, 
           detail: `A reported supplication from Abdullah ibn Umar at Safa includes:
 
 اللّٰهُمَّ اعْصِمْنَا بِدِينِكَ وَطَوَاعِيَتِكَ وَطَوَاعِيَةِ رَسُولِكَ وَجَنِّبْنَا حُدُودَكَ ❁ اللّٰهُمَّ اجْعَلْنَا نُحِبُّكَ وَنُحِبُّ مَلَائِكَتَكَ ❁ وَأَنْبِيَاءَكَ وَرُسُلَكَ ❁ وَنُحِبُّ عِبَادَكَ الصَّالِحِينَ ❁ اللّٰهُمَّ حَبِّبْنَا إِلَيْكَ وَإِلَى مَلَائِكَتِكَ وَإِلَى أَنْبِيَائِكَ وَرُسُلِكَ ❁ وَإِلَى عِبَادِكَ الصَّالِحِينَ ❁ اللّٰهُمَّ يَسِّرْنَا لِلْيُسْرَى وَجَنِّبْنَا الْعُسْرَى وَاغْفِرْ لَنَا فِي الْآخِرَةِ وَالْأُولَى وَاجْعَلْنَا مِنْ أَئِمَّةِ الْمُتَّقِينَ ❁
+
+      Transliteration (opening):
+      Allahumma asimna bi dinika wa taatika wa taati rasulika wa jannibna hududak...
+
+      Meaning (summary):
+      O Allah, keep us firm in Your religion and obedience, fill our hearts with love for You and Your righteous servants, grant us ease, forgive us in this life and the next, and make us among the God-fearing.
 
 These are optional. You may recite them, or make sincere personal dua in any language.`,
         },

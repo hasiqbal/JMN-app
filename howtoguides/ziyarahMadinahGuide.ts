@@ -5,41 +5,12 @@ const BAQI_MAP_SOURCE = 'Source: hajjumrahplanner.com/jannat-al-baqi-map/';
 const BAQI_DETAILS_SOURCE = 'Source: hajjumrahplanner.com/jannatul-baqi/';
 const BAQI_ALT_SOURCE = 'Source: takemetoumrah.com/jannatul-baqi/';
 
-const compactGuideText = (value: string): string => value
-  .replace(/\r\n/g, '\n')
-  .split('\n')
-  .map((line) => line.trimEnd())
-  .join('\n')
-  .replace(/\n{2,}/g, '\n')
-  .trim();
-
-const compactGuideWhitespace = (guide: HowToGuide): HowToGuide => ({
-  ...guide,
-  intro: compactGuideText(guide.intro),
-  sections: guide.sections.map((section) => ({
-    ...section,
-    heading: compactGuideText(section.heading),
-    steps: section.steps.map((step) => ({
-      ...step,
-      title: compactGuideText(step.title),
-      detail: compactGuideText(step.detail),
-      note: step.note ? compactGuideText(step.note) : step.note,
-      images: step.images?.map((image) => ({
-        ...image,
-        caption: compactGuideText(image.caption),
-        source: image.source ? compactGuideText(image.source) : image.source,
-      })),
-    })),
-  })),
-  notes: guide.notes?.map((note) => compactGuideText(note)),
-});
-
-export const ZIYARAH_MADINAH_GUIDE: HowToGuide = compactGuideWhitespace({
+export const ZIYARAH_MADINAH_GUIDE: HowToGuide = {
   id: 'ziyarah-madinah',
   parentGroup: 'Hajj & Umrah',
   title: 'Visiting the Prophet ﷺ in Madinah (Ziyarah Adab)',
   subtitle: 'Sunni guide with adab, salam, duas, and practical city flow',
-  icon: 'ﷺ',
+  icon: 'location-city',
   color: '#2E7D32',
   intro:
     'This guide summarizes a mainstream Sunni approach to visiting the Prophet ﷺ in Madinah: sincere intention, reverence, adab in Masjid al-Nabawi, sending salam, and making dua with proper creed and etiquette.',
@@ -628,4 +599,4 @@ O Allah, forgive the people of Baqi al-Gharqad.`,
       ],
     },
   ],
-});
+};

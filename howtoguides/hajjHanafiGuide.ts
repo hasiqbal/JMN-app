@@ -32,8 +32,20 @@ It is one of the five pillars of Islam.`,
           detail: `Allah says:
 فِيهِ آيَاتٌ بَيِّنَاتٌ مَقَامُ إِبْرَاهِيمَ وَمَنْ دَخَلَهُ كَانَ آمِنًا وَلِلّٰهِ عَلَى النَّاسِ حِجُّ الْبَيْتِ مَنِ اسْتَطَاعَ إِلَيْهِ سَبِيلًا وَمَنْ كَفَرَ فَإِنَّ اللهَ غَنِيٌّ عَنِ الْعَالَمِينَ ❁
 
+      Transliteration:
+      Fihi ayatun bayyinatun maqamu Ibrahima wa man dakhala hu kana aminan wa liLlahi ala n-nasi hijju l-bayti mani stataa ilayhi sabila wa man kafara fa inna Llaha ghaniyyun ani l-alamin.
+
+      Meaning:
+      In it are clear signs, including the standing place of Ibrahim. Whoever enters it is safe. Pilgrimage to the House is due to Allah for those able to undertake the journey.
+
 And:
 وَأَتِمُّوا الْحَجَّ وَالْعُمْرَةَ لِلّٰهِ ❁
+
+      Transliteration:
+      Wa atimmu l-hajja wa l-umrata liLlah.
+
+      Meaning:
+      Complete Hajj and Umrah for Allah.
 
 These verses establish the duty of pilgrimage for those able to undertake it.`,
         },
@@ -51,6 +63,7 @@ Another narration establishes deputized Hajj for someone physically unable (with
 • Sins forgiven for the pilgrim who avoids obscenity and sin.
 • No reward for Hajj Mabrur except Paradise.
 • Arafat day is among the greatest days of divine forgiveness.
+• Pilgrims of Hajj and Umrah are described in hadith as guests of Allah.
 
 Difference often mentioned:
 • Hajj Maqbul: validly performed.
@@ -244,8 +257,20 @@ Women:
           detail: `Niyyah:
 اَللَّهُمَّ إِنِّي أُرِيدُ الْحَجَّ فَيَسِّرْهُ لِي وَتَقَبَّلْهُ مِنِّي
 
+      Transliteration:
+      Allahumma inni uridu l-hajja fa yassirhu li wa taqabbalhu minni.
+
+      Meaning:
+      O Allah, I intend Hajj, so make it easy for me and accept it from me.
+
 Talbiyah:
-لَبَّيْكَ اللَّهُمَّ لَبَّيْكَ لَبَّيْكَ لَا شَرِيكَ لَكَ لَبَّيْكَ إِنَّ الْحَمْدَ وَالنِّعْمَةَ لَكَ وَالْمُلْكُ لَا شَرِيكَ لَكَ`,
+      لَبَّيْكَ اللَّهُمَّ لَبَّيْكَ لَبَّيْكَ لَا شَرِيكَ لَكَ لَبَّيْكَ إِنَّ الْحَمْدَ وَالنِّعْمَةَ لَكَ وَالْمُلْكُ لَا شَرِيكَ لَكَ
+
+      Transliteration:
+      Labbayka Allahumma labbayk, labbayka la sharika laka labbayk, inna l-hamda wa n-nimata laka wa l-mulk, la sharika lak.
+
+      Meaning:
+      Here I am, O Allah, here I am. You have no partner. Truly all praise, blessing, and sovereignty belong to You.`,
         },
         {
           step: 5,
@@ -292,7 +317,15 @@ Staying in Mina this day is a major sunnah preparation for Arafat.`,
 Arabic:
 اللّٰهُ أَكْبَرُ ❁ اللّٰهُ أَكْبَرُ ❁ لَا إِلٰهَ إِلَّا اللّٰهُ وَاللّٰهُ أَكْبَرُ ❁ اللّٰهُ أَكْبَرُ ❁ وَلِلّٰهِ الْحَمْدُ ❁
 
-Hanafi note: wajib for men and women (men audible, women softly).`,
+Transliteration:
+Allahu akbar, Allahu akbar, la ilaha illa Allahu wa Allahu akbar, Allahu akbar, wa liLlahi l-hamd.
+
+Meaning:
+Allah is the Greatest. There is no deity except Allah. Allah is the Greatest, and all praise belongs to Allah.
+
+Hanafi note: wajib for men and women (men audible, women softly).
+
+Fasting note: for pilgrims present in Arafat, fasting this day is generally not recommended so strength is preserved for Wuquf.`,
         },
         {
           step: 2,
@@ -318,6 +351,12 @@ Stay consistent with one recognized path.`,
 A central supplication taught in this context:
 لَا إِلٰهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ ❁ لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ ❁ وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ ❁
 
+      Transliteration:
+      La ilaha illa Allahu wahdahu la sharika lah, lahu l-mulk wa lahu l-hamd, wa huwa ala kulli shayin qadir.
+
+      Meaning:
+      There is no deity except Allah alone without partner. His is the dominion, His is all praise, and He has power over all things.
+
 Fill the hours with tawbah, salawat, Quran, and dua for all believers.`,
         },
         {
@@ -338,6 +377,12 @@ Maghrib is not prayed in Arafat; proceed to Muzdalifah and combine Maghrib with 
           detail: `Best-known proclamation for this day:
 لَآ إِلٰهَ إِلَّا اللّٰهُ وَحْدَهُ لَا شَرِيكَ لَهُ ❁ لَهُ المُلْكُ وَلَهُ الْحَمْدُ ❁ وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ ❁
 
+      Transliteration:
+      La ilaha illa Allahu wahdahu la sharika lah, lahu l-mulk wa lahu l-hamd, wa huwa ala kulli shayin qadir.
+
+      Meaning:
+      There is no deity except Allah alone without partner. His is the dominion, His is all praise, and He has power over all things.
+
 Repeat abundantly with humility and presence of heart.`,
         },
         {
@@ -346,7 +391,19 @@ Repeat abundantly with humility and presence of heart.`,
           detail: `Recommended praise formulas include:
 سُبْحَانَ اللهِ وَالْحَمْدُ لِلّٰهِ وَ لَا إِلَـٰهَ إِلَّا اللهُ وَاللهُ اَكْبَرُ ❁
 
+      Transliteration:
+      Subhana Llahi wa l-hamdu liLlahi wa la ilaha illa Allahu wa Allahu akbar.
+
+      Meaning:
+      Glory be to Allah, all praise is for Allah, there is no deity except Allah, and Allah is the Greatest.
+
 سُبْحَانَ اللهِ وَبِحَمْدِهِ ❁ سُبْحَانَ اللهِ الْعَظِيم ❁
+
+      Transliteration:
+      Subhana Llahi wa bi hamdihi, subhana Llahi l-azim.
+
+      Meaning:
+      Glory be to Allah and praise be to Him; glory be to Allah the Magnificent.
 
 Also continue frequent: SubhanAllah, Alhamdulillah, Allahu Akbar.`,
         },
@@ -356,13 +413,31 @@ Also continue frequent: SubhanAllah, Alhamdulillah, Allahu Akbar.`,
           detail: `Useful istighfar supplications:
 رَبِّ اغْفِرْ لِي وَتُبْ عَلَيَّ إنَّكَ أَنْتَ التَّوَّابُ الرَّحِيمُ ❁
 
-أسْتَغْفِرُ اللهَ الَّذِي لا إلَهَ إلا هُوَ الحَيُّ القَيُومُ وَأتُوبُ إلَيهِ ❁`,
+      Transliteration:
+      Rabbi ghfir li wa tub alayya innaka anta t-tawwabu r-rahim.
+
+      Meaning:
+      My Lord, forgive me and accept my repentance. Surely You are the Accepter of repentance, the Most Merciful.
+
+      أسْتَغْفِرُ اللهَ الَّذِي لا إلَهَ إلا هُوَ الحَيُّ القَيُومُ وَأتُوبُ إلَيهِ ❁
+
+      Transliteration:
+      Astaghfiru Llaha lladhi la ilaha illa huwa l-hayyu l-qayyumu wa atubu ilayh.
+
+      Meaning:
+      I seek forgiveness from Allah, besides Whom there is no deity, the Ever-Living, the Sustainer, and I repent to Him.`,
         },
         {
           step: 4,
           title: 'Salawat formula for long standing',
           detail: `A complete salawat formula:
-اللَّهُمَّ صَلِّ عَلَىٰ مُحَمَّدٍ كَمَا صَلَّيْتَ عَلَىٰ إِبْرَاهِيمَ وَعَلَىٰ آلِ إِبْرَاهِيمَ إنَّكَ حَمِيدٌ مَجِيدٌ ❁
+اللَّهُمَّ صَلِّ عَلَىٰ مُحَمَّدٍ كَمَا صَلَّيْتَ عَلَىٰ إِبْرَاهِيمَ وَعَلَىٰ آلِ إِبْرَاهِيمَ إنَّكَ حَمِيدٌ مَجِيدٌ وَعَلَيْنَا مَعَهُمْ ❁
+
+      Transliteration:
+      Allahumma salli ala Muhammadin kama sallayta ala Ibrahima wa ala ali Ibrahima innaka hamidun majidun wa alayna maahum.
+
+      Meaning:
+      O Allah, send blessings upon Muhammad as You sent blessings upon Ibrahim and the family of Ibrahim. You are Praiseworthy and Glorious, and include us with them.
 
 Send salawat repeatedly throughout Wuquf, especially before personal dua requests.`,
         },
@@ -410,6 +485,15 @@ Rest is Sunnah-supported and helps preserve strength for Day 10 obligations.`,
           title: 'Fajr and Wuquf before sunrise',
           detail: `Pray Fajr and make dua in Wuquf manner before sunrise.
 
+Quranic reminder for this station:
+فَإِذَا أَفَضْتُم مِّنْ عَرَفَاتٍ فَاذْكُرُوا اللهَ عِندَ الْمَشْعَرِ الْحَرَامِ ❁
+
+Transliteration:
+Fa idha afadtum min Arafatin fa dhkuru Llaha inda l-mashari l-haram.
+
+Meaning:
+When you depart from Arafat, remember Allah at al-Mashar al-Haram.
+
 Leaving too early without valid excuse can lead to penalty liability.`,
         },
         {
@@ -448,6 +532,12 @@ Do not pelt the other two Jamarat on this day.
 
 Recite with each throw:
 اللّٰهُ أَكْبَرُ
+
+Transliteration:
+Allahu akbar.
+
+Meaning:
+Allah is the Greatest.
 
 Talbiyah ends when first pebble lands at Jamarah al-Aqaba.`,
         },
@@ -513,8 +603,20 @@ If delayed beyond the preferred period due necessity, it must still be completed
           detail: `You may say:
 اَللَّهُمَّ إِنِّي أُرِيدُ طَوَافَ بَيْتِكَ الْحَرَامِ فَيَسِّرْهُ لِي وَتَقَبَّلْهُ مِنِّي ❁
 
+      Transliteration:
+      Allahumma inni uridu tawafa baytika l-harami fa yassirhu li wa taqabbalhu minni.
+
+      Meaning:
+      O Allah, I intend Tawaf of Your Sacred House, so make it easy for me and accept it from me.
+
 At Istilam, recite:
 بِسْمِ اللّٰهِ وَاللّٰهُ أَكْبَرُ ❁
+
+      Transliteration:
+      Bismi Llahi wa Allahu akbar.
+
+      Meaning:
+      In the name of Allah, and Allah is the Greatest.
 
 If reaching Hajar al-Aswad is unsafe, perform symbolic Istilam from distance and continue.`,
         },
@@ -524,6 +626,12 @@ If reaching Hajar al-Aswad is unsafe, perform symbolic Istilam from distance and
           detail: `Between Rukn al-Yamani and Hajar al-Aswad, recite:
 رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الْآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ ❁
 
+      Transliteration:
+      Rabbana atina fi d-dunya hasanatan wa fi l-akhirati hasanatan wa qina adhaba n-nar.
+
+      Meaning:
+      Our Lord, grant us good in this world and good in the Hereafter, and protect us from the punishment of the Fire.
+
 Also recite Quran, salawat, and your personal duas throughout Tawaf.`,
         },
         {
@@ -531,6 +639,12 @@ Also recite Quran, salawat, and your personal duas throughout Tawaf.`,
           title: 'After Tawaf: two rakah and verse of Maqam',
           detail: `Pray two rakah after Tawaf. While moving toward Maqam area (if feasible), recite:
 وَاتَّخِذُوا مِنْ مَقَامِ إِبْرَاهِيمَ مُصَلًّى ❁
+
+      Transliteration:
+      Wa ttakhidhu min maqami Ibrahima musalla.
+
+      Meaning:
+      Take the standing place of Ibrahim as a place of prayer.
 
 If crowded, pray in any suitable area of Masjid al-Haram.`,
         },
@@ -541,6 +655,12 @@ If crowded, pray in any suitable area of Masjid al-Haram.`,
 
 Recommended dua:
 اللّٰهُمَّ إِنِّي أَسْأَلُكَ عِلْمًا نَافِعًا ❁ وَرِزْقًا وَاسِعًا ❁ وَعَمَلًا مُتَقَبَّلًا ❁ وَشِفَاءً مِنْ كُلِّ دَاءٍ ❁
+
+Transliteration:
+Allahumma inni asaluka ilman nafian, wa rizqan wasian, wa amalan mutaqabbalan, wa shifaan min kulli da.
+
+Meaning:
+O Allah, I ask You for beneficial knowledge, abundant provision, accepted deeds, and healing from every illness.
 
 Marital relations become fully lawful after Tawaf al-Ziyarah with earlier release conditions completed.`,
         },
@@ -576,8 +696,20 @@ If difficult due to crowd/fatigue, leave it; Sai remains valid.`,
           detail: `Recite once before Sai begins:
 إِنَّ الصَّفَا وَالْمَرْوَةَ مِنْ شَعَائِرِ الله ❁
 
+      Transliteration:
+      Inna s-safa wa l-marwata min shaairi Llah.
+
+      Meaning:
+      Surely Safa and Marwa are among the symbols of Allah.
+
 Then:
 أَبْدَأُ بِمَا بَدَأَ اللهُ بِهِ ❁
+
+      Transliteration:
+      Abdau bima badaa Llaha bih.
+
+      Meaning:
+      I begin with what Allah began with.
 
 These opening recitations are once at start, not every lap.`,
         },
@@ -589,9 +721,27 @@ These opening recitations are once at start, not every lap.`,
 Sunnah formulas include:
 اللّٰهُ أَكْبَرُ ❁ اللّٰهُ أَكْبَرُ ❁ اللّٰهُ أَكْبَرُ ❁ وَلِلّٰهِ الْحَمْدُ ❁
 
+      Transliteration:
+      Allahu akbar, Allahu akbar, Allahu akbar, wa liLlahi l-hamd.
+
+      Meaning:
+      Allah is the Greatest, and all praise belongs to Allah.
+
 لَا إِلٰهَ إِلَّا اللّٰهُ وَحْدَهُ لاَ شَرِيكَ لَهُ ❁ لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ ❁ يُحْيِي وَيُمِيتُ ❁ وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ ❁
 
+      Transliteration:
+      La ilaha illa Allahu wahdahu la sharika lah, lahu l-mulku wa lahu l-hamd, yuhyi wa yumit, wa huwa ala kulli shayin qadir.
+
+      Meaning:
+      There is no deity except Allah alone without partner. His is the dominion and praise. He gives life and causes death, and He has power over all things.
+
 لَا إِلٰهَ إِلَّا اللّٰهُ وَحْدَهُ ❁ أَنْجَزَ وَعْدَهُ وَنَصَرَ عَبْدَهُ وَهَزَمَ الْأَحْزَابَ وَحْدَهُ ❁
+
+      Transliteration:
+      La ilaha illa Allahu wahdah, anjaza wadah, wa nasara abdah, wa hazama l-ahzaba wahdah.
+
+      Meaning:
+      There is no deity except Allah alone. He fulfilled His promise, aided His servant, and defeated the confederates alone.
 
 Repeat with personal duas between repetitions.`,
         },
@@ -632,8 +782,20 @@ Any missed segment leaves Sai incomplete until corrected.`,
 Commonly recited walking duas include:
 رَبِّ اغْفِرْ وَارْحَمْ ❁ تَجَاوَزْ عَمَّا تَعْلَمْ ❁ إِنَّكَ أَنْتَ الْأَعَزُّ الْأَكْرَمُ ❁
 
+      Transliteration:
+      Rabbi ghfir warham, tajawaz amma talam, innaka anta l-azzu l-akram.
+
+      Meaning:
+      My Lord, forgive and have mercy, overlook what You know of my faults; You are the Most Mighty, the Most Generous.
+
 and:
-رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الْآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ ❁`,
+      رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الْآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ ❁
+
+      Transliteration:
+      Rabbana atina fi d-dunya hasanatan wa fi l-akhirati hasanatan wa qina adhaba n-nar.
+
+      Meaning:
+      Our Lord, grant us good in this world and good in the Hereafter, and protect us from the punishment of the Fire.`,
         },
         {
           step: 9,
@@ -650,6 +812,12 @@ After lap seven at Marwa, make final dua and pray two rakah nafl if possible.`,
           detail: `A reported supplication attributed to Abdullah ibn Umar includes:
 
 اللّٰهُمَّ اعْصِمْنَا بِدِينِكَ وَطَوَاعِيَتِكَ وَطَوَاعِيَةِ رَسُولِكَ وَجَنِّبْنَا حُدُودَكَ ❁ اللّٰهُمَّ اجْعَلْنَا نُحِبُّكَ وَنُحِبُّ مَلَائِكَتَكَ ❁ وَأَنْبِيَاءَكَ وَرُسُلَكَ ❁ وَنُحِبُّ عِبَادَكَ الصَّالِحِينَ ❁ اللّٰهُمَّ حَبِّبْنَا إِلَيْكَ وَإِلَى مَلَائِكَتِكَ وَإِلَى أَنْبِيَائِكَ وَرُسُلِكَ ❁ وَإِلَى عِبَادِكَ الصَّالِحِينَ ❁ اللّٰهُمَّ يَسِّرْنَا لِلْيُسْرَى وَجَنِّبْنَا الْعُسْرَى وَاغْفِرْ لَنَا فِي الْآخِرَةِ وَالْأُولَى وَاجْعَلْنَا مِنْ أَئِمَّةِ الْمُتَّقِينَ ❁
+
+Transliteration (opening):
+Allahumma asimna bi dinika wa taatika wa taati rasulika wa jannibna hududak...
+
+Meaning (summary):
+O Allah, keep us firm upon Your religion and obedience, make us love You and Your righteous servants, make ease for us, forgive us in this life and the next, and make us among the God-fearing leaders.
 
 You may use this, or make sincere dua in any language.`,
         },
@@ -733,7 +901,7 @@ Avoid harming others; ritual validity never justifies unsafe aggression.`,
           title: 'Rami method details and Takbir',
           detail: `For each pebble:
 • Throw one by one (do not throw handfuls)
-• Say: اللّٰهُ أَكْبَرُ
+• Say: اللّٰهُ أَكْبَرُ (Allahu akbar - Allah is the Greatest)
 • Ensure pebble lands in basin area
 
 On days 11-13:
@@ -768,8 +936,20 @@ Any final Tawaf after Tawaf al-Ziyarah can count, but delaying it to just before
 At Istilam points, recite:
 بِسْمِ اللّٰهِ وَاللّٰهُ أَكْبَرُ ❁
 
+Transliteration:
+Bismi Llahi wa Allahu akbar.
+
+Meaning:
+In the name of Allah, and Allah is the Greatest.
+
 Between Rukn al-Yamani and Hajar al-Aswad, recite:
 رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الْآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ ❁
+
+Transliteration:
+Rabbana atina fi d-dunya hasanatan wa fi l-akhirati hasanatan wa qina adhaba n-nar.
+
+Meaning:
+Our Lord, grant us good in this world and good in the Hereafter, and protect us from the punishment of the Fire.
 
 No Sai follows Tawaf al-Wida, and no haircut follows it.
 
@@ -787,6 +967,12 @@ Raml and Idtiba are not practiced in Tawaf al-Wida.`,
 
 A simple closing formula to repeat:
 رَبَّنَا تَقَبَّلْ مِنَّا ❁ إِنَّكَ أَنْتَ السَّمِيعُ الْعَلِيمُ ❁
+
+      Transliteration:
+      Rabbana taqabbal minna innaka anta s-samiu l-alim.
+
+      Meaning:
+      Our Lord, accept from us. Surely You are the All-Hearing, the All-Knowing.
 
 Leave with humility, gratitude, and resolve to protect your Hajj from post-Hajj sins.`,
         },

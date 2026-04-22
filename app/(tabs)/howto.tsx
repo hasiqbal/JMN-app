@@ -128,6 +128,47 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
     imageZoomScale,
   ]);
 
+  const applyViewerScale = useCallback((targetScale: number) => {
+    const boundedScale = Math.max(1, Math.min(targetScale, 4));
+    imageZoomScale.value = withSpring(boundedScale, { damping: 20, stiffness: 260 });
+    imageSavedZoomScale.value = boundedScale;
+
+    if (boundedScale <= 1.01) {
+      imageTranslateX.value = withSpring(0, { damping: 20, stiffness: 260 });
+      imageTranslateY.value = withSpring(0, { damping: 20, stiffness: 260 });
+      imageSavedTranslateX.value = 0;
+      imageSavedTranslateY.value = 0;
+      return;
+    }
+
+    const maxOffsetX = Math.max(0, ((viewerBaseWidth * boundedScale) - viewerBaseWidth) / 2);
+    const maxOffsetY = Math.max(0, ((viewerBaseHeight * boundedScale) - viewerBaseHeight) / 2);
+    const clampedX = Math.max(-maxOffsetX, Math.min(maxOffsetX, imageTranslateX.value));
+    const clampedY = Math.max(-maxOffsetY, Math.min(maxOffsetY, imageTranslateY.value));
+
+    imageTranslateX.value = withSpring(clampedX, { damping: 20, stiffness: 260 });
+    imageTranslateY.value = withSpring(clampedY, { damping: 20, stiffness: 260 });
+    imageSavedTranslateX.value = clampedX;
+    imageSavedTranslateY.value = clampedY;
+  }, [
+    imageSavedTranslateX,
+    imageSavedTranslateY,
+    imageSavedZoomScale,
+    imageTranslateX,
+    imageTranslateY,
+    imageZoomScale,
+    viewerBaseHeight,
+    viewerBaseWidth,
+  ]);
+
+  const zoomInImage = useCallback(() => {
+    applyViewerScale(imageSavedZoomScale.value + 0.35);
+  }, [applyViewerScale, imageSavedZoomScale]);
+
+  const zoomOutImage = useCallback(() => {
+    applyViewerScale(imageSavedZoomScale.value - 0.35);
+  }, [applyViewerScale, imageSavedZoomScale]);
+
   const openImageViewer = useCallback((photo: { uri: string; caption: string; source?: string }) => {
     setActiveImage(photo);
     resetImageTransform();
@@ -590,12 +631,17 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
                                       onPress={() => openImageViewer(photo)}
                                       activeOpacity={0.9}
                                     >
-                                      <Image
-                                        source={{ uri: photo.uri }}
-                                        style={howToStyles.stepMediaImage}
-                                        contentFit="cover"
-                                        transition={120}
-                                      />
+                                      <View style={howToStyles.stepMediaImageWrap}>
+                                        <Image
+                                          source={{ uri: photo.uri }}
+                                          style={howToStyles.stepMediaImage}
+                                          contentFit="cover"
+                                          transition={120}
+                                        />
+                                        <View style={howToStyles.stepMediaExpandBadge}>
+                                          <MaterialIcons name="zoom-in" size={14} color="#FFFFFF" />
+                                        </View>
+                                      </View>
                                       <View style={howToStyles.stepMediaMeta}>
                                         <Text style={[howToStyles.stepMediaCaption, N && { color: N.textSub }]}>{photo.caption}</Text>
                                         <Text style={[howToStyles.stepMediaHint, N && { color: N.textMuted }]}>Tap to enlarge, pinch to zoom, drag to pan</Text>
@@ -779,6 +825,17 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
         </View>
 
         <Text style={howToStyles.viewerHint}>Pinch to zoom, drag to pan, and double-tap to reset.</Text>
+        <View style={howToStyles.viewerControls}>
+          <TouchableOpacity style={howToStyles.viewerControlBtn} onPress={zoomOutImage} activeOpacity={0.8}>
+            <MaterialIcons name="remove" size={22} color="#E8F0FF" />
+          </TouchableOpacity>
+          <TouchableOpacity style={[howToStyles.viewerControlBtn, howToStyles.viewerControlBtnPrimary]} onPress={resetImageTransform} activeOpacity={0.8}>
+            <MaterialIcons name="center-focus-weak" size={18} color="#FFFFFF" />
+          </TouchableOpacity>
+          <TouchableOpacity style={howToStyles.viewerControlBtn} onPress={zoomInImage} activeOpacity={0.8}>
+            <MaterialIcons name="add" size={22} color="#E8F0FF" />
+          </TouchableOpacity>
+        </View>
       </View>
     </Modal>
   );
@@ -1165,6 +1222,20 @@ const howToStyles = StyleSheet.create({
     aspectRatio: 16 / 9,
     backgroundColor: '#E6ECE8',
   },
+  stepMediaImageWrap: {
+    position: 'relative',
+  },
+  stepMediaExpandBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(12, 22, 36, 0.78)',
+  },
   stepMediaMeta: {
     paddingHorizontal: 10,
     paddingVertical: 8,
@@ -1239,6 +1310,27 @@ const howToStyles = StyleSheet.create({
     color: '#BFD0E8',
     fontSize: 12,
     textAlign: 'center',
+  },
+  viewerControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    marginTop: 4,
+  },
+  viewerControlBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+  },
+  viewerControlBtnPrimary: {
+    backgroundColor: 'rgba(106,174,255,0.34)',
+    borderColor: 'rgba(106,174,255,0.65)',
   },
   notesBlock: {
     backgroundColor: Colors.surfaceAlt, borderRadius: Radius.md,
