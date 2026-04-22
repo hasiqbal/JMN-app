@@ -19,11 +19,21 @@ type FilterMode = 'all' | 'qaseedah' | 'naat';
 
 function sortRows(rows: AdhkarRow[]): AdhkarRow[] {
   return [...rows].sort((a, b) => {
+    const typeSort = (a.content_type ?? '').localeCompare(b.content_type ?? '');
+    if (typeSort !== 0) return typeSort;
+
+    const groupSort = (a.group_order ?? 0) - (b.group_order ?? 0);
+    if (groupSort !== 0) return groupSort;
+
+    const groupNameSort = (a.group_name ?? '').localeCompare(b.group_name ?? '', undefined, { sensitivity: 'base' });
+    if (groupNameSort !== 0) return groupNameSort;
+
+    const orderSort = (a.display_order ?? 0) - (b.display_order ?? 0);
+    if (orderSort !== 0) return orderSort;
+
     const keyA = (a.title?.trim() || a.arabic_title?.trim() || '').toLocaleLowerCase();
     const keyB = (b.title?.trim() || b.arabic_title?.trim() || '').toLocaleLowerCase();
-    const titleSort = keyA.localeCompare(keyB, undefined, { sensitivity: 'base' });
-    if (titleSort !== 0) return titleSort;
-    return (a.content_type ?? '').localeCompare(b.content_type ?? '');
+    return keyA.localeCompare(keyB, undefined, { sensitivity: 'base' });
   });
 }
 
@@ -89,6 +99,38 @@ export default function QaseedahNaatScreen() {
     if (filterMode === 'all') return rows;
     return rows.filter((row) => row.content_type === filterMode);
   }, [filterMode, rows]);
+
+  const groupedRows = React.useMemo(() => {
+    const grouped = new Map<string, AdhkarRow[]>();
+
+    for (const row of filteredRows) {
+      const key = `${row.content_type || 'qaseedah'}::${row.group_name || 'General'}`;
+      const existing = grouped.get(key);
+      if (existing) {
+        existing.push(row);
+      } else {
+        grouped.set(key, [row]);
+      }
+    }
+
+    return Array.from(grouped.entries())
+      .map(([key, sectionRows]) => {
+        const lead = sectionRows[0];
+        const description = (lead.group_description ?? lead.description ?? '').trim();
+        return {
+          key,
+          name: lead.group_name || 'General',
+          type: lead.content_type,
+          description,
+          rows: sectionRows,
+        };
+      })
+      .sort((a, b) => {
+        const typeSort = (a.type ?? '').localeCompare(b.type ?? '');
+        if (typeSort !== 0) return typeSort;
+        return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+      });
+  }, [filteredRows]);
 
   const openAttachment = React.useCallback((url: string, title: string) => {
     router.push({
@@ -171,97 +213,118 @@ export default function QaseedahNaatScreen() {
           <View style={[styles.messageCard, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}> 
             <Text style={[styles.messageText, N && { color: N.textMuted }]}>{error}</Text>
           </View>
-        ) : filteredRows.length === 0 ? (
+        ) : groupedRows.length === 0 ? (
           <View style={[styles.messageCard, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}> 
             <Text style={[styles.messageText, N && { color: N.textMuted }]}>No entries found for this filter.</Text>
           </View>
         ) : (
-          filteredRows.map((row) => {
-            const isExpanded = !!expandedById[row.id];
-            const urdu = resolveAdhkarUrduTranslation(row);
-            const typeLabel = entryTypeLabel(row.content_type);
-            const pdfAttachment = isPdf(row.file_url);
-
-            return (
-              <View key={row.id} style={[styles.entryCard, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}> 
-                <TouchableOpacity
-                  onPress={() => setExpandedById((prev) => ({ ...prev, [row.id]: !prev[row.id] }))}
-                  activeOpacity={0.88}
-                  style={styles.entryHeader}
-                >
-                  <View style={styles.entryTitleWrap}>
-                    <View style={styles.entryTitleTopRow}>
-                      <Text style={[styles.entryTitle, N && { color: N.text }]}>{row.title}</Text>
-                      <View style={[styles.typeBadge, row.content_type === 'naat' ? styles.typeBadgeNaat : styles.typeBadgeQaseedah]}>
-                        <Text style={styles.typeBadgeText}>{typeLabel}</Text>
-                      </View>
-                    </View>
-                    {row.arabic_title ? (
-                      <Text style={[styles.entryArabicTitle, N && { color: N.textSub }]}>{row.arabic_title}</Text>
-                    ) : null}
-                    <View style={styles.metaRow}>
-                      {row.group_name ? <Text style={[styles.metaText, N && { color: N.textMuted }]}>Group: {row.group_name}</Text> : null}
-                      {row.reference ? <Text style={[styles.metaText, N && { color: N.textMuted }]}>Ref: {row.reference}</Text> : null}
-                    </View>
-                  </View>
-                  <MaterialIcons
-                    name={isExpanded ? 'expand-less' : 'expand-more'}
-                    size={22}
-                    color={N ? N.textMuted : Colors.textSubtle}
-                  />
-                </TouchableOpacity>
-
-                {isExpanded ? (
-                  <View style={styles.entryBody}>
-                    {row.arabic ? (
-                      <View style={[styles.contentBox, N && { backgroundColor: N.surface }]}> 
-                        <Text style={[styles.contentLabel, N && { color: N.textMuted }]}>Arabic</Text>
-                        <Text style={[styles.arabicText, N && { color: N.text }]}>{row.arabic}</Text>
-                      </View>
-                    ) : null}
-
-                    {row.transliteration ? (
-                      <View style={[styles.contentBox, N && { backgroundColor: N.surface }]}> 
-                        <Text style={[styles.contentLabel, N && { color: N.textMuted }]}>Transliteration</Text>
-                        <Text style={[styles.contentText, styles.translitText, N && { color: N.textSub }]}>{row.transliteration}</Text>
-                      </View>
-                    ) : null}
-
-                    {row.translation ? (
-                      <View style={[styles.contentBox, N && { backgroundColor: N.surface }]}> 
-                        <Text style={[styles.contentLabel, N && { color: N.textMuted }]}>English</Text>
-                        <Text style={[styles.contentText, N && { color: N.textSub }]}>{row.translation}</Text>
-                      </View>
-                    ) : null}
-
-                    {urdu ? (
-                      <View style={[styles.contentBox, N && { backgroundColor: N.surface }]}> 
-                        <Text style={[styles.contentLabel, N && { color: N.textMuted }]}>Urdu</Text>
-                        <Text style={[styles.urduText, N && { color: N.textSub }]}>{urdu}</Text>
-                      </View>
-                    ) : null}
-
-                    {row.file_url ? (
-                      <View style={[styles.attachmentRow, N && { backgroundColor: N.surface, borderColor: N.border }]}> 
-                        <View style={styles.attachmentTextWrap}>
-                          <Text style={[styles.attachmentTitle, N && { color: N.text }]}>{pdfAttachment ? 'PDF attachment' : 'Attachment'}</Text>
-                          <Text style={[styles.attachmentUrl, N && { color: N.textMuted }]} numberOfLines={2}>{row.file_url}</Text>
-                        </View>
-                        <TouchableOpacity
-                          style={styles.openBtn}
-                          onPress={() => openAttachment(row.file_url as string, row.title || 'Attachment')}
-                          activeOpacity={0.85}
-                        >
-                          <MaterialIcons name={pdfAttachment ? 'picture-as-pdf' : 'open-in-new'} size={16} color="#FFFFFF" />
-                          <Text style={styles.openBtnText}>Open</Text>
-                        </TouchableOpacity>
-                      </View>
-                    ) : null}
-                  </View>
-                ) : null}
+          groupedRows.map((section) => (
+            <View key={section.key} style={[styles.groupSection, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}> 
+              <View style={[styles.groupHeader, N && { borderColor: N.border }]}> 
+                <View style={styles.groupTitleWrap}>
+                  <Text style={[styles.groupTitle, N && { color: N.text }]}>{section.name}</Text>
+                  <Text style={[styles.groupMeta, N && { color: N.textMuted }]}>{section.rows.length} entries</Text>
+                </View>
+                <View style={[styles.typeBadge, section.type === 'naat' ? styles.typeBadgeNaat : styles.typeBadgeQaseedah]}>
+                  <Text style={styles.typeBadgeText}>{entryTypeLabel(section.type)}</Text>
+                </View>
               </View>
-            );
-          })
+
+              {section.description ? (
+                <View style={styles.groupDescriptionWrap}>
+                  <Text style={[styles.groupDescription, N && { color: N.textSub }]}>{section.description}</Text>
+                </View>
+              ) : null}
+
+              {section.rows.map((row) => {
+                const isExpanded = !!expandedById[row.id];
+                const urdu = resolveAdhkarUrduTranslation(row);
+                const pdfAttachment = isPdf(row.file_url);
+
+                return (
+                  <View key={row.id} style={[styles.entryCard, N && { backgroundColor: N.surface, borderColor: N.border }]}> 
+                    <TouchableOpacity
+                      onPress={() => setExpandedById((prev) => ({ ...prev, [row.id]: !prev[row.id] }))}
+                      activeOpacity={0.88}
+                      style={styles.entryHeader}
+                    >
+                      <View style={styles.entryTitleWrap}>
+                        <Text style={[styles.entryTitle, N && { color: N.text }]}>{row.title}</Text>
+                        {row.arabic_title ? (
+                          <Text style={[styles.entryArabicTitle, N && { color: N.textSub }]}>{row.arabic_title}</Text>
+                        ) : null}
+                        <View style={styles.metaRow}>
+                          {row.reference ? <Text style={[styles.metaText, N && { color: N.textMuted }]}>Ref: {row.reference}</Text> : null}
+                          {row.count ? <Text style={[styles.metaText, N && { color: N.textMuted }]}>Count: {row.count}</Text> : null}
+                        </View>
+                      </View>
+                      <MaterialIcons
+                        name={isExpanded ? 'expand-less' : 'expand-more'}
+                        size={22}
+                        color={N ? N.textMuted : Colors.textSubtle}
+                      />
+                    </TouchableOpacity>
+
+                    {isExpanded ? (
+                      <View style={styles.entryBody}>
+                        {row.description ? (
+                          <View style={[styles.contentBox, N && { backgroundColor: N.surfaceAlt }]}> 
+                            <Text style={[styles.contentLabel, N && { color: N.textMuted }]}>Description</Text>
+                            <Text style={[styles.contentText, N && { color: N.textSub }]}>{row.description}</Text>
+                          </View>
+                        ) : null}
+
+                        {row.arabic ? (
+                          <View style={[styles.contentBox, N && { backgroundColor: N.surfaceAlt }]}> 
+                            <Text style={[styles.contentLabel, N && { color: N.textMuted }]}>Arabic</Text>
+                            <Text style={[styles.arabicText, N && { color: N.text }]}>{row.arabic}</Text>
+                          </View>
+                        ) : null}
+
+                        {row.transliteration ? (
+                          <View style={[styles.contentBox, N && { backgroundColor: N.surfaceAlt }]}> 
+                            <Text style={[styles.contentLabel, N && { color: N.textMuted }]}>Transliteration</Text>
+                            <Text style={[styles.contentText, styles.translitText, N && { color: N.textSub }]}>{row.transliteration}</Text>
+                          </View>
+                        ) : null}
+
+                        {row.translation ? (
+                          <View style={[styles.contentBox, N && { backgroundColor: N.surfaceAlt }]}> 
+                            <Text style={[styles.contentLabel, N && { color: N.textMuted }]}>English</Text>
+                            <Text style={[styles.contentText, N && { color: N.textSub }]}>{row.translation}</Text>
+                          </View>
+                        ) : null}
+
+                        {urdu ? (
+                          <View style={[styles.contentBox, N && { backgroundColor: N.surfaceAlt }]}> 
+                            <Text style={[styles.contentLabel, N && { color: N.textMuted }]}>Urdu</Text>
+                            <Text style={[styles.urduText, N && { color: N.textSub }]}>{urdu}</Text>
+                          </View>
+                        ) : null}
+
+                        {row.file_url ? (
+                          <View style={[styles.attachmentRow, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}> 
+                            <View style={styles.attachmentTextWrap}>
+                              <Text style={[styles.attachmentTitle, N && { color: N.text }]}>{pdfAttachment ? 'PDF attachment' : 'Attachment'}</Text>
+                              <Text style={[styles.attachmentUrl, N && { color: N.textMuted }]} numberOfLines={2}>{row.file_url}</Text>
+                            </View>
+                            <TouchableOpacity
+                              style={styles.openBtn}
+                              onPress={() => openAttachment(row.file_url as string, row.title || 'Attachment')}
+                              activeOpacity={0.85}
+                            >
+                              <MaterialIcons name={pdfAttachment ? 'picture-as-pdf' : 'open-in-new'} size={16} color="#FFFFFF" />
+                              <Text style={styles.openBtnText}>Open</Text>
+                            </TouchableOpacity>
+                          </View>
+                        ) : null}
+                      </View>
+                    ) : null}
+                  </View>
+                );
+              })}
+            </View>
+          ))
         )}
       </ScrollView>
     </View>
@@ -380,9 +443,50 @@ const styles = StyleSheet.create({
   entryCard: {
     borderWidth: 1,
     borderColor: Colors.border,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surface,
+    overflow: 'hidden',
+    marginTop: 8,
+  },
+  groupSection: {
+    borderWidth: 1,
+    borderColor: Colors.border,
     borderRadius: Radius.lg,
     backgroundColor: Colors.surface,
     overflow: 'hidden',
+    padding: 8,
+  },
+  groupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E6ECE7',
+  },
+  groupTitleWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  groupTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+  },
+  groupMeta: {
+    fontSize: 11,
+    color: Colors.textSubtle,
+  },
+  groupDescriptionWrap: {
+    paddingHorizontal: 8,
+    paddingTop: 8,
+  },
+  groupDescription: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: Colors.textSubtle,
   },
   entryHeader: {
     flexDirection: 'row',

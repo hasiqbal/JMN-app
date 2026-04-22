@@ -1,0 +1,18 @@
+# Keep EAS uploads minimal and deterministic
+# This file is independent from .gitignore and is used for build uploads.
+
+# VCS and local tooling
+.git
+.vscode
+.venv
+.tmp-urdu-font
+
+# Dependencies and generated output
+node_modules
+.expo
+dist
+web-build
+
+# Local artifacts and docs not needed in build context
+tomorrow-work-plan.txt
+quran.py

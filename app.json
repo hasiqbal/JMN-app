@@ -14,7 +14,12 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/favicon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
+      "package": "com.hasiqbal.jmn"
     },
     "web": {
       "bundler": "metro",
@@ -45,6 +50,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "699b7ea2-af04-453c-96ed-f2bb121ab43b"
+      }
     }
   }
 }

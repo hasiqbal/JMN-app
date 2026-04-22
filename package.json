@@ -61,6 +61,7 @@
     "expo-constants": "~18.0.13",
     "expo-contacts": "~15.0.11",
     "expo-crypto": "^15.0.8",
+    "expo-dev-client": "~6.0.20",
     "expo-device": "~8.0.10",
     "expo-document-picker": "^14.0.8",
     "expo-file-system": "~19.0.21",
@@ -149,6 +150,5 @@
     "react-dev-inspector": "^2.0.1",
     "typescript": "~5.9.3"
   },
- 
   "private": true
 }

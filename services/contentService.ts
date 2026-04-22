@@ -166,6 +166,7 @@ export interface AdhkarRow {
   content_key?: string | null;                    // New: e.g., 'surah-36' for local Quran
   card_icon?: string | null;                      // New: card display icon
   card_badge?: string | null;                     // New: card badge text
+  group_description?: string | null;
 }
 
 // Resolve Urdu translation from supported portal column variants.
@@ -414,16 +415,53 @@ export async function fetchQaseedahNaatEntries(): Promise<AdhkarRow[]> {
   try {
     const supabase = getSupabaseClient();
     const { data, error } = await supabase
-      .from('adhkar')
-      .select('*')
+      .from('qaseedah_naat_entries')
+      .select('id,content_type,title,arabic_title,arabic,transliteration,translation,urdu_translation,reference,count,prayer_time,display_order,is_active,sections,file_url,tafsir,description,qaseedah_naat_groups(name,description,display_order)')
       .eq('is_active', true)
       .in('content_type', ['qaseedah', 'naat'])
       .order('content_type', { ascending: true })
-      .order('group_order', { ascending: true })
+      .order('group_id', { ascending: true })
       .order('display_order', { ascending: true });
 
     if (error || !data) return [];
-    return data as AdhkarRow[];
+
+    return (data as Array<Record<string, unknown>>).map((row) => {
+      const groupMetaRaw = row.qaseedah_naat_groups;
+      const groupMeta = Array.isArray(groupMetaRaw) ? groupMetaRaw[0] : groupMetaRaw;
+      const groupName = typeof groupMeta === 'object' && groupMeta && typeof (groupMeta as { name?: unknown }).name === 'string'
+        ? ((groupMeta as { name: string }).name || null)
+        : null;
+      const groupDescription = typeof groupMeta === 'object' && groupMeta && typeof (groupMeta as { description?: unknown }).description === 'string'
+        ? ((groupMeta as { description: string }).description || null)
+        : null;
+      const groupOrder = typeof groupMeta === 'object' && groupMeta && typeof (groupMeta as { display_order?: unknown }).display_order === 'number'
+        ? ((groupMeta as { display_order: number }).display_order ?? 0)
+        : 0;
+
+      return {
+        id: String(row.id ?? ''),
+        prayer_time: typeof row.prayer_time === 'string' ? row.prayer_time : 'general',
+        title: typeof row.title === 'string' ? row.title : '',
+        arabic_title: typeof row.arabic_title === 'string' ? row.arabic_title : null,
+        arabic: typeof row.arabic === 'string' ? row.arabic : '',
+        transliteration: typeof row.transliteration === 'string' ? row.transliteration : null,
+        translation: typeof row.translation === 'string' ? row.translation : null,
+        urdu_translation: typeof row.urdu_translation === 'string' ? row.urdu_translation : null,
+        translation_urdu: typeof row.urdu_translation === 'string' ? row.urdu_translation : null,
+        reference: typeof row.reference === 'string' ? row.reference : null,
+        count: typeof row.count === 'string' ? row.count : '1',
+        display_order: typeof row.display_order === 'number' ? row.display_order : 0,
+        is_active: row.is_active !== false,
+        sections: (row.sections as AdhkarRow['sections']) ?? null,
+        group_name: groupName,
+        group_order: groupOrder,
+        description: typeof row.description === 'string' ? row.description : groupDescription,
+        group_description: groupDescription,
+        file_url: typeof row.file_url === 'string' ? row.file_url : null,
+        tafsir: typeof row.tafsir === 'string' ? row.tafsir : null,
+        content_type: row.content_type === 'naat' ? 'naat' : 'qaseedah',
+      } satisfies AdhkarRow;
+    });
   } catch {
     return [];
   }
