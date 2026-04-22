@@ -18,6 +18,7 @@ import { Colors, Spacing, Radius } from '@/constants/theme';
 import { HOW_TO_GUIDES } from '@/howtoguides';
 import type { HowToGuide, HowToSection, HowToStep, HowToStepImage } from '@/howtoguides/types';
 import { useNightMode } from '@/hooks/useNightMode';
+import { fetchHowToGuides } from '@/services/contentService';
 import {
   GuideStepCard,
   GuideSectionHeading,
@@ -82,6 +83,9 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
   const [expandedGuide, setExpandedGuide] = useState<string | null>(null);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingRemote, setLoadingRemote] = useState(false);
+  const [remoteError, setRemoteError] = useState<string | null>(null);
+  const [remoteGuides, setRemoteGuides] = useState<HowToGuide[]>([]);
   const [activeImage, setActiveImage] = useState<{ uri: string; caption: string; source?: string } | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const sectionYRefs = useRef<Record<string, number>>({});
@@ -242,14 +246,36 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
     ],
   }));
 
-  const onPullRefresh = useCallback(async () => {
-    setRefreshing(true);
+  const selectedLanguageCode = selectedLanguage === 'urdu' ? 'ur' : 'en';
+
+  const loadRemoteGuides = useCallback(async (asRefresh = false) => {
+    if (asRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoadingRemote(true);
+    }
+
     try {
-      // Static guide content for now; keep gesture for consistency across tabs.
+      const rows = await fetchHowToGuides(selectedLanguageCode, { forceRefresh: true });
+      setRemoteGuides(rows);
+      setRemoteError(null);
+    } catch {
+      setRemoteGuides([]);
+      setRemoteError('Could not load how-to guides right now.');
     } finally {
       setRefreshing(false);
+      setLoadingRemote(false);
     }
-  }, []);
+  }, [selectedLanguageCode]);
+
+  const onPullRefresh = useCallback(async () => {
+    await loadRemoteGuides(true);
+  }, [loadRemoteGuides]);
+
+  React.useEffect(() => {
+    if (!selectedLanguage) return;
+    void loadRemoteGuides(false);
+  }, [loadRemoteGuides, selectedLanguage]);
 
   const handleSectionToggle = (secKey: string) => {
     const opening = expandedSection !== secKey;
@@ -278,8 +304,12 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
   };
 
   const activeGuides = useMemo(
-    () => HOW_TO_GUIDES.filter((guide) => (guide.language ?? 'en') === (selectedLanguage === 'urdu' ? 'ur' : 'en')),
-    [selectedLanguage]
+    () => {
+      const fallback = HOW_TO_GUIDES.filter((guide) => (guide.language ?? 'en') === selectedLanguageCode);
+      if (remoteGuides.length > 0) return remoteGuides;
+      return remoteError ? [] : fallback;
+    },
+    [remoteError, remoteGuides, selectedLanguageCode]
   );
 
   const guideCards = useMemo(
@@ -547,34 +577,6 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
     );
   }
 
-  if (selectedLanguage === 'urdu') {
-    return (
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[howToStyles.container, N && { backgroundColor: N.bg }]}
-      >
-        <View style={[howToStyles.introCard, N && { backgroundColor: N.surface, borderColor: N.border }]}>
-          <View style={[howToStyles.introIcon, N && { backgroundColor: `${N.accent}18` }]}>
-            <MaterialIcons name="hourglass-empty" size={20} color={N ? N.accent : Colors.primary} />
-          </View>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={[howToStyles.introTitle, N && { color: N.text }]}>Urdu Guides Coming Soon</Text>
-            <Text style={[howToStyles.introSub, N && { color: N.textSub }]}>Use English guides for now while Urdu is prepared</Text>
-          </View>
-        </View>
-
-        <TouchableOpacity
-          style={[howToStyles.languageBackBtn, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}
-          onPress={() => setSelectedLanguage(null)}
-          activeOpacity={0.85}
-        >
-          <MaterialIcons name="arrow-back" size={16} color={N ? N.textSub : Colors.textSecondary} />
-          <Text style={[howToStyles.languageBackText, N && { color: N.textSub }]}>Back to language selection</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    );
-  }
-
   const renderImageViewerModal = () => (
     <Modal
       visible={imageViewerVisible}
@@ -690,6 +692,18 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
             {selectedParentGroup ? 'Back to categories' : 'Change language'}
           </Text>
         </TouchableOpacity>
+
+        {loadingRemote ? (
+          <View style={[howToStyles.emptyGroupCard, N && { backgroundColor: N.surface, borderColor: N.border }]}> 
+            <Text style={[howToStyles.emptyGroupText, N && { color: N.textSub }]}>Loading guides...</Text>
+          </View>
+        ) : null}
+
+        {remoteError ? (
+          <View style={[howToStyles.emptyGroupCard, N && { backgroundColor: N.surface, borderColor: N.border }]}> 
+            <Text style={[howToStyles.emptyGroupText, N && { color: N.textSub }]}>Unable to load guides right now.</Text>
+          </View>
+        ) : null}
 
         {selectedParentGroup ? (
           selectedGroupGuides.length > 0 ? (

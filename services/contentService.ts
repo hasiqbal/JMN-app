@@ -5,12 +5,15 @@
  */
 import { getSupabaseClient } from '@/template';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { HowToGuide, GuideBlock, HowToStepImage } from '@/howtoguides/types';
 
 const URDU_TRANSLATION_CACHE_PREFIX = '@adhkar_urdu_cache_v1:';
 const urduTranslationMemoryCache = new Map<string, string>();
 const ENGLISH_TRANSLATION_CACHE_PREFIX = '@adhkar_english_cache_v1:';
 const englishTranslationMemoryCache = new Map<string, string>();
 const ANNOUNCEMENTS_CACHE_KEY = '@announcements_feed_cache_v1';
+const HOWTO_GUIDES_CACHE_PREFIX = '@howto_guides_cache_v1:';
+const HOWTO_GUIDES_TTL_MS = 15 * 60 * 1000;
 const ANNOUNCEMENTS_FETCH_TIMEOUT_MS = 8000;
 const TRANSLATE_URDU_BACKOFF_MS = 5 * 60 * 1000;
 
@@ -21,7 +24,54 @@ type AnnouncementsCachePayload = {
   rows: AnnouncementRow[];
 };
 
+type HowToCachePayload = {
+  updatedAt: number;
+  rows: HowToGuide[];
+};
+
 let announcementsMemoryCache: AnnouncementsCachePayload | null = null;
+const howToGuidesMemoryCache = new Map<string, HowToCachePayload>();
+
+function buildHowToCacheKey(language: 'en' | 'ur'): string {
+  return `${HOWTO_GUIDES_CACHE_PREFIX}${language}`;
+}
+
+async function readCachedHowToGuides(language: 'en' | 'ur'): Promise<HowToGuide[] | null> {
+  const memory = howToGuidesMemoryCache.get(language);
+  if (memory && Date.now() - memory.updatedAt <= HOWTO_GUIDES_TTL_MS) {
+    return memory.rows;
+  }
+
+  try {
+    const raw = await AsyncStorage.getItem(buildHowToCacheKey(language));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as HowToCachePayload;
+    if (!parsed || !Array.isArray(parsed.rows) || typeof parsed.updatedAt !== 'number') return null;
+
+    howToGuidesMemoryCache.set(language, parsed);
+    if (Date.now() - parsed.updatedAt <= HOWTO_GUIDES_TTL_MS) {
+      return parsed.rows;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+async function writeCachedHowToGuides(language: 'en' | 'ur', rows: HowToGuide[]): Promise<void> {
+  const payload: HowToCachePayload = {
+    updatedAt: Date.now(),
+    rows,
+  };
+
+  howToGuidesMemoryCache.set(language, payload);
+  try {
+    await AsyncStorage.setItem(buildHowToCacheKey(language), JSON.stringify(payload));
+  } catch {
+    // ignore storage write issues
+  }
+}
 
 function normalizeTranslationSourceKey(text: string): string {
   return text.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -196,6 +246,8 @@ export interface AdhkarRow {
   sections: {
     heading: string;
     chapter?: string;
+    chapter_arabic?: string;
+    chapter_urdu?: string;
     arabic: string;
     transliteration?: string;
     translation?: string;
@@ -215,6 +267,55 @@ export interface AdhkarRow {
   group_description?: string | null;
   file_url?: string | null;
 }
+
+type HowToGuideRow = {
+  id: string;
+  group_id: string;
+  slug: string;
+  title: string;
+  subtitle: string | null;
+  intro: string | null;
+  language: 'en' | 'ur';
+  icon: string | null;
+  color: string | null;
+  display_order: number;
+};
+
+type HowToGroupRow = {
+  id: string;
+  name: string;
+};
+
+type HowToSectionRow = {
+  id: string;
+  guide_id: string;
+  heading: string;
+  section_order: number;
+};
+
+type HowToStepRow = {
+  id: string;
+  section_id: string;
+  step_order: number;
+  title: string;
+  detail: string | null;
+  note: string | null;
+};
+
+type HowToStepBlockRow = {
+  step_id: string;
+  block_order: number;
+  kind: GuideBlock['kind'];
+  payload: Record<string, unknown>;
+};
+
+type HowToStepImageRow = {
+  step_id: string;
+  display_order: number;
+  image_url: string;
+  caption: string | null;
+  source: string | null;
+};
 
 // Resolve Urdu translation from supported portal column variants.
 // Keep this centralized so all entry renderers stay consistent by default.
@@ -309,6 +410,15 @@ export async function translateTextToUrdu(text: string): Promise<string> {
   }
 }
 
+function getEnglishTranslationSource(row: AdhkarRow): string {
+  const direct = (row.translation ?? '').trim();
+  if (direct) return direct;
+  return (row.sections ?? [])
+    .map((sec) => (sec.translation ?? '').trim())
+    .filter(Boolean)
+    .join('\n\n');
+}
+
 // Runtime English translation fallback for rows that only have Arabic.
 export async function translateTextToEnglish(text: string): Promise<string> {
   const source = text.trim();
@@ -344,13 +454,40 @@ export async function translateTextToEnglish(text: string): Promise<string> {
   }
 }
 
-function getEnglishTranslationSource(row: AdhkarRow): string {
-  const direct = (row.translation ?? '').trim();
-  if (direct) return direct;
-  return (row.sections ?? [])
-    .map((sec) => (sec.translation ?? '').trim())
-    .filter(Boolean)
-    .join('\n\n');
+// In-memory Arabic translation cache for the current session.
+const arabicTranslationCache = new Map<string, string>();
+
+// Runtime Arabic translation (e.g. for chapter titles).
+export async function translateTextToArabic(text: string): Promise<string> {
+  const source = text.trim();
+  if (!source) return '';
+
+  const cached = arabicTranslationCache.get(source);
+  if (cached) return cached;
+
+  try {
+    const url =
+      'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=ar&dt=t&q=' +
+      encodeURIComponent(source);
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return '';
+
+    const payload = await res.json();
+    if (!Array.isArray(payload) || !Array.isArray(payload[0])) return '';
+
+    const translated = (payload[0] as unknown[])
+      .map((part) => (Array.isArray(part) && typeof part[0] === 'string' ? part[0] : ''))
+      .join('')
+      .trim();
+
+    if (translated) arabicTranslationCache.set(source, translated);
+    return translated;
+  } catch {
+    return '';
+  }
 }
 
 export async function prewarmAdhkarUrduTranslationCache(maxItems = Number.MAX_SAFE_INTEGER): Promise<void> {
@@ -546,6 +683,149 @@ export async function fetchQaseedahNaatEntries(): Promise<AdhkarRow[]> {
     });
   } catch {
     return [];
+  }
+}
+
+export async function fetchHowToGuides(language: 'en' | 'ur' = 'en', options?: { forceRefresh?: boolean }): Promise<HowToGuide[]> {
+  const forceRefresh = options?.forceRefresh === true;
+  const cached = forceRefresh ? null : await readCachedHowToGuides(language);
+  if (!forceRefresh && cached && cached.length > 0) {
+    return cached;
+  }
+
+  try {
+    const supabase = getSupabaseClient();
+    const nowIso = new Date().toISOString();
+
+    const { data: guides, error: guidesError } = await supabase
+      .from('howto_guides')
+      .select('id,group_id,slug,title,subtitle,intro,language,icon,color,display_order,publish_start_at,publish_end_at')
+      .eq('is_active', true)
+      .eq('language', language)
+      .or(`publish_start_at.is.null,publish_start_at.lte.${nowIso}`)
+      .or(`publish_end_at.is.null,publish_end_at.gt.${nowIso}`)
+      .order('display_order', { ascending: true })
+      .order('title', { ascending: true });
+
+    if (guidesError || !guides || guides.length === 0) return [];
+
+    const guideRows = guides as HowToGuideRow[];
+    const guideIds = guideRows.map((row) => row.id);
+    const groupIds = Array.from(new Set(guideRows.map((row) => row.group_id)));
+
+    const [groupsResult, sectionsResult] = await Promise.all([
+      supabase
+        .from('howto_groups')
+        .select('id,name')
+        .in('id', groupIds),
+      supabase
+        .from('howto_sections')
+        .select('id,guide_id,heading,section_order')
+        .in('guide_id', guideIds)
+        .order('section_order', { ascending: true }),
+    ]);
+
+    if (groupsResult.error || sectionsResult.error) return [];
+
+    const sectionRows = (sectionsResult.data ?? []) as HowToSectionRow[];
+    const sectionIds = sectionRows.map((section) => section.id);
+
+    const { data: steps, error: stepsError } = sectionIds.length > 0
+      ? await supabase
+          .from('howto_steps')
+          .select('id,section_id,step_order,title,detail,note')
+          .in('section_id', sectionIds)
+          .order('step_order', { ascending: true })
+      : { data: [], error: null };
+
+    if (stepsError) return [];
+
+    const stepRows = (steps ?? []) as HowToStepRow[];
+    const stepIds = stepRows.map((step) => step.id);
+
+    const [blocksResult, imagesResult] = stepIds.length > 0
+      ? await Promise.all([
+          supabase
+            .from('howto_step_blocks')
+            .select('step_id,block_order,kind,payload')
+            .in('step_id', stepIds)
+            .order('block_order', { ascending: true }),
+          supabase
+            .from('howto_step_images')
+            .select('step_id,display_order,image_url,caption,source')
+            .in('step_id', stepIds)
+            .order('display_order', { ascending: true }),
+        ])
+      : [{ data: [], error: null }, { data: [], error: null }];
+
+    if (blocksResult.error || imagesResult.error) return [];
+
+    const groupNameById = new Map<string, string>();
+    for (const group of (groupsResult.data ?? []) as HowToGroupRow[]) {
+      groupNameById.set(group.id, group.name);
+    }
+
+    const sectionsByGuideId = new Map<string, HowToSectionRow[]>();
+    for (const section of sectionRows) {
+      const list = sectionsByGuideId.get(section.guide_id) ?? [];
+      list.push(section);
+      sectionsByGuideId.set(section.guide_id, list);
+    }
+
+    const stepsBySectionId = new Map<string, HowToStepRow[]>();
+    for (const step of stepRows) {
+      const list = stepsBySectionId.get(step.section_id) ?? [];
+      list.push(step);
+      stepsBySectionId.set(step.section_id, list);
+    }
+
+    const blocksByStepId = new Map<string, GuideBlock[]>();
+    for (const block of (blocksResult.data ?? []) as HowToStepBlockRow[]) {
+      const list = blocksByStepId.get(block.step_id) ?? [];
+      list.push({ kind: block.kind, ...block.payload } as GuideBlock);
+      blocksByStepId.set(block.step_id, list);
+    }
+
+    const imagesByStepId = new Map<string, HowToStepImage[]>();
+    for (const image of (imagesResult.data ?? []) as HowToStepImageRow[]) {
+      const list = imagesByStepId.get(image.step_id) ?? [];
+      list.push({
+        uri: image.image_url,
+        caption: image.caption ?? '',
+        source: image.source ?? undefined,
+      });
+      imagesByStepId.set(image.step_id, list);
+    }
+
+    const mapped = guideRows.map((guide) => ({
+      id: guide.slug || guide.id,
+      language: guide.language,
+      parentGroup: groupNameById.get(guide.group_id) ?? 'General',
+      title: guide.title,
+      subtitle: guide.subtitle ?? '',
+      icon: guide.icon ?? 'menu-book',
+      color: guide.color ?? '#2e7d32',
+      intro: guide.intro ?? '',
+      sections: (sectionsByGuideId.get(guide.id) ?? []).map((section) => ({
+        heading: section.heading,
+        steps: (stepsBySectionId.get(section.id) ?? []).map((step, index) => ({
+          step: index + 1,
+          title: step.title,
+          detail: step.detail ?? '',
+          blocks: blocksByStepId.get(step.id) ?? undefined,
+          note: step.note ?? undefined,
+          images: imagesByStepId.get(step.id) ?? undefined,
+        })),
+      })),
+    }));
+
+    if (mapped.length > 0) {
+      await writeCachedHowToGuides(language, mapped);
+    }
+
+    return mapped;
+  } catch {
+    return cached ?? [];
   }
 }
 

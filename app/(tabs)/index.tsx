@@ -2706,7 +2706,7 @@ export default function HomeScreen() {
     <>
     <ScrollView
       style={[styles.container, N && { backgroundColor: N.bg }]}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, N && { backgroundColor: N.bg }]}
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl

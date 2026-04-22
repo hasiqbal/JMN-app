@@ -49,11 +49,11 @@ const NIGHT: NightPalette = {
   bg: '#0B1220',
   surface: '#111A2E',
   surfaceAlt: '#16223A',
-  border: 'rgba(255,255,255,0.05)',
+  border: 'rgba(173, 198, 235, 0.24)',
   borderStrong: '#1E2D47',
   text: '#FFFFFF',
-  textSub: '#B8C1D9',
-  textMuted: '#7C879F',
+  textSub: '#CFDCF2',
+  textMuted: '#A8BAD8',
   cardBg: '#111A2E',
   jumuahBg: '#1F1A0A',
   jumuahBord: '#3D2F00',
@@ -1274,14 +1274,14 @@ function BedTimeCard({
         style={[fyStyles.openRow, {
           backgroundColor: 'transparent',
           borderWidth: 1,
-          borderColor: accentColor + '25',
+          borderColor: accentColor + '55',
           alignSelf: 'stretch',
           justifyContent: 'center',
           paddingVertical: 3,
         }]}
       >
-        <MaterialIcons name="check-circle-outline" size={9} color={accentColor + '77'} />
-        <Text style={[fyStyles.openText, { color: accentColor + '77', fontSize: 9 }]}>Done for tonight</Text>
+        <MaterialIcons name="check-circle-outline" size={9} color={accentColor + 'CC'} />
+        <Text style={[fyStyles.openText, { color: accentColor + 'CC', fontSize: 9 }]}>Done for tonight</Text>
       </TouchableOpacity>
     </View>
   );
@@ -1524,14 +1524,14 @@ function NextAdhkarCountdownCard({
         fyStyles.card,
         fyStyles.nextAdhkarStrip,
         N && { backgroundColor: N.surface, borderColor: N.border },
-        !isAvailable && { opacity: 0.62 },
+        !isAvailable && { opacity: 0.82 },
       ]}
       onPress={handlePress}
       activeOpacity={0.85}
     >
       <MaterialIcons name={isAvailable ? meta.icon as any : 'schedule'} size={14} color={accentColor} />
       <View style={{ flex: 1 }}>
-        <Text style={[fyStyles.cardTitle, { fontSize: 11, lineHeight: 13 }, N && { color: N.text }]} numberOfLines={1}>
+        <Text style={[fyStyles.cardTitle, { fontSize: 11, lineHeight: 13 }, N && { color: N.textSub }]} numberOfLines={1}>
           {meta.title}
         </Text>
       </View>
@@ -1561,7 +1561,7 @@ function ForYouCard({
   const onOut = () => Animated.spring(scale, { toValue: 1,    useNativeDriver: true, speed: 40 }).start();
   const N = nightMode ? NIGHT : null;
   const isOverdue = !!card.isOverdue;
-  const overdueColor = '#C62828'; // red-700
+  const overdueColor = nightMode ? '#FF736A' : '#C62828';
 
   const accentColor = isOverdue ? overdueColor : card.color;
 
@@ -1601,7 +1601,7 @@ function ForYouCard({
           </View>
 
           {/* Row 2: title only */}
-          <Text style={[fyStyles.cardTitle, N && { color: N.text }, isOverdue && { color: N ? '#FCA5A5' : '#7F1D1D' }]} numberOfLines={2}>{card.title}</Text>
+          <Text style={[fyStyles.cardTitle, N && { color: N.text }, isOverdue && { color: N ? '#FFD2CE' : '#7F1D1D' }]} numberOfLines={2}>{card.title}</Text>
 
           {/* Row 3: Open + Done */}
           <View style={fyStyles.ctaRow}>
@@ -1610,11 +1610,15 @@ function ForYouCard({
                 onPress={(e) => { e.stopPropagation(); onOpen(card); }}
                 style={[
                   fyStyles.openPrimary,
-                  { backgroundColor: accentColor + (N ? '2A' : '18') },
+                  {
+                    backgroundColor: isOverdue
+                      ? (N ? 'rgba(255,115,106,0.26)' : accentColor + '18')
+                      : accentColor + (N ? '2A' : '18'),
+                  },
                 ]}
               >
-                <Text style={[fyStyles.openPrimaryText, { color: accentColor }]}>Open</Text>
-                <MaterialIcons name="arrow-forward" size={10} color={accentColor} />
+                <Text style={[fyStyles.openPrimaryText, { color: isOverdue && N ? '#FFE8E5' : accentColor }]}>Open</Text>
+                <MaterialIcons name="arrow-forward" size={10} color={isOverdue && N ? '#FFE8E5' : accentColor} />
               </TouchableOpacity>
             ) : <View />}
             <TouchableOpacity
@@ -1898,7 +1902,7 @@ const fyStyles = StyleSheet.create({
     borderRadius: Radius.xl,
   },
   quranBgOverlay: {
-    backgroundColor: 'rgba(0,0,0,0.30)',
+    backgroundColor: 'rgba(0,0,0,0.44)',
     borderRadius: Radius.xl,
     padding: 11,
     gap: 8,
@@ -2274,8 +2278,8 @@ export function HomeForYouTodaySection({
         <View style={{ flex: 1 }}>
           {/* Section kicker */}
           <View style={sectionStyles.kickerRow}>
-            <View style={sectionStyles.kickerBar} />
-            <Text style={sectionStyles.kicker}>YOUR ADHKAR</Text>
+            <View style={[sectionStyles.kickerBar, N && { backgroundColor: N.accent }]} />
+            <Text style={[sectionStyles.kicker, N && { color: N.textSub }]}>YOUR ADHKAR</Text>
           </View>
         </View>
         <View style={[

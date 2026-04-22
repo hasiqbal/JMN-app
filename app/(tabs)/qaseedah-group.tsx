@@ -4,21 +4,30 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { MaterialIcons } from '@expo/vector-icons';
 
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { NIGHT_PALETTE } from '@/constants/nightPalette';
 import { useNightMode } from '@/hooks/useNightMode';
-import { NightModeToggle } from '@/components/adhkar/NightModeToggle';
-import { AdhkarRow, fetchQaseedahNaatEntries, translateTextToEnglish, translateTextToUrdu } from '@/services/contentService';
+import {
+  ChapterIntro,
+  QaseedahHeader,
+  ReadingPreferencesBar,
+  VerseBlock,
+  VerseDivider,
+  type LayerVisibility,
+  type ReadingMode,
+  type VerseRole,
+} from '@/components/qaseedah';
+import { AdhkarRow, fetchQaseedahNaatEntries, translateTextToArabic, translateTextToEnglish, translateTextToUrdu } from '@/services/contentService';
 
 type GroupChapterItem = {
   id: string;
   chapter: string;
+  chapterArabic?: string;
+  chapterUrdu?: string;
   entryTitle: string;
   lines: {
     heading: string;
@@ -29,22 +38,102 @@ type GroupChapterItem = {
   }[];
 };
 
+const CHORUS_MARKER = '__chorus__';
+
+type ChorusLine = {
+  heading: string;
+  arabic: string;
+  transliteration?: string;
+  translation?: string;
+  urdu_translation?: string;
+};
+
+function chapterOrderValue(chapter: string): number {
+  const normalized = chapter.trim().toLowerCase();
+  const numberMatch = normalized.match(/chapter\s+(\d+)/i);
+  if (numberMatch) return Number(numberMatch[1]);
+
+  const wordMap: Record<string, number> = {
+    one: 1,
+    two: 2,
+    three: 3,
+    four: 4,
+    five: 5,
+    six: 6,
+    seven: 7,
+    eight: 8,
+    nine: 9,
+    ten: 10,
+  };
+
+  const wordMatch = normalized.match(/chapter\s+([a-z]+)/i);
+  if (wordMatch && wordMap[wordMatch[1]]) return wordMap[wordMatch[1]];
+
+  return Number.MAX_SAFE_INTEGER;
+}
+
+function transliterateArabicToLatin(text: string): string {
+  const map: Record<string, string> = {
+    ا: 'a', أ: 'a', إ: 'i', آ: 'aa', ب: 'b', ت: 't', ث: 'th', ج: 'j', ح: 'h', خ: 'kh',
+    د: 'd', ذ: 'dh', ر: 'r', ز: 'z', س: 's', ش: 'sh', ص: 's', ض: 'd', ط: 't', ظ: 'z',
+    ع: 'a', غ: 'gh', ف: 'f', ق: 'q', ك: 'k', ل: 'l', م: 'm', ن: 'n', ه: 'h', و: 'w',
+    ي: 'y', ى: 'a', ة: 'h', ء: '\'', ئ: 'y', ؤ: 'w', ' ': ' ', '\n': '\n',
+  };
+
+  return text
+    .split('')
+    .map((ch) => map[ch] ?? '')
+    .join('')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 function extractChapterItems(rows: AdhkarRow[]): GroupChapterItem[] {
   const items: GroupChapterItem[] = [];
 
   rows.forEach((row) => {
     if (Array.isArray(row.sections) && row.sections.length > 0) {
+      // First pass: find the chorus marker, if any.
+      let chorus: ChorusLine | null = null;
+      for (const section of row.sections) {
+        if (!section || typeof section !== 'object') continue;
+        const chapterStr = typeof section.chapter === 'string' ? section.chapter.trim() : '';
+        if (chapterStr !== CHORUS_MARKER) continue;
+        const chorusArabic = typeof section.arabic === 'string' ? section.arabic.trim() : '';
+        if (!chorusArabic) continue;
+        chorus = {
+          heading: 'Chorus',
+          arabic: chorusArabic,
+          transliteration: typeof section.transliteration === 'string' ? section.transliteration : undefined,
+          translation: typeof section.translation === 'string' ? section.translation : undefined,
+          urdu_translation: typeof section.urdu_translation === 'string' ? section.urdu_translation : undefined,
+        };
+        break;
+      }
+
       const chapterMap = new Map<string, GroupChapterItem['lines']>();
+      const chapterArabicTitle = new Map<string, string>();
+      const chapterUrduTitle = new Map<string, string>();
 
       row.sections.forEach((section, index) => {
         if (!section || typeof section !== 'object') return;
 
+        const chapterStr = typeof section.chapter === 'string' ? section.chapter.trim() : '';
+        if (chapterStr === CHORUS_MARKER) return;
+
         const arabic = typeof section.arabic === 'string' ? section.arabic.trim() : '';
         if (!arabic) return;
 
-        const chapter = typeof section.chapter === 'string' && section.chapter.trim().length > 0
-          ? section.chapter.trim()
-          : 'Chapter 1';
+        const chapter = chapterStr.length > 0 ? chapterStr : 'Chapter 1';
+
+        const arabicTitleOverride = typeof section.chapter_arabic === 'string' ? section.chapter_arabic.trim() : '';
+        const urduTitleOverride = typeof section.chapter_urdu === 'string' ? section.chapter_urdu.trim() : '';
+        if (arabicTitleOverride && !chapterArabicTitle.has(chapter)) {
+          chapterArabicTitle.set(chapter, arabicTitleOverride);
+        }
+        if (urduTitleOverride && !chapterUrduTitle.has(chapter)) {
+          chapterUrduTitle.set(chapter, urduTitleOverride);
+        }
 
         const heading = typeof section.heading === 'string' && section.heading.trim().length > 0
           ? section.heading.trim()
@@ -67,35 +156,64 @@ function extractChapterItems(rows: AdhkarRow[]): GroupChapterItem[] {
       });
 
       Array.from(chapterMap.entries()).forEach(([chapter, lines], chapterIndex) => {
+        const withChorus = chorus && chapter.toLowerCase().startsWith('chapter ')
+          ? [
+            { ...chorus, heading: `${chapter} · Chorus (Opening)` },
+            ...lines,
+            { ...chorus, heading: `${chapter} · Chorus (Closing)` },
+          ]
+          : lines;
+
         items.push({
           id: `${row.id}-${chapterIndex}-${chapter}`,
           chapter,
+          chapterArabic: chapterArabicTitle.get(chapter) || undefined,
+          chapterUrdu: chapterUrduTitle.get(chapter) || undefined,
           entryTitle: row.title || 'Untitled',
-          lines,
+          lines: withChorus,
         });
       });
 
       return;
     }
 
+    // Fallback: no sections. Split the entry by newlines into per-verse lines
+    // and treat the row as its own chapter (matches Burdah formatting).
     const fallbackArabic = (row.arabic || '').trim();
     if (!fallbackArabic) return;
 
+    const arabicLines = fallbackArabic.split(/\r?\n+/).map((s) => s.trim()).filter(Boolean);
+    const translitLines = (row.transliteration || '').split(/\r?\n+/).map((s) => s.trim());
+    const englishLines = (row.translation || '').split(/\r?\n+/).map((s) => s.trim());
+    const urduLines = (row.urdu_translation || row.translation_urdu || '').split(/\r?\n+/).map((s) => s.trim());
+
+    const chapterLabel = row.title || 'Chapter';
+
+    const lines = arabicLines.map((arabic, idx) => ({
+      heading: `${chapterLabel} · Verse ${idx + 1}`,
+      arabic,
+      transliteration: translitLines[idx] || undefined,
+      translation: englishLines[idx] || undefined,
+      urdu_translation: urduLines[idx] || undefined,
+    }));
+
     items.push({
-      id: `${row.id}-full`,
-      chapter: 'Full Text',
+      id: `${row.id}-entry`,
+      chapter: chapterLabel,
       entryTitle: row.title || 'Untitled',
-      lines: [{
-        heading: 'Full Text',
-        arabic: fallbackArabic,
-        transliteration: row.transliteration ?? undefined,
-        translation: row.translation ?? undefined,
-        urdu_translation: row.urdu_translation ?? undefined,
-      }],
+      lines,
     });
   });
 
-  return items.sort((a, b) => a.chapter.localeCompare(b.chapter, undefined, { sensitivity: 'base' }));
+  return items
+    .map((item, originalIndex) => ({ item, originalIndex }))
+    .sort((a, b) => {
+      const aOrder = chapterOrderValue(a.item.chapter);
+      const bOrder = chapterOrderValue(b.item.chapter);
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return a.originalIndex - b.originalIndex;
+    })
+    .map((entry) => entry.item);
 }
 
 export default function QaseedahGroupScreen() {
@@ -112,12 +230,21 @@ export default function QaseedahGroupScreen() {
   const [error, setError] = React.useState<string | null>(null);
   const [chapters, setChapters] = React.useState<GroupChapterItem[]>([]);
   const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
-  const [showArabic, setShowArabic] = React.useState(true);
-  const [showTransliteration, setShowTransliteration] = React.useState(true);
-  const [showEnglish, setShowEnglish] = React.useState(true);
-  const [showUrdu, setShowUrdu] = React.useState(true);
+  const [readingMode, setReadingMode] = React.useState<ReadingMode>('full');
+  const [layers, setLayers] = React.useState<LayerVisibility>({ arabic: true, transliteration: true, english: true, urdu: true });
   const [textScale, setTextScale] = React.useState(1);
-  const [autoTranslatedByLine, setAutoTranslatedByLine] = React.useState<Record<string, { english?: string; urdu?: string }>>({});
+  const [autoTranslatedByLine, setAutoTranslatedByLine] = React.useState<Record<string, { transliteration?: string; english?: string; urdu?: string }>>({});
+  const [chapterTitleUrdu, setChapterTitleUrdu] = React.useState<Record<string, string>>({});
+  const [chapterTitleArabic, setChapterTitleArabic] = React.useState<Record<string, string>>({});
+
+  const handleModeChange = React.useCallback((next: ReadingMode) => {
+    setReadingMode(next);
+    if (next === 'arabic') setLayers({ arabic: true, transliteration: false, english: false, urdu: false });
+    else if (next === 'translit') setLayers({ arabic: true, transliteration: true, english: false, urdu: false });
+    else if (next === 'translation') setLayers({ arabic: true, transliteration: false, english: true, urdu: false });
+    else if (next === 'urdu') setLayers({ arabic: true, transliteration: false, english: false, urdu: true });
+    else if (next === 'full') setLayers({ arabic: true, transliteration: true, english: true, urdu: true });
+  }, []);
 
   const load = React.useCallback(async (asRefresh = false) => {
     if (asRefresh) {
@@ -152,7 +279,7 @@ export default function QaseedahGroupScreen() {
     let cancelled = false;
 
     const run = async () => {
-      const nextMap: Record<string, { english?: string; urdu?: string }> = {};
+      const nextMap: Record<string, { transliteration?: string; english?: string; urdu?: string }> = {};
 
       for (const chapter of chapters) {
         for (let idx = 0; idx < chapter.lines.length; idx += 1) {
@@ -161,12 +288,21 @@ export default function QaseedahGroupScreen() {
 
           const hasEnglish = !!line.translation?.trim();
           const hasUrdu = !!line.urdu_translation?.trim();
+          const hasTranslit = !!line.transliteration?.trim();
 
+          let transliteration = '';
           let english = '';
           let urdu = '';
 
+          if (!hasTranslit) {
+            const sourceArabic = line.arabic?.trim() || '';
+            if (sourceArabic) {
+              transliteration = transliterateArabicToLatin(sourceArabic);
+            }
+          }
+
           if (!hasEnglish) {
-            const source = line.arabic?.trim() || line.transliteration?.trim() || '';
+            const source = line.arabic?.trim() || line.transliteration?.trim() || transliteration || '';
             if (source) {
               english = await translateTextToEnglish(source);
             }
@@ -179,8 +315,9 @@ export default function QaseedahGroupScreen() {
             }
           }
 
-          if (english || urdu) {
+          if (transliteration || english || urdu) {
             nextMap[key] = {
+              transliteration: transliteration || undefined,
               english: english || undefined,
               urdu: urdu || undefined,
             };
@@ -204,183 +341,193 @@ export default function QaseedahGroupScreen() {
     };
   }, [chapters]);
 
-  return (
-    <View style={[styles.screen, N && { backgroundColor: N.bg }]}> 
-      <View style={[styles.topBar, N && { borderColor: N.border, backgroundColor: N.surfaceAlt }]}> 
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton} activeOpacity={0.86}>
-          <MaterialIcons name="arrow-back" size={22} color={N ? N.text : Colors.textPrimary} />
-        </TouchableOpacity>
-        <View style={styles.topTitleWrap}>
-          <Text style={[styles.topTitle, N && { color: N.text }]} numberOfLines={1}>{groupName}</Text>
-          <Text style={[styles.topMeta, N && { color: N.textMuted }]}>{type === 'naat' ? 'Naat' : 'Qaseedah'} · {chapters.length} chapters</Text>
-        </View>
-        <TouchableOpacity
-          onPress={() => { void load(true); }}
-          style={[styles.refreshBtn, N && { borderColor: N.border, backgroundColor: N.surface }]}
-          activeOpacity={0.86}
-          disabled={refreshing}
-        >
-          {refreshing ? (
-            <ActivityIndicator size="small" color={N ? N.accent : Colors.primary} />
-          ) : (
-            <MaterialIcons name="refresh" size={18} color={N ? N.accent : Colors.primary} />
-          )}
-        </TouchableOpacity>
-      </View>
+  React.useEffect(() => {
+    let cancelled = false;
 
-      <View style={[styles.modeRow, N && { borderColor: N.border, backgroundColor: N.surfaceAlt }]}> 
-        <NightModeToggle nightMode={nightMode} onToggle={toggleManual} />
-      </View>
+    const run = async () => {
+      const overrideTitles = new Set(
+        chapters.filter((c) => c.chapterUrdu?.trim()).map((c) => c.chapter)
+      );
+      const unique = Array.from(new Set(chapters.map((c) => c.chapter).filter(Boolean)))
+        .filter((t) => !overrideTitles.has(t));
+      const next: Record<string, string> = {};
+
+      for (const title of unique) {
+        // Skip titles that are already in Urdu/Arabic script.
+        if (/[\u0600-\u06FF]/.test(title)) {
+          next[title] = title;
+          continue;
+        }
+        try {
+          const translated = await translateTextToUrdu(title);
+          if (translated) next[title] = translated;
+        } catch {
+          // ignore failures; fall back to no Urdu title
+        }
+      }
+
+      if (!cancelled) {
+        setChapterTitleUrdu(next);
+      }
+    };
+
+    if (chapters.length > 0) {
+      void run();
+    } else {
+      setChapterTitleUrdu({});
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [chapters]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      const overrideTitles = new Set(
+        chapters.filter((c) => c.chapterArabic?.trim()).map((c) => c.chapter)
+      );
+      const unique = Array.from(new Set(chapters.map((c) => c.chapter).filter(Boolean)))
+        .filter((t) => !overrideTitles.has(t));
+      const next: Record<string, string> = {};
+
+      for (const title of unique) {
+        // Skip titles already in Arabic/Urdu script.
+        if (/[\u0600-\u06FF]/.test(title)) {
+          next[title] = title;
+          continue;
+        }
+        try {
+          const translated = await translateTextToArabic(title);
+          if (translated) next[title] = translated;
+        } catch {
+          // ignore
+        }
+      }
+
+      if (!cancelled) {
+        setChapterTitleArabic(next);
+      }
+    };
+
+    if (chapters.length > 0) {
+      void run();
+    } else {
+      setChapterTitleArabic({});
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [chapters]);
+
+  return (
+    <View style={[styles.screen, N && { backgroundColor: N.bg }]}>
+      <QaseedahHeader
+        title={groupName}
+        subtitle={`${type === 'naat' ? 'Naat' : 'Qaseedah'} · ${chapters.length} ${chapters.length === 1 ? 'chapter' : 'chapters'}`}
+        onBack={() => router.back()}
+        onRefresh={() => { void load(true); }}
+        refreshing={refreshing}
+        night={N}
+      />
+
+      <ReadingPreferencesBar
+        mode={readingMode}
+        onModeChange={handleModeChange}
+        layers={layers}
+        onLayersChange={setLayers}
+        textScale={textScale}
+        onTextScaleChange={setTextScale}
+        nightMode={nightMode}
+        onNightToggle={toggleManual}
+        night={N}
+      />
 
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={[styles.readerControls, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}> 
-          <Text style={[styles.controlLabel, N && { color: N.textMuted }]}>Show</Text>
-          <View style={styles.toggleRow}>
-            {[
-              { key: 'ar', label: 'Arabic', value: showArabic, setValue: setShowArabic },
-              { key: 'tr', label: 'Translit', value: showTransliteration, setValue: setShowTransliteration },
-              { key: 'en', label: 'English', value: showEnglish, setValue: setShowEnglish },
-              { key: 'ur', label: 'Urdu', value: showUrdu, setValue: setShowUrdu },
-            ].map((item) => (
-              <TouchableOpacity
-                key={item.key}
-                activeOpacity={0.85}
-                onPress={() => item.setValue(!item.value)}
-                style={[
-                  styles.toggleChip,
-                  item.value && styles.toggleChipActive,
-                  N && {
-                    borderColor: N.border,
-                    backgroundColor: item.value ? `${N.accent}24` : N.surface,
-                  },
-                ]}
-              >
-                <Text style={[styles.toggleChipText, item.value && styles.toggleChipTextActive, N && !item.value && { color: N.textSub }]}>{item.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <View style={styles.scaleRow}>
-            <Text style={[styles.controlLabel, N && { color: N.textMuted }]}>Text Size</Text>
-            <View style={styles.scaleActions}>
-              <TouchableOpacity
-                style={[styles.scaleButton, N && { borderColor: N.border, backgroundColor: N.surface }]}
-                onPress={() => setTextScale((prev) => Math.max(0.8, Number((prev - 0.1).toFixed(2))))}
-                activeOpacity={0.85}
-              >
-                <MaterialIcons name="remove" size={18} color={N ? N.text : Colors.textPrimary} />
-              </TouchableOpacity>
-              <Text style={[styles.scaleValue, N && { color: N.text }]}>{Math.round(textScale * 100)}%</Text>
-              <TouchableOpacity
-                style={[styles.scaleButton, N && { borderColor: N.border, backgroundColor: N.surface }]}
-                onPress={() => setTextScale((prev) => Math.min(1.8, Number((prev + 0.1).toFixed(2))))}
-                activeOpacity={0.85}
-              >
-                <MaterialIcons name="add" size={18} color={N ? N.text : Colors.textPrimary} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-
         {loading ? (
           <View style={styles.loadingWrap}>
             <ActivityIndicator size="small" color={N ? N.accent : Colors.primary} />
             <Text style={[styles.loadingText, N && { color: N.textMuted }]}>Loading chapters...</Text>
           </View>
         ) : error ? (
-          <View style={[styles.messageCard, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}> 
+          <View style={[styles.messageCard, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}>
             <Text style={[styles.messageText, N && { color: N.textMuted }]}>{error}</Text>
           </View>
         ) : chapters.length === 0 ? (
-          <View style={[styles.messageCard, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}> 
+          <View style={[styles.messageCard, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}>
             <Text style={[styles.messageText, N && { color: N.textMuted }]}>No chapters found for this group.</Text>
           </View>
         ) : (
           chapters.map((chapter) => {
             const isOpen = !!expanded[chapter.id];
             return (
-              <View key={chapter.id} style={[styles.chapterCard, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}> 
-                <TouchableOpacity
-                  style={styles.chapterHeader}
-                  activeOpacity={0.88}
-                  onPress={() => setExpanded((prev) => ({ ...prev, [chapter.id]: !prev[chapter.id] }))}
-                >
-                  <View style={styles.chapterTitleWrap}>
-                    <Text style={[styles.chapterTitle, N && { color: N.text }]}>{chapter.chapter}</Text>
-                    <Text style={[styles.chapterMeta, N && { color: N.textMuted }]}>{chapter.entryTitle} · {chapter.lines.length} lines</Text>
-                  </View>
-                  <MaterialIcons name={isOpen ? 'expand-less' : 'expand-more'} size={22} color={N ? N.textMuted : Colors.textSubtle} />
-                </TouchableOpacity>
+              <View
+                key={chapter.id}
+                style={[
+                  styles.chapterSurface,
+                  N && { backgroundColor: N.surface, borderColor: N.border },
+                ]}
+              >
+                <ChapterIntro
+                  chapter={chapter.chapter}
+                  chapterUrdu={layers.urdu ? (chapter.chapterUrdu || chapterTitleUrdu[chapter.chapter]) : undefined}
+                  chapterArabic={layers.arabic ? (chapter.chapterArabic || chapterTitleArabic[chapter.chapter]) : undefined}
+                  entryTitle={chapter.entryTitle}
+                  lineCount={chapter.lines.length}
+                  isOpen={isOpen}
+                  onToggle={() => setExpanded((prev) => ({ ...prev, [chapter.id]: !prev[chapter.id] }))}
+                  night={N}
+                />
 
                 {isOpen ? (
                   <View style={styles.chapterBody}>
-                    {chapter.lines.map((line, idx) => (
-                      <View key={`${chapter.id}-${idx}`} style={[styles.lineCard, N && { backgroundColor: N.surface, borderColor: N.border }]}> 
-                        {(() => {
-                          const lineKey = `${chapter.id}-${idx}`;
-                          const autoData = autoTranslatedByLine[lineKey];
-                          const effectiveEnglish = line.translation?.trim() || autoData?.english || '';
-                          const effectiveUrdu = line.urdu_translation?.trim() || autoData?.urdu || '';
+                    {(() => {
+                      let verseCounter = 0;
+                      return chapter.lines.map((line, idx) => {
+                        const lineKey = `${chapter.id}-${idx}`;
+                        const auto = autoTranslatedByLine[lineKey];
+                        const effectiveTranslit = line.transliteration?.trim() || auto?.transliteration || '';
+                        const effectiveEnglish = line.translation?.trim() || auto?.english || '';
+                        const effectiveUrdu = line.urdu_translation?.trim() || auto?.urdu || '';
 
-                          return (
-                            <>
-                        <Text style={[styles.lineHeading, N && { color: N.textMuted }]}>{line.heading}</Text>
-                        {showArabic ? (
-                          <Text
-                            style={[
-                              styles.arabicText,
-                              { fontSize: Math.round(22 * textScale), lineHeight: Math.round(40 * textScale) },
-                              N && { color: N.text },
-                            ]}
-                          >
-                            {line.arabic}
-                          </Text>
-                        ) : null}
-                        {showTransliteration && line.transliteration ? (
-                          <Text
-                            style={[
-                              styles.lineText,
-                              styles.italic,
-                              { fontSize: Math.round(14 * textScale), lineHeight: Math.round(21 * textScale) },
-                              N && { color: N.textSub },
-                            ]}
-                          >
-                            {line.transliteration}
-                          </Text>
-                        ) : null}
-                        {showEnglish && effectiveEnglish ? (
-                          <Text
-                            style={[
-                              styles.lineText,
-                              { fontSize: Math.round(14 * textScale), lineHeight: Math.round(21 * textScale) },
-                              N && { color: N.textSub },
-                            ]}
-                          >
-                            {effectiveEnglish}
-                          </Text>
-                        ) : null}
-                        {showUrdu && effectiveUrdu ? (
-                          <Text
-                            style={[
-                              styles.urduText,
-                              { fontSize: Math.round(16 * textScale), lineHeight: Math.round(30 * textScale) },
-                              N && { color: N.textSub },
-                            ]}
-                          >
-                            {effectiveUrdu}
-                          </Text>
-                        ) : null}
-                        {(!line.translation?.trim() || !line.urdu_translation?.trim()) && (effectiveEnglish || effectiveUrdu) ? (
-                          <Text style={[styles.autoTranslatedHint, N && { color: N.textMuted }]}>Auto-translated fallback</Text>
-                        ) : null}
-                        {!showArabic && !showTransliteration && !showEnglish && !showUrdu ? (
-                          <Text style={[styles.hiddenHint, N && { color: N.textMuted }]}>All languages are hidden. Turn on at least one.</Text>
-                        ) : null}
-                            </>
-                          );
-                        })()}
-                      </View>
-                    ))}
+                        const headingLower = (line.heading || '').toLowerCase();
+                        let role: VerseRole = 'verse';
+                        if (headingLower.includes('chorus (opening)')) role = 'opening-chorus';
+                        else if (headingLower.includes('chorus (closing)')) role = 'closing-chorus';
+
+                        let verseNumber: number | undefined;
+                        if (role === 'verse') {
+                          verseCounter += 1;
+                          verseNumber = verseCounter;
+                        }
+
+                        const isAuto =
+                          (!line.transliteration?.trim() || !line.translation?.trim() || !line.urdu_translation?.trim()) &&
+                          Boolean(auto?.transliteration || auto?.english || auto?.urdu);
+
+                        return (
+                          <React.Fragment key={lineKey}>
+                            {idx > 0 ? <VerseDivider night={N} variant="dot" /> : null}
+                            <VerseBlock
+                              role={role}
+                              verseNumber={verseNumber}
+                              chapterLabel={chapter.chapter}
+                              arabic={line.arabic}
+                              transliteration={effectiveTranslit || undefined}
+                              translation={effectiveEnglish || undefined}
+                              urdu={effectiveUrdu || undefined}
+                              isAutoTranslated={isAuto}
+                              layers={layers}
+                              scale={textScale}
+                              night={N}
+                            />
+                          </React.Fragment>
+                        );
+                      });
+                    })()}
                   </View>
                 ) : null}
               </View>
@@ -397,127 +544,26 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  topBar: {
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    backgroundColor: Colors.surface,
-    paddingTop: 12,
-    paddingHorizontal: Spacing.md,
-    paddingBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  topTitleWrap: {
-    flex: 1,
-    gap: 2,
-  },
-  topTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-  },
-  topMeta: {
-    fontSize: 12,
-    color: Colors.textSubtle,
-  },
-  refreshBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-  },
   content: {
-    padding: Spacing.md,
-    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    gap: Spacing.md,
     paddingBottom: Spacing.xl,
   },
-  modeRow: {
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+  chapterSurface: {
     backgroundColor: Colors.surface,
+    marginHorizontal: Spacing.md,
+    borderRadius: Radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
+    overflow: 'hidden',
+  },
+  chapterBody: {
     paddingHorizontal: Spacing.md,
-    paddingBottom: 8,
-  },
-  readerControls: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.surface,
-    padding: Spacing.sm,
-    gap: 10,
-  },
-  controlLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.textSubtle,
-  },
-  toggleRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  toggleChip: {
-    borderWidth: 1,
-    borderColor: '#D9E0DA',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: '#FFFFFF',
-  },
-  toggleChipActive: {
-    backgroundColor: '#EAF8EF',
-    borderColor: '#8ED7AA',
-  },
-  toggleChipText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.textSubtle,
-  },
-  toggleChipTextActive: {
-    color: '#12713B',
-  },
-  scaleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  scaleActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  scaleButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scaleValue: {
-    minWidth: 44,
-    textAlign: 'center',
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.textPrimary,
+    paddingBottom: Spacing.lg,
+    paddingTop: 4,
   },
   loadingWrap: {
-    paddingVertical: 20,
+    paddingVertical: 24,
     alignItems: 'center',
     gap: 8,
   },
@@ -526,7 +572,8 @@ const styles = StyleSheet.create({
     color: Colors.textSubtle,
   },
   messageCard: {
-    borderWidth: 1,
+    marginHorizontal: Spacing.md,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.border,
     borderRadius: Radius.md,
     backgroundColor: Colors.surface,
@@ -535,86 +582,6 @@ const styles = StyleSheet.create({
   messageText: {
     fontSize: 13,
     color: Colors.textSubtle,
-  },
-  chapterCard: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.surface,
-    overflow: 'hidden',
-  },
-  chapterHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    gap: 10,
-  },
-  chapterTitleWrap: {
-    flex: 1,
-    gap: 3,
-  },
-  chapterTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-  },
-  chapterMeta: {
-    fontSize: 11,
-    color: Colors.textSubtle,
-  },
-  chapterBody: {
-    borderTopWidth: 1,
-    borderTopColor: '#E5ECE7',
-    padding: Spacing.sm,
-    gap: 8,
-  },
-  lineCard: {
-    borderWidth: 1,
-    borderColor: '#DDE7DF',
-    borderRadius: Radius.md,
-    backgroundColor: '#F8FBF9',
-    padding: 10,
-    gap: 4,
-  },
-  lineHeading: {
-    fontSize: 10,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    fontWeight: '700',
-    color: Colors.textSubtle,
-  },
-  arabicText: {
-    fontSize: 22,
-    lineHeight: 40,
-    color: Colors.textPrimary,
-    textAlign: 'right',
-    fontFamily: 'IndopakNastaleeq',
-  },
-  lineText: {
-    fontSize: 14,
-    lineHeight: 21,
-    color: Colors.textPrimary,
-  },
-  italic: {
-    fontStyle: 'italic',
-  },
-  urduText: {
-    fontSize: 16,
-    lineHeight: 30,
-    color: Colors.textPrimary,
-    textAlign: 'right',
-    fontFamily: 'NotoNastaliqUrdu',
-  },
-  hiddenHint: {
-    fontSize: 12,
-    color: Colors.textSubtle,
-    fontStyle: 'italic',
-  },
-  autoTranslatedHint: {
-    fontSize: 11,
-    color: Colors.textMuted,
-    fontStyle: 'italic',
+    textAlign: 'center',
   },
 });
