@@ -7,7 +7,7 @@ export const SALAH_WAJIBAT_GUIDE: HowToGuide = {
   subtitle: 'Salah Core · Hanafi (Nur al-Idah)',
   icon: 'fact-check',
   color: '#673AB7',
-  intro: 'These are the 13 wajibat of salah in the Hanafi school as taught in common study lists linked to Nur al-Idah style curricula.',
+  intro: 'These are the 13 wajibat of salah in the Hanafi school, presented in a practical checklist style aligned with Nur al-Idah based study flow.',
   sections: [
     {
       heading: 'The 13 Wajibat of Salah',
@@ -30,8 +30,8 @@ export const SALAH_WAJIBAT_GUIDE: HowToGuide = {
     {
       heading: 'Rule to Remember',
       steps: [
-        { step: 1, title: 'If left forgetfully', detail: 'The prayer is not automatically broken, but sajdat al-sahw becomes necessary.' },
-        { step: 2, title: 'If left deliberately', detail: 'The prayer is invalidated and must be repeated.' },
+        { step: 1, title: 'If left forgetfully', detail: 'Salah is not automatically invalid, but sajdah sahw becomes necessary.' },
+        { step: 2, title: 'If left deliberately', detail: 'Deliberate omission invalidates salah and it must be repeated.' },
       ],
     },
   ],

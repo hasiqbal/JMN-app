@@ -8,6 +8,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const URDU_TRANSLATION_CACHE_PREFIX = '@adhkar_urdu_cache_v1:';
 const urduTranslationMemoryCache = new Map<string, string>();
+const ENGLISH_TRANSLATION_CACHE_PREFIX = '@adhkar_english_cache_v1:';
+const englishTranslationMemoryCache = new Map<string, string>();
 const ANNOUNCEMENTS_CACHE_KEY = '@announcements_feed_cache_v1';
 const ANNOUNCEMENTS_FETCH_TIMEOUT_MS = 8000;
 const TRANSLATE_URDU_BACKOFF_MS = 5 * 60 * 1000;
@@ -27,6 +29,10 @@ function normalizeTranslationSourceKey(text: string): string {
 
 function buildTranslationCacheKey(text: string): string {
   return `${URDU_TRANSLATION_CACHE_PREFIX}${normalizeTranslationSourceKey(text)}`;
+}
+
+function buildEnglishTranslationCacheKey(text: string): string {
+  return `${ENGLISH_TRANSLATION_CACHE_PREFIX}${normalizeTranslationSourceKey(text)}`;
 }
 
 async function readCachedUrduTranslation(text: string): Promise<string> {
@@ -57,6 +63,39 @@ async function writeCachedUrduTranslation(text: string, urdu: string): Promise<v
 
   try {
     await AsyncStorage.setItem(buildTranslationCacheKey(text), value);
+  } catch {
+    // ignore storage issues; memory cache still helps current session
+  }
+}
+
+async function readCachedEnglishTranslation(text: string): Promise<string> {
+  const normalizedKey = normalizeTranslationSourceKey(text);
+  const memoryHit = englishTranslationMemoryCache.get(normalizedKey);
+  if (memoryHit) return memoryHit;
+
+  try {
+    const stored = await AsyncStorage.getItem(buildEnglishTranslationCacheKey(text));
+    const value = (stored ?? '').trim();
+    if (value) {
+      englishTranslationMemoryCache.set(normalizedKey, value);
+      return value;
+    }
+  } catch {
+    // ignore storage issues and continue with live translation
+  }
+
+  return '';
+}
+
+async function writeCachedEnglishTranslation(text: string, english: string): Promise<void> {
+  const normalizedKey = normalizeTranslationSourceKey(text);
+  const value = english.trim();
+  if (!normalizedKey || !value) return;
+
+  englishTranslationMemoryCache.set(normalizedKey, value);
+
+  try {
+    await AsyncStorage.setItem(buildEnglishTranslationCacheKey(text), value);
   } catch {
     // ignore storage issues; memory cache still helps current session
   }
@@ -154,7 +193,14 @@ export interface AdhkarRow {
   count: string | null;
   display_order: number;
   is_active: boolean;
-  sections: { heading: string; arabic: string; transliteration?: string; translation?: string }[] | null;
+  sections: {
+    heading: string;
+    chapter?: string;
+    arabic: string;
+    transliteration?: string;
+    translation?: string;
+    urdu_translation?: string;
+  }[] | null;
   group_name: string | null;
   group_order: number;
   benefits?: string | null;
@@ -167,6 +213,7 @@ export interface AdhkarRow {
   card_icon?: string | null;                      // New: card display icon
   card_badge?: string | null;                     // New: card badge text
   group_description?: string | null;
+  file_url?: string | null;
 }
 
 // Resolve Urdu translation from supported portal column variants.
@@ -259,6 +306,41 @@ export async function translateTextToUrdu(text: string): Promise<string> {
       await writeCachedUrduTranslation(source, fallbackUrdu);
     }
     return fallbackUrdu;
+  }
+}
+
+// Runtime English translation fallback for rows that only have Arabic.
+export async function translateTextToEnglish(text: string): Promise<string> {
+  const source = text.trim();
+  if (!source) return '';
+
+  const cached = await readCachedEnglishTranslation(source);
+  if (cached) return cached;
+
+  try {
+    const url =
+      'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=' +
+      encodeURIComponent(source);
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return '';
+
+    const payload = await res.json();
+    if (!Array.isArray(payload) || !Array.isArray(payload[0])) return '';
+
+    const translated = (payload[0] as unknown[])
+      .map((part) => (Array.isArray(part) && typeof part[0] === 'string' ? part[0] : ''))
+      .join('')
+      .trim();
+
+    if (translated) {
+      await writeCachedEnglishTranslation(source, translated);
+    }
+    return translated;
+  } catch {
+    return '';
   }
 }
 

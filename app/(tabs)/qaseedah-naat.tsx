@@ -13,10 +13,10 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { NIGHT_PALETTE } from '@/constants/nightPalette';
 import { useNightMode } from '@/hooks/useNightMode';
+import { NightModeToggle } from '@/components/adhkar/NightModeToggle';
 import { AdhkarRow, fetchQaseedahNaatEntries, resolveAdhkarUrduTranslation } from '@/services/contentService';
 
 type FilterMode = 'all' | 'qaseedah' | 'naat';
-
 function sortRows(rows: AdhkarRow[]): AdhkarRow[] {
   return [...rows].sort((a, b) => {
     const typeSort = (a.content_type ?? '').localeCompare(b.content_type ?? '');
@@ -43,14 +43,9 @@ function entryTypeLabel(value: string | null | undefined): string {
   return 'Reading';
 }
 
-function isPdf(url: string | null | undefined): boolean {
-  if (!url) return false;
-  return /\.pdf([?#].*)?$/i.test(url);
-}
-
 export default function QaseedahNaatScreen() {
   const router = useRouter();
-  const { nightMode } = useNightMode();
+  const { nightMode, toggleManual } = useNightMode();
   const N = nightMode ? NIGHT_PALETTE : null;
 
   const [rows, setRows] = React.useState<AdhkarRow[]>([]);
@@ -132,13 +127,6 @@ export default function QaseedahNaatScreen() {
       });
   }, [filteredRows]);
 
-  const openAttachment = React.useCallback((url: string, title: string) => {
-    router.push({
-      pathname: '/(tabs)/qaseedah-viewer',
-      params: { url, title },
-    });
-  }, [router]);
-
   return (
     <View style={[styles.screen, N && { backgroundColor: N.bg }]}> 
       <ScrollView
@@ -165,6 +153,10 @@ export default function QaseedahNaatScreen() {
                 <MaterialIcons name="refresh" size={18} color={N ? N.accent : Colors.primary} />
               )}
             </TouchableOpacity>
+          </View>
+
+          <View style={styles.modeRow}>
+            <NightModeToggle nightMode={nightMode} onToggle={toggleManual} />
           </View>
 
           <View style={styles.countRow}>
@@ -220,15 +212,30 @@ export default function QaseedahNaatScreen() {
         ) : (
           groupedRows.map((section) => (
             <View key={section.key} style={[styles.groupSection, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}> 
-              <View style={[styles.groupHeader, N && { borderColor: N.border }]}> 
+              <TouchableOpacity
+                style={[styles.groupHeader, N && { borderColor: N.border }]}
+                activeOpacity={0.86}
+                onPress={() => {
+                  router.push({
+                    pathname: '/(tabs)/qaseedah-group',
+                    params: {
+                      group: section.name,
+                      type: section.type ?? 'qaseedah',
+                    },
+                  });
+                }}
+              >
                 <View style={styles.groupTitleWrap}>
                   <Text style={[styles.groupTitle, N && { color: N.text }]}>{section.name}</Text>
                   <Text style={[styles.groupMeta, N && { color: N.textMuted }]}>{section.rows.length} entries</Text>
                 </View>
-                <View style={[styles.typeBadge, section.type === 'naat' ? styles.typeBadgeNaat : styles.typeBadgeQaseedah]}>
-                  <Text style={styles.typeBadgeText}>{entryTypeLabel(section.type)}</Text>
+                <View style={styles.groupHeaderRight}>
+                  <View style={[styles.typeBadge, section.type === 'naat' ? styles.typeBadgeNaat : styles.typeBadgeQaseedah]}>
+                    <Text style={styles.typeBadgeText}>{entryTypeLabel(section.type)}</Text>
+                  </View>
+                  <MaterialIcons name="chevron-right" size={20} color={N ? N.textMuted : Colors.textSubtle} />
                 </View>
-              </View>
+              </TouchableOpacity>
 
               {section.description ? (
                 <View style={styles.groupDescriptionWrap}>
@@ -236,93 +243,6 @@ export default function QaseedahNaatScreen() {
                 </View>
               ) : null}
 
-              {section.rows.map((row) => {
-                const isExpanded = !!expandedById[row.id];
-                const urdu = resolveAdhkarUrduTranslation(row);
-                const pdfAttachment = isPdf(row.file_url);
-
-                return (
-                  <View key={row.id} style={[styles.entryCard, N && { backgroundColor: N.surface, borderColor: N.border }]}> 
-                    <TouchableOpacity
-                      onPress={() => setExpandedById((prev) => ({ ...prev, [row.id]: !prev[row.id] }))}
-                      activeOpacity={0.88}
-                      style={styles.entryHeader}
-                    >
-                      <View style={styles.entryTitleWrap}>
-                        <Text style={[styles.entryTitle, N && { color: N.text }]}>{row.title}</Text>
-                        {row.arabic_title ? (
-                          <Text style={[styles.entryArabicTitle, N && { color: N.textSub }]}>{row.arabic_title}</Text>
-                        ) : null}
-                        <View style={styles.metaRow}>
-                          {row.reference ? <Text style={[styles.metaText, N && { color: N.textMuted }]}>Ref: {row.reference}</Text> : null}
-                          {row.count ? <Text style={[styles.metaText, N && { color: N.textMuted }]}>Count: {row.count}</Text> : null}
-                        </View>
-                      </View>
-                      <MaterialIcons
-                        name={isExpanded ? 'expand-less' : 'expand-more'}
-                        size={22}
-                        color={N ? N.textMuted : Colors.textSubtle}
-                      />
-                    </TouchableOpacity>
-
-                    {isExpanded ? (
-                      <View style={styles.entryBody}>
-                        {row.description ? (
-                          <View style={[styles.contentBox, N && { backgroundColor: N.surfaceAlt }]}> 
-                            <Text style={[styles.contentLabel, N && { color: N.textMuted }]}>Description</Text>
-                            <Text style={[styles.contentText, N && { color: N.textSub }]}>{row.description}</Text>
-                          </View>
-                        ) : null}
-
-                        {row.arabic ? (
-                          <View style={[styles.contentBox, N && { backgroundColor: N.surfaceAlt }]}> 
-                            <Text style={[styles.contentLabel, N && { color: N.textMuted }]}>Arabic</Text>
-                            <Text style={[styles.arabicText, N && { color: N.text }]}>{row.arabic}</Text>
-                          </View>
-                        ) : null}
-
-                        {row.transliteration ? (
-                          <View style={[styles.contentBox, N && { backgroundColor: N.surfaceAlt }]}> 
-                            <Text style={[styles.contentLabel, N && { color: N.textMuted }]}>Transliteration</Text>
-                            <Text style={[styles.contentText, styles.translitText, N && { color: N.textSub }]}>{row.transliteration}</Text>
-                          </View>
-                        ) : null}
-
-                        {row.translation ? (
-                          <View style={[styles.contentBox, N && { backgroundColor: N.surfaceAlt }]}> 
-                            <Text style={[styles.contentLabel, N && { color: N.textMuted }]}>English</Text>
-                            <Text style={[styles.contentText, N && { color: N.textSub }]}>{row.translation}</Text>
-                          </View>
-                        ) : null}
-
-                        {urdu ? (
-                          <View style={[styles.contentBox, N && { backgroundColor: N.surfaceAlt }]}> 
-                            <Text style={[styles.contentLabel, N && { color: N.textMuted }]}>Urdu</Text>
-                            <Text style={[styles.urduText, N && { color: N.textSub }]}>{urdu}</Text>
-                          </View>
-                        ) : null}
-
-                        {row.file_url ? (
-                          <View style={[styles.attachmentRow, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}> 
-                            <View style={styles.attachmentTextWrap}>
-                              <Text style={[styles.attachmentTitle, N && { color: N.text }]}>{pdfAttachment ? 'PDF attachment' : 'Attachment'}</Text>
-                              <Text style={[styles.attachmentUrl, N && { color: N.textMuted }]} numberOfLines={2}>{row.file_url}</Text>
-                            </View>
-                            <TouchableOpacity
-                              style={styles.openBtn}
-                              onPress={() => openAttachment(row.file_url as string, row.title || 'Attachment')}
-                              activeOpacity={0.85}
-                            >
-                              <MaterialIcons name={pdfAttachment ? 'picture-as-pdf' : 'open-in-new'} size={16} color="#FFFFFF" />
-                              <Text style={styles.openBtnText}>Open</Text>
-                            </TouchableOpacity>
-                          </View>
-                        ) : null}
-                      </View>
-                    ) : null}
-                  </View>
-                );
-              })}
             </View>
           ))
         )}
@@ -384,6 +304,10 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
   },
+  modeRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+  },
   countChip: {
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -440,14 +364,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.textSubtle,
   },
-  entryCard: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.surface,
-    overflow: 'hidden',
-    marginTop: 8,
-  },
   groupSection: {
     borderWidth: 1,
     borderColor: Colors.border,
@@ -470,6 +386,11 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
+  groupHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   groupTitle: {
     fontSize: 15,
     fontWeight: '800',
@@ -488,28 +409,6 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     color: Colors.textSubtle,
   },
-  entryHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 10,
-    padding: Spacing.md,
-  },
-  entryTitleWrap: {
-    flex: 1,
-    gap: 4,
-  },
-  entryTitleTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  entryTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-  },
   typeBadge: {
     borderRadius: 999,
     paddingHorizontal: 8,
@@ -525,103 +424,5 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: '#0F172A',
-  },
-  entryArabicTitle: {
-    fontSize: 14,
-    color: Colors.textSubtle,
-    textAlign: 'right',
-    lineHeight: 24,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginTop: 2,
-  },
-  metaText: {
-    fontSize: 11,
-    color: Colors.textSubtle,
-  },
-  entryBody: {
-    borderTopWidth: 1,
-    borderTopColor: '#E5ECE7',
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.md,
-    paddingTop: Spacing.sm,
-    gap: 10,
-  },
-  contentBox: {
-    backgroundColor: '#F8FBF9',
-    borderRadius: Radius.md,
-    padding: 10,
-    gap: 4,
-  },
-  contentLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-    color: Colors.textSubtle,
-  },
-  arabicText: {
-    fontSize: 22,
-    lineHeight: 44,
-    color: Colors.textPrimary,
-    textAlign: 'right',
-    fontFamily: 'Scheherazade',
-  },
-  contentText: {
-    fontSize: 14,
-    lineHeight: 21,
-    color: Colors.textPrimary,
-  },
-  translitText: {
-    fontStyle: 'italic',
-  },
-  urduText: {
-    fontSize: 16,
-    lineHeight: 34,
-    color: Colors.textPrimary,
-    textAlign: 'right',
-    fontFamily: 'NotoNastaliqUrdu',
-  },
-  attachmentRow: {
-    borderWidth: 1,
-    borderColor: '#D9E6DE',
-    borderRadius: Radius.md,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-    backgroundColor: '#F8FBF9',
-  },
-  attachmentTextWrap: {
-    flex: 1,
-    gap: 2,
-  },
-  attachmentTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  attachmentUrl: {
-    fontSize: 11,
-    color: Colors.textSubtle,
-  },
-  openBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.primary,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  openBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#FFFFFF',
   },
 });

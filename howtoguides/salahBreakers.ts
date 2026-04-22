@@ -7,7 +7,7 @@ export const SALAH_BREAKERS_GUIDE: HowToGuide = {
   subtitle: 'Salah Core · Hanafi (Nur al-Idah)',
   icon: 'block',
   color: '#D84315',
-  intro: 'These are core mufsidat (invalidators) of salah in Hanafi fiqh, with key details and exceptions from classical rulings.',
+  intro: 'These are core mufsidat (invalidators) of salah in Hanafi fiqh, presented in a practical checklist style with key details and exceptions.',
   sections: [
     {
       heading: 'Purity-Related Invalidators',
@@ -29,14 +29,14 @@ export const SALAH_BREAKERS_GUIDE: HowToGuide = {
         { step: 3, title: 'Replying to people verbally', detail: 'Returning salam by words, answering someone, or engaging in conversation invalidates prayer.' },
         { step: 4, title: 'Speech-like utterances', detail: 'Unnecessary utterances like "ah", "oh", "uff", or similar sounds may invalidate when they resemble speech.' },
         { step: 5, title: 'Throat-clearing/coughing/blowing without need', detail: 'If done unnecessarily and in a speech-like audible way, it can invalidate; genuine need is excused.' },
-        { step: 6, title: 'Worldly crying out', detail: 'Crying out due to worldly pain/distress in a speech-like manner can invalidate; weeping from khushu` and fear of Allah is not given this ruling.' },
+        { step: 6, title: 'Worldly crying out', detail: 'Crying out due to worldly pain/distress in a speech-like manner can invalidate; weeping from khushu and fear of Allah does not take this ruling.' },
       ],
     },
     {
       heading: 'Movement, Form, and Direction',
       steps: [
         { step: 1, title: 'Eating or drinking', detail: 'Any eating or drinking during prayer invalidates salah.' },
-        { step: 2, title: 'Excessive movement (amal kathir)', detail: 'Movement invalidates when an observer would think the person is no longer praying; jurists also describe this as repeated unnecessary movement. 3 small movements in the same rukn are can be considered excessive movement. Using both hands or doing an action with one hand which would usually require 2 hands is also excessive movement' },
+        { step: 2, title: 'Excessive movement (amal kathir)', detail: 'Movement invalidates when an observer would think the person is no longer praying; jurists also describe this as repeated unnecessary movement. Three small movements in one rukn can be treated as excessive movement. Using both hands for a non-prayer action, or doing with one hand what normally needs two, may also be treated as excessive.' },
         { step: 3, title: 'Action destroying form of salah', detail: 'Any foreign act that breaks the outward form of prayer invalidates it.' },
         { step: 4, title: 'Turning chest away from qiblah', detail: 'Turning the chest away invalidates prayer; turning only the face is makruh but does not itself invalidate.' },
         { step: 5, title: 'Exposure of awrah', detail: 'If required awrah remains uncovered for the duration of prayer of one rukn, prayer is invalidated.' },
@@ -71,7 +71,7 @@ export const SALAH_BREAKERS_GUIDE: HowToGuide = {
         { step: 2, title: 'Going ahead of imam by a full action', detail: 'If follower precedes imam in a complete rukn and exits before imam, this is listed among invalidators in your provided rulings.' },
         { step: 3, title: 'Invalidating laughter levels', detail: 'Audible laughter invalidates salah; loud laughter with known Hanafi conditions can invalidate both salah and wudhu, while simple smile does not invalidate.' },
         { step: 4, title: 'Woman directly beside/in front in jama`ah case', detail: 'Under known Hanafi conditions in same congregational prayer and no separator, this can invalidate the man’s prayer.' },
-        { step: 5, title: 'Sahib al-tartib remembering prior missed fard', detail: 'If one is sahib al-tartib and realises anearlier fard is still due, current prayer is invalidated unless he owes 6 or more prayers or the time for 6 prayers has elasped}.' },
+        { step: 5, title: 'Sahib al-tartib remembering prior missed fard', detail: 'If one is sahib al-tartib and realizes an earlier fard is still due, the current prayer is invalidated unless he already owes six or more prayers, or enough time has elapsed that tartib no longer applies.' },
         { step: 6, title: 'Time expiry during prayer', detail: 'Examples include sunrise during Fajr; your notes also include timing-related Jumu`ah/`Asr transition cases.' },
       ],
     },

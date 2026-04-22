@@ -7,9 +7,9 @@
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "preandroid": "node ./scripts/check-node-version.js",
-    "android": "expo start --android",
+    "android": "expo run:android",
     "preios": "node ./scripts/check-node-version.js",
-    "ios": "expo start --ios",
+    "ios": "expo run:ios",
     "preweb": "node ./scripts/check-node-version.js",
     "web": "expo start --web",
     "lint": "expo lint"

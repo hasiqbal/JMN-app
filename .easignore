@@ -16,3 +16,6 @@ web-build
 # Local artifacts and docs not needed in build context
 tomorrow-work-plan.txt
 quran.py
+
+# Large runtime assets that are not needed for native dev-client compilation
+assets/images/Quran 16 line indo-pak/

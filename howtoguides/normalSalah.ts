@@ -20,11 +20,37 @@ export const NORMAL_SALAH_GUIDE: HowToGuide = {
     {
       heading: 'Step 1: Start Salah (Takbir and Qiyam)',
       steps: [
-        { step: 1, title: 'Say opening takbir', detail: 'Raise both hands and say exactly: الله أكبر.' },
+        {
+          step: 1,
+          title: 'Say opening takbir',
+          detail: `Raise both hands and begin the prayer.
+
+      Arabic: الله أكبر
+      Transliteration: Allahu Akbar
+      Translation: Allah is the Greatest.`,
+        },
         { step: 2, title: 'Fold hands in qiyam', detail: 'Place right hand over left below navel (Hanafi method).' },
-        { step: 3, title: 'Recite sana', detail: 'Recite exactly: سُبْحَانَكَ اللَّهُمَّ وَبِحَمْدِكَ وَتَبَارَكَ اسْمُكَ وَتَعَالَى جَدُّكَ وَلَا إِلٰهَ غَيْرُكَ' },
-        { step: 4, title: 'Recite taawwudh', detail: 'Recite exactly: أَعُوذُ بِاللَّهِ مِنَ الشَّيْطَانِ الرَّجِيمِ' },
-        { step: 5, title: 'Recite tasmiyah', detail: 'Recite exactly: بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ' },
+        {
+          step: 3,
+          title: 'Recite sana',
+          detail: `Recite Sana.
+
+Arabic: سُبْحَانَكَ اللَّهُمَّ وَبِحَمْدِكَ وَتَبَارَكَ اسْمُكَ وَتَعَالَى جَدُّكَ وَلَا إِلٰهَ غَيْرُكَ`,
+        },
+        {
+          step: 4,
+          title: 'Recite taawwudh',
+          detail: `Recite Taawwudh.
+
+Arabic: أَعُوذُ بِاللَّهِ مِنَ الشَّيْطَانِ الرَّجِيمِ`,
+        },
+        {
+          step: 5,
+          title: 'Recite tasmiyah',
+          detail: `Recite Tasmiyah.
+
+Arabic: بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ`,
+        },
       ],
     },
     {
@@ -32,13 +58,34 @@ export const NORMAL_SALAH_GUIDE: HowToGuide = {
       steps: [
         { step: 1, title: 'Recite Surah al-Fatihah', detail: `Recite full al-Fatihah: بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ، الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ، الرَّحْمَٰنِ الرَّحِيمِ، مَالِكِ يَوْمِ الدِّينِ، إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ، اهْدِنَا الصِّرَاطَ الْمُسْتَقِيمَ، صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ وَلَا الضَّالِّينَ` },
         { step: 2, title: 'Recite another surah', detail: `Recite a full surah or at least three short ayat. Example (full Surah al-Ikhlas): بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ، قُلْ هُوَ اللَّهُ أَحَدٌ، اللَّهُ الصَّمَدُ، لَمْ يَلِدْ وَلَمْ يُولَدْ، وَلَمْ يَكُنْ لَهُ كُفُوًا أَحَدٌ` },
-        { step: 3, title: 'Go to ruku', detail: 'Say: الله أكبر while moving into ruku.' },
+        {
+          step: 3,
+          title: 'Go to ruku',
+          detail: `Move into ruku with takbir.
+
+      Arabic: الله أكبر
+      Transliteration: Allahu Akbar`,
+        },
         { step: 4, title: 'In ruku recite tasbih', detail: 'Recite exactly: سُبْحَانَ رَبِّيَ الْعَظِيمِ (at least 3 times).' },
         { step: 5, title: 'Rise from ruku (qawmah)', detail: 'Say exactly: سَمِعَ اللَّهُ لِمَنْ حَمِدَهُ and then: رَبَّنَا لَكَ الْحَمْدُ' },
-        { step: 6, title: 'Go to first sujud', detail: 'Say: الله أكبر while moving into sujud.' },
+        {
+          step: 6,
+          title: 'Go to first sujud',
+          detail: `Move into first sujud with takbir.
+
+      Arabic: الله أكبر
+      Transliteration: Allahu Akbar`,
+        },
         { step: 7, title: 'In first sujud recite tasbih', detail: 'Recite exactly: سُبْحَانَ رَبِّيَ الْأَعْلَى (at least 3 times).' },
         { step: 8, title: 'Sit between two sujud', detail: 'Say: الله أكبر while sitting, then recite: رَبِّ اغْفِرْ لِي' },
-        { step: 9, title: 'Go to second sujud', detail: 'Say: الله أكبر while going down.' },
+        {
+          step: 9,
+          title: 'Go to second sujud',
+          detail: `Move to second sujud with takbir.
+
+      Arabic: الله أكبر
+      Transliteration: Allahu Akbar`,
+        },
         { step: 10, title: 'In second sujud recite tasbih', detail: 'Recite exactly: سُبْحَانَ رَبِّيَ الْأَعْلَى (at least 3 times).' },
         { step: 11, title: 'Stand for rakah 2', detail: 'Say: الله أكبر while standing.' },
       ],

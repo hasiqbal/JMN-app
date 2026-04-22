@@ -322,6 +322,7 @@ function QuranPortionCard({
   const id = `quran-portion-${todayKey}`;
   const levelKey = 'quran_read_level_persist';
   const N = nightMode ? NIGHT : null;
+  const quranBackgroundSource = AQSA_BG;
   const { showAlert } = useAlert();
 
   const [levelIdx, setLevelIdx] = useState(3); // default: Full Juz
@@ -788,7 +789,7 @@ function QuranPortionCard({
         N && { backgroundColor: N.surface, borderColor: N.border },
         { transform: [{ scale }] },
       ]}>
-        <ImageBackground source={AQSA_BG} style={fyStyles.quranBgWrap} imageStyle={fyStyles.quranBgImage}>
+        <ImageBackground source={quranBackgroundSource} style={fyStyles.quranBgWrap} imageStyle={fyStyles.quranBgImage}>
           <View style={fyStyles.quranBgOverlay}>
             {/* Header */}
             <View style={fyStyles.duroodHeader}>

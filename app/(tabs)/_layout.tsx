@@ -143,7 +143,7 @@ export default function TabLayout() {
     borderTopColor: nightMode ? '#1E2D47' : Colors.border,
   };
 
-  const hiddenRoutes = ['howto', 'events', 'youtube-live', 'qaseedah-naat', 'qaseedah-viewer'] as const;
+  const hiddenRoutes = ['howto', 'events', 'youtube-live', 'qaseedah-naat', 'qaseedah-viewer', 'qaseedah-group'] as const;
 
   return (
     <Tabs

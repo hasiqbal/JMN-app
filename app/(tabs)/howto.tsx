@@ -18,8 +18,33 @@ import { Colors, Spacing, Radius } from '@/constants/theme';
 import { HOW_TO_GUIDES } from '@/howtoguides';
 import type { HowToGuide, HowToSection, HowToStep, HowToStepImage } from '@/howtoguides/types';
 import { useNightMode } from '@/hooks/useNightMode';
+import {
+  GuideStepCard,
+  GuideSectionHeading,
+  InlineArabicText,
+  ARABIC_SEGMENT_MATCH_REGEX,
+  hasArabic,
+  transliterationFromText,
+} from '@/components/howto';
 
-// ── Night palette ────────────────────────────────────────────────────────
+const PARENT_TILE_BACKGROUND_BY_GROUP: Partial<Record<string, any>> = {
+  Purification: require('@/assets/images/background/wudhu.jpg'),
+  Salah: require('@/assets/images/background/salah.jpg'),
+  Fasting: require('@/assets/images/background/kiswahkaabah.jpg'),
+  'Hajj & Umrah': require('@/assets/images/sky/arafat.jpeg'),
+  Zakaat: require('@/assets/images/background/zakaat.jpg'),
+};
+
+const PARENT_TILE_ICON_BY_GROUP: Partial<Record<string, keyof typeof MaterialIcons.glyphMap>> = {
+  Purification: 'water-drop',
+  Salah: 'self-improvement',
+  Fasting: 'nights-stay',
+  Zakaat: 'volunteer-activism',
+  'Hajj & Umrah': 'travel-explore',
+};
+
+// Night palette used by the screen shell (parent tiles, guide cards, image viewer).
+// Content-level components import their own palette via `pickPalette(nightMode)`.
 const NIGHT = {
   bg:         '#06090F',
   surface:    '#0C1220',
@@ -32,31 +57,7 @@ const NIGHT = {
   primary:    '#4FE948',
 };
 
-const ARABIC_CHAR_REGEX = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
-const ARABIC_SEGMENT_REGEX = /([\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF][\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF\s\u0640\u064B-\u065F\u0670\u06D6-\u06ED]*)/g;
-const ARABIC_SEGMENT_MATCH_REGEX = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF][\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF\s\u0640\u064B-\u065F\u0670\u06D6-\u06ED]*/g;
 const MATERIAL_ICON_NAME_REGEX = /^[a-z0-9_-]+$/i;
-
-const ARABIC_TO_LATIN: Record<string, string> = {
-  ا: 'a', أ: 'a', إ: 'i', آ: 'aa', ٱ: 'a', ء: "'", ؤ: "'u", ئ: "'i",
-  ب: 'b', ت: 't', ث: 'th', ج: 'j', ح: 'h', خ: 'kh', د: 'd', ذ: 'dh', ر: 'r',
-  ز: 'z', س: 's', ش: 'sh', ص: 's', ض: 'd', ط: 't', ظ: 'z', ع: "'", غ: 'gh',
-  ف: 'f', ق: 'q', ك: 'k', ل: 'l', م: 'm', ن: 'n', ه: 'h', ة: 'h', و: 'w', ي: 'y',
-  ى: 'a', ـ: '',
-};
-
-const TASHKEEL_TO_LATIN: Record<string, string> = {
-  '\u064B': 'an',
-  '\u064C': 'un',
-  '\u064D': 'in',
-  '\u064E': 'a',
-  '\u064F': 'u',
-  '\u0650': 'i',
-  '\u0652': '',
-  '\u0670': 'a',
-};
-
-const stripArabicDiacritics = (text: string) => text.replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, '');
 
 // ── Main Screen ───────────────────────────────────────────────────────────
 export default function HowToScreen() {
@@ -66,22 +67,6 @@ export default function HowToScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }, N && { backgroundColor: N.bg }]}>
-      {/* Page Header — calm, JMN-style */}
-      <View style={[styles.pageHeader, N && { borderBottomColor: N.border }]}>
-        <View style={styles.pageHeaderRow}>
-          <Image
-            source={require('@/assets/images/masjid-logo.png')}
-            style={styles.headerLogo}
-            contentFit="contain"
-          />
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={[styles.pageMasjidName, N && { color: N.textSub }]}>Jami&apos; Masjid Noorani</Text>
-            <Text style={[styles.pageTitle, N && { color: N.text }]}>How To Pray</Text>
-            <Text style={[styles.pageSubtitle, N && { color: N.textMuted }]}>Step-by-step Salah guides</Text>
-          </View>
-        </View>
-      </View>
-
       {/* Content */}
       <HowToContent nightMode={nightMode} />
     </View>
@@ -311,11 +296,23 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
       groups.set(key, existing);
     });
 
+    const groupOrder: Record<string, number> = {
+      Purification: 1,
+      Salah: 2,
+      Fasting: 3,
+      Zakaat: 4,
+      'Hajj & Umrah': 5,
+      General: 999,
+    };
+
     const orderedNames = Array.from(groups.keys()).sort((a, b) => {
-      if (a === 'Salah') return -1;
-      if (b === 'Salah') return 1;
-      if (a === 'General') return 1;
-      if (b === 'General') return -1;
+      const rankA = groupOrder[a] ?? 100;
+      const rankB = groupOrder[b] ?? 100;
+
+      if (rankA !== rankB) {
+        return rankA - rankB;
+      }
+
       return a.localeCompare(b);
     });
 
@@ -339,181 +336,6 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
     () => groupedGuideCards.find((group) => group.name === selectedParentGroup)?.guides ?? [],
     [groupedGuideCards, selectedParentGroup]
   );
-
-  const hasArabic = (text: string) => ARABIC_CHAR_REGEX.test(text);
-
-  const extractArabicSegments = (text: string) => {
-    const matches = text.match(ARABIC_SEGMENT_MATCH_REGEX) ?? [];
-    return matches.map((m) => m.trim()).filter(Boolean);
-  };
-
-  const transliterateArabic = (text: string) => {
-    const normalizedArabic = stripArabicDiacritics(text).replace(/\s+/g, ' ').trim();
-    if (normalizedArabic === 'الله أكبر' || normalizedArabic === 'الله اكبر') {
-      return 'allahu akbar';
-    }
-
-    let out = '';
-    let prevLatin = '';
-
-    for (const ch of Array.from(text)) {
-      if (ch === 'ّ') {
-        out += prevLatin;
-        continue;
-      }
-
-      if (ch === ' ') {
-        out += ' ';
-        prevLatin = '';
-        continue;
-      }
-
-      if (Object.prototype.hasOwnProperty.call(TASHKEEL_TO_LATIN, ch)) {
-        out += TASHKEEL_TO_LATIN[ch] ?? '';
-        continue;
-      }
-
-      if (Object.prototype.hasOwnProperty.call(ARABIC_TO_LATIN, ch)) {
-        const latin = ARABIC_TO_LATIN[ch] ?? '';
-        out += latin;
-        prevLatin = latin;
-        continue;
-      }
-
-      if (/[.,;:!?()\[\]{}"'\-]/.test(ch)) {
-        out += ch;
-        continue;
-      }
-    }
-
-    return out.replace(/\s+/g, ' ').trim();
-  };
-
-  const transliterationFromText = (text: string) => {
-    const segments = extractArabicSegments(text);
-    const translits = segments
-      .map((segment) => transliterateArabic(segment))
-      .filter(Boolean);
-    if (translits.length === 0) return null;
-    return translits.join(' | ');
-  };
-
-  const normalizeLatin = (value: string) => value
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  const hasManualTransliteration = (sourceText: string, autoTransliteration: string | null) => {
-    if (!autoTransliteration) return false;
-    if (/transliteration\s*:/i.test(sourceText)) return true;
-
-    const sourceLatin = normalizeLatin(sourceText.replace(ARABIC_SEGMENT_MATCH_REGEX, ' '));
-    const translitLatin = normalizeLatin(autoTransliteration);
-    if (!sourceLatin || !translitLatin) return false;
-
-    const sourceTokens = new Set(sourceLatin.split(' ').filter((token) => token.length > 1));
-    const translitTokens = translitLatin.split(' ').filter((token) => token.length > 1);
-
-    if (translitTokens.length < 3) {
-      return sourceLatin.includes(translitLatin);
-    }
-
-    const overlapCount = translitTokens.filter((token) => sourceTokens.has(token)).length;
-    return overlapCount >= Math.min(6, Math.ceil(translitTokens.length * 0.45));
-  };
-
-  const shouldRenderAutoTransliteration = (sourceText: string, autoTransliteration: string | null) => (
-    Boolean(autoTransliteration) && !hasManualTransliteration(sourceText, autoTransliteration)
-  );
-
-  const renderInlineArabic = (text: string) => {
-    const chunks = text.split(ARABIC_SEGMENT_REGEX);
-    return chunks.map((chunk, idx) => {
-      if (!chunk) return null;
-      if (hasArabic(chunk)) {
-        return (
-          <Text key={`ar-${idx}`} style={[howToStyles.arabicInline, N && { color: N.text }]}> 
-            {chunk}
-          </Text>
-        );
-      }
-      return <React.Fragment key={`tx-${idx}`}>{chunk}</React.Fragment>;
-    });
-  };
-
-  const renderArabicPanel = (content: string, key: string, sourceForDedup?: string) => {
-    const lines = content
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean);
-
-    return (
-      <View key={key} style={[howToStyles.arabicPanel, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}> 
-        {lines.map((line, li) => (
-          <View key={`${key}-${li}`} style={howToStyles.arabicLineWrap}>
-            <Text style={[howToStyles.arabicPanelText, N && { color: N.text }]}> 
-              {line}
-            </Text>
-            {(() => {
-              const lineTransliteration = transliterationFromText(line);
-              const source = sourceForDedup ?? line;
-              return shouldRenderAutoTransliteration(source, lineTransliteration) ? (
-              <Text style={[howToStyles.transliterationText, N && { color: N.textSub }]}> 
-                {lineTransliteration}
-              </Text>
-              ) : null;
-            })()}
-          </View>
-        ))}
-      </View>
-    );
-  };
-
-  const renderStepDetail = (detail: string) => {
-    const pieces = detail.split(/```([\s\S]*?)```/g);
-
-    return pieces.map((piece, idx) => {
-      if (idx % 2 === 1) {
-        return renderArabicPanel(piece, `block-${idx}`, detail);
-      }
-
-      const text = piece.trim();
-      if (!text) return null;
-
-      const longArabicAfterColon = text.match(/^([\s\S]*?:)\s*([\s\S]+)$/);
-      const hasLatinLetters = /[A-Za-z]/.test(longArabicAfterColon?.[2] ?? '');
-      if (
-        longArabicAfterColon
-        && hasArabic(longArabicAfterColon[2])
-        && longArabicAfterColon[2].length > 34
-        && !hasLatinLetters
-      ) {
-        return (
-          <View key={`plain-${idx}`} style={howToStyles.detailChunk}>
-            <Text style={[howToStyles.stepDetail, N && { color: N.textSub }]}>{longArabicAfterColon[1]}</Text>
-            {renderArabicPanel(longArabicAfterColon[2], `inline-block-${idx}`, text)}
-          </View>
-        );
-      }
-
-      const transliteration = transliterationFromText(text);
-      const showAutoTransliteration = shouldRenderAutoTransliteration(text, transliteration);
-
-      return (
-        <View key={`plain-${idx}`} style={howToStyles.detailChunk}>
-          <Text style={[howToStyles.stepDetail, N && { color: N.textSub }]}>
-            {renderInlineArabic(text)}
-          </Text>
-          {showAutoTransliteration ? (
-            <Text style={[howToStyles.transliterationText, N && { color: N.textSub }]}> 
-              {transliteration}
-            </Text>
-          ) : null}
-        </View>
-      );
-    });
-  };
 
   const splitBilingualTitle = (title: string) => {
     // Strip pronunciation helpers in parentheses like "(Witr)" — redundant when we show English + Arabic separately.
@@ -574,84 +396,59 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
                     sectionYRefs.current[secKey] = guideY + e.nativeEvent.layout.y;
                   }}
                 >
-                  <TouchableOpacity
-                    style={[howToStyles.sectionHeader, N && { backgroundColor: N.surfaceAlt }]}
-                    onPress={() => handleSectionToggle(secKey)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={[howToStyles.sectionBullet, { backgroundColor: guide.color }]} />
-                    <Text style={[howToStyles.sectionTitle, N && { color: N.text }]}>{section.heading}</Text>
-                    <MaterialIcons name={secOpen ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} size={18} color={N ? N.textMuted : Colors.textSubtle} />
-                  </TouchableOpacity>
+                  <GuideSectionHeading
+                    heading={section.heading}
+                    accentColor={guide.color}
+                    expanded={secOpen}
+                    onToggle={() => handleSectionToggle(secKey)}
+                    nightMode={nightMode}
+                  />
 
                   {secOpen ? (
                     <View style={howToStyles.stepsContainer}>
                       {section.steps.map((step: HowToStep, stepIdx: number) => {
-                        const isWarningStep = /^warning[:\s]/i.test(step.title);
-                        const warningColor = N ? '#FF7B7B' : '#D32F2F';
-                        const accentColor = isWarningStep ? warningColor : guide.color;
                         const isLastStep = stepIdx === section.steps.length - 1;
-
                         return (
-                          <View
+                          <GuideStepCard
                             key={step.step}
-                            style={[
-                              howToStyles.stepRow,
-                              N && { borderBottomColor: N.border },
-                              isLastStep && howToStyles.stepRowLast,
-                            ]}
+                            step={step.step}
+                            title={step.title}
+                            blocks={step.blocks}
+                            detail={step.detail}
+                            note={step.note}
+                            accentColor={guide.color}
+                            isLast={isLastStep}
+                            nightMode={nightMode}
                           >
-                            <View style={[howToStyles.stepNum, { backgroundColor: accentColor }]}>
-                              <Text style={howToStyles.stepNumText}>{step.step}</Text>
-                            </View>
-                            <View style={{ flex: 1, gap: 6 }}>
-                              <Text style={[howToStyles.stepTitle, { color: accentColor }, !isWarningStep && N && { color: N.text }]}>{step.title}</Text>
-                              <View
-                                style={[
-                                  howToStyles.stepDetailWrap,
-                                  isWarningStep && howToStyles.warningDetailWrap,
-                                  isWarningStep && (N
-                                    ? { backgroundColor: 'rgba(255,123,123,0.12)', borderColor: 'rgba(255,123,123,0.38)' }
-                                    : { backgroundColor: '#FDECEC', borderColor: '#F3B8B8' }),
-                                ]}
-                              >
-                                {renderStepDetail(step.detail)}
+                            {step.images && step.images.length > 0 ? (
+                              <View style={howToStyles.stepMediaList}>
+                                {step.images.map((photo: HowToStepImage, photoIdx: number) => (
+                                  <TouchableOpacity
+                                    key={`${step.step}-media-${photoIdx}`}
+                                    style={[howToStyles.stepMediaCard, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}
+                                    onPress={() => openImageViewer(photo)}
+                                    activeOpacity={0.9}
+                                  >
+                                    <View style={howToStyles.stepMediaImageWrap}>
+                                      <Image
+                                        source={{ uri: photo.uri }}
+                                        style={howToStyles.stepMediaImage}
+                                        contentFit="cover"
+                                        transition={120}
+                                      />
+                                      <View style={howToStyles.stepMediaExpandBadge}>
+                                        <MaterialIcons name="zoom-in" size={14} color="#FFFFFF" />
+                                      </View>
+                                    </View>
+                                    <View style={howToStyles.stepMediaMeta}>
+                                      <Text style={[howToStyles.stepMediaCaption, N && { color: N.textSub }]}>{photo.caption}</Text>
+                                      <Text style={[howToStyles.stepMediaHint, N && { color: N.textMuted }]}>Tap to enlarge, pinch to zoom, drag to pan</Text>
+                                    </View>
+                                  </TouchableOpacity>
+                                ))}
                               </View>
-                              {step.note ? (
-                                <View style={[howToStyles.noteBand, { borderLeftColor: accentColor + '80' }, N && { backgroundColor: accentColor + '12' }]}>
-                                  <Text style={[howToStyles.noteText, { color: accentColor }]}>{step.note}</Text>
-                                </View>
-                              ) : null}
-                              {step.images && step.images.length > 0 ? (
-                                <View style={howToStyles.stepMediaList}>
-                                  {step.images.map((photo: HowToStepImage, photoIdx: number) => (
-                                    <TouchableOpacity
-                                      key={`${step.step}-media-${photoIdx}`}
-                                      style={[howToStyles.stepMediaCard, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}
-                                      onPress={() => openImageViewer(photo)}
-                                      activeOpacity={0.9}
-                                    >
-                                      <View style={howToStyles.stepMediaImageWrap}>
-                                        <Image
-                                          source={{ uri: photo.uri }}
-                                          style={howToStyles.stepMediaImage}
-                                          contentFit="cover"
-                                          transition={120}
-                                        />
-                                        <View style={howToStyles.stepMediaExpandBadge}>
-                                          <MaterialIcons name="zoom-in" size={14} color="#FFFFFF" />
-                                        </View>
-                                      </View>
-                                      <View style={howToStyles.stepMediaMeta}>
-                                        <Text style={[howToStyles.stepMediaCaption, N && { color: N.textSub }]}>{photo.caption}</Text>
-                                        <Text style={[howToStyles.stepMediaHint, N && { color: N.textMuted }]}>Tap to enlarge, pinch to zoom, drag to pan</Text>
-                                      </View>
-                                    </TouchableOpacity>
-                                  ))}
-                                </View>
-                              ) : null}
-                            </View>
-                          </View>
+                            ) : null}
+                          </GuideStepCard>
                         );
                       })}
                     </View>
@@ -670,7 +467,11 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
                   <View key={ni} style={howToStyles.noteItem}>
                     <View style={[howToStyles.noteDot, { backgroundColor: guide.color }]} />
                     <View style={{ flex: 1, gap: 4 }}>
-                      <Text style={[howToStyles.noteItemText, N && { color: N.textSub }]}>{renderInlineArabic(note)}</Text>
+                      <InlineArabicText
+                        text={note}
+                        nightMode={nightMode}
+                        style={[howToStyles.noteItemText, N && { color: N.textSub }]}
+                      />
                       {hasArabic(note) ? (
                         <Text style={[howToStyles.noteTransliterationText, N && { color: N.textMuted }]}>
                           {transliterationFromText(note)}
@@ -926,7 +727,7 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
                   {parentGroupTiles.map((group) => (
                     <TouchableOpacity
                       key={group.name}
-                      style={[howToStyles.parentTile, N && { backgroundColor: N.surface, borderColor: N.border }]}
+                      style={[howToStyles.parentTile, N && { borderColor: N.border }]}
                       onPress={() => {
                         setSelectedParentGroup(group.name);
                         setExpandedGuide(null);
@@ -934,11 +735,19 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
                       }}
                       activeOpacity={0.88}
                     >
-                      <View style={[howToStyles.parentTileIconWrap, N && { backgroundColor: `${N.accent}18` }]}>
-                        <MaterialIcons name="menu-book" size={22} color={N ? N.accent : Colors.primary} />
+                      {PARENT_TILE_BACKGROUND_BY_GROUP[group.name] ? (
+                        <Image
+                          source={PARENT_TILE_BACKGROUND_BY_GROUP[group.name]}
+                          style={howToStyles.parentTileBackgroundImage}
+                          contentFit="cover"
+                        />
+                      ) : null}
+                      <View style={[howToStyles.parentTileOverlay, N && { backgroundColor: 'rgba(6, 9, 15, 0.56)' }]} />
+                      <View style={[howToStyles.parentTileIconWrap, N && { backgroundColor: 'rgba(6, 9, 15, 0.6)', borderColor: `${N.accent}66` }]}>
+                        <MaterialIcons name={PARENT_TILE_ICON_BY_GROUP[group.name] ?? 'menu-book'} size={24} color="#FFFFFF" />
                       </View>
-                      <Text style={[howToStyles.parentTileTitle, N && { color: N.text }]}>{group.name}</Text>
-                      <Text style={[howToStyles.parentTileCount, N && { color: N.textMuted }]}>{group.guides.length} guides</Text>
+                      <Text style={howToStyles.parentTileTitle}>{group.name}</Text>
+                      <Text style={howToStyles.parentTileCount}>{group.guides.length} guides</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -1012,7 +821,12 @@ const styles = StyleSheet.create({
 });
 
 const howToStyles = StyleSheet.create({
-  container: { padding: Spacing.md, gap: Spacing.md },
+  container: {
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.md,
+    paddingTop: Spacing.sm,
+    gap: Spacing.sm,
+  },
   sectionLabel: {
     fontSize: 11,
     fontWeight: '700',
@@ -1048,16 +862,30 @@ const howToStyles = StyleSheet.create({
     marginBottom: 0,
   },
   backLinkText: { fontSize: 13, fontWeight: '500', color: Colors.primary },
-  parentTileGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.md },
+  parentTileGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: Spacing.md,
+  },
   parentTile: {
-    width: '48%',
+    width: '48.5%',
     aspectRatio: 1,
-    backgroundColor: Colors.surface,
     borderRadius: Radius.lg,
     borderWidth: 1,
     borderColor: Colors.border,
     padding: Spacing.md,
     justifyContent: 'space-between',
+    overflow: 'hidden',
+    backgroundColor: '#16263A',
+    position: 'relative',
+  },
+  parentTileBackgroundImage: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  parentTileOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(10, 18, 30, 0.48)',
   },
   parentTileIconWrap: {
     width: 44,
@@ -1065,10 +893,12 @@ const howToStyles = StyleSheet.create({
     borderRadius: Radius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.primarySoft,
+    backgroundColor: 'rgba(10, 18, 30, 0.55)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
   },
-  parentTileTitle: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary },
-  parentTileCount: { fontSize: 12, fontWeight: '500', color: Colors.textSubtle },
+  parentTileTitle: { fontSize: 16, fontWeight: '700', color: '#FFFFFF', textShadowColor: 'rgba(0,0,0,0.35)', textShadowRadius: 6, textShadowOffset: { width: 0, height: 2 } },
+  parentTileCount: { fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.9)' },
   emptyGroupCard: {
     backgroundColor: Colors.surface,
     borderWidth: 1,
@@ -1179,6 +1009,111 @@ const howToStyles = StyleSheet.create({
     lineHeight: 36,
     color: '#131B2B',
   },
+  // ── Devotional block (unified for both structured verse + plain arabic panel) ──
+  devotionalBlock: {
+    borderWidth: 1,
+    borderColor: '#D8DEE7',
+    borderRadius: Radius.lg,
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+  },
+  devotionalLabelWrap: {
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E3E7ED',
+  },
+  devotionalLabel: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    color: '#8B95A3',
+  },
+  arabicZone: {
+    paddingHorizontal: 18,
+    paddingVertical: 22,
+    gap: 10,
+    backgroundColor: '#FFFFFF',
+  },
+  arabicZoneText: {
+    fontFamily: 'IndopakNastaleeq',
+    writingDirection: 'rtl',
+    textAlign: 'center',
+    fontSize: 30,
+    lineHeight: 46,
+    color: '#0E1726',
+  },
+  translitZone: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E3E7ED',
+    backgroundColor: '#F3F5F9',
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    gap: 4,
+  },
+  translitZoneText: {
+    fontSize: 13,
+    lineHeight: 21,
+    color: '#546578',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  meaningZone: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E3E7ED',
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    gap: 4,
+  },
+  meaningLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.1,
+    color: '#8B95A3',
+    marginBottom: 2,
+  },
+  meaningText: {
+    fontSize: 13.5,
+    lineHeight: 21,
+    color: '#2F3B34',
+    textAlign: 'left',
+  },
+  // ── Guidance callout (Note:/Tip:/Important:/…) ──
+  guidanceCallout: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: '#F1F5FA',
+    borderWidth: 1,
+    borderColor: '#D9E3EE',
+    borderLeftWidth: 3,
+    borderLeftColor: '#6A8AAE',
+    borderRadius: Radius.sm,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  guidanceIconWrap: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    marginTop: 1,
+  },
+  guidanceLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+    color: '#4A6A8A',
+  },
+  guidanceBody: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: '#243240',
+  },
+  // ── Legacy styles kept for backward compatibility ──
   arabicPanel: {
     backgroundColor: '#ECEFF3',
     borderRadius: Radius.lg,
@@ -1203,6 +1138,28 @@ const howToStyles = StyleSheet.create({
     color: '#4E617D',
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+  verseStack: {
+    borderWidth: 1,
+    borderColor: '#D2D8E2',
+    borderRadius: Radius.lg,
+    backgroundColor: '#ECEFF3',
+    overflow: 'hidden',
+  },
+  versePairRow: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    gap: 5,
+  },
+  versePairRowBorder: {
+    borderTopWidth: 1,
+    borderTopColor: '#D2D8E2',
+  },
+  verseTranslationText: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: '#2F3B34',
+    textAlign: 'left',
   },
   noteBand: {
     borderLeftWidth: 3, borderRadius: 6,

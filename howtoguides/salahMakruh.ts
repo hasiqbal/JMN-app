@@ -7,7 +7,7 @@ export const SALAH_MAKRUH_GUIDE: HowToGuide = {
   subtitle: 'Salah Core · Hanafi (Nur al-Idah)',
   icon: 'report-problem',
   color: '#F9A825',
-  intro: 'These 46 makruh acts in salah are from Hanafi fiqh study notes (Nur al-Idah based learning). They generally do not invalidate salah, but they reduce reward, adab, and focus.',
+  intro: 'These 46 makruh acts in salah are organized from Hanafi study flow (Nur al-Idah based learning). They generally do not invalidate salah, but they reduce reward, adab, and focus.',
   sections: [
     {
       heading: '1) Leaving Required or Recommended Acts',
@@ -17,7 +17,7 @@ export const SALAH_MAKRUH_GUIDE: HowToGuide = {
       ],
     },
     {
-      heading: '2) Body Movements, Posture, and Dress (3-24)',
+      heading: '2) Body Movements, Posture, and Dress (3 to 24)',
       steps: [
         { step: 3, title: 'Fidgeting with clothes or body', detail: 'Playing with clothing, beard, fingers, or body without need is makruh.' },
         { step: 4, title: 'Placing hands on the hips', detail: 'Standing in prayer with hands on hips is disliked.' },
@@ -44,7 +44,7 @@ export const SALAH_MAKRUH_GUIDE: HowToGuide = {
       ],
     },
     {
-      heading: '3) Recitation Order and Surah Choices (25-31)',
+      heading: '3) Recitation Order and Surah Choices (25 to 31)',
       steps: [
         { step: 25, title: 'Reciting Quran outside required standing posture', detail: 'In units where standing is required, recitation should be done in qiyam.' },
         { step: 26, title: 'Lengthening first rakah of nafl much more than second', detail: 'Excessive unequal length between first and second rakah in nafl is makruh.' },
@@ -56,7 +56,7 @@ export const SALAH_MAKRUH_GUIDE: HowToGuide = {
       ],
     },
     {
-      heading: '4) Personal Conduct During Prayer (32-34)',
+      heading: '4) Personal Conduct During Prayer (32 to 34)',
       steps: [
         { step: 32, title: 'Covering nose or mouth', detail: 'Covering the nose or mouth during salah without need is makruh.' },
         { step: 33, title: 'Yawning', detail: 'Yawning in salah is disliked; one should resist and suppress it as much as possible.' },
@@ -64,7 +64,7 @@ export const SALAH_MAKRUH_GUIDE: HowToGuide = {
       ],
     },
     {
-      heading: '5) Place, Environment, and Imam Positioning (35-46)',
+      heading: '5) Place, Environment, and Imam Positioning (35 to 46)',
       steps: [
         { step: 35, title: 'Praying in a bathroom', detail: 'Performing salah in a bathroom is makruh.' },
         { step: 36, title: 'Praying in a graveyard', detail: 'Praying in graveyard areas is makruh except where juristic exceptions apply.' },

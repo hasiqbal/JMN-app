@@ -7,7 +7,7 @@ export const SALAH_CONDITIONS_FARAID_GUIDE: HowToGuide = {
   subtitle: 'Salah Core · Hanafi (Nur al-Idah)',
   icon: 'rule-folder',
   color: '#3949AB',
-  intro: 'In Hanafi fiqh, salah has conditions before it starts (shurut) and integral pillars inside it (arkan). Missing a fard invalidates the prayer.',
+  intro: 'In Hanafi fiqh, salah has pre-conditions before it starts (shurut) and integral pillars within it (arkan). If a fard is missing, the salah is invalid.',
   sections: [
     {
       heading: 'Conditions Before Salah (Shurut)',
@@ -34,9 +34,9 @@ export const SALAH_CONDITIONS_FARAID_GUIDE: HowToGuide = {
     {
       heading: 'Important Hanafi Clarifications',
       steps: [
-        { step: 1, title: 'If a condition is missing', detail: 'If a pre-condition is missing, salah is not valid from the start.' },
-        { step: 2, title: 'If a fard is omitted', detail: 'Missing a fard nullifies that rakah or prayer and it must be corrected or repeated.' },
-        { step: 3, title: 'Different from wajib', detail: 'Wajib has a lower rank than fard in Hanafi fiqh; forgetful omission is handled with sajdat al-sahw when applicable.' },
+        { step: 1, title: 'If a condition is missing', detail: 'If a pre-condition is missing, the salah is invalid from the start.' },
+        { step: 2, title: 'If a fard is omitted', detail: 'If a fard is omitted, that rakah or the full salah becomes invalid and must be corrected/repeated.' },
+        { step: 3, title: 'Difference between fard and wajib', detail: 'Wajib has a lower legal rank than fard in Hanafi fiqh; forgetful omission of wajib is handled with sajdah sahw where applicable.' },
       ],
     },
   ],

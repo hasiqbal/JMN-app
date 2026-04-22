@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
 import { AlertProvider, InAppBannerProvider } from '@/template';
 import { runInitialTranslationWarmup } from '@/services/translationWarmupService';
+import { NightModeProvider } from '@/contexts/NightModeContext';
 
 type ExpoNotificationsModule = typeof import('expo-notifications');
 
@@ -68,11 +69,13 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AlertProvider>
         <SafeAreaProvider>
-          <InAppBannerProvider>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="(tabs)" />
-            </Stack>
-          </InAppBannerProvider>
+          <NightModeProvider>
+            <InAppBannerProvider>
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="(tabs)" />
+              </Stack>
+            </InAppBannerProvider>
+          </NightModeProvider>
         </SafeAreaProvider>
       </AlertProvider>
     </GestureHandlerRootView>
