@@ -220,6 +220,7 @@ const QURAN_LAST_VALID_HIJRI_DAY_KEY = 'quran_last_valid_hijri_day_v1';
 const QURAN_FULL_JUZ_PROGRESS_KEY = 'quran_full_juz_progress_v1';
 const QURAN_CATCHUP_UI_STATE_KEY = 'quran_catchup_ui_state_v1';
 const QURAN_MUSHAF_LAYOUT_KEY = 'quran_mushaf_layout_v1';
+const QURAN_CANONICAL_RESUME_PAGE_KEY = 'quran_canonical_resume_page_v1';
 
 type HalfJuzState = {
   dayKey: string;
@@ -239,7 +240,7 @@ type CatchupUiState = {
 };
 
 type MushafLayout = '15line' | '16line';
-type ResumePagesByLayout = Record<MushafLayout, number | null>;
+const CANONICAL_LAYOUT: MushafLayout = '15line';
 
 // ── Surah first mushaf page — used to find which chapter contains a given page ──
 const SURAH_START_PAGE: Record<number, number> = {
@@ -268,6 +269,44 @@ function chapterForMushaPage(targetPage: number): number {
   return best;
 }
 
+function clampMushafPage(page: number, layout: MushafLayout): number {
+  const totalPages = getMushafTotalPages(layout);
+  const rounded = Math.round(page);
+  return Math.max(1, Math.min(totalPages, Number.isFinite(rounded) ? rounded : 1));
+}
+
+function getJuzForMushafPage(layout: MushafLayout, page: number): number {
+  const safePage = clampMushafPage(page, layout);
+  for (let juz = 30; juz >= 1; juz--) {
+    if (safePage >= getJuzStartPage(layout, juz)) return juz;
+  }
+  return 1;
+}
+
+function mapPageAcrossLayouts(page: number, fromLayout: MushafLayout, toLayout: MushafLayout): number {
+  const safePage = clampMushafPage(page, fromLayout);
+  if (fromLayout === toLayout) return safePage;
+
+  const fromJuz = getJuzForMushafPage(fromLayout, safePage);
+  const fromStart = getJuzStartPage(fromLayout, fromJuz);
+  const fromEnd = getJuzEndPage(fromLayout, fromJuz);
+  const fromSpan = Math.max(1, fromEnd - fromStart);
+  const ratio = (safePage - fromStart) / fromSpan;
+
+  const toStart = getJuzStartPage(toLayout, fromJuz);
+  const toEnd = getJuzEndPage(toLayout, fromJuz);
+  const toSpan = Math.max(1, toEnd - toStart);
+
+  return clampMushafPage(toStart + (ratio * toSpan), toLayout);
+}
+
+function chapterForLayoutPage(targetPage: number, layout: MushafLayout): number {
+  const canonicalPage = layout === CANONICAL_LAYOUT
+    ? clampMushafPage(targetPage, layout)
+    : mapPageAcrossLayouts(targetPage, layout, CANONICAL_LAYOUT);
+  return chapterForMushaPage(canonicalPage);
+}
+
 function getLocalDateKey(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -278,10 +317,6 @@ function getLocalDateKey(date: Date): string {
 function getEpochDayLocal(date: Date): number {
   const localMidnight = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   return Math.floor(localMidnight.getTime() / 86400000);
-}
-
-function getResumePageKey(layout: MushafLayout): string {
-  return layout === '16line' ? QURAN_RESUME_PAGE_16LINE_KEY : QURAN_RESUME_PAGE_15LINE_KEY;
 }
 
 function parseStoredMushafPage(value: string | null, layout: MushafLayout): number | null {
@@ -302,10 +337,11 @@ function getFallbackResumePage(layout: MushafLayout, date: Date): number {
 
 function getDailyRandomAyahSelection(date: Date, layout: MushafLayout): { page: number; surah: number; ayahTarget: number } {
   const daySeed = getEpochDayLocal(date);
-  const totalPages = getMushafTotalPages(layout);
-  const page = ((daySeed * 313 + 97) % totalPages) + 1;
+  const canonicalTotalPages = getMushafTotalPages(CANONICAL_LAYOUT);
+  const canonicalPage = ((daySeed * 313 + 97) % canonicalTotalPages) + 1;
+  const page = mapPageAcrossLayouts(canonicalPage, CANONICAL_LAYOUT, layout);
   const ayahTarget = ((daySeed * 17 + 11) % 5) + 3; // 3..7 ayahs
-  return { page, surah: chapterForMushaPage(page), ayahTarget };
+  return { page, surah: chapterForLayoutPage(page, layout), ayahTarget };
 }
 
 // ── Daily Quran Portion Card (with 4 levels + open-in-app) ───────────────
@@ -327,11 +363,11 @@ function QuranPortionCard({
 
   const [levelIdx, setLevelIdx] = useState(3); // default: Full Juz
   const [levelLoaded, setLevelLoaded] = useState(false);
-  const [resolvedHijriDay, setResolvedHijriDay] = useState(1);
-  const [resumePages, setResumePages] = useState<ResumePagesByLayout>({
-    '15line': null,
-    '16line': null,
+  const [resolvedHijriDay, setResolvedHijriDay] = useState(() => {
+    const validHijri = Number.isFinite(hijriDay) && hijriDay >= 1 && hijriDay <= 30;
+    return validHijri ? hijriDay : 1;
   });
+  const [canonicalResumePage, setCanonicalResumePage] = useState<number | null>(null);
   const [halfJuzState, setHalfJuzState] = useState<HalfJuzState | null>(null);
   const [fullJuzProgress, setFullJuzProgress] = useState<FullJuzProgressState>({
     lastCompletedHijriDay: 0,
@@ -350,20 +386,39 @@ function QuranPortionCard({
   const { width: windowWidth } = useWindowDimensions();
   const router = useRouter();
   const todayDateKey = getLocalDateKey(new Date());
-  const currentLayoutResumePage = resumePages[mushafLayout] ?? getFallbackResumePage(mushafLayout, new Date());
+  const fallbackCanonicalResumePage = getFallbackResumePage(CANONICAL_LAYOUT, new Date());
+  const effectiveCanonicalResumePage = canonicalResumePage ?? fallbackCanonicalResumePage;
+  const currentLayoutResumePage = mapPageAcrossLayouts(effectiveCanonicalResumePage, CANONICAL_LAYOUT, mushafLayout);
   const ayahSelection = getDailyRandomAyahSelection(new Date(), mushafLayout);
   const isRamadan = /(ramadan|رمضان)/i.test(hijriMonthName ?? '');
 
-  const openQuranAtPage = useCallback((targetPage: number) => {
-    const chapterId = chapterForMushaPage(targetPage);
-    AsyncStorage.setItem(PENDING_OPEN_KEY, `${chapterId}|${targetPage}`).catch(() => {});
+  const openQuranAtPage = useCallback((targetPage: number, targetEndPage?: number) => {
+    const safeStartPage = clampMushafPage(targetPage, mushafLayout);
+    const safeEndPage = Math.max(
+      safeStartPage,
+      clampMushafPage(targetEndPage ?? targetPage, mushafLayout)
+    );
+    // quran-reader currently expects an index-aligned page input and displays +1,
+    // so pass one page lower than the human-readable page number.
+    const readerStartPage = Math.max(1, safeStartPage - 1);
+    const readerEndPage = Math.max(readerStartPage, Math.max(1, safeEndPage - 1));
+    const chapterId = chapterForLayoutPage(safeStartPage, mushafLayout);
+    AsyncStorage.setItem(PENDING_OPEN_KEY, `${chapterId}|${safeStartPage}`).catch(() => {});
     AsyncStorage.setItem(QURAN_MUSHAF_LAYOUT_KEY, mushafLayout).catch(() => {});
-    router.push('/(tabs)/quran' as any);
+    router.push({
+      pathname: '/quran-reader',
+      params: {
+        startPage: String(readerStartPage),
+        endPage: String(readerEndPage),
+        mushaf: mushafLayout,
+      },
+    } as any);
   }, [mushafLayout, router]);
 
   useEffect(() => {
     Promise.all([
       AsyncStorage.getItem(levelKey),
+      AsyncStorage.getItem(QURAN_CANONICAL_RESUME_PAGE_KEY),
       AsyncStorage.getItem(QURAN_RESUME_PAGE_15LINE_KEY),
       AsyncStorage.getItem(QURAN_RESUME_PAGE_16LINE_KEY),
       AsyncStorage.getItem(QURAN_RESUME_PAGE_KEY),
@@ -374,6 +429,7 @@ function QuranPortionCard({
       AsyncStorage.getItem(QURAN_MUSHAF_LAYOUT_KEY),
     ]).then(([
       storedLevel,
+      storedCanonicalPage,
       storedPage15,
       storedPage16,
       legacyStoredPage,
@@ -388,10 +444,25 @@ function QuranPortionCard({
         setMushafLayout(storedMushafLayout);
       }
 
+      const parsedCanonical = parseStoredMushafPage(storedCanonicalPage, CANONICAL_LAYOUT);
       const legacy = parseStoredMushafPage(legacyStoredPage, '15line');
       const parsed15 = parseStoredMushafPage(storedPage15, '15line') ?? legacy;
       const parsed16 = parseStoredMushafPage(storedPage16, '16line');
-      setResumePages({ '15line': parsed15, '16line': parsed16 });
+      const nextCanonical = parsedCanonical
+        ?? parsed15
+        ?? (parsed16 ? mapPageAcrossLayouts(parsed16, '16line', CANONICAL_LAYOUT) : null)
+        ?? fallbackCanonicalResumePage;
+
+      setCanonicalResumePage(nextCanonical);
+      if (!parsedCanonical) {
+        AsyncStorage.setItem(QURAN_CANONICAL_RESUME_PAGE_KEY, String(nextCanonical)).catch(() => {});
+      }
+
+      const mapped15 = mapPageAcrossLayouts(nextCanonical, CANONICAL_LAYOUT, '15line');
+      const mapped16 = mapPageAcrossLayouts(nextCanonical, CANONICAL_LAYOUT, '16line');
+      AsyncStorage.setItem(QURAN_RESUME_PAGE_15LINE_KEY, String(mapped15)).catch(() => {});
+      AsyncStorage.setItem(QURAN_RESUME_PAGE_16LINE_KEY, String(mapped16)).catch(() => {});
+      AsyncStorage.setItem(QURAN_RESUME_PAGE_KEY, String(mapped15)).catch(() => {});
 
       const incomingHijriValid = Number.isFinite(hijriDay) && hijriDay >= 1 && hijriDay <= 30;
       const persistedHijri = storedValidHijriDay ? parseInt(storedValidHijriDay, 10) : NaN;
@@ -486,7 +557,7 @@ function QuranPortionCard({
 
       setLevelLoaded(true);
     }).catch(() => setLevelLoaded(true));
-  }, [hijriDay, todayDateKey]);
+  }, [hijriDay, todayDateKey, fallbackCanonicalResumePage]);
 
   const derivePendingMissedDays = useCallback((progress: FullJuzProgressState, todayHijriDay: number) => {
     const handled = new Set(progress.handledMissedDays);
@@ -514,11 +585,15 @@ function QuranPortionCard({
   }, [levelLoaded, fullJuzProgress, resolvedHijriDay, derivePendingMissedDays]);
 
   useEffect(() => {
+    launchCatchupShownRef.current = false;
+  }, [todayDateKey]);
+
+  useEffect(() => {
     if (!levelLoaded || levelIdx !== 3 || launchCatchupShownRef.current) return;
     if (pendingMissedDays.length === 0) return;
     setShowCatchupBanner(true);
     launchCatchupShownRef.current = true;
-  }, [levelLoaded, levelIdx, pendingMissedDays.length]);
+  }, [levelLoaded, levelIdx, pendingMissedDays.length, todayDateKey]);
 
   useEffect(() => {
     if (!showCatchupBanner) {
@@ -553,6 +628,10 @@ function QuranPortionCard({
   }, []);
 
   const switchLevel = (i: number) => {
+    if (i !== levelIdx) {
+      launchCatchupShownRef.current = false;
+      if (i !== 3) setShowCatchupBanner(false);
+    }
     setLevelIdx(i);
     AsyncStorage.setItem(levelKey, String(i)).catch(() => {});
   };
@@ -569,41 +648,68 @@ function QuranPortionCard({
   // Keep Quran card visible on web to avoid stale dismissal state hiding it.
   if (Platform.OS !== 'web' && dismissed.has(id)) return null;
 
-  // Determine the target chapter ID to open in the Quran tab
-  const getTargetChapterId = (): number => {
-    if (levelIdx === 0) {
-      // Level 1: daily random page across the whole Quran
-      return ayahSelection.surah;
-    } else if (levelIdx === 1) {
-      // Level 2: resume-aware page selection
-      const page = currentLayoutResumePage;
-      return chapterForMushaPage(page);
-    } else if (levelIdx === 2) {
-      // Level 3: persisted first-half/second-half progression
-      const juzNum = halfJuzState?.juz ?? (((DAY_OF_YEAR - 1) % 30) + 1);
-      const isFirstHalf = (halfJuzState?.half ?? 'first') === 'first';
-      const portion = QURAN_PORTIONS[juzNum - 1];
-      const startPg = getJuzStartPage(mushafLayout, portion.juz);
-      const endPg   = getJuzEndPage(mushafLayout, portion.juz);
-      const midPage = Math.round((startPg + endPg) / 2);
-      return chapterForMushaPage(isFirstHalf ? startPg : midPage);
-    } else if (levelIdx === 3) {
-      // Level 4: Full Juz — keyed to Hijri day (1-30), completing Quran in one lunar month
-      const juzNum = Math.max(1, Math.min(30, resolvedHijriDay));
-      return chapterForMushaPage(getJuzStartPage(mushafLayout, juzNum));
-    }
-    return 1;
+  const persistCanonicalResumePage = (nextCanonicalPage: number) => {
+    const safeCanonicalPage = clampMushafPage(nextCanonicalPage, CANONICAL_LAYOUT);
+    setCanonicalResumePage(safeCanonicalPage);
+    AsyncStorage.setItem(QURAN_CANONICAL_RESUME_PAGE_KEY, String(safeCanonicalPage)).catch(() => {});
+
+    const mapped15 = mapPageAcrossLayouts(safeCanonicalPage, CANONICAL_LAYOUT, '15line');
+    const mapped16 = mapPageAcrossLayouts(safeCanonicalPage, CANONICAL_LAYOUT, '16line');
+    AsyncStorage.setItem(QURAN_RESUME_PAGE_15LINE_KEY, String(mapped15)).catch(() => {});
+    AsyncStorage.setItem(QURAN_RESUME_PAGE_16LINE_KEY, String(mapped16)).catch(() => {});
+    // Keep legacy key updated for backward compatibility with older app builds.
+    AsyncStorage.setItem(QURAN_RESUME_PAGE_KEY, String(mapped15)).catch(() => {});
   };
 
-  const advanceResumePage = (currentPage: number, layout: MushafLayout = mushafLayout) => {
+  const advanceResumePage = (layout: MushafLayout = mushafLayout) => {
+    const currentPage = mapPageAcrossLayouts(effectiveCanonicalResumePage, CANONICAL_LAYOUT, layout);
     const maxPage = getMushafTotalPages(layout);
     const nextPage = currentPage >= maxPage ? 1 : currentPage + 1;
-    setResumePages((prev) => ({ ...prev, [layout]: nextPage }));
-    AsyncStorage.setItem(getResumePageKey(layout), String(nextPage)).catch(() => {});
-    if (layout === '15line') {
-      // Keep legacy key updated for backward compatibility with older app builds.
-      AsyncStorage.setItem(QURAN_RESUME_PAGE_KEY, String(nextPage)).catch(() => {});
+    const nextCanonicalPage = mapPageAcrossLayouts(nextPage, layout, CANONICAL_LAYOUT);
+    persistCanonicalResumePage(nextCanonicalPage);
+  };
+
+  const resolveQuranOpenTarget = (catchupJuzDay?: number): { page: number; chapter: number; endPage: number } => {
+    if (levelIdx === 0) {
+      const page = ayahSelection.page;
+      return {
+        page,
+        chapter: chapterForLayoutPage(page, mushafLayout),
+        endPage: page,
+      };
     }
+
+    if (levelIdx === 1) {
+      const page = currentLayoutResumePage;
+      return {
+        page,
+        chapter: chapterForLayoutPage(page, mushafLayout),
+        endPage: page,
+      };
+    }
+
+    if (levelIdx === 2) {
+      const juzNum = halfJuzState?.juz ?? (((DAY_OF_YEAR - 1) % 30) + 1);
+      const isFirstHalf = (halfJuzState?.half ?? 'first') === 'first';
+      const startPg = getJuzStartPage(mushafLayout, juzNum);
+      const endPg = getJuzEndPage(mushafLayout, juzNum);
+      const midPage = Math.round((startPg + endPg) / 2);
+      const page = isFirstHalf ? startPg : midPage;
+
+      return {
+        page,
+        chapter: chapterForLayoutPage(page, mushafLayout),
+        endPage: isFirstHalf ? midPage : endPg,
+      };
+    }
+
+    const juzNum = Math.max(1, Math.min(30, catchupJuzDay ?? resolvedHijriDay));
+    const page = getJuzStartPage(mushafLayout, juzNum);
+    return {
+      page,
+      chapter: chapterForLayoutPage(page, mushafLayout),
+      endPage: getJuzEndPage(mushafLayout, juzNum),
+    };
   };
 
   const normalizeDays = (days: number[]) => Array.from(new Set(days.filter((d) => d >= 1 && d <= 30))).sort((a, b) => a - b);
@@ -646,43 +752,13 @@ function QuranPortionCard({
   const openInQuran = () => {
     setShowCatchupBanner(false);
     setActiveCatchupJuzDay(null);
-    const chapterId = getTargetChapterId();
-    let targetPage: number | null = null;
-
-    if (levelIdx === 0) {
-      // Level 1: open selected daily random page
-      targetPage = ayahSelection.page;
-    } else if (levelIdx === 1) {
-      // Level 2: 1 Page — resume-aware
-      targetPage = currentLayoutResumePage;
-    } else if (levelIdx === 2) {
-      // Level 3: Half Juz — persisted first/second progression
-      const juzNum = halfJuzState?.juz ?? (((DAY_OF_YEAR - 1) % 30) + 1);
-      const portion = QURAN_PORTIONS[juzNum - 1];
-      const isFirstHalf = (halfJuzState?.half ?? 'first') === 'first';
-      const startPg = getJuzStartPage(mushafLayout, portion.juz);
-      const endPg   = getJuzEndPage(mushafLayout, portion.juz);
-      const midPage = Math.round((startPg + endPg) / 2);
-      targetPage = isFirstHalf ? startPg : midPage;
-    } else {
-      // Level 4: Full Juz — keyed to Hijri day for monthly Quran completion
-      const juzNum = Math.max(1, Math.min(30, resolvedHijriDay));
-      targetPage = getJuzStartPage(mushafLayout, juzNum);
-    }
-
-    const value = targetPage ? `${chapterId}|${targetPage}` : String(chapterId);
-    AsyncStorage.setItem(PENDING_OPEN_KEY, value).catch(() => {});
-    AsyncStorage.setItem(QURAN_MUSHAF_LAYOUT_KEY, mushafLayout).catch(() => {});
-    if (levelIdx === 1 && targetPage) {
-      advanceResumePage(targetPage, mushafLayout);
-    }
-    router.push('/(tabs)/quran' as any);
+    const target = resolveQuranOpenTarget();
+    openQuranAtPage(target.page, target.endPage);
   };
 
   const handleMarkAsRead = () => {
     if (levelIdx === 1) {
-      const currentPage = currentLayoutResumePage;
-      advanceResumePage(currentPage, mushafLayout);
+      advanceResumePage(mushafLayout);
       onDismiss(id);
       return;
     }
@@ -714,7 +790,8 @@ function QuranPortionCard({
         onPress: () => {
           setShowCatchupBanner(false);
           setActiveCatchupJuzDay(targetDay);
-          openQuranAtPage(getJuzStartPage(mushafLayout, targetDay));
+          const target = resolveQuranOpenTarget(targetDay);
+          openQuranAtPage(target.page, target.endPage);
         },
       },
       { text: 'Cancel', style: 'cancel', onPress: () => {} },
@@ -776,8 +853,9 @@ function QuranPortionCard({
     const portion = QURAN_PORTIONS[juzNum - 1];
     const startPg = getJuzStartPage(mushafLayout, juzNum);
     badge     = `Juz ${juzNum}`;
-    titleLine = portion.surahs;
-    subLine   = `Day ${resolvedHijriDay} of month · p. ${startPg}`;
+    titleLine = `Juz ${juzNum}`;
+    ayahLine  = `Day ${resolvedHijriDay} of month · p. ${startPg}`;
+    subLine   = portion.surahs;
   }
 
   return (
@@ -858,7 +936,7 @@ function QuranPortionCard({
                       fyStyles.counterSegmentTextCompact,
                       { color: selected ? '#000' : 'rgba(255,255,255,0.7)' },
                     ]}>
-                      {layout === '16line' ? '16-Line' : '15-Line'}
+                      {layout === '16line' ? '16 line Quran' : '15 line Quran'}
                     </Text>
                   </TouchableOpacity>
                 );

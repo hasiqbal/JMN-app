@@ -2094,7 +2094,7 @@ export default function HomeScreen() {
   const isDhulHijjahNow = isDhulHijjahMonth(rawHijriMonthName);
   // Hijri day as integer (1-30) — drives Full Juz for monthly Quran completion
   // Falls back to Gregorian day-of-year mod 30 until Hijri data loads
-  const hijriDayInt  = parseInt(hijriDayNum || '0', 10) || ((DAY_OF_YEAR % 30) + 1);
+  const hijriDayInt  = parseInt(hijriDayNum || '0', 10) || (((DAY_OF_YEAR - 1) % 30) + 1);
 
   const nextIqamah = nextInfo?.prayer.iqamah && nextInfo.prayer.iqamah !== '-' ? nextInfo.prayer.iqamah : null;
   const fajrPrayer = data?.prayers.find(p => p.name === 'Fajr');

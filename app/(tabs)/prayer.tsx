@@ -17,7 +17,6 @@ import {
   setAdhaanMutedEnabled,
   stopActiveAdhaan,
 } from '@/hooks/useQuranPrayerPopups';
-import { usePrayerTimes } from '@/hooks/usePrayerTimes';
 import { useNightMode } from '@/hooks/useNightMode';
 import MonthlyCalendarSection from '@/components/prayer/MonthlyCalendarSection';
 
@@ -94,18 +93,12 @@ export default function PrayerScreen() {
   const insets = useSafeAreaInsets();
   const now = useCurrentTime();
   const { nightMode } = useNightMode();
-  const { data } = usePrayerTimes();
-  const [lastUpdated, setLastUpdated] = useState(() => new Date());
   const [selectedAdhaanUrl, setSelectedAdhaanUrl] = useState(DEFAULT_ADHAAN_AUDIO_URL);
   const [adhaanMuted, setAdhaanMuted] = useState(false);
   const [adhaanChooserVisible, setAdhaanChooserVisible] = useState(false);
   const [previewingUrl, setPreviewingUrl] = useState<string | null>(null);
   const previewPlayerRef = React.useRef<AudioPlayer | null>(null);
   const previewAudioModeReadyRef = React.useRef(false);
-
-  useEffect(() => {
-    if (data) setLastUpdated(new Date());
-  }, [data]);
 
   useEffect(() => {
     let cancelled = false;
@@ -253,91 +246,57 @@ export default function PrayerScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }, N && { backgroundColor: N.bg }]}>
       <View style={[styles.header, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}>
-        <View style={styles.headerRowCompact}>
-          <Text style={[styles.headerMasjidCompact, N && { color: N.text }]}>Jami&apos; Masjid Noorani</Text>
-          <Text style={{ fontSize: 10, color: N ? N.textMuted : Colors.textSubtle }}>
-            Updated {lastUpdated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-          </Text>
-        </View>
-
-        <TouchableOpacity activeOpacity={0.9} style={[styles.headerMetaRow, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}>
-          <View style={styles.headerMetaLeft}>
-            <MaterialIcons name="calendar-month" size={12} color={N ? '#9BC2EA' : Colors.textSubtle} />
-            <Text style={[styles.headerMetaDate, N && { color: N.text }]}>Full timetable</Text>
-          </View>
-          <View style={styles.headerMetaRight}>
-            <MaterialIcons name="place" size={12} color={N ? '#6BB89A' : '#2F8E47'} />
-            <Text style={[styles.headerMetaLocation, N && { color: N.textSub }]}>Halifax</Text>
-            <View style={[styles.headerMetaAction, N && { backgroundColor: '#2A4A7A', borderColor: '#456A9E' }]}>
-              <Text style={[styles.headerMetaActionText, N && { color: '#D7E8FF' }]}>Today</Text>
-              <MaterialIcons name="today" size={13} color={N ? '#D7E8FF' : '#1E5BA8'} />
-            </View>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          activeOpacity={0.88}
-          onPress={() => setAdhaanChooserVisible(true)}
-          style={[
-            styles.adhaanStrip,
-            N && { borderColor: N.border, backgroundColor: N.surfaceAlt },
-          ]}
-        >
-          <View style={styles.adhaanStripLeft}>
-            <MaterialIcons name="notifications-active" size={16} color={N ? '#9BC2EA' : '#1E5BA8'} />
-            <Text style={[styles.adhaanStripLabel, N && { color: N.text }]} numberOfLines={1}>
-              Choose adhaan notification
-            </Text>
-          </View>
-          <View style={styles.adhaanStripRight}>
-            <Text style={[styles.adhaanStripValue, N && { color: N.textSub }]} numberOfLines={1}>
-              {selectedAdhaan.label}
-            </Text>
-            <MaterialIcons name="chevron-right" size={18} color={N ? N.textSub : Colors.textSubtle} />
-          </View>
-        </TouchableOpacity>
-
-        <View style={[styles.adhaanControlRow, N && { borderColor: N.border, backgroundColor: N.surfaceAlt }]}>
+        <View style={[styles.adhaanUnifiedRow, N && { borderColor: N.border, backgroundColor: N.surfaceAlt }]}>
           <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={toggleAdhaanMuted}
-            style={[
-              styles.adhaanMuteBtn,
-              N && { borderColor: N.border, backgroundColor: N.surface },
-              adhaanMuted && (N
-                ? { backgroundColor: '#4D2A2A', borderColor: '#7F4A4A' }
-                : { backgroundColor: '#FDECEC', borderColor: '#E4A1A1' }),
-            ]}
+            activeOpacity={0.88}
+            onPress={() => setAdhaanChooserVisible(true)}
+            style={styles.adhaanUnifiedPicker}
           >
-            <MaterialIcons
-              name={adhaanMuted ? 'volume-off' : 'volume-up'}
-              size={16}
-              color={adhaanMuted ? '#D43737' : (N ? '#D7E8FF' : '#1E5BA8')}
-            />
-            <Text
+            <MaterialIcons name="notifications-active" size={16} color={N ? '#9BC2EA' : '#1E5BA8'} />
+            <Text style={[styles.adhaanUnifiedLabel, N && { color: N.text }]} numberOfLines={1}>{selectedAdhaan.label}</Text>
+            <Text style={[styles.adhaanUnifiedStatus, N && { color: N.textSub }]} numberOfLines={1}>
+              {adhaanMuted ? 'Muted' : 'Sound on'}
+            </Text>
+            <MaterialIcons name="expand-more" size={18} color={N ? N.textSub : Colors.textSubtle} />
+          </TouchableOpacity>
+
+          <View style={styles.adhaanControlActions}>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={toggleAdhaanMuted}
               style={[
-                styles.adhaanMuteBtnText,
-                { color: adhaanMuted ? '#D43737' : (N ? '#D7E8FF' : '#1E5BA8') },
+                styles.adhaanMuteBtn,
+                N && { borderColor: N.border, backgroundColor: N.surface },
+                adhaanMuted && (N
+                  ? { backgroundColor: '#4D2A2A', borderColor: '#7F4A4A' }
+                  : { backgroundColor: '#FDECEC', borderColor: '#E4A1A1' }),
               ]}
             >
-              {adhaanMuted ? 'Adhaan muted' : 'Adhaan sound on'}
-            </Text>
-          </TouchableOpacity>
+              <MaterialIcons
+                name={adhaanMuted ? 'volume-off' : 'volume-up'}
+                size={16}
+                color={adhaanMuted ? '#D43737' : (N ? '#D7E8FF' : '#1E5BA8')}
+              />
+              <Text
+                style={[
+                  styles.adhaanMuteBtnText,
+                  { color: adhaanMuted ? '#D43737' : (N ? '#D7E8FF' : '#1E5BA8') },
+                ]}
+              >
+                {adhaanMuted ? 'Unmute' : 'Mute'}
+              </Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={stopAdhaanNow}
-            style={[styles.adhaanStopBtn, N && { borderColor: N.border, backgroundColor: N.surface }]}
-          >
-            <MaterialIcons name="stop" size={14} color={N ? '#F2D2D2' : '#B23838'} />
-            <Text style={[styles.adhaanStopBtnText, N && { color: '#F2D2D2' }]}>Stop now</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={stopAdhaanNow}
+              style={[styles.adhaanStopBtn, N && { borderColor: N.border, backgroundColor: N.surface }]}
+            >
+              <MaterialIcons name="stop" size={14} color={N ? '#F2D2D2' : '#B23838'} />
+              <Text style={[styles.adhaanStopBtnText, N && { color: '#F2D2D2' }]}>Stop</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-        <Text style={[styles.adhaanControlHint, N && { color: N.textMuted }]}>
-          {adhaanMuted
-            ? 'Adhaan notification sound is muted until you turn it back on.'
-            : 'Tap Stop now any time to silence an active adhaan immediately.'}
-        </Text>
       </View>
 
       <Modal
@@ -468,130 +427,55 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
-    gap: 6,
+    gap: 4,
   },
-  headerRowCompact: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  headerMasjidCompact: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#2F8E47',
-    letterSpacing: 0.1,
-    flex: 1,
-  },
-  headerMetaRow: {
+  adhaanUnifiedRow: {
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surfaceAlt,
+    borderColor: '#B8CEE8',
+    backgroundColor: '#F5F9FF',
     paddingHorizontal: 10,
-    paddingVertical: 7,
+    paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 10,
+    gap: 8,
   },
-  headerMetaLeft: {
+  adhaanUnifiedPicker: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
     flex: 1,
   },
-  headerMetaDate: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  headerMetaRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  headerMetaLocation: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.textSubtle,
-  },
-  headerMetaAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: '#A8D7B3',
-    backgroundColor: '#EDF8F0',
-  },
-  headerMetaActionText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#2F8E47',
-  },
-  adhaanStrip: {
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: '#B8CEE8',
-    backgroundColor: '#F5F9FF',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  adhaanStripLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flex: 1,
-  },
-  adhaanStripLabel: {
+  adhaanUnifiedLabel: {
     fontSize: 12,
     fontWeight: '700',
     color: '#1E5BA8',
+    maxWidth: '45%',
   },
-  adhaanStripRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    maxWidth: '48%',
-  },
-  adhaanStripValue: {
-    fontSize: 12,
+  adhaanUnifiedStatus: {
+    fontSize: 11,
     fontWeight: '700',
     color: Colors.textSubtle,
   },
-  adhaanControlRow: {
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: '#B8CEE8',
-    backgroundColor: '#F5F9FF',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+  adhaanControlActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
+    gap: 6,
   },
   adhaanMuteBtn: {
-    flex: 1,
     borderRadius: Radius.full,
     borderWidth: 1,
     borderColor: '#9EC0E7',
     backgroundColor: '#EDF5FF',
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
   },
   adhaanMuteBtnText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
   },
   adhaanStopBtn: {
@@ -609,11 +493,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: '#B23838',
-  },
-  adhaanControlHint: {
-    fontSize: 11,
-    color: Colors.textSubtle,
-    marginTop: -2,
   },
   adhaanModalOverlay: {
     flex: 1,
