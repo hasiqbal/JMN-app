@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Radius } from '@/constants/theme';
 import { pickPalette } from './palette';
+import { hasArabic } from './arabic';
+import { InlineArabicText } from './GuideBodyText';
 
 interface GuideSectionHeadingProps {
   heading: string;
@@ -24,6 +26,7 @@ export function GuideSectionHeading({
   nightMode,
 }: GuideSectionHeadingProps) {
   const P = pickPalette(nightMode);
+  const hasUrduHeading = hasArabic(heading);
 
   return (
     <TouchableOpacity
@@ -35,7 +38,15 @@ export function GuideSectionHeading({
       activeOpacity={0.8}
     >
       <View style={[styles.bullet, { backgroundColor: accentColor }]} />
-      <Text style={[styles.title, { color: P.text }]}>{heading}</Text>
+      {hasUrduHeading ? (
+        <InlineArabicText
+          text={heading}
+          nightMode={nightMode}
+          style={[styles.title, styles.titleUrdu, { color: P.text }]}
+        />
+      ) : (
+        <Text style={[styles.title, { color: P.text }]}>{heading}</Text>
+      )}
       <MaterialIcons
         name={expanded ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
         size={18}
@@ -64,6 +75,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     letterSpacing: 0.3,
+  },
+  titleUrdu: {
+    fontFamily: 'UrduNastaliq',
+    fontWeight: '400',
+    writingDirection: 'rtl',
+    textAlign: 'right',
+    letterSpacing: 0,
+    lineHeight: 22,
   },
 });
 

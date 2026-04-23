@@ -28,7 +28,7 @@ import {
   type AnnouncementRow,
 } from '@/services/contentService';
 import { fetchEidUlAdha, fetchEidUlFitr } from '@/services/eidService';
-import { getPrayerGradient, PRAYER_SKY_DEPTH_OVERLAY } from '@/components/prayer/heroConfig';
+import { getInterpolatedPrayerGradient, PRAYER_SKY_DEPTH_OVERLAY } from '@/components/prayer/heroConfig';
 import { buildHeroState } from '@/components/prayer/heroState';
 import { buildActivePrayerState } from '@/components/prayer/activePrayerState';
 import PrayerDrawerTrigger from '@/components/prayer/PrayerDrawerTrigger';
@@ -2307,16 +2307,16 @@ export default function HomeScreen() {
   const fallbackVerseReference = '';
   const fallbackVerseFullText = 'Adhkar coming soon.';
 
-  const hadithTitle = fallbackHadithTitle;
-  const hadithTitleUrdu = 'آج کی سنت';
+  const hadithTitle = 'Daily Sunnah Reminder';
+  const hadithTitleUrdu = 'روزانہ سنت یاددہانی';
   const hadithPreview = fallbackHadithPreview;
   const hadithPreviewUrdu = '';
   const hadithSource = fallbackHadithSource;
   const hadithArabic = '';
   const hadithFullText = fallbackHadithFullText;
 
-  const verseTitle = 'Verse of the Day';
-  const verseTitleUrdu = 'آج کی آیت';
+  const verseTitle = 'Daily Quran Reminder';
+  const verseTitleUrdu = 'روزانہ قرآنی یاددہانی';
   const versePreview = fallbackVersePreview;
   const versePreviewUrdu = '';
   const verseReference = fallbackVerseReference;
@@ -2554,7 +2554,10 @@ export default function HomeScreen() {
   const effectiveHeroJamaatMarker = isEidHeroWindow ? null : heroJamaatMarker;
   const effectiveHeroEndMarker = isEidHeroWindow ? null : heroEndMarker;
   const effectiveHeroMidMarker = isEidHeroWindow ? null : heroMidMarker;
-  const effectiveHeroSkyGradientColors = getPrayerGradient(effectiveHeroPrayerName);
+  const effectiveHeroSkyGradientColors = getInterpolatedPrayerGradient(
+    effectiveHeroPrayerName,
+    effectiveHeroProgress
+  );
   const effectiveHeroGradientColors: readonly [string, string] = nightMode
     ? [HERO_DESIGN_TOKENS.heroTopNight, HERO_DESIGN_TOKENS.heroBottomNight]
     : [HERO_DESIGN_TOKENS.heroTop, HERO_DESIGN_TOKENS.heroBottom];
@@ -2588,10 +2591,12 @@ export default function HomeScreen() {
   // Calendar face removed: timetable now in drawer only
 
   const backClock = currentTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
-  const backGregorian = currentTime.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+  const backGregorianWeekday = currentTime.toLocaleDateString('en-GB', { weekday: 'short' });
+  const backGregorianDate = currentTime.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+  const backGregorian = `${backGregorianWeekday} ${backGregorianDate}`;
   const hijriYear = data?.hijriDate?.match(/\b(\d{4})\b/)?.[1] ?? '';
   const backHijri = [hijriDayNum, rawHijriMonthName, hijriYear ? `${hijriYear} AH` : ''].filter(Boolean).join(' ');
-  const headerDateLine = `${backGregorian} • ${backHijri || 'Hijri date loading...'}`;
+  const headerHijriLine = backHijri || 'Hijri date loading...';
   const drawerDateLine = `${currentTime.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long' })} | ${hijriDayNum || '--'} ${rawHijriMonthName || 'Hijri'}`;
 
   // Row-state priority keeps one clear focus for elders: current > next > past/future.
@@ -2783,7 +2788,8 @@ export default function HomeScreen() {
             <View style={styles.topNavText}>
               <Text numberOfLines={1} style={styles.topNavName}>Jami&apos; Masjid Noorani</Text>
               <Text style={styles.topNavCity}>Halifax, UK</Text>
-              <Text style={styles.topNavDateLine} numberOfLines={1} ellipsizeMode="tail">{headerDateLine}</Text>
+              <Text style={styles.topNavDateLine}>{backGregorian}</Text>
+              <Text style={styles.topNavHijriLine}>{headerHijriLine}</Text>
             </View>
           </View>
           <View style={styles.headerControls}>
@@ -2906,8 +2912,8 @@ export default function HomeScreen() {
               versePreviewUrdu={versePreviewUrdu}
               verseReference={verseReference}
               onPressVerse={() => setActiveSacredPanel('verse')}
-              hadithExpandHint="Read more"
-              verseExpandHint="Read more"
+              hadithExpandHint="Tap to open"
+              verseExpandHint="Tap to open"
               isLoading={false}
               nightMode={nightMode}
             />
@@ -3826,18 +3832,18 @@ const heroSupportStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F3F4F2' },
-  content: { paddingBottom: Spacing.xl, backgroundColor: '#F3F7F5' },
+  container: { flex: 1, backgroundColor: Colors.background },
+  content: { paddingBottom: Spacing.xl, backgroundColor: Colors.headerBg },
   donationModalRoot: {
     flex: 1,
-    backgroundColor: '#F4F9F6',
+    backgroundColor: Colors.background,
   },
   donationModalBgImage: {
     ...StyleSheet.absoluteFillObject,
   },
   donationModalBgOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(244,249,246,0.84)',
+    backgroundColor: 'rgba(236,244,238,0.88)',
   },
   donationModalContentLayer: {
     flex: 1,
@@ -3849,7 +3855,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 7,
     borderRadius: 999,
-    backgroundColor: '#E6F3EC',
+    backgroundColor: '#DDEDE3',
   },
   donationModalCloseFloating: {
     position: 'absolute',
@@ -3866,7 +3872,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    backgroundColor: '#F4F9F6',
+    backgroundColor: Colors.background,
   },
   donationWebviewLoadingText: {
     fontSize: 14,
@@ -4114,6 +4120,15 @@ const styles = StyleSheet.create({
   },
   topNavDateLine: {
     marginTop: 1,
+    fontSize: 10,
+    lineHeight: 13,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.58)',
+    letterSpacing: 0.1,
+    flexShrink: 1,
+  },
+  topNavHijriLine: {
+    marginTop: 0,
     fontSize: 10,
     lineHeight: 13,
     fontWeight: '500',

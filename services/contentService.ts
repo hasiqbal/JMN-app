@@ -293,6 +293,7 @@ type HowToGuideRow = {
 type HowToGroupRow = {
   id: string;
   name: string;
+  urdu_name: string | null;
 };
 
 type HowToSectionRow = {
@@ -732,7 +733,7 @@ export async function fetchHowToGuides(language: 'en' | 'ur' = 'en', options?: {
     const [groupsResult, sectionsResult] = await Promise.all([
       supabase
         .from('howto_groups')
-        .select('id,name')
+        .select('id,name,urdu_name')
         .in('id', groupIds),
       supabase
         .from('howto_sections')
@@ -785,7 +786,8 @@ export async function fetchHowToGuides(language: 'en' | 'ur' = 'en', options?: {
 
     const groupNameById = new Map<string, string>();
     for (const group of groupRows) {
-      groupNameById.set(group.id, group.name);
+      const urduName = typeof group.urdu_name === 'string' ? group.urdu_name.trim() : '';
+      groupNameById.set(group.id, language === 'ur' ? (urduName || group.name) : group.name);
     }
 
     const sectionsByGuideId = new Map<string, HowToSectionRow[]>();

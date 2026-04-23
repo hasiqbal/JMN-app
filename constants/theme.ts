@@ -4,14 +4,15 @@ export const Colors = {
   primaryLight: '#6FC285',
   primarySoft: '#E6F4EA',
   accent: '#3FAE5A',
-  headerBg: '#F5F7F5',
+  headerBg: '#EAF3ED',
 
   // Surface
-  background: '#F5F7F5',
+  background: '#ECF4EE',
   surface: '#FFFFFF',
   surfaceAlt: '#F0F7F3',
   surfaceElevated: '#FBF8F1', // cream parchment for devotional modals/cards
-  border: '#E3E8E4',
+  border: '#D7E3DB',
+  navBackground: '#E7F1EA',
 
   // Text
   textPrimary: '#1F2A24',

@@ -617,6 +617,7 @@ export default function QuranReaderScreen() {
   const tafsirFallback = contentLang === 'ur' ? 'تفسیر جلد دستیاب ہوگی۔' : 'Tafsir coming soon.';
   const contentPanelHeight = Math.min(windowHeight * 0.9, windowHeight - insets.top - 12);
   const toggleButtonLabel = toggleLabelLang === 'ur' ? 'ترجمہ / تفسیر' : 'Translation / Tafsir';
+  const sourceListHeight = contentLang === 'ur' ? 62 : 52;
   const getTranslationOptionLabel = (option: QuranTranslationResource) =>
     contentLang === 'ur'
       ? (URDU_TRANSLATOR_LABEL_OVERRIDES[option.id] || option.translatedName || option.name)
@@ -842,7 +843,11 @@ export default function QuranReaderScreen() {
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
-                  style={[styles.sourceListScroll, N && { borderBottomColor: 'rgba(255,255,255,0.1)' }]}
+                  style={[
+                    styles.sourceListScroll,
+                    { height: sourceListHeight },
+                    N && { borderBottomColor: 'rgba(255,255,255,0.1)' },
+                  ]}
                   contentContainerStyle={styles.sourceListRow}
                 >
                   {contentMode === 'translation'
@@ -1224,11 +1229,12 @@ const styles = StyleSheet.create({
   sourceListRow: {
     gap: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
     alignItems: 'center',
   },
   sourceListScroll: {
-    minHeight: 54,
+    flexGrow: 0,
+    flexShrink: 0,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.06)',
   },

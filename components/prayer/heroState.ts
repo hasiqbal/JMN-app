@@ -1,6 +1,6 @@
 import { formatCountdownSeconds, type ForbiddenTimeInfo, type PrayerTime, type PrayerTimesData } from '@/services/prayerService';
 import type { HeroCountdownInfo } from '@/components/prayer/PrayerHeroCard';
-import { PRAYER_GRADIENTS } from '@/components/prayer/heroConfig';
+import { PRAYER_GRADIENTS, getInterpolatedPrayerOverlay } from '@/components/prayer/heroConfig';
 
 type HeroPhaseInfo = {
   label: string;
@@ -90,15 +90,17 @@ export function buildHeroState(params: {
     ? (forbiddenWindowMeta?.phase === 'Sunrise' ? 'Sunrise' : 'Dhuhr')
     : (params.activePrayer?.name ?? params.nextPrayerName);
 
-  const heroGradientColors = params.forbiddenInfo
-    ? ['rgba(122,40,14,0.82)', 'rgba(179,66,26,0.76)'] as const
-    : (PRAYER_GRADIENTS[heroImageKey] ?? ['rgba(27,94,52,0.82)', 'rgba(45,138,79,0.76)'] as const);
-
   const heroProgress = isIshraqToDhuhrPhase
     ? (ishraqToDhuhrProgress ?? 0)
     : params.forbiddenInfo
     ? (forbiddenWindowMeta?.progress ?? 0)
     : (currentProgressMeta?.progress ?? nextProgressMeta?.progress ?? 0);
+
+  const heroGradientColors = params.forbiddenInfo
+    ? ['rgba(122,40,14,0.82)', 'rgba(179,66,26,0.76)'] as const
+    : (getInterpolatedPrayerOverlay(heroImageKey, heroProgress)
+        ?? PRAYER_GRADIENTS[heroImageKey]
+        ?? ['rgba(27,94,52,0.82)', 'rgba(45,138,79,0.76)'] as const);
 
   const heroAthanMarker = params.forbiddenInfo
     ? null

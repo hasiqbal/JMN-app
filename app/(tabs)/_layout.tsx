@@ -493,7 +493,7 @@ export default function TabLayout() {
       default: 8,
     }),
     paddingHorizontal: 16,
-    backgroundColor: darkMode ? '#0A0F1E' : Colors.surface,
+    backgroundColor: darkMode ? '#0A0F1E' : Colors.navBackground,
     borderTopWidth: 1,
     borderTopColor: darkMode ? '#1E2D47' : Colors.border,
   };

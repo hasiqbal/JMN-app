@@ -74,7 +74,7 @@ function ShortcutButton({
     >
       <Animated.View style={[styles.shortcut, { transform: [{ scale }] }]}>
         <View style={[styles.shortcutIconCircle, { backgroundColor: iconBg }]}>
-          <MaterialIcons name={action.icon as any} size={24} color={action.accent} />
+          <MaterialIcons name={action.icon as any} size={20} color={action.accent} />
         </View>
         <Text style={styles.shortcutLabel} numberOfLines={2}>{action.label}</Text>
       </Animated.View>
@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'stretch',
     backgroundColor: '#F3F8F4',
-    borderRadius: Radius.lg,
+    borderRadius: Radius.md,
     borderWidth: 1,
     borderColor: '#D8E8DC',
     ...(Platform.OS === 'web'
@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
   },
   shortcutButton: {
     flex: 1,
-    minHeight: 96,
+    minHeight: 82,
   },
   shortcutGhost: {
     opacity: 0,
@@ -195,23 +195,23 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    gap: 7,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    gap: 6,
   },
   shortcutIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
   shortcutLabel: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.1,
     color: '#2E3D32',
     textAlign: 'center',
-    lineHeight: 17,
+    lineHeight: 14,
   },
 });

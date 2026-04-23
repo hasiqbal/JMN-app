@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
 import PrayerHeroCard, { type HeroCountdownInfo } from '@/components/prayer/PrayerHeroCard';
-import { PRAYER_BG_IMAGES, PRAYER_GRADIENTS, PRAYER_ICONS } from '@/components/prayer/heroConfig';
+import { PRAYER_BG_IMAGES, PRAYER_GRADIENTS, PRAYER_ICONS, getInterpolatedPrayerOverlay } from '@/components/prayer/heroConfig';
 import { fetchEidUlFitr } from '@/services/eidService';
 
 type EidScenario = {
@@ -270,7 +270,7 @@ export default function HeroPreviewEidScreen() {
             <PrayerHeroCard
               visible
               backgroundSource={PRAYER_BG_IMAGES[s.heroKey]}
-              gradientColors={PRAYER_GRADIENTS[s.heroKey]}
+              gradientColors={getInterpolatedPrayerOverlay(s.heroKey, s.progress) ?? PRAYER_GRADIENTS[s.heroKey]}
 
               backgroundImageOpacity={0.82}
               heroWide={false}

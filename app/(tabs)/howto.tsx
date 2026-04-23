@@ -30,18 +30,28 @@ import {
 
 const PARENT_TILE_BACKGROUND_BY_GROUP: Partial<Record<string, any>> = {
   Purification: require('@/assets/images/background/wudhu.jpg'),
+  طہارت: require('@/assets/images/background/wudhu.jpg'),
   Salah: require('@/assets/images/background/salah.jpg'),
+  نماز: require('@/assets/images/background/salah.jpg'),
   Fasting: require('@/assets/images/background/kiswahkaabah.jpg'),
+  روزہ: require('@/assets/images/background/kiswahkaabah.jpg'),
   'Hajj & Umrah': require('@/assets/images/sky/arafat.jpeg'),
+  'حج و عمرہ': require('@/assets/images/sky/arafat.jpeg'),
   Zakaat: require('@/assets/images/background/zakaat.jpg'),
+  زکوٰۃ: require('@/assets/images/background/zakaat.jpg'),
 };
 
 const PARENT_TILE_ICON_BY_GROUP: Partial<Record<string, keyof typeof MaterialIcons.glyphMap>> = {
   Purification: 'water-drop',
+  طہارت: 'water-drop',
   Salah: 'self-improvement',
+  نماز: 'self-improvement',
   Fasting: 'nights-stay',
+  روزہ: 'nights-stay',
   Zakaat: 'volunteer-activism',
+  زکوٰۃ: 'volunteer-activism',
   'Hajj & Umrah': 'travel-explore',
+  'حج و عمرہ': 'travel-explore',
 };
 
 // Night palette used by the screen shell (parent tiles, guide cards, image viewer).
@@ -276,7 +286,7 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
     }
 
     try {
-      const rows = await fetchHowToGuides(selectedLanguageCode, { forceRefresh: true });
+      const rows = await fetchHowToGuides(selectedLanguageCode, { forceRefresh: asRefresh });
       setRemoteGuides(rows);
       setRemoteError(null);
     } catch {
@@ -348,11 +358,17 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
 
     const groupOrder: Record<string, number> = {
       Purification: 1,
+      طہارت: 1,
       Salah: 2,
+      نماز: 2,
       Fasting: 3,
+      روزہ: 3,
       Zakaat: 4,
+      زکوٰۃ: 4,
       'Hajj & Umrah': 5,
+      'حج و عمرہ': 5,
       General: 999,
+      عمومی: 999,
     };
 
     const orderedNames = Array.from(groups.keys()).sort((a, b) => {
@@ -373,12 +389,12 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
   }, [guideCards]);
 
   const parentGroupTiles = useMemo(
-    () => groupedGuideCards.filter((group) => group.name !== 'General'),
+    () => groupedGuideCards.filter((group) => group.name !== 'General' && group.name !== 'عمومی'),
     [groupedGuideCards]
   );
 
   const generalGuides = useMemo(
-    () => groupedGuideCards.find((group) => group.name === 'General')?.guides ?? [],
+    () => groupedGuideCards.find((group) => group.name === 'General' || group.name === 'عمومی')?.guides ?? [],
     [groupedGuideCards]
   );
 
@@ -394,7 +410,7 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
     if (!matches || matches.length === 0) return { english: withoutParens, arabic: null as string | null };
     const arabic = matches.join(' ').replace(/\s+/g, ' ').trim();
     const english = withoutParens.replace(ARABIC_SEGMENT_MATCH_REGEX, ' ').replace(/\s+/g, ' ').trim();
-    return { english: english || withoutParens, arabic };
+    return { english, arabic };
   };
 
   const renderGuideCard = (guide: HowToGuide) => {
@@ -419,7 +435,7 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
             )}
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={[howToStyles.guideTitle, N && { color: N.text }]}>{english}</Text>
+            {english ? <Text style={[howToStyles.guideTitle, N && { color: N.text }]}>{english}</Text> : null}
             {arabic ? (
               <Text style={[howToStyles.guideTitleArabic, N && { color: N.textSub }]}>{arabic}</Text>
             ) : null}
@@ -542,58 +558,50 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
     return (
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[howToStyles.container, N && { backgroundColor: N.bg }]}
+        contentContainerStyle={[howToStyles.container, howToStyles.languageSelectionContainer, N && { backgroundColor: N.bg }]}
       >
         {renderHowToStrip()}
-        <View style={[howToStyles.introCard, N && { backgroundColor: N.surface, borderColor: N.border }]}>
-          <View style={[howToStyles.introIcon, N && { backgroundColor: `${N.accent}18` }]}>
-            <MaterialIcons name="translate" size={20} color={N ? N.accent : Colors.primary} />
-          </View>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={[howToStyles.introTitle, N && { color: N.text }]}>Choose Guide Language</Text>
-            <Text style={[howToStyles.introSub, N && { color: N.textSub }]}>Select English now or Urdu (coming soon)</Text>
-          </View>
+        <View style={howToStyles.languageOptionsArea}>
+          <TouchableOpacity
+            style={[howToStyles.languageCard, howToStyles.languageCardLarge, N && { backgroundColor: N.surface, borderColor: N.border }]}
+            onPress={() => {
+              setSelectedLanguage('english');
+              setSelectedParentGroup(null);
+              setExpandedGuide(null);
+              setExpandedSection(null);
+            }}
+            activeOpacity={0.85}
+          >
+            <View style={[howToStyles.guideIcon, howToStyles.languageCardIcon, { backgroundColor: '#4FE94822' }]}> 
+              <MaterialIcons name="menu-book" size={26} color="#4FE948" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[howToStyles.guideTitle, howToStyles.languageCardTitle, N && { color: N.text }]}>English Guides</Text>
+              <Text style={[howToStyles.guideSub, howToStyles.languageCardSub, N && { color: N.textSub }]}>Open current detailed Hanafi guides</Text>
+            </View>
+            <MaterialIcons name="arrow-forward-ios" size={18} color={N ? N.textMuted : Colors.textSubtle} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[howToStyles.languageCard, howToStyles.languageCardLarge, N && { backgroundColor: N.surface, borderColor: N.border }]}
+            onPress={() => {
+              setSelectedLanguage('urdu');
+              setSelectedParentGroup(null);
+              setExpandedGuide(null);
+              setExpandedSection(null);
+            }}
+            activeOpacity={0.85}
+          >
+            <View style={[howToStyles.guideIcon, howToStyles.languageCardIcon, { backgroundColor: '#1E88E522' }]}> 
+              <MaterialIcons name="g-translate" size={26} color="#1E88E5" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <InlineArabicText text="اردو گائیڈز" nightMode={nightMode} style={[howToStyles.guideTitle, howToStyles.languageCardTitle, N && { color: N.text }]} />
+              <InlineArabicText text="موجودہ تفصیلی حنفی رہنما کھولیں" nightMode={nightMode} style={[howToStyles.guideSub, howToStyles.languageCardSub, N && { color: N.textSub }]} />
+            </View>
+            <MaterialIcons name="arrow-forward-ios" size={18} color={N ? N.textMuted : Colors.textSubtle} />
+          </TouchableOpacity>
         </View>
-
-        <TouchableOpacity
-          style={[howToStyles.languageCard, N && { backgroundColor: N.surface, borderColor: N.border }]}
-          onPress={() => {
-            setSelectedLanguage('english');
-            setSelectedParentGroup(null);
-            setExpandedGuide(null);
-            setExpandedSection(null);
-          }}
-          activeOpacity={0.85}
-        >
-          <View style={[howToStyles.guideIcon, { backgroundColor: '#4FE94822' }]}> 
-            <MaterialIcons name="menu-book" size={22} color="#4FE948" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[howToStyles.guideTitle, N && { color: N.text }]}>English Guides</Text>
-            <Text style={[howToStyles.guideSub, N && { color: N.textSub }]}>Open current detailed Hanafi guides</Text>
-          </View>
-          <MaterialIcons name="arrow-forward-ios" size={16} color={N ? N.textMuted : Colors.textSubtle} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[howToStyles.languageCard, N && { backgroundColor: N.surface, borderColor: N.border }]}
-          onPress={() => {
-            setSelectedLanguage('urdu');
-            setSelectedParentGroup(null);
-            setExpandedGuide(null);
-            setExpandedSection(null);
-          }}
-          activeOpacity={0.85}
-        >
-          <View style={[howToStyles.guideIcon, { backgroundColor: '#1E88E522' }]}> 
-            <MaterialIcons name="g-translate" size={22} color="#1E88E5" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[howToStyles.guideTitle, N && { color: N.text }]}>Urdu Guides</Text>
-            <Text style={[howToStyles.guideSub, N && { color: N.textSub }]}>Urdu content will be added next</Text>
-          </View>
-          <MaterialIcons name="arrow-forward-ios" size={16} color={N ? N.textMuted : Colors.textSubtle} />
-        </TouchableOpacity>
       </ScrollView>
     );
   }
@@ -679,17 +687,6 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
         }
       >
         {renderHowToStrip()}
-        {/* Intro card — JMN card system */}
-        <View style={[howToStyles.introCard, N && { backgroundColor: N.surface, borderColor: N.border }]}>
-          <View style={[howToStyles.introIcon, N && { backgroundColor: `${N.accent}18` }]}>
-            <MaterialIcons name="menu-book" size={20} color={N ? N.accent : Colors.primary} />
-          </View>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={[howToStyles.introTitle, N && { color: N.text }]}>{selectedParentGroup ? `${selectedParentGroup} Guides` : 'How-To Guides'}</Text>
-            <Text style={[howToStyles.introSub, N && { color: N.textSub }]}>Learn step by step — tap a guide to explore.</Text>
-            <Text style={[howToStyles.introMeta, N && { color: N.textMuted }]}>Based on Hanafi fiqh · Jami&apos; Masjid Noorani</Text>
-          </View>
-        </View>
 
         <TouchableOpacity
           style={[howToStyles.backLink]}
@@ -802,9 +799,11 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
         {/* Disclaimer */}
         <View style={[howToStyles.disclaimer, N && { backgroundColor: N.surface, borderColor: N.border }]}>
           <MaterialIcons name="menu-book" size={14} color={N ? N.textMuted : Colors.textSubtle} />
-          <Text style={[howToStyles.disclaimerText, N && { color: N.textMuted }]}>
-            These guides follow the Hanafi madhab. Always verify with a qualified local scholar for personal queries.
-          </Text>
+          <InlineArabicText
+            text="یہ رہنما حنفی مسلک کے مطابق ہیں۔ ذاتی مسائل کے لیے ہمیشہ اپنے مقامی مستند عالم سے رہنمائی لیں۔"
+            nightMode={nightMode}
+            style={[howToStyles.disclaimerText, N && { color: N.textMuted }]}
+          />
         </View>
         <View style={{ height: 64 }} />
       </ScrollView>
@@ -863,6 +862,14 @@ const howToStyles = StyleSheet.create({
     paddingTop: Spacing.sm,
     gap: Spacing.sm,
   },
+  languageSelectionContainer: {
+    flexGrow: 1,
+  },
+  languageOptionsArea: {
+    flex: 1,
+    justifyContent: 'center',
+    gap: Spacing.md,
+  },
   moduleStrip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -914,6 +921,22 @@ const howToStyles = StyleSheet.create({
     backgroundColor: Colors.surface, borderRadius: Radius.lg,
     borderWidth: 1, borderColor: Colors.border,
     padding: Spacing.md,
+  },
+  languageCardLarge: {
+    paddingVertical: Spacing.md + 4,
+  },
+  languageCardIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: Radius.lg,
+  },
+  languageCardTitle: {
+    fontSize: 17,
+    lineHeight: 22,
+  },
+  languageCardSub: {
+    fontSize: 12,
+    marginTop: 4,
   },
   languageBackBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -1031,7 +1054,8 @@ const howToStyles = StyleSheet.create({
   },
   guideTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, letterSpacing: 0.1, lineHeight: 20 },
   guideTitleArabic: {
-    fontFamily: 'IndopakNastaleeq',
+    fontFamily: 'UrduNastaliq',
+    fontWeight: '400',
     fontSize: 18,
     lineHeight: 28,
     color: Colors.textSecondary,

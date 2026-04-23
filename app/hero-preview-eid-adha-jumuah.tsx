@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
 import PrayerHeroCard from '@/components/prayer/PrayerHeroCard';
-import { PRAYER_BG_IMAGES, PRAYER_GRADIENTS, PRAYER_ICONS } from '@/components/prayer/heroConfig';
+import { PRAYER_BG_IMAGES, PRAYER_GRADIENTS, PRAYER_ICONS, getInterpolatedPrayerOverlay } from '@/components/prayer/heroConfig';
 import { fetchEidUlAdha } from '@/services/eidService';
 import { buildAdhaJumuahScenarios } from '../components/prayer/previewScenarios';
 
@@ -34,7 +34,7 @@ export default function HeroPreviewEidAdhaJumuahScreen() {
             <PrayerHeroCard
               visible
               backgroundSource={PRAYER_BG_IMAGES[scenario.heroKey]}
-              gradientColors={PRAYER_GRADIENTS[scenario.heroKey]}
+              gradientColors={getInterpolatedPrayerOverlay(scenario.heroKey, scenario.progress) ?? PRAYER_GRADIENTS[scenario.heroKey]}
 
               backgroundImageOpacity={0.82}
               heroWide={false}

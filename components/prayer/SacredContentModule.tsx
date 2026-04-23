@@ -11,7 +11,6 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 
 import { Colors, Radius, Spacing } from '@/constants/theme';
-import { ReminderCard } from '@/components/prayer/ReminderCard';
 
 export type SacredContentModuleProps = {
   hadithLabel: string;
@@ -46,28 +45,28 @@ export type SacredReadingSheetProps = {
 };
 
 const DAY = {
-  cardBg: '#F8F3E8',
-  cardBorder: 'rgba(128, 101, 46, 0.18)',
-  cardShadow: 'rgba(70, 49, 14, 0.08)',
-  hadithTint: 'rgba(55, 105, 69, 0.08)',
-  verseTint: 'rgba(166, 129, 56, 0.09)',
-  heading: '#305540',
-  text: '#1F2B22',
-  reference: '#55695B',
-  arabicSecondary: '#355541',
-  cta: '#4E5D50',
+  cardBg: '#F3F8F4',
+  cardBorder: 'rgba(63, 174, 90, 0.22)',
+  cardShadow: 'rgba(53, 70, 57, 0.10)',
+  hadithTint: 'rgba(63, 174, 90, 0.10)',
+  verseTint: 'rgba(44, 106, 80, 0.10)',
+  heading: '#2C6A50',
+  text: '#1F2A24',
+  reference: '#4F665B',
+  arabicSecondary: '#2E614A',
+  cta: '#2C6A50',
   segmentedText: '#55695B',
   segmentedTextActive: '#1F2B22',
-  segmentedBorder: 'rgba(122, 138, 122, 0.3)',
+  segmentedBorder: 'rgba(63, 174, 90, 0.24)',
   segmentedBg: 'rgba(255, 255, 255, 0.48)',
   segmentedActiveBg: 'rgba(255, 255, 255, 0.9)',
-  skeleton: '#E8E0D2',
-  sheetBg: '#FBF7EE',
-  sheetBorder: 'rgba(120, 92, 42, 0.2)',
-  sheetText: '#1F2B22',
-  sheetSubText: '#4E5D50',
-  sheetArabic: '#253F2E',
-  sheetHandle: 'rgba(103, 89, 61, 0.35)',
+  skeleton: '#DDEADF',
+  sheetBg: '#F4FAF6',
+  sheetBorder: 'rgba(63, 174, 90, 0.22)',
+  sheetText: '#1F2A24',
+  sheetSubText: '#4F665B',
+  sheetArabic: '#2E614A',
+  sheetHandle: 'rgba(44, 106, 80, 0.35)',
   overlay: 'rgba(0, 0, 0, 0.36)',
 };
 
@@ -76,7 +75,7 @@ const NIGHT = {
   cardBorder: 'rgba(193, 210, 190, 0.14)',
   cardShadow: 'rgba(0, 0, 0, 0.25)',
   hadithTint: 'rgba(99, 152, 113, 0.14)',
-  verseTint: 'rgba(170, 144, 90, 0.14)',
+  verseTint: 'rgba(111, 194, 133, 0.16)',
   heading: '#B9D9C0',
   text: '#E9EFEA',
   reference: '#B8C3BC',
@@ -158,71 +157,101 @@ export function SacredContentModule({
   const versePreviewUrduSafe = (versePreviewUrdu ?? '').trim();
   const verseReferenceSafe = verseReference.trim();
 
-  const cardPalette = {
-    title: palette.heading,
-    text: palette.text,
-    source: palette.reference,
-    switchText: palette.segmentedText,
-    switchActiveText: palette.segmentedTextActive,
-    switchBorder: palette.segmentedBorder,
-    switchBg: palette.segmentedBg,
-    switchActiveBg: palette.segmentedActiveBg,
-    ctaText: palette.cta,
-  };
-
-  const hasHadith = hadithPreviewSafe.length > 0 || hadithSourceSafe.length > 0;
-  const hasVerse = versePreviewSafe.length > 0 || verseReferenceSafe.length > 0;
+  const hasHadith = hadithLabel.trim().length > 0
+    || hadithPreviewSafe.length > 0
+    || hadithPreviewUrduSafe.length > 0
+    || hadithSourceSafe.length > 0;
+  const hasVerse = verseLabel.trim().length > 0
+    || versePreviewSafe.length > 0
+    || versePreviewUrduSafe.length > 0
+    || verseReferenceSafe.length > 0;
 
   return (
-    <View
-      style={[
-        styles.shell,
-        {
-          backgroundColor: palette.cardBg,
-          borderColor: palette.cardBorder,
-          shadowColor: palette.cardShadow,
-        },
-      ]}
-    >
-      {hasHadith ? (
-        <View style={styles.cardRow}>
-          <ReminderCard
-            title={hadithLabel}
-            titleUrdu={hadithLabelUrdu}
-            textEn={hadithPreviewSafe}
-            textUr={hadithPreviewUrduSafe}
-            source={hadithSourceSafe}
-            tone="hadith"
-            accentTint={palette.hadithTint}
-            readMoreLabel={hadithExpandHint}
-            onPressReadMore={onPressHadith}
-            palette={cardPalette}
-          />
-        </View>
-      ) : null}
+    <View style={styles.moduleRoot}>
+      <View style={styles.moduleHeaderRow}>
+        <View style={[styles.moduleHeaderBar, { backgroundColor: palette.heading }]} />
+        <Text style={[styles.moduleHeaderText, { color: palette.reference }]}>Your Reminder</Text>
+        <Text style={[styles.moduleHeaderUrdu, { color: palette.reference }]}>آپ کی یاددہانی</Text>
+      </View>
 
-      {hasVerse ? (
-        <View style={styles.cardRow}>
-          <ReminderCard
-            title={verseLabel}
-            titleUrdu={verseLabelUrdu}
-            textEn={versePreviewSafe}
-            textUr={versePreviewUrduSafe}
-            source={verseReferenceSafe}
-            tone="verse"
-            accentTint={palette.verseTint}
-            readMoreLabel={verseExpandHint}
-            onPressReadMore={onPressVerse}
-            palette={cardPalette}
-          />
-        </View>
-      ) : null}
+      <View
+        style={[
+          styles.shell,
+          {
+            backgroundColor: palette.cardBg,
+            borderColor: palette.cardBorder,
+            shadowColor: palette.cardShadow,
+          },
+        ]}
+      >
+        {hasHadith || hasVerse ? (
+          <View style={styles.tileGrid}>
+            {hasHadith ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={onPressHadith}
+                style={({ pressed }) => [
+                  styles.tile,
+                  { borderColor: palette.cardBorder, backgroundColor: palette.hadithTint },
+                  pressed && styles.tilePressed,
+                ]}
+              >
+                <View style={styles.tileTitleRow}>
+                  <MaterialIcons name="auto-stories" size={16} color={palette.heading} />
+                  <Text style={[styles.tileTitle, { color: palette.text }]} numberOfLines={2}>{hadithLabel}</Text>
+                </View>
+                {!!hadithLabelUrdu && (
+                  <Text style={[styles.tileTitleUrdu, { color: palette.sheetSubText }]} numberOfLines={2}>{hadithLabelUrdu}</Text>
+                )}
+                {!!hadithPreviewSafe && (
+                  <Text style={[styles.tileHint, { color: palette.reference }]} numberOfLines={2}>{hadithPreviewSafe}</Text>
+                )}
+                {!!hadithPreviewUrduSafe && (
+                  <Text style={[styles.tileHintUrdu, { color: palette.sheetSubText }]} numberOfLines={1}>{hadithPreviewUrduSafe}</Text>
+                )}
+                {!!hadithSourceSafe && (
+                  <Text style={[styles.tileSource, { color: palette.reference }]} numberOfLines={1}>{hadithSourceSafe}</Text>
+                )}
+                <Text style={[styles.tileAction, { color: palette.cta }]}>{hadithExpandHint}</Text>
+              </Pressable>
+            ) : null}
 
-      {!hasHadith && !hasVerse ? (
-        <View style={styles.emptyState}>
-          <Text style={[styles.emptyStateText, { color: palette.reference }]}>No sacred content available.</Text>
-        </View>
-      ) : null}
+            {hasVerse ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={onPressVerse}
+                style={({ pressed }) => [
+                  styles.tile,
+                  { borderColor: palette.cardBorder, backgroundColor: palette.verseTint },
+                  pressed && styles.tilePressed,
+                ]}
+              >
+                <View style={styles.tileTitleRow}>
+                  <MaterialIcons name="menu-book" size={16} color={palette.heading} />
+                  <Text style={[styles.tileTitle, { color: palette.text }]} numberOfLines={2}>{verseLabel}</Text>
+                </View>
+                {!!verseLabelUrdu && (
+                  <Text style={[styles.tileTitleUrdu, { color: palette.sheetSubText }]} numberOfLines={2}>{verseLabelUrdu}</Text>
+                )}
+                {!!versePreviewSafe && (
+                  <Text style={[styles.tileHint, { color: palette.reference }]} numberOfLines={2}>{versePreviewSafe}</Text>
+                )}
+                {!!versePreviewUrduSafe && (
+                  <Text style={[styles.tileHintUrdu, { color: palette.sheetSubText }]} numberOfLines={1}>{versePreviewUrduSafe}</Text>
+                )}
+                {!!verseReferenceSafe && (
+                  <Text style={[styles.tileSource, { color: palette.reference }]} numberOfLines={1}>{verseReferenceSafe}</Text>
+                )}
+                <Text style={[styles.tileAction, { color: palette.cta }]}>{verseExpandHint}</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : (
+          <View style={styles.emptyState}>
+            <Text style={[styles.emptyStateText, { color: palette.reference }]}>No sacred content available.</Text>
+          </View>
+        )}
+      </View>
     </View>
   );
 }
@@ -333,15 +362,41 @@ export function SacredReadingSheet({
 }
 
 const styles = StyleSheet.create({
+  moduleRoot: {
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  moduleHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  moduleHeaderBar: {
+    width: 3,
+    height: 11,
+    borderRadius: 2,
+  },
+  moduleHeaderText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+  },
+  moduleHeaderUrdu: {
+    marginLeft: 'auto',
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'UrduNastaliqBold',
+    writingDirection: 'rtl',
+    textAlign: 'right',
+  },
   shell: {
-    marginTop: 8,
-    marginBottom: 12,
-    borderRadius: Radius.xl,
+    borderRadius: Radius.lg,
     borderWidth: 1,
     overflow: 'hidden',
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    gap: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+    gap: 6,
     ...(Platform.OS === 'web'
       ? { boxShadow: '0px 6px 20px rgba(42, 33, 18, 0.08)' }
       : {
@@ -353,6 +408,69 @@ const styles = StyleSheet.create({
   },
   cardRow: {
     width: '100%',
+  },
+  tileGrid: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  tile: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    paddingHorizontal: 10,
+    paddingTop: 7,
+    paddingBottom: 7,
+    justifyContent: 'flex-start',
+  },
+  tilePressed: {
+    opacity: 0.82,
+  },
+  tileTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  tileTitle: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '700',
+    flexShrink: 1,
+  },
+  tileTitleUrdu: {
+    marginTop: 1,
+    fontSize: 15,
+    lineHeight: 19,
+    fontFamily: 'UrduNastaliqBold',
+    writingDirection: 'rtl',
+    textAlign: 'right',
+  },
+  tileHint: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '500',
+  },
+  tileHintUrdu: {
+    marginTop: 3,
+    fontSize: 15,
+    lineHeight: 20,
+    fontFamily: 'UrduNastaliqBold',
+    writingDirection: 'rtl',
+    textAlign: 'right',
+  },
+  tileSource: {
+    marginTop: 4,
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '600',
+  },
+  tileAction: {
+    marginTop: 5,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
   emptyState: {
     alignItems: 'center',

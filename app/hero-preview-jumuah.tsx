@@ -1,7 +1,7 @@
 import React, { useMemo, useRef } from 'react';
 import { Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
 import PrayerHeroCard from '@/components/prayer/PrayerHeroCard';
-import { PRAYER_BG_IMAGES, PRAYER_GRADIENTS, PRAYER_ICONS } from '@/components/prayer/heroConfig';
+import { PRAYER_BG_IMAGES, PRAYER_GRADIENTS, PRAYER_ICONS, getInterpolatedPrayerOverlay } from '@/components/prayer/heroConfig';
 import { FRIDAY_SCENARIOS } from '../components/prayer/previewScenarios';
 
 export default function HeroPreviewJumuahScreen() {
@@ -20,7 +20,7 @@ export default function HeroPreviewJumuahScreen() {
             <PrayerHeroCard
               visible
               backgroundSource={PRAYER_BG_IMAGES[s.heroKey]}
-              gradientColors={PRAYER_GRADIENTS[s.heroKey]}
+              gradientColors={getInterpolatedPrayerOverlay(s.heroKey, s.progress) ?? PRAYER_GRADIENTS[s.heroKey]}
 
               backgroundImageOpacity={0.82}
               heroWide={false}

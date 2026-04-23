@@ -4,6 +4,8 @@ import { Radius } from '@/constants/theme';
 import type { GuideBlock } from '@/howtoguides/types';
 import { pickPalette } from './palette';
 import { GuideBlockList } from './GuideBlockList';
+import { hasArabic } from './arabic';
+import { InlineArabicText } from './GuideBodyText';
 
 interface GuideStepCardProps {
   step: number;
@@ -44,6 +46,7 @@ export function GuideStepCard({
 }: GuideStepCardProps) {
   const P = pickPalette(nightMode);
   const isWarning = /^warning[:\s]/i.test(title);
+  const hasUrduTitle = hasArabic(title);
   const warningColor = nightMode ? '#FF7B7B' : '#D32F2F';
   const effectiveAccent = isWarning ? warningColor : accentColor;
 
@@ -59,14 +62,26 @@ export function GuideStepCard({
         <Text style={styles.stepNumText}>{step}</Text>
       </View>
       <View style={styles.contentCol}>
-        <Text
-          style={[
-            styles.title,
-            { color: isWarning ? effectiveAccent : P.text },
-          ]}
-        >
-          {title}
-        </Text>
+        {hasUrduTitle ? (
+          <InlineArabicText
+            text={title}
+            nightMode={nightMode}
+            style={[
+              styles.title,
+              styles.titleUrdu,
+              { color: isWarning ? effectiveAccent : P.text },
+            ]}
+          />
+        ) : (
+          <Text
+            style={[
+              styles.title,
+              { color: isWarning ? effectiveAccent : P.text },
+            ]}
+          >
+            {title}
+          </Text>
+        )}
         <View
           style={[
             styles.detailWrap,
@@ -131,6 +146,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 20,
     letterSpacing: 0.1,
+  },
+  titleUrdu: {
+    fontFamily: 'UrduNastaliq',
+    fontWeight: '400',
+    writingDirection: 'rtl',
+    textAlign: 'right',
+    lineHeight: 24,
+    letterSpacing: 0,
   },
   detailWrap: {
     gap: 8,

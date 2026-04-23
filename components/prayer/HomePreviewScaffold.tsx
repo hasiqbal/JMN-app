@@ -3,7 +3,7 @@ import { Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
 import PrayerHeroCard from '@/components/prayer/PrayerHeroCard';
-import { PRAYER_BG_IMAGES, PRAYER_GRADIENTS, PRAYER_ICONS } from '@/components/prayer/heroConfig';
+import { PRAYER_BG_IMAGES, PRAYER_GRADIENTS, PRAYER_ICONS, getInterpolatedPrayerOverlay } from '@/components/prayer/heroConfig';
 import { Colors, Radius, Spacing, Typography } from '@/constants/theme';
 import { type SharedPreviewScenario } from '@/components/prayer/previewScenarios';
 
@@ -237,7 +237,7 @@ export default function HomePreviewScaffold({
                     visible
                     embedded
                     backgroundSource={PRAYER_BG_IMAGES[scenario.heroKey]}
-                    gradientColors={PRAYER_GRADIENTS[scenario.heroKey]}
+                    gradientColors={getInterpolatedPrayerOverlay(scenario.heroKey, scenario.progress) ?? PRAYER_GRADIENTS[scenario.heroKey]}
                     backgroundImageOpacity={0.82}
                     heroWide={false}
                     kicker={scenario.kicker}

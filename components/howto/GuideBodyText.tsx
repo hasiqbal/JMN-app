@@ -83,7 +83,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   arabicInline: {
-    fontFamily: 'IndopakNastaleeq',
+    fontFamily: 'UrduNastaliq',
+    fontWeight: '400',
     fontSize: GuideType.arabicInlineSize,
     lineHeight: GuideType.arabicInlineLineHeight,
   },

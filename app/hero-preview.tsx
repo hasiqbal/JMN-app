@@ -1,7 +1,7 @@
 import React, { useMemo, useRef } from 'react';
 import { Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
 import PrayerHeroCard, { type HeroCountdownInfo } from '@/components/prayer/PrayerHeroCard';
-import { PRAYER_BG_IMAGES, PRAYER_GRADIENTS, PRAYER_ICONS } from '@/components/prayer/heroConfig';
+import { PRAYER_BG_IMAGES, PRAYER_GRADIENTS, PRAYER_ICONS, getInterpolatedPrayerOverlay } from '@/components/prayer/heroConfig';
 
 type Scenario = {
   key: keyof typeof PRAYER_BG_IMAGES;
@@ -202,7 +202,7 @@ export default function HeroPreviewScreen() {
             <PrayerHeroCard
               visible
               backgroundSource={PRAYER_BG_IMAGES[s.key]}
-              gradientColors={PRAYER_GRADIENTS[s.key]}
+              gradientColors={getInterpolatedPrayerOverlay(s.key, s.progress) ?? PRAYER_GRADIENTS[s.key]}
 
               backgroundImageOpacity={0.8}
               heroWide={false}

@@ -73,6 +73,153 @@ export function getPrayerGradient(prayerName: string | null | undefined): Prayer
   return prayerSkyGradients[key];
 }
 
+// Sequence of sky phases across the day — used to pick the "next" sky for
+// smooth gradient transitions as the current prayer window progresses.
+const PRAYER_SKY_SEQUENCE: Record<PrayerSkyKey, PrayerSkyKey> = {
+  tahajjud: 'fajr',
+  fajr: 'ishraq',
+  ishraq: 'zuhr',
+  zawaal: 'zuhr',
+  zuhr: 'asr',
+  asr: 'maghrib',
+  maghrib: 'isha',
+  isha: 'tahajjud',
+};
+
+function resolveSkyKey(prayerName: string | null | undefined): PrayerSkyKey {
+  const normalized = (prayerName ?? '').trim().toLowerCase().replace(/[^a-z]/g, '');
+  return PRAYER_SKY_KEY_ALIASES[normalized] ?? 'zuhr';
+}
+
+// Parse "#RRGGBB" into [r,g,b].
+function parseHex(hex: string): [number, number, number] {
+  const clean = hex.replace('#', '');
+  const r = parseInt(clean.slice(0, 2), 16);
+  const g = parseInt(clean.slice(2, 4), 16);
+  const b = parseInt(clean.slice(4, 6), 16);
+  return [r, g, b];
+}
+
+function toHex(n: number): string {
+  const clamped = Math.max(0, Math.min(255, Math.round(n)));
+  return clamped.toString(16).padStart(2, '0');
+}
+
+function lerpColor(a: string, b: string, t: number): string {
+  const [ar, ag, ab] = parseHex(a);
+  const [br, bg, bb] = parseHex(b);
+  const r = ar + (br - ar) * t;
+  const g = ag + (bg - ag) * t;
+  const bl = ab + (bb - ab) * t;
+  return `#${toHex(r)}${toHex(g)}${toHex(bl)}`;
+}
+
+function lerpGradient(
+  a: PrayerSkyGradient,
+  b: PrayerSkyGradient,
+  t: number
+): PrayerSkyGradient {
+  // Smoothstep easing for a softer mid-transition.
+  const eased = t * t * (3 - 2 * t);
+  return [
+    lerpColor(a[0], b[0], eased),
+    lerpColor(a[1], b[1], eased),
+    lerpColor(a[2], b[2], eased),
+    lerpColor(a[3], b[3], eased),
+  ] as const as PrayerSkyGradient;
+}
+
+/**
+ * Return a sky gradient that interpolates between the current prayer's sky
+ * and the next prayer's sky based on `progress` (0..1) through the current
+ * window. Falls back to the static gradient when progress is not a finite
+ * number in [0,1].
+ */
+export function getInterpolatedPrayerGradient(
+  prayerName: string | null | undefined,
+  progress: number | null | undefined
+): PrayerSkyGradient {
+  const currentKey = resolveSkyKey(prayerName);
+  const current = prayerSkyGradients[currentKey];
+  if (progress == null || !Number.isFinite(progress)) return current;
+  const t = Math.max(0, Math.min(1, progress));
+  const nextKey = PRAYER_SKY_SEQUENCE[currentKey];
+  const next = prayerSkyGradients[nextKey];
+  if (next === current) return current;
+  return lerpGradient(current, next, t);
+}
+
+// ─── rgba overlay interpolation (PRAYER_GRADIENTS) ──────────────────────
+// Natural next key for the rgba overlay used above the hero background image.
+const PRAYER_OVERLAY_SEQUENCE: Record<string, string> = {
+  Fajr: 'Sunrise',
+  Sunrise: 'Ishraq',
+  Ishraq: 'Zawaal',
+  Zawaal: 'Dhuhr',
+  Dhuhr: 'Asr',
+  Asr: 'Maghrib',
+  Maghrib: 'Isha',
+  Isha: 'Fajr',
+  Jumuah: 'Asr',
+  Eid: 'Dhuhr',
+  EidAdha: 'Dhuhr',
+};
+
+function parseRgba(color: string): [number, number, number, number] {
+  const m = color.trim().match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?\s*\)$/i);
+  if (!m) return [0, 0, 0, 1];
+  return [Number(m[1]), Number(m[2]), Number(m[3]), m[4] != null ? Number(m[4]) : 1];
+}
+
+function toRgba(r: number, g: number, b: number, a: number): string {
+  const rr = Math.max(0, Math.min(255, Math.round(r)));
+  const gg = Math.max(0, Math.min(255, Math.round(g)));
+  const bb = Math.max(0, Math.min(255, Math.round(b)));
+  const aa = Math.max(0, Math.min(1, a));
+  return `rgba(${rr},${gg},${bb},${Number(aa.toFixed(3))})`;
+}
+
+function lerpRgba(a: string, b: string, t: number): string {
+  const [ar, ag, ab, aA] = parseRgba(a);
+  const [br, bg, bb, bA] = parseRgba(b);
+  return toRgba(
+    ar + (br - ar) * t,
+    ag + (bg - ag) * t,
+    ab + (bb - ab) * t,
+    aA + (bA - aA) * t,
+  );
+}
+
+/**
+ * Return an rgba overlay gradient that interpolates between the current
+ * prayer's overlay and the next prayer's overlay based on `progress` (0..1).
+ * Works for any heroKey in PRAYER_GRADIENTS; unknown keys fall back to the
+ * provided key's static value (or an empty neutral if missing).
+ */
+export function getInterpolatedPrayerOverlay(
+  heroKey: string | null | undefined,
+  progress: number | null | undefined
+): readonly [string, string, ...string[]] {
+  const fallback = ['rgba(27,94,52,0.82)', 'rgba(45,138,79,0.76)'] as const;
+  const key = (heroKey ?? '').toString();
+  const current = PRAYER_GRADIENTS[key] ?? fallback;
+  if (progress == null || !Number.isFinite(progress)) return current;
+  const nextKey = PRAYER_OVERLAY_SEQUENCE[key];
+  const next = nextKey ? PRAYER_GRADIENTS[nextKey] : undefined;
+  if (!next || next === current) return current;
+  const t = Math.max(0, Math.min(1, progress));
+  const eased = t * t * (3 - 2 * t);
+  // Interpolate pairwise across the two common stops (both entries have
+  // at least 2 stops; extra stops on either side are preserved from the
+  // current gradient after the first two).
+  const out: string[] = [
+    lerpRgba(current[0], next[0], eased),
+    lerpRgba(current[1], next[1], eased),
+    ...current.slice(2),
+  ];
+  return out as unknown as readonly [string, string, ...string[]];
+}
+
 // Optional depth layer above sky gradient to improve text/card contrast.
 export const PRAYER_SKY_DEPTH_OVERLAY: readonly [string, string, string] = [
   'rgba(2,9,19,0.08)',
