@@ -1,9 +1,11 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 
 import { Colors, Spacing } from '@/constants/theme';
 import type { NightPaletteType } from './types';
+
+const SERIF_FONT = Platform.select({ ios: 'Georgia', android: 'serif', default: 'Georgia' });
 
 type Props = {
   chapter: string;
@@ -13,11 +15,16 @@ type Props = {
   lineCount: number;
   isOpen: boolean;
   onToggle: () => void;
+  isPoem?: boolean;
   night: NightPaletteType | null;
 };
 
-export function ChapterIntro({ chapter, chapterUrdu, chapterArabic, entryTitle, lineCount, isOpen, onToggle, night }: Props) {
+export function ChapterIntro({ chapter, chapterUrdu, chapterArabic, entryTitle, lineCount, isOpen, onToggle, isPoem, night }: Props) {
   const accent = night ? night.accent : Colors.primary;
+  const goldColor = night ? (night.gold ?? night.accent) : Colors.gold;
+  const hairlineColor = night ? (night.goldHairline ?? night.border) : Colors.goldHairline;
+  const unitLabel = isPoem ? (lineCount === 1 ? 'verse' : 'verses') : (lineCount === 1 ? 'line' : 'verses');
+  const actionLabel = isPoem ? (isOpen ? 'Close poem' : 'Open poem') : (isOpen ? 'Close chapter' : 'Open chapter');
   return (
     <TouchableOpacity
       style={styles.wrap}
@@ -25,12 +32,15 @@ export function ChapterIntro({ chapter, chapterUrdu, chapterArabic, entryTitle, 
       onPress={onToggle}
     >
       <View style={styles.ornament}>
-        <View style={[styles.ornamentLine, night && { backgroundColor: night.border }]} />
-        <Text style={[styles.ornamentDot, { color: accent }]}>۞</Text>
-        <View style={[styles.ornamentLine, night && { backgroundColor: night.border }]} />
+        <View style={[styles.ornamentLine, { backgroundColor: hairlineColor }]} />
+        <Text style={[styles.ornamentCluster, { color: goldColor }]}>﹏ ۞ ﹏</Text>
+        <View style={[styles.ornamentLine, { backgroundColor: hairlineColor }]} />
       </View>
 
       <Text style={[styles.chapter, night && { color: night.text }]}>{chapter}</Text>
+      {isOpen ? (
+        <View style={[styles.chapterUnderline, { backgroundColor: hairlineColor }]} />
+      ) : null}
       {chapterArabic ? (
         <Text style={[styles.chapterArabic, night && { color: night.text }]}>{chapterArabic}</Text>
       ) : null}
@@ -38,11 +48,11 @@ export function ChapterIntro({ chapter, chapterUrdu, chapterArabic, entryTitle, 
         <Text style={[styles.chapterUrdu, night && { color: night.text }]}>{chapterUrdu}</Text>
       ) : null}
       <Text style={[styles.meta, night && { color: night.textMuted }]}>
-        {entryTitle} · {lineCount} verses
+        {entryTitle} · {lineCount} {unitLabel}
       </Text>
 
       <View style={styles.actionRow}>
-        <Text style={[styles.action, { color: accent }]}>{isOpen ? 'Close chapter' : 'Open chapter'}</Text>
+        <Text style={[styles.action, { color: accent }]}>{actionLabel}</Text>
         <MaterialIcons name={isOpen ? 'expand-less' : 'expand-more'} size={18} color={accent} />
       </View>
     </TouchableOpacity>
@@ -66,18 +76,27 @@ const styles = StyleSheet.create({
   ornamentLine: {
     flex: 1,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: Colors.border,
+    backgroundColor: Colors.goldHairline,
   },
-  ornamentDot: {
-    fontSize: 18,
-    color: Colors.primary,
+  ornamentCluster: {
+    fontSize: 15,
+    color: Colors.gold,
+    letterSpacing: 3,
   },
   chapter: {
-    fontSize: 20,
+    fontFamily: SERIF_FONT,
+    fontSize: 21,
     fontWeight: '700',
     color: Colors.textPrimary,
     letterSpacing: 0.3,
     textAlign: 'center',
+  },
+  chapterUnderline: {
+    height: StyleSheet.hairlineWidth,
+    width: 56,
+    backgroundColor: Colors.goldHairline,
+    marginTop: 2,
+    marginBottom: 4,
   },
   chapterUrdu: {
     fontFamily: 'UrduNastaliq',
@@ -109,6 +128,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   action: {
+    fontFamily: SERIF_FONT,
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.3,

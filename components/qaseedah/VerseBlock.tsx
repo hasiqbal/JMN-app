@@ -6,12 +6,16 @@ import { ArabicTextBlock } from './ArabicTextBlock';
 import { TransliterationBlock } from './TransliterationBlock';
 import { TranslationBlock } from './TranslationBlock';
 import { UrduBlock } from './UrduBlock';
-import type { LayerVisibility, NightPaletteType, VerseRole } from './types';
+import type { LayerVisibility, NightPaletteType, PrimaryLanguage, VerseRole } from './types';
+
+type VerseLanguageKey = 'arabic' | 'transliteration' | 'english' | 'urdu';
 
 type Props = {
   role: VerseRole;
   verseNumber?: number;
   chapterLabel?: string;
+  isPoem?: boolean;
+  primaryLanguage?: PrimaryLanguage;
   arabic: string;
   transliteration?: string;
   translation?: string;
@@ -29,10 +33,20 @@ function verseLabelFor(role: VerseRole, verseNumber?: number): string {
   return 'Verse';
 }
 
+function primaryToLanguageKey(primaryLanguage?: PrimaryLanguage): VerseLanguageKey | null {
+  if (primaryLanguage === 'arabic') return 'arabic';
+  if (primaryLanguage === 'transliteration') return 'transliteration';
+  if (primaryLanguage === 'english') return 'english';
+  if (primaryLanguage === 'urdu') return 'urdu';
+  return null;
+}
+
 export function VerseBlock({
   role,
   verseNumber,
   chapterLabel,
+  isPoem,
+  primaryLanguage,
   arabic,
   transliteration,
   translation,
@@ -43,12 +57,41 @@ export function VerseBlock({
   night,
 }: Props) {
   const isChorus = role !== 'verse';
+  const showChapterLabel = Boolean(chapterLabel && !isPoem);
+  const primaryKey = primaryToLanguageKey(primaryLanguage);
+  const defaultOrder: VerseLanguageKey[] = ['arabic', 'transliteration', 'english', 'urdu'];
+  const languageOrder = primaryKey
+    ? [primaryKey, ...defaultOrder.filter((key) => key !== primaryKey)]
+    : defaultOrder;
   const nothingVisible =
     !layers.arabic && !layers.transliteration && !layers.english && !layers.urdu;
 
+  const languageBlocks: Record<VerseLanguageKey, React.ReactNode> = {
+    arabic: layers.arabic && arabic ? (
+      <View key="arabic" style={styles.section}>
+        <ArabicTextBlock text={arabic} scale={scale} night={night} />
+      </View>
+    ) : null,
+    transliteration: layers.transliteration && transliteration ? (
+      <View key="transliteration" style={styles.section}>
+        <TransliterationBlock text={transliteration} scale={scale} night={night} />
+      </View>
+    ) : null,
+    english: layers.english && translation ? (
+      <View key="english" style={styles.section}>
+        <TranslationBlock text={translation} scale={scale} night={night} />
+      </View>
+    ) : null,
+    urdu: layers.urdu && urdu ? (
+      <View key="urdu" style={styles.section}>
+        <UrduBlock text={urdu} scale={scale} night={night} />
+      </View>
+    ) : null,
+  };
+
   return (
-    <View style={[styles.wrap, isChorus && styles.chorusWrap, isChorus && night && { backgroundColor: `${night.accent}10` }]}>
-      {chapterLabel ? (
+    <View style={[styles.wrap, isChorus && styles.chorusWrap, isChorus && night && { backgroundColor: night.chorusBg ?? `${night.accent}10` }]}>
+      {showChapterLabel ? (
         <Text
           style={[
             styles.chapterLabel,
@@ -59,40 +102,21 @@ export function VerseBlock({
           {chapterLabel}
         </Text>
       ) : null}
+      {isChorus ? (
+        <Text style={[styles.chorusOrnament, night && { color: night.gold ?? night.accent }]}>۞</Text>
+      ) : null}
       <Text
         style={[
           styles.label,
           isChorus && styles.chorusLabel,
           night && { color: night.textMuted },
-          isChorus && night && { color: night.accent },
+          isChorus && night && { color: night.gold ?? night.accent },
         ]}
       >
         {verseLabelFor(role, verseNumber)}
       </Text>
 
-      {layers.arabic && arabic ? (
-        <View style={styles.section}>
-          <ArabicTextBlock text={arabic} scale={scale} night={night} />
-        </View>
-      ) : null}
-
-      {layers.transliteration && transliteration ? (
-        <View style={styles.section}>
-          <TransliterationBlock text={transliteration} scale={scale} night={night} />
-        </View>
-      ) : null}
-
-      {layers.english && translation ? (
-        <View style={styles.section}>
-          <TranslationBlock text={translation} scale={scale} night={night} />
-        </View>
-      ) : null}
-
-      {layers.urdu && urdu ? (
-        <View style={styles.section}>
-          <UrduBlock text={urdu} scale={scale} night={night} />
-        </View>
-      ) : null}
+      {languageOrder.map((key) => languageBlocks[key])}
 
       {isAutoTranslated ? (
         <Text style={[styles.hint, night && { color: night.textMuted }]}>auto-assisted translation</Text>
@@ -119,7 +143,13 @@ const styles = StyleSheet.create({
     paddingVertical: 22,
     paddingHorizontal: 10,
     marginHorizontal: -4,
-    backgroundColor: '#F4FAF6',
+    backgroundColor: Colors.chorusBg,
+  },
+  chorusOrnament: {
+    fontSize: 14,
+    color: Colors.gold,
+    opacity: 0.75,
+    marginBottom: -6,
   },
   label: {
     fontSize: 11,
@@ -139,7 +169,7 @@ const styles = StyleSheet.create({
     marginBottom: -6,
   },
   chorusLabel: {
-    color: Colors.primary,
+    color: Colors.gold,
   },
   section: {
     width: '100%',

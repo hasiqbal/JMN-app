@@ -7,6 +7,7 @@ import { useFonts } from 'expo-font';
 import { AlertProvider, InAppBannerProvider } from '@/template';
 import { runInitialTranslationWarmup } from '@/services/translationWarmupService';
 import { NightModeProvider } from '@/contexts/NightModeContext';
+import { AppThemeProvider } from '@/contexts/AppThemeContext';
 
 type ExpoNotificationsModule = typeof import('expo-notifications');
 
@@ -69,13 +70,15 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AlertProvider>
         <SafeAreaProvider>
-          <NightModeProvider>
-            <InAppBannerProvider>
-              <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="(tabs)" />
-              </Stack>
-            </InAppBannerProvider>
-          </NightModeProvider>
+          <AppThemeProvider>
+            <NightModeProvider>
+              <InAppBannerProvider>
+                <Stack screenOptions={{ headerShown: false }}>
+                  <Stack.Screen name="(tabs)" />
+                </Stack>
+              </InAppBannerProvider>
+            </NightModeProvider>
+          </AppThemeProvider>
         </SafeAreaProvider>
       </AlertProvider>
     </GestureHandlerRootView>

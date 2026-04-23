@@ -1,9 +1,11 @@
 import React from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 
 import { Colors, Spacing } from '@/constants/theme';
 import type { NightPaletteType } from './types';
+
+const SERIF_FONT = Platform.select({ ios: 'Georgia', android: 'serif', default: 'Georgia' });
 
 type Props = {
   title: string;
@@ -64,6 +66,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
   backButton: {
     width: 36,
@@ -84,6 +91,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   title: {
+    fontFamily: SERIF_FONT,
     fontSize: 19,
     fontWeight: '700',
     color: Colors.textPrimary,
@@ -97,6 +105,6 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.surface,
   },
 });

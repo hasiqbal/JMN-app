@@ -10,6 +10,7 @@ export { VerseDivider } from './VerseDivider';
 export type {
   LayerVisibility,
   NightPaletteType,
+  PrimaryLanguage,
   QaseedahChapter,
   ReadingMode,
   VerseLine,

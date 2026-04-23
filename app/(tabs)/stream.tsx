@@ -22,11 +22,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Constants from 'expo-constants';
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import type { AudioPlayer } from 'expo-audio';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import { APP_CONFIG } from '@/constants/config';
 import { Colors, Radius, Spacing, Typography } from '@/constants/theme';
+import { useJmnLiveStatus } from '@/hooks/useJmnLiveStatus';
 import { useNightMode } from '@/hooks/useNightMode';
-import { fetchLiveStatus } from '@/services/liveService';
+import { refreshJmnLiveStatus } from '@/services/liveService';
 
 type ExpoNotificationsModule = typeof import('expo-notifications');
 
@@ -243,7 +245,6 @@ const SURAH_LIST = Object.entries(SURAH_NAMES).map(([num, name]) => ({
 }));
 
 const NOTIF_KEY = 'jmn_radio_notify';
-const LIVE_POLL_MS = 30000;
 const REWIND_STEP_SEC = 10;
 const MAX_TIMESHIFT_SEC = 120;
 const MAX_REWIND_SEEK_ATTEMPTS = 12;
@@ -251,6 +252,12 @@ const REWIND_SEEK_SETTLE_MS = 90;
 const EXPO_GO_NOTIFICATIONS_FALLBACK =
   Constants.appOwnership === 'expo' &&
   Number((Constants.expoConfig?.sdkVersion ?? '0').split('.')[0] || 0) >= 53;
+
+function readSingleQueryParam(value: unknown): string | null {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
+  return null;
+}
 
 function getNextSurahNumber(current: number): number {
   if (!Number.isFinite(current) || current < 1 || current > 114) return 1;
@@ -321,19 +328,26 @@ function stationImageSource(id: string) {
   return require('@/assets/images/qari-basit.png');
 }
 
-export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamScreenProps) {
+export function StreamScreen({ previewVariant, autoPlayOnMount = false }: StreamScreenProps) {
   const router = useRouter();
+  const params = useLocalSearchParams<{
+    autoplayLive?: string | string[];
+    autoplayIntentId?: string | string[];
+  }>();
+  const isFocused = useIsFocused();
   const insets = useSafeAreaInsets();
   const { nightMode } = useNightMode();
+  const { isLive, refresh: refreshLiveStatus } = useJmnLiveStatus({ enabled: isFocused });
+
+  const notificationAutoplayFlag = readSingleQueryParam(params.autoplayLive);
+  const notificationAutoplayIntentId = readSingleQueryParam(params.autoplayIntentId);
 
   const [activeStationId, setActiveStationId] = useState<StreamId>('masjid');
   const [audioPlaying, setAudioPlaying] = useState(false);
   const [audioLoading, setAudioLoading] = useState(false);
   const [playingSurah, setPlayingSurah] = useState<number | null>(null);
   const [notifyEnabled, setNotifyEnabled] = useState(true);
-  const [isLive, setIsLive] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [liveSince, setLiveSince] = useState<number | null>(null);
   const [basitOpen, setBasitOpen] = useState(false);
   const [surahSearch, setSurahSearch] = useState('');
   const [rewindNotice, setRewindNotice] = useState<string | null>(null);
@@ -351,7 +365,7 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
   const seekQueueRef = useRef<Promise<void>>(Promise.resolve());
   const audioModeReadyRef = useRef(false);
   const autoplayAttempted = useRef(false);
-  const previousLive = useRef(false);
+  const handledNotificationAutoplayIntentRef = useRef<string | null>(null);
   const revealAnim = useRef(new Animated.Value(0)).current;
 
   const palette = nightMode ? NIGHT : DAY;
@@ -384,42 +398,17 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
     playingSurahRef.current = playingSurah;
   }, [playingSurah]);
 
-  const updateLiveState = useCallback((liveValue: boolean, stamp: Date) => {
-    setIsLive(liveValue);
-
-    if (liveValue && !previousLive.current) {
-      setLiveSince(stamp.getTime());
-    }
-
-    if (!liveValue) {
-      setLiveSince(null);
-    }
-
-    previousLive.current = liveValue;
-  }, []);
-
   useEffect(() => {
     AsyncStorage.getItem(NOTIF_KEY).then((value) => {
-      if (value !== null) setNotifyEnabled(value === 'true');
+      if (value === null) {
+        setNotifyEnabled(true);
+        void AsyncStorage.setItem(NOTIF_KEY, 'true').catch(() => {});
+        return;
+      }
+
+      setNotifyEnabled(value === 'true');
     });
   }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const poll = async () => {
-      const liveValue = await fetchLiveStatus();
-      if (cancelled) return;
-      updateLiveState(liveValue, new Date());
-    };
-
-    poll();
-    const id = setInterval(poll, LIVE_POLL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, [updateLiveState]);
 
   useEffect(() => {
     return () => {
@@ -776,15 +765,44 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = true }: StreamS
     return () => clearTimeout(id);
   }, [autoPlayOnMount, playStation]);
 
+  useEffect(() => {
+    if (notificationAutoplayFlag !== '1') return;
+
+    const intentId = notificationAutoplayIntentId ?? 'live-notification';
+    if (handledNotificationAutoplayIntentRef.current === intentId) return;
+    handledNotificationAutoplayIntentRef.current = intentId;
+
+    let cancelled = false;
+    let playTimer: ReturnType<typeof setTimeout> | null = null;
+
+    void (async () => {
+      const latest = await refreshJmnLiveStatus().catch(() => null);
+      if (cancelled || !latest?.isLive) return;
+      if (audioPlaying || audioLoading || soundRef.current || webAudioRef.current) return;
+
+      autoplayAttempted.current = true;
+      playTimer = setTimeout(() => {
+        if (cancelled) return;
+        playStation('masjid').catch(() => {});
+      }, 300);
+    })();
+
+    return () => {
+      cancelled = true;
+      if (playTimer) {
+        clearTimeout(playTimer);
+      }
+    };
+  }, [audioLoading, audioPlaying, notificationAutoplayFlag, notificationAutoplayIntentId, playStation]);
+
   const onPullRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      const liveValue = await fetchLiveStatus();
-      updateLiveState(liveValue, new Date());
+      await refreshLiveStatus();
     } finally {
       setRefreshing(false);
     }
-  }, [updateLiveState]);
+  }, [refreshLiveStatus]);
 
   const resyncActiveStreamToLive = useCallback(async (notice?: string) => {
     if ((!soundRef.current && !webAudioRef.current) || (!audioPlaying && !audioLoading)) return;

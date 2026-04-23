@@ -28,8 +28,8 @@ class SupabaseManager {
       
       const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
       const supabasePublicKey =
-        process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-        process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+        process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
+        process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
       
       if (!supabaseUrl || !supabasePublicKey) {
         const errorMsg = '[Template:Client] Supabase environment variables missing\n' +

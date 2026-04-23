@@ -6,6 +6,8 @@ interface BannerPayload {
   id: number;
   title: string;
   message?: string;
+  urduMessage?: string;
+  onPress?: () => void;
   durationMs: number;
   variant: BannerVariant;
 }
@@ -13,7 +15,14 @@ interface BannerPayload {
 type BannerVariant = 'default' | 'warning';
 
 interface InAppBannerContextType {
-  showBanner: (title: string, message?: string, durationMs?: number, variant?: BannerVariant) => void;
+  showBanner: (
+    title: string,
+    message?: string,
+    durationMs?: number,
+    variant?: BannerVariant,
+    urduMessage?: string,
+    onPress?: () => void,
+  ) => void;
 }
 
 const InAppBannerContext = React.createContext<InAppBannerContextType | undefined>(undefined);
@@ -56,12 +65,21 @@ export function InAppBannerProvider({ children }: InAppBannerProviderProps) {
     });
   }, [clearHideTimer, opacity, translateY]);
 
-  const showBanner = React.useCallback((title: string, message?: string, durationMs = DEFAULT_DURATION_MS, variant: BannerVariant = 'default') => {
+  const showBanner = React.useCallback((
+    title: string,
+    message?: string,
+    durationMs = DEFAULT_DURATION_MS,
+    variant: BannerVariant = 'default',
+    urduMessage?: string,
+    onPress?: () => void,
+  ) => {
     clearHideTimer();
     const next: BannerPayload = {
       id: Date.now(),
       title,
       message,
+      urduMessage,
+      onPress,
       durationMs,
       variant,
     };
@@ -117,7 +135,11 @@ export function InAppBannerProvider({ children }: InAppBannerProviderProps) {
                 styles.bannerCard,
                 banner.variant === 'warning' && styles.bannerCardWarning,
               ]}
-              onPress={hideBanner}
+              onPress={() => {
+                const action = banner.onPress;
+                hideBanner();
+                action?.();
+              }}
             >
               <Text
                 style={[
@@ -135,6 +157,16 @@ export function InAppBannerProvider({ children }: InAppBannerProviderProps) {
                   ]}
                 >
                   {banner.message}
+                </Text>
+              ) : null}
+              {banner.urduMessage ? (
+                <Text
+                  style={[
+                    styles.bannerUrdu,
+                    banner.variant === 'warning' && styles.bannerUrduWarning,
+                  ]}
+                >
+                  {banner.urduMessage}
                 </Text>
               ) : null}
             </Pressable>
@@ -163,8 +195,8 @@ const styles = StyleSheet.create({
   bannerCard: {
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(92, 113, 102, 0.25)',
-    backgroundColor: '#F4FBF7',
+    borderColor: '#D9B87A',
+    backgroundColor: '#FFF8EA',
     paddingHorizontal: 14,
     paddingVertical: 12,
     boxShadow: '0px 6px 16px rgba(0,0,0,0.15)',
@@ -177,7 +209,7 @@ const styles = StyleSheet.create({
   bannerTitle: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#114528',
+    color: '#6E5833',
   },
   bannerTitleWarning: {
     color: '#7A3E00',
@@ -186,10 +218,22 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 12,
     lineHeight: 17,
-    color: '#2A5A3F',
+    color: '#5C4930',
     fontWeight: '500',
   },
   bannerMessageWarning: {
+    color: '#8A5208',
+  },
+  bannerUrdu: {
+    marginTop: 4,
+    fontSize: 14,
+    lineHeight: 22,
+    color: '#5C4930',
+    textAlign: 'right',
+    writingDirection: 'rtl',
+    fontFamily: 'UrduNastaliq',
+  },
+  bannerUrduWarning: {
     color: '#8A5208',
   },
 });

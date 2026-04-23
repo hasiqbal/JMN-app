@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/favicon.png",
     "scheme": "jmn",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true
     },

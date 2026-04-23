@@ -1,13 +1,28 @@
 import React from 'react';
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus, Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
+import type { AudioPlayer } from 'expo-audio';
 import { useInAppBanner } from '@/template';
 import { getNextPrayer, getPrayerTimesForDate, PrayerTimesData } from '@/services/prayerService';
+import {
+  ADHAAN_AUDIO_STORAGE_KEY,
+  DEFAULT_ADHAAN_AUDIO_URL,
+  isValidAdhaanAudioUrl,
+} from '@/constants/prayerNotifications';
 
-const JAMAAT_THRESHOLDS_MINUTES = [30, 20, 15, 5];
+type ExpoSpeechModule = typeof import('expo-speech');
+
+const Speech: ExpoSpeechModule | null =
+  Platform.OS === 'web' ? null : require('expo-speech');
+
+const JAMAAT_THRESHOLDS_MINUTES = [30, 20, 15, 10, 5];
+const SPECIAL_JAMAAT_CUE_MINUTES = 10;
 const PRAYER_END_THRESHOLDS_MINUTES = [45, 30, 15];
 const ASR_MAKROOH_WARNING_MINUTES = 21;
 const CHECK_INTERVAL_MS = 15 * 1000;
 const DATA_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+const NON_PRAYABLE_NAMES = new Set(['Sunrise', 'Ishraq', 'Zawaal']);
 
 const shownReminderKeys = new Set<string>();
 let lastReminderDayKey = '';
@@ -35,7 +50,7 @@ function parseIqamahDate(iqamah: string | undefined, baseDate: Date): Date | nul
 }
 
 function buildReminderKey(
-  kind: 'jamaat' | 'prayer-end' | 'makrooh-warning',
+  kind: 'jamaat' | 'prayer-end' | 'makrooh-warning' | 'prayer-start',
   prayerName: string,
   targetDate: Date,
   threshold: string,
@@ -55,6 +70,11 @@ function isWithinThresholdWindow(remainingSeconds: number, thresholdMinutes: num
 
 function isJamaatStartedWindow(remainingSeconds: number): boolean {
   return remainingSeconds <= 0 && remainingSeconds > -60;
+}
+
+function isPrayerStartedWindow(now: Date, prayerTime: Date): boolean {
+  const elapsedSeconds = Math.floor((now.getTime() - prayerTime.getTime()) / 1000);
+  return elapsedSeconds >= 0 && elapsedSeconds < 60;
 }
 
 function findPrayerDate(prayers: PrayerTimesData['prayers'], name: string): Date | null {
@@ -79,6 +99,120 @@ export function useQuranPrayerPopups(): void {
   const prayerDataRef = React.useRef<PrayerTimesData | null>(null);
   const lastDataLoadAtRef = React.useRef<number>(0);
   const checkingRef = React.useRef(false);
+  const adhaanAudioModeReadyRef = React.useRef(false);
+  const adhaanPlayerRef = React.useRef<AudioPlayer | null>(null);
+
+  const stopCurrentAdhaan = React.useCallback(async () => {
+    const player = adhaanPlayerRef.current;
+    adhaanPlayerRef.current = null;
+    if (!player) return;
+
+    try {
+      player.pause();
+    } catch {
+      // Ignore pause failures and continue cleanup.
+    }
+
+    try {
+      player.remove();
+    } catch {
+      // Ignore disposal failures on unsupported devices.
+    }
+  }, []);
+
+  const ensureAdhaanAudioMode = React.useCallback(async (): Promise<boolean> => {
+    if (Platform.OS === 'web') return false;
+    if (adhaanAudioModeReadyRef.current) return true;
+
+    try {
+      await setAudioModeAsync({
+        allowsRecording: false,
+        shouldPlayInBackground: true,
+        playsInSilentMode: true,
+        shouldRouteThroughEarpiece: false,
+        interruptionModeAndroid: 'doNotMix',
+      });
+      adhaanAudioModeReadyRef.current = true;
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const loadSelectedAdhaanUrl = React.useCallback(async (): Promise<string> => {
+    if (Platform.OS === 'web') return DEFAULT_ADHAAN_AUDIO_URL;
+
+    try {
+      const stored = await AsyncStorage.getItem(ADHAAN_AUDIO_STORAGE_KEY);
+      const selected = isValidAdhaanAudioUrl(stored) ? stored : DEFAULT_ADHAAN_AUDIO_URL;
+      return selected;
+    } catch {
+      return DEFAULT_ADHAAN_AUDIO_URL;
+    }
+  }, []);
+
+  const playSelectedAdhaan = React.useCallback(async () => {
+    if (Platform.OS === 'web') return;
+
+    const canPlay = await ensureAdhaanAudioMode();
+    if (!canPlay) return;
+
+    const selectedUrl = await loadSelectedAdhaanUrl();
+    await stopCurrentAdhaan();
+
+    try {
+      const player = createAudioPlayer({ uri: selectedUrl }, 400);
+      adhaanPlayerRef.current = player;
+
+      player.addListener('playbackStatusUpdate', (status) => {
+        if (adhaanPlayerRef.current !== player) return;
+        if (!(status as { didJustFinish?: boolean }).didJustFinish) return;
+
+        try {
+          player.remove();
+        } catch {
+          // Ignore remove failures during natural completion.
+        }
+
+        if (adhaanPlayerRef.current === player) {
+          adhaanPlayerRef.current = null;
+        }
+      });
+
+      player.play();
+    } catch {
+      await stopCurrentAdhaan();
+    }
+  }, [ensureAdhaanAudioMode, loadSelectedAdhaanUrl, stopCurrentAdhaan]);
+
+  const playJamaatCue = React.useCallback(() => {
+    if (Platform.OS === 'web' || !Speech) return;
+
+    try {
+      Speech.stop();
+      Speech.speak('As-salatu khayrun minan nawm', {
+        rate: 0.92,
+        pitch: 1,
+      });
+    } catch {
+      // Keep reminder flow intact even if speech playback is unavailable.
+    }
+  }, []);
+
+  React.useEffect(() => {
+    void loadSelectedAdhaanUrl();
+
+    return () => {
+      void stopCurrentAdhaan();
+      if (Platform.OS !== 'web' && Speech) {
+        try {
+          Speech.stop();
+        } catch {
+          // Ignore cleanup errors on shutdown.
+        }
+      }
+    };
+  }, [loadSelectedAdhaanUrl, stopCurrentAdhaan]);
 
   const resetReminderDayIfNeeded = React.useCallback((now: Date) => {
     const dayKey = toDayKey(now);
@@ -123,6 +257,19 @@ export function useQuranPrayerPopups(): void {
       const data = await loadPrayerData();
       if (!data) return;
 
+      await loadSelectedAdhaanUrl();
+
+      for (const prayer of data.prayers) {
+        if (NON_PRAYABLE_NAMES.has(prayer.name)) continue;
+        if (!isPrayerStartedWindow(now, prayer.timeDate)) continue;
+
+        const key = buildReminderKey('prayer-start', prayer.name, prayer.timeDate, 'started');
+        if (showReminderOnce(key, 'Azaan', `${prayer.name} prayer time has started.`)) {
+          await playSelectedAdhaan();
+          return;
+        }
+      }
+
       const nextPrayer = getNextPrayer(data.prayers);
       if (!nextPrayer) return;
 
@@ -138,7 +285,15 @@ export function useQuranPrayerPopups(): void {
       for (const threshold of JAMAAT_THRESHOLDS_MINUTES) {
         if (!isWithinThresholdWindow(secondsToJamaat, threshold)) continue;
         const key = buildReminderKey('jamaat', nextPrayerName, iqamahDate, String(threshold));
-        if (showReminderOnce(key, 'Jamaat Reminder', `${nextPrayerName} jamaat starts in ${threshold} minutes.`)) {
+        const isSpecialCueThreshold = threshold === SPECIAL_JAMAAT_CUE_MINUTES;
+        const message = isSpecialCueThreshold
+          ? `As-salatu khayrun minan nawm. ${nextPrayerName} jamaat starts in ${threshold} minutes.`
+          : `${nextPrayerName} jamaat starts in ${threshold} minutes.`;
+
+        if (showReminderOnce(key, 'Jamaat Reminder', message)) {
+          if (isSpecialCueThreshold) {
+            playJamaatCue();
+          }
           return;
         }
       }
@@ -177,7 +332,7 @@ export function useQuranPrayerPopups(): void {
     } finally {
       checkingRef.current = false;
     }
-  }, [loadPrayerData, resetReminderDayIfNeeded, showReminderOnce]);
+  }, [loadPrayerData, loadSelectedAdhaanUrl, playJamaatCue, playSelectedAdhaan, resetReminderDayIfNeeded, showReminderOnce]);
 
   React.useEffect(() => {
     void checkPopupThresholds();

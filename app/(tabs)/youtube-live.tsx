@@ -15,13 +15,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useIsFocused } from '@react-navigation/native';
 import WebView from 'react-native-webview';
 import { APP_CONFIG } from '@/constants/config';
 import { Colors, Radius, Spacing, Typography } from '@/constants/theme';
+import { useJmnLiveStatus } from '@/hooks/useJmnLiveStatus';
 import { useNightMode } from '@/hooks/useNightMode';
-import { fetchLiveStatus } from '@/services/liveService';
-
-const LIVE_POLL_MS = 30000;
 
 const NIGHT = {
   bg: '#08111D',
@@ -33,32 +32,14 @@ const NIGHT = {
 
 export default function YouTubeLiveScreen() {
   const insets = useSafeAreaInsets();
+  const isFocused = useIsFocused();
   const { nightMode } = useNightMode();
-  const [isLive, setIsLive] = useState(false);
+  const { isLive, checkedAt, refresh: refreshLiveStatus } = useJmnLiveStatus({ enabled: isFocused });
   const [refreshing, setRefreshing] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState(() => new Date());
   const [useInAppPlayer, setUseInAppPlayer] = useState(false);
   const [playerError, setPlayerError] = useState<string | null>(null);
 
   const palette = nightMode ? NIGHT : null;
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const poll = async () => {
-      const live = await fetchLiveStatus();
-      if (cancelled) return;
-      setIsLive(live);
-      setLastUpdated(new Date());
-    };
-
-    poll();
-    const id = setInterval(poll, LIVE_POLL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, []);
 
   useEffect(() => {
     if (!isLive) {
@@ -89,16 +70,16 @@ export default function YouTubeLiveScreen() {
   }, [openYouTube]);
 
   const updatedAt = useMemo(
-    () => lastUpdated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-    [lastUpdated],
+    () => (checkedAt
+      ? new Date(checkedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+      : '--:--'),
+    [checkedAt],
   );
 
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      const live = await fetchLiveStatus();
-      setIsLive(live);
-      setLastUpdated(new Date());
+      await refreshLiveStatus();
     } finally {
       setRefreshing(false);
     }

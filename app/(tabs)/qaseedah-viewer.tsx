@@ -6,7 +6,7 @@ import WebView from 'react-native-webview';
 
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { NIGHT_PALETTE } from '@/constants/nightPalette';
-import { useNightMode } from '@/hooks/useNightMode';
+import { useQaseedahNightMode } from '@/hooks/useQaseedahNightMode';
 
 type ViewerParams = {
   url?: string | string[];
@@ -20,7 +20,7 @@ function normalizeParam(value: string | string[] | undefined): string {
 
 export default function QaseedahViewerScreen() {
   const router = useRouter();
-  const { nightMode } = useNightMode();
+  const { nightMode } = useQaseedahNightMode();
   const N = nightMode ? NIGHT_PALETTE : null;
   const params = useLocalSearchParams<ViewerParams>();
 

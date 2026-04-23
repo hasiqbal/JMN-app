@@ -4,6 +4,8 @@ export type NightPaletteType = typeof NIGHT_PALETTE;
 
 export type ReadingMode = 'arabic' | 'translit' | 'translation' | 'urdu' | 'full' | 'custom';
 
+export type PrimaryLanguage = 'auto' | 'arabic' | 'transliteration' | 'urdu' | 'english';
+
 export type LayerVisibility = {
   arabic: boolean;
   transliteration: boolean;

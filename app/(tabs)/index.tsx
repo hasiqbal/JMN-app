@@ -22,7 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { formatCountdownSeconds, getNextPrayer, type PrayerTime } from '@/services/prayerService';
 import { usePrayerTimes } from '@/hooks/usePrayerTimes';
-import { useNightMode } from '@/hooks/useNightMode';
+import { useAppTheme } from '@/hooks/useAppTheme';
 import {
   fetchAnnouncements,
   type AnnouncementRow,
@@ -42,6 +42,7 @@ import {
 } from '@/components/prayer/CommunityUpdatesSection';
 import { SacredContentModule, SacredReadingSheet } from '@/components/prayer/SacredContentModule';
 import { createDonationCheckoutUrl } from '@/services/donationService';
+import { triggerJmnMockLiveTransition } from '@/services/liveService';
 import {
   DONATION_MONTHLY_OPTIONS,
   DONATION_ONE_OFF_OPTIONS,
@@ -2043,7 +2044,8 @@ export default function HomeScreen() {
 
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { nightMode } = useNightMode();
+  const { darkMode, toggleDarkMode } = useAppTheme();
+  const nightMode = darkMode;
   const {
     data, countdown, nextPrayerName,
     forbiddenInfo,
@@ -2084,7 +2086,7 @@ export default function HomeScreen() {
     };
   }, [jamaatStarted, jamaatOngoing, flashAnim]);
 
-  const N = nightMode ? NIGHT : null;
+  const N = darkMode ? NIGHT : null;
   const hijriDayNum  = data ? getHijriDayNumber(data.hijriDate) : '';
   const rawHijriDayNum = data ? Number.parseInt(getHijriDayNumber(data.hijriDate) || '0', 10) : 0;
   const rawHijriMonthName = data ? getHijriMonthFromAnyFormat(data.hijriDate) : '';
@@ -2702,6 +2704,13 @@ export default function HomeScreen() {
     router.push('/(tabs)/prayer');
   }, [closePrayerDrawer, router]);
 
+  const runMockLiveNotificationTest = useCallback(() => {
+    if (!__DEV__) return;
+
+    triggerJmnMockLiveTransition();
+    Alert.alert('Mock live alert sent', 'You should now see the live banner/notification flow.');
+  }, []);
+
   return (
     <>
     <ScrollView
@@ -2746,8 +2755,35 @@ export default function HomeScreen() {
               <Text style={styles.topNavDateLine} numberOfLines={1} ellipsizeMode="tail">{headerDateLine}</Text>
             </View>
           </View>
-          <Text style={styles.topNavUpdated}>{backClock}</Text>
+          <View style={styles.headerControls}>
+            <TouchableOpacity
+              style={styles.modePill}
+              activeOpacity={0.85}
+              onPress={toggleDarkMode}
+            >
+              <MaterialIcons
+                name={darkMode ? 'dark-mode' : 'light-mode'}
+                size={16}
+                color="#FFFFFF"
+              />
+              <Text style={styles.modePillText}>{darkMode ? 'Dark' : 'Light'}</Text>
+            </TouchableOpacity>
+            <Text style={styles.topNavUpdated}>{backClock}</Text>
+          </View>
         </View>
+
+        {__DEV__ ? (
+          <View style={styles.homeMockLiveRow}>
+            <TouchableOpacity
+              style={styles.homeMockLiveBtn}
+              onPress={runMockLiveNotificationTest}
+              activeOpacity={0.85}
+            >
+              <MaterialIcons name="science" size={16} color="#FFFFFF" />
+              <Text style={styles.homeMockLiveBtnText}>Mock live alert</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
         {/* ── 3-part hero composition: live prayer + support cards ─────── */}
         <View style={heroNewStyles.heroInnerWrap}>
@@ -4065,6 +4101,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  homeMockLiveRow: {
+    paddingHorizontal: Spacing.md + 2,
+    marginTop: -4,
+    marginBottom: 8,
+  },
+  homeMockLiveBtn: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: Radius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+    backgroundColor: 'rgba(149,40,40,0.38)',
+  },
+  homeMockLiveBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   modePill: {
     height: 34,

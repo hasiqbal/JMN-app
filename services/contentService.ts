@@ -248,6 +248,15 @@ export interface AdhkarRow {
     chapter?: string;
     chapter_arabic?: string;
     chapter_urdu?: string;
+    primary_language?: 'auto' | 'arabic' | 'transliteration' | 'urdu' | 'english';
+    disable_auto_translation?: boolean;
+    disable_auto_transliteration?: boolean;
+    disable_auto_arabic?: boolean;
+    disable_auto_english?: boolean;
+    disable_auto_urdu?: boolean;
+    disable_auto_title_arabic?: boolean;
+    disable_auto_title_english?: boolean;
+    disable_auto_title_urdu?: boolean;
     arabic: string;
     transliteration?: string;
     translation?: string;
@@ -695,21 +704,28 @@ export async function fetchHowToGuides(language: 'en' | 'ur' = 'en', options?: {
 
   try {
     const supabase = getSupabaseClient();
-    const nowIso = new Date().toISOString();
 
     const { data: guides, error: guidesError } = await supabase
       .from('howto_guides')
-      .select('id,group_id,slug,title,subtitle,intro,language,icon,color,display_order,publish_start_at,publish_end_at')
+      .select('id,group_id,slug,title,subtitle,intro,notes,language,icon,color,display_order,publish_start_at,publish_end_at')
       .eq('is_active', true)
       .eq('language', language)
-      .or(`publish_start_at.is.null,publish_start_at.lte.${nowIso}`)
-      .or(`publish_end_at.is.null,publish_end_at.gt.${nowIso}`)
       .order('display_order', { ascending: true })
       .order('title', { ascending: true });
 
     if (guidesError || !guides || guides.length === 0) return [];
 
-    const guideRows = guides as HowToGuideRow[];
+    const now = Date.now();
+    const guidesFiltered = guides.filter((g: { publish_start_at: string | null; publish_end_at: string | null }) => {
+      const start = g.publish_start_at ? new Date(g.publish_start_at).getTime() : null;
+      const end = g.publish_end_at ? new Date(g.publish_end_at).getTime() : null;
+      if (start !== null && start > now) return false;
+      if (end !== null && end <= now) return false;
+      return true;
+    });
+    if (guidesFiltered.length === 0) return [];
+
+    const guideRows = guidesFiltered as HowToGuideRow[];
     const guideIds = guideRows.map((row) => row.id);
     const groupIds = Array.from(new Set(guideRows.map((row) => row.group_id)));
 
@@ -725,43 +741,50 @@ export async function fetchHowToGuides(language: 'en' | 'ur' = 'en', options?: {
         .order('section_order', { ascending: true }),
     ]);
 
-    if (groupsResult.error || sectionsResult.error) return [];
+    const groupRows = groupsResult.error ? [] : ((groupsResult.data ?? []) as HowToGroupRow[]);
+    const sectionRows = sectionsResult.error ? [] : ((sectionsResult.data ?? []) as HowToSectionRow[]);
 
-    const sectionRows = (sectionsResult.data ?? []) as HowToSectionRow[];
     const sectionIds = sectionRows.map((section) => section.id);
 
-    const { data: steps, error: stepsError } = sectionIds.length > 0
-      ? await supabase
-          .from('howto_steps')
-          .select('id,section_id,step_order,title,detail,note')
-          .in('section_id', sectionIds)
-          .order('step_order', { ascending: true })
-      : { data: [], error: null };
+    let stepRows: HowToStepRow[] = [];
+    if (sectionIds.length > 0) {
+      const { data: steps, error: stepsError } = await supabase
+        .from('howto_steps')
+        .select('id,section_id,step_order,title,detail,note')
+        .in('section_id', sectionIds)
+        .order('step_order', { ascending: true });
 
-    if (stepsError) return [];
+      if (!stepsError) {
+        stepRows = (steps ?? []) as HowToStepRow[];
+      }
+    }
 
-    const stepRows = (steps ?? []) as HowToStepRow[];
     const stepIds = stepRows.map((step) => step.id);
 
-    const [blocksResult, imagesResult] = stepIds.length > 0
-      ? await Promise.all([
-          supabase
-            .from('howto_step_blocks')
-            .select('step_id,block_order,kind,payload')
-            .in('step_id', stepIds)
-            .order('block_order', { ascending: true }),
-          supabase
-            .from('howto_step_images')
-            .select('step_id,display_order,image_url,caption,source')
-            .in('step_id', stepIds)
-            .order('display_order', { ascending: true }),
-        ])
-      : [{ data: [], error: null }, { data: [], error: null }];
+    let blockRows: HowToStepBlockRow[] = [];
+    let imageRows: HowToStepImageRow[] = [];
+    if (stepIds.length > 0) {
+      const [blocksResult, imagesResult] = await Promise.all([
+        supabase
+          .from('howto_step_blocks')
+          .select('step_id,block_order,kind,payload')
+          .in('step_id', stepIds)
+          .order('block_order', { ascending: true }),
+        supabase
+          .from('howto_step_images')
+          .select('step_id,display_order,image_url,caption,source')
+          .in('step_id', stepIds)
+          .order('display_order', { ascending: true }),
+      ]);
 
-    if (blocksResult.error || imagesResult.error) return [];
+      if (!blocksResult.error && !imagesResult.error) {
+        blockRows = (blocksResult.data ?? []) as HowToStepBlockRow[];
+        imageRows = (imagesResult.data ?? []) as HowToStepImageRow[];
+      }
+    }
 
     const groupNameById = new Map<string, string>();
-    for (const group of (groupsResult.data ?? []) as HowToGroupRow[]) {
+    for (const group of groupRows) {
       groupNameById.set(group.id, group.name);
     }
 
@@ -780,14 +803,14 @@ export async function fetchHowToGuides(language: 'en' | 'ur' = 'en', options?: {
     }
 
     const blocksByStepId = new Map<string, GuideBlock[]>();
-    for (const block of (blocksResult.data ?? []) as HowToStepBlockRow[]) {
+    for (const block of blockRows) {
       const list = blocksByStepId.get(block.step_id) ?? [];
       list.push({ kind: block.kind, ...block.payload } as GuideBlock);
       blocksByStepId.set(block.step_id, list);
     }
 
     const imagesByStepId = new Map<string, HowToStepImage[]>();
-    for (const image of (imagesResult.data ?? []) as HowToStepImageRow[]) {
+    for (const image of imageRows) {
       const list = imagesByStepId.get(image.step_id) ?? [];
       list.push({
         uri: image.image_url,
@@ -806,6 +829,9 @@ export async function fetchHowToGuides(language: 'en' | 'ur' = 'en', options?: {
       icon: guide.icon ?? 'menu-book',
       color: guide.color ?? '#2e7d32',
       intro: guide.intro ?? '',
+      notes: Array.isArray((guide as { notes?: unknown }).notes)
+        ? ((guide as { notes?: unknown[] }).notes ?? []).filter((note): note is string => typeof note === 'string' && note.trim().length > 0)
+        : undefined,
       sections: (sectionsByGuideId.get(guide.id) ?? []).map((section) => ({
         heading: section.heading,
         steps: (stepsBySectionId.get(section.id) ?? []).map((step, index) => ({

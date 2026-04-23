@@ -35,8 +35,8 @@ export function ReadingPreferencesBar({
   night,
 }: Props) {
   const accent = night ? night.accent : Colors.primary;
-  const accentSoft = night ? `${night.accent}22` : '#EAF5EE';
-  const softBorder = night ? night.border : '#E3EAE5';
+  const accentSoft = night ? `${night.accent}22` : Colors.primarySoft;
+  const softBorder = night ? night.border : Colors.border;
 
   const allOn = layers.arabic && layers.transliteration && layers.english && layers.urdu;
 

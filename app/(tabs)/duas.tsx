@@ -687,7 +687,7 @@ export default function DuasScreen() {
             </TouchableOpacity>
             <View>
               <Text style={styles.heroMasjidName}>JMN</Text>
-              <Text style={styles.heroTitle}>Quran & Duas</Text>
+              <Text style={styles.heroTitle}>Adhkaar & Duas</Text>
               <Text style={{ fontSize: 10, color: '#5E6D63', marginTop: 1 }}>
                 Updated {lastUpdated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
               </Text>

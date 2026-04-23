@@ -10,9 +10,10 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { NIGHT_PALETTE } from '@/constants/nightPalette';
-import { useNightMode } from '@/hooks/useNightMode';
+import { useQaseedahNightMode } from '@/hooks/useQaseedahNightMode';
 import {
   ChapterIntro,
+  type PrimaryLanguage,
   QaseedahHeader,
   ReadingPreferencesBar,
   VerseBlock,
@@ -28,6 +29,15 @@ type GroupChapterItem = {
   chapter: string;
   chapterArabic?: string;
   chapterUrdu?: string;
+  primaryLanguage?: PrimaryLanguage;
+  disableAutoTransliteration?: boolean;
+  disableAutoArabic?: boolean;
+  disableAutoEnglish?: boolean;
+  disableAutoUrdu?: boolean;
+  disableAutoTitleArabic?: boolean;
+  disableAutoTitleEnglish?: boolean;
+  disableAutoTitleUrdu?: boolean;
+  isPoem?: boolean;
   entryTitle: string;
   lines: {
     heading: string;
@@ -39,6 +49,7 @@ type GroupChapterItem = {
 };
 
 const CHORUS_MARKER = '__chorus__';
+const SETTINGS_MARKER = '__settings__';
 
 type ChorusLine = {
   heading: string;
@@ -47,30 +58,6 @@ type ChorusLine = {
   translation?: string;
   urdu_translation?: string;
 };
-
-function chapterOrderValue(chapter: string): number {
-  const normalized = chapter.trim().toLowerCase();
-  const numberMatch = normalized.match(/chapter\s+(\d+)/i);
-  if (numberMatch) return Number(numberMatch[1]);
-
-  const wordMap: Record<string, number> = {
-    one: 1,
-    two: 2,
-    three: 3,
-    four: 4,
-    five: 5,
-    six: 6,
-    seven: 7,
-    eight: 8,
-    nine: 9,
-    ten: 10,
-  };
-
-  const wordMatch = normalized.match(/chapter\s+([a-z]+)/i);
-  if (wordMatch && wordMap[wordMatch[1]]) return wordMap[wordMatch[1]];
-
-  return Number.MAX_SAFE_INTEGER;
-}
 
 function transliterateArabicToLatin(text: string): string {
   const map: Record<string, string> = {
@@ -88,6 +75,86 @@ function transliterateArabicToLatin(text: string): string {
     .trim();
 }
 
+function normalizeInlineSpacing(value: string): string {
+  return value
+    .replace(/\s+/g, ' ')
+    .replace(/\s+([,.;!?])/g, '$1')
+    .trim();
+}
+
+function hasArabicScript(value: string): boolean {
+  return /[\u0600-\u06FF]/.test(value);
+}
+
+function hasLatinScript(value: string): boolean {
+  return /[A-Za-z]/.test(value);
+}
+
+function normalizeLineFields(line: GroupChapterItem['lines'][number]): {
+  arabic: string;
+  transliteration: string;
+  english: string;
+  urdu: string;
+} {
+  const rawArabic = line.arabic?.trim() || '';
+  const rawTranslit = line.transliteration?.trim() || '';
+  const rawEnglish = line.translation?.trim() || '';
+  const rawUrdu = line.urdu_translation?.trim() || '';
+
+  const english = hasLatinScript(rawEnglish)
+    ? rawEnglish
+    : (!hasLatinScript(rawEnglish) && hasLatinScript(rawUrdu) ? rawUrdu : '');
+
+  const urdu = hasArabicScript(rawUrdu)
+    ? rawUrdu
+    : (!hasArabicScript(rawUrdu) && hasArabicScript(rawEnglish) ? rawEnglish : '');
+
+  return {
+    arabic: rawArabic,
+    transliteration: rawTranslit,
+    english,
+    urdu,
+  };
+}
+
+function formatTransliterationText(value: string): string {
+  return value
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .flatMap((line) => line.split(/\s+-\s+/))
+    .map((line) => normalizeInlineSpacing(line))
+    .filter(Boolean)
+    .join('\n');
+}
+
+function formatEnglishTranslationText(value: string): string {
+  let next = value.replace(/\r\n?/g, '\n').trim();
+  if (!next) return '';
+
+  // Some auto translations return transliteration first, then numbered meaning.
+  const firstMeaningIndex = next.search(/\b1\.\s+/);
+  if (firstMeaningIndex > 0) {
+    const leadIn = next.slice(0, firstMeaningIndex).trim();
+    if (leadIn.length >= 12) {
+      next = next.slice(firstMeaningIndex);
+    }
+  }
+
+  next = next.replace(/^\d+\.\s*/, '');
+  next = next.replace(/\s+(?=\d+\.\s)/g, '\n');
+  next = next.replace(/\s+-\s+/g, '\n');
+
+  return next
+    .split('\n')
+    .map((line) => normalizeInlineSpacing(line))
+    .filter(Boolean)
+    .join('\n');
+}
+
+function isDefaultChapterLabel(value: string): boolean {
+  return /^chapter\s*\d+$/i.test(value.trim());
+}
+
 function extractChapterItems(rows: AdhkarRow[]): GroupChapterItem[] {
   const items: GroupChapterItem[] = [];
 
@@ -95,6 +162,15 @@ function extractChapterItems(rows: AdhkarRow[]): GroupChapterItem[] {
     if (Array.isArray(row.sections) && row.sections.length > 0) {
       // First pass: find the chorus marker, if any.
       let chorus: ChorusLine | null = null;
+      let disableAutoTranslation = false;
+      let disableAutoTransliteration = false;
+      let disableAutoArabic = false;
+      let disableAutoEnglish = false;
+      let disableAutoUrdu = false;
+      let primaryLanguage: PrimaryLanguage = 'auto';
+      let disableAutoTitleArabic = false;
+      let disableAutoTitleEnglish = false;
+      let disableAutoTitleUrdu = false;
       for (const section of row.sections) {
         if (!section || typeof section !== 'object') continue;
         const chapterStr = typeof section.chapter === 'string' ? section.chapter.trim() : '';
@@ -111,6 +187,80 @@ function extractChapterItems(rows: AdhkarRow[]): GroupChapterItem[] {
         break;
       }
 
+      for (const section of row.sections) {
+        if (!section || typeof section !== 'object') continue;
+        const chapterStr = typeof section.chapter === 'string' ? section.chapter.trim() : '';
+        if (chapterStr !== SETTINGS_MARKER) continue;
+        const disable = (section as { disable_auto_translation?: unknown }).disable_auto_translation;
+        if (typeof disable === 'boolean') {
+          disableAutoTranslation = disable;
+        }
+
+        const perTranslit = (section as { disable_auto_transliteration?: unknown }).disable_auto_transliteration;
+        const perArabic = (section as { disable_auto_arabic?: unknown }).disable_auto_arabic;
+        const perEnglish = (section as { disable_auto_english?: unknown }).disable_auto_english;
+        const perUrdu = (section as { disable_auto_urdu?: unknown }).disable_auto_urdu;
+        const primaryLanguageRaw = (section as { primary_language?: unknown }).primary_language;
+        const hasPrimaryLanguage =
+          primaryLanguageRaw === 'auto'
+          || primaryLanguageRaw === 'arabic'
+          || primaryLanguageRaw === 'transliteration'
+          || primaryLanguageRaw === 'english'
+          || primaryLanguageRaw === 'urdu';
+        const perTitleArabic = (section as { disable_auto_title_arabic?: unknown }).disable_auto_title_arabic;
+        const perTitleEnglish = (section as { disable_auto_title_english?: unknown }).disable_auto_title_english;
+        const perTitleUrdu = (section as { disable_auto_title_urdu?: unknown }).disable_auto_title_urdu;
+
+        if (typeof perTranslit === 'boolean') disableAutoTransliteration = perTranslit;
+        if (typeof perArabic === 'boolean') disableAutoArabic = perArabic;
+        if (typeof perEnglish === 'boolean') disableAutoEnglish = perEnglish;
+        if (typeof perUrdu === 'boolean') disableAutoUrdu = perUrdu;
+        if (hasPrimaryLanguage) primaryLanguage = primaryLanguageRaw as PrimaryLanguage;
+        if (typeof perTitleArabic === 'boolean') disableAutoTitleArabic = perTitleArabic;
+        if (typeof perTitleEnglish === 'boolean') disableAutoTitleEnglish = perTitleEnglish;
+        if (typeof perTitleUrdu === 'boolean') disableAutoTitleUrdu = perTitleUrdu;
+
+        if (
+          typeof disable === 'boolean'
+          || typeof perTranslit === 'boolean'
+          || typeof perArabic === 'boolean'
+          || typeof perEnglish === 'boolean'
+          || typeof perUrdu === 'boolean'
+          || hasPrimaryLanguage
+          || typeof perTitleArabic === 'boolean'
+          || typeof perTitleEnglish === 'boolean'
+          || typeof perTitleUrdu === 'boolean'
+        ) {
+          break;
+        }
+      }
+
+      // Backward compatibility: legacy single toggle disables every auto translation.
+      if (disableAutoTranslation) {
+        disableAutoTransliteration = true;
+        disableAutoArabic = true;
+        disableAutoEnglish = true;
+        disableAutoUrdu = true;
+        disableAutoTitleArabic = true;
+        disableAutoTitleEnglish = true;
+        disableAutoTitleUrdu = true;
+      }
+
+      const authoredChapterLabels = row.sections
+        .map((section) => {
+          if (!section || typeof section !== 'object') return '';
+          const chapterStr = typeof section.chapter === 'string' ? section.chapter.trim() : '';
+          if (chapterStr === CHORUS_MARKER || chapterStr === SETTINGS_MARKER) return '';
+          return chapterStr;
+        })
+        .filter((chapter) => chapter.length > 0);
+
+      const uniqueAuthoredChapters = new Set(authoredChapterLabels.map((chapter) => chapter.toLowerCase()));
+      const hasCustomChapterName = authoredChapterLabels.some((chapter) => !isDefaultChapterLabel(chapter));
+      const hasExplicitChapterTitles = hasCustomChapterName || uniqueAuthoredChapters.size > 1;
+      const isPoem = !hasExplicitChapterTitles;
+      const poemTitle = row.title?.trim() || 'Poem';
+
       const chapterMap = new Map<string, GroupChapterItem['lines']>();
       const chapterArabicTitle = new Map<string, string>();
       const chapterUrduTitle = new Map<string, string>();
@@ -119,12 +269,17 @@ function extractChapterItems(rows: AdhkarRow[]): GroupChapterItem[] {
         if (!section || typeof section !== 'object') return;
 
         const chapterStr = typeof section.chapter === 'string' ? section.chapter.trim() : '';
-        if (chapterStr === CHORUS_MARKER) return;
+        if (chapterStr === CHORUS_MARKER || chapterStr === SETTINGS_MARKER) return;
 
         const arabic = typeof section.arabic === 'string' ? section.arabic.trim() : '';
-        if (!arabic) return;
+        const transliteration = typeof section.transliteration === 'string' ? section.transliteration.trim() : '';
+        const translation = typeof section.translation === 'string' ? section.translation.trim() : '';
+        const urduTranslation = typeof section.urdu_translation === 'string' ? section.urdu_translation.trim() : '';
+        if (!arabic && !transliteration && !translation && !urduTranslation) return;
 
-        const chapter = chapterStr.length > 0 ? chapterStr : 'Chapter 1';
+        const chapter = isPoem
+          ? poemTitle
+          : (chapterStr.length > 0 ? chapterStr : 'Chapter 1');
 
         const arabicTitleOverride = typeof section.chapter_arabic === 'string' ? section.chapter_arabic.trim() : '';
         const urduTitleOverride = typeof section.chapter_urdu === 'string' ? section.chapter_urdu.trim() : '';
@@ -142,9 +297,9 @@ function extractChapterItems(rows: AdhkarRow[]): GroupChapterItem[] {
         const line = {
           heading,
           arabic,
-          transliteration: typeof section.transliteration === 'string' ? section.transliteration : undefined,
-          translation: typeof section.translation === 'string' ? section.translation : undefined,
-          urdu_translation: typeof section.urdu_translation === 'string' ? section.urdu_translation : undefined,
+          transliteration: transliteration || undefined,
+          translation: translation || undefined,
+          urdu_translation: urduTranslation || undefined,
         };
 
         const list = chapterMap.get(chapter);
@@ -156,7 +311,7 @@ function extractChapterItems(rows: AdhkarRow[]): GroupChapterItem[] {
       });
 
       Array.from(chapterMap.entries()).forEach(([chapter, lines], chapterIndex) => {
-        const withChorus = chorus && chapter.toLowerCase().startsWith('chapter ')
+        const withChorus = chorus && (isPoem || chapter.toLowerCase().startsWith('chapter '))
           ? [
             { ...chorus, heading: `${chapter} · Chorus (Opening)` },
             ...lines,
@@ -169,6 +324,15 @@ function extractChapterItems(rows: AdhkarRow[]): GroupChapterItem[] {
           chapter,
           chapterArabic: chapterArabicTitle.get(chapter) || undefined,
           chapterUrdu: chapterUrduTitle.get(chapter) || undefined,
+          primaryLanguage,
+          disableAutoTransliteration,
+          disableAutoArabic,
+          disableAutoEnglish,
+          disableAutoUrdu,
+          disableAutoTitleArabic,
+          disableAutoTitleEnglish,
+          disableAutoTitleUrdu,
+          isPoem,
           entryTitle: row.title || 'Untitled',
           lines: withChorus,
         });
@@ -177,43 +341,47 @@ function extractChapterItems(rows: AdhkarRow[]): GroupChapterItem[] {
       return;
     }
 
-    // Fallback: no sections. Split the entry by newlines into per-verse lines
-    // and treat the row as its own chapter (matches Burdah formatting).
+    // Fallback: no sections. Treat the entry as one poem and split by verse lines.
     const fallbackArabic = (row.arabic || '').trim();
-    if (!fallbackArabic) return;
-
-    const arabicLines = fallbackArabic.split(/\r?\n+/).map((s) => s.trim()).filter(Boolean);
     const translitLines = (row.transliteration || '').split(/\r?\n+/).map((s) => s.trim());
     const englishLines = (row.translation || '').split(/\r?\n+/).map((s) => s.trim());
     const urduLines = (row.urdu_translation || row.translation_urdu || '').split(/\r?\n+/).map((s) => s.trim());
+    const arabicLines = fallbackArabic.split(/\r?\n+/).map((s) => s.trim()).filter(Boolean);
 
-    const chapterLabel = row.title || 'Chapter';
+    const lineCount = Math.max(arabicLines.length, translitLines.length, englishLines.length, urduLines.length);
+    if (lineCount === 0) return;
 
-    const lines = arabicLines.map((arabic, idx) => ({
-      heading: `${chapterLabel} · Verse ${idx + 1}`,
-      arabic,
+    const poemLabel = row.title?.trim() || 'Poem';
+
+    const lines = Array.from({ length: lineCount }, (_, idx) => ({
+      heading: `Verse ${idx + 1}`,
+      arabic: arabicLines[idx] || '',
       transliteration: translitLines[idx] || undefined,
       translation: englishLines[idx] || undefined,
       urdu_translation: urduLines[idx] || undefined,
-    }));
+    })).filter((line) => line.arabic || line.transliteration || line.translation || line.urdu_translation);
+
+    if (lines.length === 0) return;
 
     items.push({
       id: `${row.id}-entry`,
-      chapter: chapterLabel,
+      chapter: poemLabel,
+      primaryLanguage: 'auto',
+      disableAutoTransliteration: false,
+      disableAutoArabic: false,
+      disableAutoEnglish: false,
+      disableAutoUrdu: false,
+      disableAutoTitleArabic: false,
+      disableAutoTitleEnglish: false,
+      disableAutoTitleUrdu: false,
+      isPoem: true,
       entryTitle: row.title || 'Untitled',
       lines,
     });
   });
 
-  return items
-    .map((item, originalIndex) => ({ item, originalIndex }))
-    .sort((a, b) => {
-      const aOrder = chapterOrderValue(a.item.chapter);
-      const bOrder = chapterOrderValue(b.item.chapter);
-      if (aOrder !== bOrder) return aOrder - bOrder;
-      return a.originalIndex - b.originalIndex;
-    })
-    .map((entry) => entry.item);
+  // Preserve chapter order exactly as authored in portal content.
+  return items;
 }
 
 export default function QaseedahGroupScreen() {
@@ -222,7 +390,7 @@ export default function QaseedahGroupScreen() {
   const groupName = typeof params.group === 'string' ? params.group : 'Group';
   const type = typeof params.type === 'string' ? params.type : 'qaseedah';
 
-  const { nightMode, toggleManual } = useNightMode();
+  const { nightMode, toggleManual } = useQaseedahNightMode();
   const N = nightMode ? NIGHT_PALETTE : null;
 
   const [loading, setLoading] = React.useState(true);
@@ -233,7 +401,8 @@ export default function QaseedahGroupScreen() {
   const [readingMode, setReadingMode] = React.useState<ReadingMode>('full');
   const [layers, setLayers] = React.useState<LayerVisibility>({ arabic: true, transliteration: true, english: true, urdu: true });
   const [textScale, setTextScale] = React.useState(1);
-  const [autoTranslatedByLine, setAutoTranslatedByLine] = React.useState<Record<string, { transliteration?: string; english?: string; urdu?: string }>>({});
+  const [autoTranslatedByLine, setAutoTranslatedByLine] = React.useState<Record<string, { arabic?: string; transliteration?: string; english?: string; urdu?: string }>>({});
+  const [chapterTitleEnglish, setChapterTitleEnglish] = React.useState<Record<string, string>>({});
   const [chapterTitleUrdu, setChapterTitleUrdu] = React.useState<Record<string, string>>({});
   const [chapterTitleArabic, setChapterTitleArabic] = React.useState<Record<string, string>>({});
 
@@ -279,44 +448,66 @@ export default function QaseedahGroupScreen() {
     let cancelled = false;
 
     const run = async () => {
-      const nextMap: Record<string, { transliteration?: string; english?: string; urdu?: string }> = {};
+      const nextMap: Record<string, { arabic?: string; transliteration?: string; english?: string; urdu?: string }> = {};
 
       for (const chapter of chapters) {
         for (let idx = 0; idx < chapter.lines.length; idx += 1) {
           const line = chapter.lines[idx];
           const key = `${chapter.id}-${idx}`;
 
-          const hasEnglish = !!line.translation?.trim();
-          const hasUrdu = !!line.urdu_translation?.trim();
-          const hasTranslit = !!line.transliteration?.trim();
+          const normalized = normalizeLineFields(line);
 
+          const hasArabic = normalized.arabic.length > 0;
+          const hasEnglish = normalized.english.length > 0;
+          const hasUrdu = normalized.urdu.length > 0;
+          const hasTranslit = normalized.transliteration.length > 0;
+          const arabicDisabled = !!chapter.disableAutoArabic;
+          const translitDisabled = !!chapter.disableAutoTransliteration;
+          const englishDisabled = !!chapter.disableAutoEnglish;
+          const urduDisabled = !!chapter.disableAutoUrdu;
+
+          let arabic = '';
           let transliteration = '';
           let english = '';
           let urdu = '';
 
-          if (!hasTranslit) {
-            const sourceArabic = line.arabic?.trim() || '';
+          if (!arabicDisabled && !hasArabic) {
+            const sourceForArabic = normalized.transliteration || normalized.english || normalized.urdu || '';
+            if (sourceForArabic) {
+              arabic = await translateTextToArabic(sourceForArabic);
+            }
+          }
+
+          const effectiveArabic = normalized.arabic || arabic;
+
+          if (!translitDisabled && !hasTranslit) {
+            const sourceArabic = effectiveArabic;
             if (sourceArabic) {
               transliteration = transliterateArabicToLatin(sourceArabic);
             }
           }
 
-          if (!hasEnglish) {
-            const source = line.arabic?.trim() || line.transliteration?.trim() || transliteration || '';
+          transliteration = formatTransliterationText(transliteration);
+
+          if (!englishDisabled && !hasEnglish) {
+            const source = effectiveArabic || normalized.transliteration || transliteration || normalized.urdu || '';
             if (source) {
               english = await translateTextToEnglish(source);
             }
           }
 
-          if (!hasUrdu) {
-            const sourceForUrdu = line.translation?.trim() || english;
+          english = formatEnglishTranslationText(english);
+
+          if (!urduDisabled && !hasUrdu) {
+            const sourceForUrdu = normalized.english || english || effectiveArabic;
             if (sourceForUrdu) {
               urdu = await translateTextToUrdu(sourceForUrdu);
             }
           }
 
-          if (transliteration || english || urdu) {
+          if (arabic || transliteration || english || urdu) {
             nextMap[key] = {
+              arabic: arabic || undefined,
               transliteration: transliteration || undefined,
               english: english || undefined,
               urdu: urdu || undefined,
@@ -346,7 +537,38 @@ export default function QaseedahGroupScreen() {
 
     const run = async () => {
       const overrideTitles = new Set(
-        chapters.filter((c) => c.chapterUrdu?.trim()).map((c) => c.chapter)
+        chapters.filter((c) => c.isPoem || c.disableAutoTitleEnglish).map((c) => c.chapter)
+      );
+      const unique = Array.from(new Set(chapters.map((c) => c.chapter).filter(Boolean)))
+        .filter((t) => !overrideTitles.has(t));
+      const next: Record<string, string> = {};
+
+      for (const title of unique) {
+        next[title] = normalizeInlineSpacing(title);
+      }
+
+      if (!cancelled) {
+        setChapterTitleEnglish(next);
+      }
+    };
+
+    if (chapters.length > 0) {
+      void run();
+    } else {
+      setChapterTitleEnglish({});
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [chapters]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      const overrideTitles = new Set(
+        chapters.filter((c) => c.isPoem || c.chapterUrdu?.trim() || c.disableAutoTitleUrdu).map((c) => c.chapter)
       );
       const unique = Array.from(new Set(chapters.map((c) => c.chapter).filter(Boolean)))
         .filter((t) => !overrideTitles.has(t));
@@ -387,7 +609,7 @@ export default function QaseedahGroupScreen() {
 
     const run = async () => {
       const overrideTitles = new Set(
-        chapters.filter((c) => c.chapterArabic?.trim()).map((c) => c.chapter)
+        chapters.filter((c) => c.isPoem || c.chapterArabic?.trim() || c.disableAutoTitleArabic).map((c) => c.chapter)
       );
       const unique = Array.from(new Set(chapters.map((c) => c.chapter).filter(Boolean)))
         .filter((t) => !overrideTitles.has(t));
@@ -427,8 +649,8 @@ export default function QaseedahGroupScreen() {
     <View style={[styles.screen, N && { backgroundColor: N.bg }]}>
       <QaseedahHeader
         title={groupName}
-        subtitle={`${type === 'naat' ? 'Naat' : 'Qaseedah'} · ${chapters.length} ${chapters.length === 1 ? 'chapter' : 'chapters'}`}
-        onBack={() => router.back()}
+        subtitle={`${type === 'naat' ? 'Naat' : 'Qaseedah'} · ${chapters.length} ${chapters.every((chapter) => chapter.isPoem) ? (chapters.length === 1 ? 'poem' : 'poems') : (chapters.length === 1 ? 'chapter' : 'chapters')}`}
+        onBack={() => router.replace('/(tabs)/qaseedah-naat')}
         onRefresh={() => { void load(true); }}
         refreshing={refreshing}
         night={N}
@@ -472,13 +694,14 @@ export default function QaseedahGroupScreen() {
                 ]}
               >
                 <ChapterIntro
-                  chapter={chapter.chapter}
-                  chapterUrdu={layers.urdu ? (chapter.chapterUrdu || chapterTitleUrdu[chapter.chapter]) : undefined}
-                  chapterArabic={layers.arabic ? (chapter.chapterArabic || chapterTitleArabic[chapter.chapter]) : undefined}
+                  chapter={chapterTitleEnglish[chapter.chapter] || chapter.chapter}
+                  chapterUrdu={chapter.isPoem ? undefined : (layers.urdu ? (chapter.chapterUrdu || chapterTitleUrdu[chapter.chapter]) : undefined)}
+                  chapterArabic={chapter.isPoem ? undefined : (layers.arabic ? (chapter.chapterArabic || chapterTitleArabic[chapter.chapter]) : undefined)}
                   entryTitle={chapter.entryTitle}
                   lineCount={chapter.lines.length}
                   isOpen={isOpen}
                   onToggle={() => setExpanded((prev) => ({ ...prev, [chapter.id]: !prev[chapter.id] }))}
+                  isPoem={!!chapter.isPoem}
                   night={N}
                 />
 
@@ -489,9 +712,11 @@ export default function QaseedahGroupScreen() {
                       return chapter.lines.map((line, idx) => {
                         const lineKey = `${chapter.id}-${idx}`;
                         const auto = autoTranslatedByLine[lineKey];
-                        const effectiveTranslit = line.transliteration?.trim() || auto?.transliteration || '';
-                        const effectiveEnglish = line.translation?.trim() || auto?.english || '';
-                        const effectiveUrdu = line.urdu_translation?.trim() || auto?.urdu || '';
+                        const normalized = normalizeLineFields(line);
+                        const effectiveArabic = normalized.arabic || auto?.arabic || '';
+                        const effectiveTranslit = formatTransliterationText(normalized.transliteration || auto?.transliteration || '');
+                        const effectiveEnglish = formatEnglishTranslationText(normalized.english || auto?.english || '');
+                        const effectiveUrdu = normalized.urdu || auto?.urdu || '';
 
                         const headingLower = (line.heading || '').toLowerCase();
                         let role: VerseRole = 'verse';
@@ -505,7 +730,7 @@ export default function QaseedahGroupScreen() {
                         }
 
                         const isAuto =
-                          (!line.transliteration?.trim() || !line.translation?.trim() || !line.urdu_translation?.trim()) &&
+                          (!normalized.transliteration || !normalized.english || !normalized.urdu) &&
                           Boolean(auto?.transliteration || auto?.english || auto?.urdu);
 
                         return (
@@ -514,14 +739,16 @@ export default function QaseedahGroupScreen() {
                             <VerseBlock
                               role={role}
                               verseNumber={verseNumber}
-                              chapterLabel={chapter.chapter}
-                              arabic={line.arabic}
+                              chapterLabel={chapter.isPoem ? undefined : chapter.chapter}
+                              primaryLanguage={chapter.primaryLanguage}
+                              arabic={effectiveArabic}
                               transliteration={effectiveTranslit || undefined}
                               translation={effectiveEnglish || undefined}
                               urdu={effectiveUrdu || undefined}
                               isAutoTranslated={isAuto}
                               layers={layers}
                               scale={textScale}
+                              isPoem={!!chapter.isPoem}
                               night={N}
                             />
                           </React.Fragment>

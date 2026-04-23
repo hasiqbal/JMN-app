@@ -247,6 +247,26 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
   }));
 
   const selectedLanguageCode = selectedLanguage === 'urdu' ? 'ur' : 'en';
+  const stripUpdatedLabel = useMemo(
+    () => new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+    []
+  );
+
+  const renderHowToStrip = () => (
+    <View style={[howToStyles.moduleStrip, N && { backgroundColor: N.surface, borderColor: N.border }]}>
+      <Image
+        source={require('@/assets/images/masjid-logo.png')}
+        style={howToStyles.moduleStripLogo}
+        contentFit="contain"
+        tintColor={undefined}
+      />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={[howToStyles.moduleStripMasjid, N && { color: N.primary }]}>JMN</Text>
+        <Text style={[howToStyles.moduleStripTitle, N && { color: N.text }]}>How To Guides</Text>
+        <Text style={[howToStyles.moduleStripMeta, N && { color: N.textMuted }]}>Updated {stripUpdatedLabel}</Text>
+      </View>
+    </View>
+  );
 
   const loadRemoteGuides = useCallback(async (asRefresh = false) => {
     if (asRefresh) {
@@ -524,6 +544,7 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[howToStyles.container, N && { backgroundColor: N.bg }]}
       >
+        {renderHowToStrip()}
         <View style={[howToStyles.introCard, N && { backgroundColor: N.surface, borderColor: N.border }]}>
           <View style={[howToStyles.introIcon, N && { backgroundColor: `${N.accent}18` }]}>
             <MaterialIcons name="translate" size={20} color={N ? N.accent : Colors.primary} />
@@ -657,6 +678,7 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
           />
         }
       >
+        {renderHowToStrip()}
         {/* Intro card — JMN card system */}
         <View style={[howToStyles.introCard, N && { backgroundColor: N.surface, borderColor: N.border }]}>
           <View style={[howToStyles.introIcon, N && { backgroundColor: `${N.accent}18` }]}>
@@ -840,6 +862,43 @@ const howToStyles = StyleSheet.create({
     paddingBottom: Spacing.md,
     paddingTop: Spacing.sm,
     gap: Spacing.sm,
+  },
+  moduleStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#EEF2EF',
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: '#D8E0DA',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+  },
+  moduleStripLogo: {
+    width: 44,
+    height: 44,
+    borderRadius: Radius.md,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E3EAE5',
+  },
+  moduleStripMasjid: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2E9C57',
+    letterSpacing: 0.25,
+  },
+  moduleStripTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    marginTop: 1,
+  },
+  moduleStripMeta: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
   sectionLabel: {
     fontSize: 11,

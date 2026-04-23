@@ -10,6 +10,7 @@ export const Colors = {
   background: '#F5F7F5',
   surface: '#FFFFFF',
   surfaceAlt: '#F0F7F3',
+  surfaceElevated: '#FBF8F1', // cream parchment for devotional modals/cards
   border: '#E3E8E4',
 
   // Text
@@ -27,6 +28,28 @@ export const Colors = {
   prayerActive: '#3FAE5A',
   prayerNext: '#E6F4EA',
   prayerPassed: '#E3E8E4',
+
+  // Devotional / spiritual accents — used for Qaseedah & Naat ornaments,
+  // chorus labels, modal chrome, and the "illuminated" feel throughout the
+  // devotional reader. Deliberately kept out of CTAs so the signal stays sacred.
+  gold: '#B8860B',
+  goldSoft: '#F3E6B8',
+  goldInk: '#8A6A1F',
+  goldHairline: 'rgba(184, 134, 11, 0.28)',
+
+  // Rich-text highlight (portal ==highlight== spans).
+  highlight: '#FEF3C7',
+  highlightInk: '#78350F',
+
+  // Chorus / verse accents.
+  chorusBg: '#F4FAF6',
+
+  // Type tint tokens for qaseedah vs naat badges & rails.
+  qaseedahChip: '#DCFCE7',
+  qaseedahInk: '#0F766E',
+  qaseedahInkDark: '#12713B',
+  naatChip: '#E0F2FE',
+  naatInk: '#0369A1',
 };
 
 export const Spacing = {

@@ -17,7 +17,7 @@ export function VerseDivider({ night, variant = 'dot' }: Props) {
   }
   return (
     <View style={styles.wrap}>
-      <Text style={[styles.dots, night && { color: night.textMuted }]}>• • •</Text>
+      <Text style={[styles.dots, night && { color: night.gold ?? night.textMuted }]}>﹏ ۞ ﹏</Text>
     </View>
   );
 }
@@ -28,15 +28,16 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   dots: {
-    fontSize: 10,
-    letterSpacing: 6,
-    color: Colors.textSubtle,
+    fontSize: 12,
+    letterSpacing: 4,
+    color: Colors.gold,
+    opacity: 0.75,
   },
   line: {
     alignSelf: 'center',
     width: '45%',
     height: StyleSheet.hairlineWidth,
-    backgroundColor: Colors.border,
+    backgroundColor: Colors.goldHairline,
     marginVertical: 12,
   },
 });
