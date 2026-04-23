@@ -704,6 +704,7 @@ export default function MonthlyCalendarSection({
   transliterateHijri,
   getHijriDayNum,
   getHijriMonthName,
+  betweenCalendarAndTimetable,
 }: {
   today: Date;
   nightMode: boolean;
@@ -711,6 +712,7 @@ export default function MonthlyCalendarSection({
   transliterateHijri: (hijri: string) => string;
   getHijriDayNum: (hijri: string) => string;
   getHijriMonthName: (hijri: string) => string;
+  betweenCalendarAndTimetable?: React.ReactNode;
 }) {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const [viewYear, setViewYear] = useState(today.getFullYear());
@@ -1228,6 +1230,9 @@ export default function MonthlyCalendarSection({
         showsVerticalScrollIndicator={false}
         contentContainerStyle={calStyles.panelScrollContent}
       >
+        {betweenCalendarAndTimetable ? (
+          <View style={calStyles.interstitialWrap}>{betweenCalendarAndTimetable}</View>
+        ) : null}
         <CalendarPrayerPanel selectedDay={selectedDay} nightMode={nightMode} nightPalette={nightPalette} />
         <CalendarEventPlaceholders
           selectedDay={selectedDay}
@@ -1259,6 +1264,10 @@ const calStyles = StyleSheet.create({
   },
   panelScrollContent: {
     paddingBottom: 12,
+  },
+  interstitialWrap: {
+    paddingHorizontal: 10,
+    paddingTop: 10,
   },
   navRow: {
     flexDirection: 'row',

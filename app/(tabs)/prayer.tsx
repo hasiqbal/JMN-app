@@ -245,60 +245,6 @@ export default function PrayerScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }, N && { backgroundColor: N.bg }]}>
-      <View style={[styles.header, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}>
-        <View style={[styles.adhaanUnifiedRow, N && { borderColor: N.border, backgroundColor: N.surfaceAlt }]}>
-          <TouchableOpacity
-            activeOpacity={0.88}
-            onPress={() => setAdhaanChooserVisible(true)}
-            style={styles.adhaanUnifiedPicker}
-          >
-            <MaterialIcons name="notifications-active" size={16} color={N ? '#9BC2EA' : '#1E5BA8'} />
-            <Text style={[styles.adhaanUnifiedLabel, N && { color: N.text }]} numberOfLines={1}>{selectedAdhaan.label}</Text>
-            <Text style={[styles.adhaanUnifiedStatus, N && { color: N.textSub }]} numberOfLines={1}>
-              {adhaanMuted ? 'Muted' : 'Sound on'}
-            </Text>
-            <MaterialIcons name="expand-more" size={18} color={N ? N.textSub : Colors.textSubtle} />
-          </TouchableOpacity>
-
-          <View style={styles.adhaanControlActions}>
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={toggleAdhaanMuted}
-              style={[
-                styles.adhaanMuteBtn,
-                N && { borderColor: N.border, backgroundColor: N.surface },
-                adhaanMuted && (N
-                  ? { backgroundColor: '#4D2A2A', borderColor: '#7F4A4A' }
-                  : { backgroundColor: '#FDECEC', borderColor: '#E4A1A1' }),
-              ]}
-            >
-              <MaterialIcons
-                name={adhaanMuted ? 'volume-off' : 'volume-up'}
-                size={16}
-                color={adhaanMuted ? '#D43737' : (N ? '#D7E8FF' : '#1E5BA8')}
-              />
-              <Text
-                style={[
-                  styles.adhaanMuteBtnText,
-                  { color: adhaanMuted ? '#D43737' : (N ? '#D7E8FF' : '#1E5BA8') },
-                ]}
-              >
-                {adhaanMuted ? 'Unmute' : 'Mute'}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={stopAdhaanNow}
-              style={[styles.adhaanStopBtn, N && { borderColor: N.border, backgroundColor: N.surface }]}
-            >
-              <MaterialIcons name="stop" size={14} color={N ? '#F2D2D2' : '#B23838'} />
-              <Text style={[styles.adhaanStopBtnText, N && { color: '#F2D2D2' }]}>Stop</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-
       <Modal
         visible={adhaanChooserVisible}
         transparent
@@ -412,6 +358,57 @@ export default function PrayerScreen() {
         transliterateHijri={transliterateHijri}
         getHijriDayNum={getHijriDayNum}
         getHijriMonthName={getHijriMonthName}
+        betweenCalendarAndTimetable={(
+          <View style={[styles.adhaanUnifiedRow, N && { borderColor: N.border, backgroundColor: N.surfaceAlt }]}>
+            <TouchableOpacity
+              activeOpacity={0.88}
+              onPress={() => setAdhaanChooserVisible(true)}
+              style={styles.adhaanUnifiedPicker}
+            >
+              <MaterialIcons name="notifications-active" size={16} color={N ? '#9BC2EA' : '#1E5BA8'} />
+              <Text style={[styles.adhaanUnifiedTitle, N && { color: N.text }]} numberOfLines={1}>Adhaan for notifications</Text>
+              <Text style={[styles.adhaanUnifiedLabel, N && { color: N.textSub }]} numberOfLines={1}>{selectedAdhaan.label}</Text>
+              <MaterialIcons name="expand-more" size={18} color={N ? N.textSub : Colors.textSubtle} />
+            </TouchableOpacity>
+
+            <View style={styles.adhaanControlActions}>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={toggleAdhaanMuted}
+                style={[
+                  styles.adhaanMuteBtn,
+                  N && { borderColor: N.border, backgroundColor: N.surface },
+                  adhaanMuted && (N
+                    ? { backgroundColor: '#4D2A2A', borderColor: '#7F4A4A' }
+                    : { backgroundColor: '#FDECEC', borderColor: '#E4A1A1' }),
+                ]}
+              >
+                <MaterialIcons
+                  name={adhaanMuted ? 'volume-off' : 'volume-up'}
+                  size={16}
+                  color={adhaanMuted ? '#D43737' : (N ? '#D7E8FF' : '#1E5BA8')}
+                />
+                <Text
+                  style={[
+                    styles.adhaanMuteBtnText,
+                    { color: adhaanMuted ? '#D43737' : (N ? '#D7E8FF' : '#1E5BA8') },
+                  ]}
+                >
+                  {adhaanMuted ? 'Unmute' : 'Mute'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={stopAdhaanNow}
+                style={[styles.adhaanStopBtn, N && { borderColor: N.border, backgroundColor: N.surface }]}
+              >
+                <MaterialIcons name="stop" size={14} color={N ? '#F2D2D2' : '#B23838'} />
+                <Text style={[styles.adhaanStopBtnText, N && { color: '#F2D2D2' }]}>Stop</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       />
     </View>
   );
@@ -419,16 +416,6 @@ export default function PrayerScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'column',
-    paddingHorizontal: Spacing.md,
-    paddingTop: 6,
-    paddingBottom: 6,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    gap: 4,
-  },
   adhaanUnifiedRow: {
     borderRadius: Radius.md,
     borderWidth: 1,
@@ -447,16 +434,17 @@ const styles = StyleSheet.create({
     gap: 5,
     flex: 1,
   },
-  adhaanUnifiedLabel: {
+  adhaanUnifiedTitle: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#1E5BA8',
-    maxWidth: '45%',
+    maxWidth: '46%',
   },
-  adhaanUnifiedStatus: {
+  adhaanUnifiedLabel: {
     fontSize: 11,
     fontWeight: '700',
     color: Colors.textSubtle,
+    maxWidth: '33%',
   },
   adhaanControlActions: {
     flexDirection: 'row',
