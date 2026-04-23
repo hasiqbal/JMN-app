@@ -225,16 +225,15 @@ function resolveCurrentPrayerEnd(
   if (!activePrayer || !data) return null;
 
   const idx = data.prayers.findIndex((p) => p.name === activePrayer.name);
-  const isIshaCase = activePrayer.name === 'Isha';
   const rawEnd = data.prayers[idx + 1]?.timeDate
-    ?? (isIshaCase ? data.prayers[0]?.timeDate : undefined)
+    ?? (activePrayer.name === 'Isha' ? data.prayers[0]?.timeDate : undefined)
     ?? null;
 
   if (!rawEnd) return null;
 
-  // Only roll forward if it's the same-day lookup (idx+1) and time is actually before.
-  // For Isha case, we already get tomorrow's Fajr, so no roll needed.
-  if (!isIshaCase && rawEnd.getTime() <= activePrayer.timeDate.getTime()) {
+  // If the boundary is earlier than the active prayer start, it belongs to next day.
+  // Use strict '<' so equal-time boundaries do not inflate into +24h countdowns.
+  if (rawEnd.getTime() < activePrayer.timeDate.getTime()) {
     const rolledEnd = new Date(rawEnd);
     rolledEnd.setDate(rolledEnd.getDate() + 1);
     return rolledEnd;

@@ -24,7 +24,11 @@ export function buildTodayRowsWithJumuah(prayers: PrayerTime[], now: Date): Pray
     const rows = [...prayers];
     const baseRows = rows.filter((p) => p.name !== 'Jumuah');
     const isFriday = now.getDay() === 5;
-    if (!isFriday) {
+    const asrRow = baseRows.find((p) => p.name === 'Asr');
+    const isThursdayAfterAsr = now.getDay() === 4 && !!asrRow?.timeDate && now >= asrRow.timeDate;
+    const shouldInjectJumuah = isFriday || isThursdayAfterAsr;
+
+    if (!shouldInjectJumuah) {
       return baseRows;
     }
   // Existing Jumuah jamaat defaults (kept separate)
@@ -36,11 +40,20 @@ export function buildTodayRowsWithJumuah(prayers: PrayerTime[], now: Date): Pray
     const dhuhrIdx = baseRows.findIndex((p) => p.name === 'Dhuhr');
     const dhuhrRow = dhuhrIdx >= 0 ? baseRows[dhuhrIdx] : null;
 
-  // 2) Use Dhuhr begins for Jumuah begins
-  const beginsTime = dhuhrRow?.time ?? j1;
-  const beginsDate = dhuhrRow?.timeDate ?? (() => {
-    const [jh, jm] = j1.split(':').map(Number);
+  // 2) On Thursday after Asr, preview tomorrow's Jumuah row.
+  const beginsTime = isFriday
+    ? (dhuhrRow?.time ?? j1)
+    : (dhuhrRow?.tomorrowTime ?? j1);
+  const beginsDate = (() => {
+    if (isFriday && dhuhrRow?.timeDate) {
+      return dhuhrRow.timeDate;
+    }
+
+    const [jh, jm] = beginsTime.split(':').map(Number);
     const d = new Date(now);
+    if (!isFriday) {
+      d.setDate(d.getDate() + 1);
+    }
     d.setHours(jh, jm, 0, 0);
     return d;
   })();

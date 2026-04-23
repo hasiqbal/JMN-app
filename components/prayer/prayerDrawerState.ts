@@ -16,6 +16,8 @@ type PrayerLike = {
   time?: string;
   iqamah?: string;
   timeDate?: Date;
+  tomorrowTime?: string;
+  tomorrowIqamah?: string;
 };
 
 type BuildPrayerDrawerRowsArgs = {
@@ -46,7 +48,11 @@ export function buildPrayerDrawerRows({
   const sourceRows = prayers
     ? buildTodayRowsWithJumuah(prayers as PrayerTime[], now)
     : [];
-  const prayerOrder = sourceRows.some((entry) => entry.name === 'Jumuah')
+  const hasJumuahRow = sourceRows.some((entry) => entry.name === 'Jumuah');
+  const asrFromInput = prayers?.find((entry) => entry.name === 'Asr');
+  const shouldForceThursdayPreview = now.getDay() === 4 && !!asrFromInput?.timeDate && now >= asrFromInput.timeDate;
+
+  const prayerOrder = (hasJumuahRow || shouldForceThursdayPreview)
     ? ['Fajr', 'Jumuah', 'Asr', 'Maghrib', 'Isha']
     : DEFAULT_PRAYER_ORDER;
 
@@ -68,12 +74,22 @@ export function buildPrayerDrawerRows({
 
     let jamaat2: string | undefined;
     if (prayerName === 'Jumuah') {
-      const bst = isBST(now);
+      const jumuahReferenceDate = new Date(now);
+      if (shouldForceThursdayPreview && !hasJumuahRow) {
+        jumuahReferenceDate.setDate(jumuahReferenceDate.getDate() + 1);
+      }
+
+      const bst = isBST(jumuahReferenceDate);
       const j1 = bst ? '13:30' : '12:45';
       const j2 = bst ? '14:30' : '13:30';
+      const dhuhrFromInput = prayers?.find((entry) => entry.name === 'Dhuhr');
+      const begins = prayer?.time
+        ?? (shouldForceThursdayPreview ? dhuhrFromInput?.tomorrowTime : dhuhrFromInput?.time)
+        ?? j1;
+
       return {
         name: prayerName,
-        begins: normalizeClock(prayer?.time),
+        begins: normalizeClock(begins),
         jamaat: j1,
         jamaat2: j2,
         state,

@@ -20,7 +20,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
-import { formatCountdownSeconds, getNextPrayer, type PrayerTime } from '@/services/prayerService';
+import { formatCountdownSeconds, getNextPrayer, getPrayerTimesFromTimetable, type PrayerTime } from '@/services/prayerService';
 import { usePrayerTimes } from '@/hooks/usePrayerTimes';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import {
@@ -41,6 +41,7 @@ import {
   type CommunityUpdateItem,
 } from '@/components/prayer/CommunityUpdatesSection';
 import { SacredContentModule, SacredReadingSheet } from '@/components/prayer/SacredContentModule';
+import HeroNewsBar from '@/components/prayer/HeroNewsBar';
 import { createDonationCheckoutUrl } from '@/services/donationService';
 import { triggerJmnMockLiveTransition } from '@/services/liveService';
 import {
@@ -1312,7 +1313,8 @@ function resolvePrayerEndDate(activePrayer: PrayerTime | null, nextPrayerDate: D
   if (!activePrayer || !nextPrayerDate) return null;
 
   const endDate = new Date(nextPrayerDate);
-  if (endDate <= activePrayer.timeDate) {
+  // Strict comparison avoids turning equal boundaries into an artificial +24h window.
+  if (endDate < activePrayer.timeDate) {
     endDate.setDate(endDate.getDate() + 1);
   }
   return endDate;
@@ -2100,6 +2102,20 @@ export default function HomeScreen() {
   const fajrPrayer = data?.prayers.find(p => p.name === 'Fajr');
   const dhuhrPrayer = data?.prayers.find(p => p.name === 'Dhuhr');
   const asrPrayer = data?.prayers.find(p => p.name === 'Asr');
+  const maghribPrayer = data?.prayers.find(p => p.name === 'Maghrib');
+  const tomorrowPrayerTimes = React.useMemo(() => {
+    const tomorrow = new Date(currentTime);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return getPrayerTimesFromTimetable(tomorrow);
+  }, [currentTime.getFullYear(), currentTime.getMonth(), currentTime.getDate()]);
+  const tomorrowHijriDayNum = tomorrowPrayerTimes
+    ? Number.parseInt(getHijriDayNumber(tomorrowPrayerTimes.hijriDate) || '0', 10)
+    : 0;
+  const tomorrowHijriMonthName = tomorrowPrayerTimes
+    ? getHijriMonthFromAnyFormat(tomorrowPrayerTimes.hijriDate)
+    : '';
+  const isTomorrowEidUlFitr = isShawwalMonth(tomorrowHijriMonthName) && tomorrowHijriDayNum === 1;
+  const isTomorrowEidUlAdha = isDhulHijjahMonth(tomorrowHijriMonthName) && tomorrowHijriDayNum === 10;
 
   const {
     heroProgress,
@@ -2145,11 +2161,22 @@ export default function HomeScreen() {
   const activeEidType: 'eid_al_fitr' | 'eid_al_adha' | null = isEidUlFitrDay
     ? 'eid_al_fitr'
     : (isEidUlAdhaDay ? 'eid_al_adha' : null);
+  const upcomingEidType: 'eid_al_fitr' | 'eid_al_adha' | null = isTomorrowEidUlFitr
+    ? 'eid_al_fitr'
+    : (isTomorrowEidUlAdha ? 'eid_al_adha' : null);
+  const isEidNightWindow = !!(
+    !activeEidType
+    && upcomingEidType
+    && maghribPrayer?.timeDate
+    && currentTime >= maghribPrayer.timeDate
+  );
+  const effectiveEidType: 'eid_al_fitr' | 'eid_al_adha' | null = activeEidType
+    ?? (isEidNightWindow ? upcomingEidType : null);
 
   const resolvedEidJamaats = React.useMemo(() => {
-    const source = activeEidType === 'eid_al_fitr' ? eidUlFitrJamaats : eidUlAdhaJamaats;
+    const source = effectiveEidType === 'eid_al_fitr' ? eidUlFitrJamaats : eidUlAdhaJamaats;
     return source.length > 0 ? source : ['06:30'];
-  }, [activeEidType, eidUlFitrJamaats, eidUlAdhaJamaats]);
+  }, [effectiveEidType, eidUlFitrJamaats, eidUlAdhaJamaats]);
 
   const eidInfoLine = buildEidJamaatNote(resolvedEidJamaats);
   const isEidHeroWindow = !!(
@@ -2159,7 +2186,10 @@ export default function HomeScreen() {
     && dhuhrPrayer?.timeDate
     && currentTime < dhuhrPrayer.timeDate
   );
-  const shouldShowEidInfoLine = !!(activeEidType && currentTime < (dhuhrPrayer?.timeDate ?? currentTime));
+  const shouldShowEidInfoLine = !!(
+    effectiveEidType
+    && (isEidNightWindow || currentTime < (dhuhrPrayer?.timeDate ?? currentTime))
+  );
 
   const eidHeroData = React.useMemo(() => {
     if (!isEidHeroWindow || !fajrPrayer?.timeDate || !dhuhrPrayer?.timeDate) return null;
@@ -2334,7 +2364,7 @@ export default function HomeScreen() {
     return currentTime >= lsm && currentTime < lso;
   })();
 
-  // Jummah info visibility: from Isha Thursday through Friday (except Jummah hero)
+  // Jummah info visibility: from Thursday after Asr through Friday (except Jummah hero)
 
   // For Thursday: show next Friday's times (Friday itself uses today's BST)
   const jumuahDisplayBST = (() => {
@@ -2389,8 +2419,9 @@ export default function HomeScreen() {
   const firstJummahAthanTime = dhuhrPrayer?.time ?? heroEndTime;
   const fridayJumuahScheduleNote = `Jummah Prayers: 1st: ${jj1} · 2nd: ${jj2}`;
   const shouldShowFridayJumuahNote = (() => {
-    // Show on Thursday Isha, and on Friday only before Asr begins.
-    if (isThursday && heroPrayerName === 'Isha') return true;
+    // Show on Thursday from Asr onward, and on Friday only before Asr begins.
+    const thursdayAsrStart = asrPrayer?.timeDate;
+    if (isThursday && thursdayAsrStart && currentTime >= thursdayAsrStart) return true;
     if (!isFriday) return false;
     const asrStart = asrPrayer?.timeDate;
     if (!asrStart) return true;
@@ -2501,7 +2532,7 @@ export default function HomeScreen() {
       const prefix = resolvedInfo.note ? `${resolvedInfo.note} · ` : '';
       resolvedInfo = {
         ...resolvedInfo,
-        note: `${prefix}${eidInfoLine}`,
+        note: `${prefix}Eid Prayers: ${eidInfoLine}`,
       };
     }
 
@@ -2804,6 +2835,12 @@ export default function HomeScreen() {
                 nextPrayerTime={nextInfo?.prayer.time ?? '--:--'}
                 showJamaatAnchor={heroTimelineState.showJamaatAnchor}
               />
+              {effectiveHeroCountdownInfo.note ? (
+                <HeroNewsBar
+                  note={effectiveHeroCountdownInfo.note}
+                  style={heroNewStyles.heroNewsBar}
+                />
+              ) : null}
               <HeroPrayerTimeline
                 progress={heroTimelineState.progress}
                 startTimeText={heroTimelineState.startTimeText}
@@ -3094,6 +3131,10 @@ const heroNewStyles = StyleSheet.create({
   mainSection: {
     alignItems: 'center',
     paddingBottom: 18,
+  },
+  heroNewsBar: {
+    width: '100%',
+    marginTop: 10,
   },
   eyebrow: {
     fontSize: 10,

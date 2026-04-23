@@ -249,6 +249,7 @@ const REWIND_STEP_SEC = 10;
 const MAX_TIMESHIFT_SEC = 120;
 const MAX_REWIND_SEEK_ATTEMPTS = 12;
 const REWIND_SEEK_SETTLE_MS = 90;
+const ANDROID_PLAYER_BOOTSTRAP_DELAY_MS = 40;
 const EXPO_GO_NOTIFICATIONS_FALLBACK =
   Constants.appOwnership === 'expo' &&
   Number((Constants.expoConfig?.sdkVersion ?? '0').split('.')[0] || 0) >= 53;
@@ -630,7 +631,7 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
         }
 
         if (Platform.OS === 'android') {
-          await new Promise((resolve) => setTimeout(resolve, 100));
+          await new Promise((resolve) => setTimeout(resolve, ANDROID_PLAYER_BOOTSTRAP_DELAY_MS));
         }
 
         const player = createAudioPlayer({ uri: url }, 250);
@@ -990,6 +991,12 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
         return;
       }
 
+      if (!isPlaying && !isLoading) {
+        setActiveStationId(station.id as StreamId);
+        setAudioPlaying(true);
+        setAudioLoading(true);
+      }
+
       playStation(station.id as StreamId).catch(() => {});
     };
 
@@ -1070,6 +1077,8 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
               ]}
               onPress={onPrimaryPress}
               activeOpacity={0.85}
+              delayPressIn={0}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <MaterialIcons
                 name={isLoading ? 'hourglass-empty' : isPlaying ? 'stop' : 'play-arrow'}

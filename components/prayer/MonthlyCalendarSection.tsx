@@ -434,9 +434,13 @@ function CalendarPrayerPanel({
   const isThursday = date.getDay() === 4;
   const isTomorrowFriday = nextDate.getDay() === 5;
   const dhuhrIqamahDate = day.iqDhuhr ? parseTimeOnDate(day.iqDhuhr) : null;
+  const asrAthanDate = parseTimeOnDate(day.asr);
   const shouldUseTomorrowJumuah = isThursday
     && isTomorrowFriday
     && (isPastDay || (isSelectedToday && !!dhuhrIqamahDate && now >= dhuhrIqamahDate));
+  const shouldPreviewTomorrowJumuahAsDual = isThursday
+    && isTomorrowFriday
+    && (isPastDay || (isSelectedToday && !!asrAthanDate && now >= asrAthanDate));
   const tomorrowJumuahIqamah = tomorrowLocal?.jumuah ?? (isBST(nextDate) ? '13:30' : '12:45');
   const duhaToday = midpointClockBetween(day.fajr, day.maghrib) ?? '--:--';
   const duhaTomorrow = midpointClockBetween(tomorrowLocal?.fajr, tomorrowLocal?.maghrib);
@@ -452,6 +456,7 @@ function CalendarPrayerPanel({
     tomorrowAthan?: string;
     tomorrowIqamah?: string;
     isJumuah?: boolean;
+    isPreviewJumuah?: boolean;
     jumuahFirst?: string;
     jumuahSecond?: string;
   }[] = [
@@ -534,10 +539,12 @@ function CalendarPrayerPanel({
     },
   ];
 
-  const j1Raw = dbRow?.jumu_ah_1 ?? (bstFallback ? '13:30' : '12:45');
-  const j2Raw = dbRow?.jumu_ah_2 ?? (bstFallback ? '14:30' : '13:30');
+  const jumuahFallbackDate = shouldPreviewTomorrowJumuahAsDual ? nextDate : date;
+  const j1Raw = dbRow?.jumu_ah_1 ?? (isBST(jumuahFallbackDate) ? '13:30' : '12:45');
+  const j2Raw = dbRow?.jumu_ah_2 ?? (isBST(jumuahFallbackDate) ? '14:30' : '13:30');
 
-  const orderedRows = isFriday
+  const shouldRenderJumuahRow = isFriday || shouldPreviewTomorrowJumuahAsDual;
+  const orderedRows = shouldRenderJumuahRow
     ? baseRows.map((row) =>
         row.label === 'Dhuhr'
           ? {
@@ -547,6 +554,7 @@ function CalendarPrayerPanel({
               athan: day.dhuhr,
               iqamah: null,
               isJumuah: true,
+              isPreviewJumuah: !isFriday,
               jumuahFirst: j1Raw,
               jumuahSecond: j2Raw,
             }
@@ -576,7 +584,8 @@ function CalendarPrayerPanel({
       </View>
 
       {orderedRows.map((p, idx) => {
-        const isCompleted = isPastDay || (isSelectedToday && idx < currentRowIndex);
+        const isPreviewJumuah = !!p.isPreviewJumuah;
+        const isCompleted = (isPastDay || (isSelectedToday && idx < currentRowIndex)) && !isPreviewJumuah;
         const isCurrent = isSelectedToday && idx === currentRowIndex;
         const isNext = isSelectedToday && idx === nextRowIndex;
         const athanDate = parseTimeOnDate(p.athan);

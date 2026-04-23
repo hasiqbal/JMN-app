@@ -10,6 +10,7 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { useJmnLiveStatus } from '@/hooks/useJmnLiveStatus';
 import {
   isAdhaanMutedEnabled,
+  isIqamahMutedEnabled,
   setAdhaanMutedEnabled,
   stopActiveAdhaan,
   useQuranPrayerPopups,
@@ -367,7 +368,7 @@ export default function TabLayout() {
       }
 
       const adhaanMuted = await isAdhaanMutedEnabled();
-      const prayerChannelId = adhaanMuted ? PRAYER_SILENT_CHANNEL_ID : PRAYER_CHANNEL_ID;
+      const iqamahMuted = await isIqamahMutedEnabled();
 
       const seen = new Set<string>();
       const planned = plannedRaw.filter((item) => {
@@ -380,6 +381,10 @@ export default function TabLayout() {
       await clearScheduledPrayerNotifications();
 
       for (const item of planned) {
+        const isJamaatReminder = item.data.type === 'jamaat-10';
+        const mutedForItem = isJamaatReminder ? iqamahMuted : adhaanMuted;
+        const prayerChannelId = mutedForItem ? PRAYER_SILENT_CHANNEL_ID : PRAYER_CHANNEL_ID;
+
         const trigger = Platform.OS === 'android'
           ? ({ type: 'date', date: item.fireAt, channelId: prayerChannelId } as unknown as import('expo-notifications').NotificationTriggerInput)
           : (item.fireAt as unknown as import('expo-notifications').NotificationTriggerInput);
@@ -388,7 +393,7 @@ export default function TabLayout() {
           content: {
             title: item.title,
             body: item.body,
-            sound: adhaanMuted ? undefined : 'default',
+            sound: mutedForItem ? undefined : 'default',
             categoryIdentifier: PRAYER_NOTIFICATION_CATEGORY_ID,
             data: item.data,
           },

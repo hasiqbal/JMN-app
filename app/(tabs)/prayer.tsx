@@ -14,7 +14,9 @@ import {
 } from '@/constants/prayerNotifications';
 import {
   isAdhaanMutedEnabled,
+  isIqamahMutedEnabled,
   setAdhaanMutedEnabled,
+  setIqamahMutedEnabled,
   stopActiveAdhaan,
 } from '@/hooks/useQuranPrayerPopups';
 import { useNightMode } from '@/hooks/useNightMode';
@@ -95,6 +97,7 @@ export default function PrayerScreen() {
   const { nightMode } = useNightMode();
   const [selectedAdhaanUrl, setSelectedAdhaanUrl] = useState(DEFAULT_ADHAAN_AUDIO_URL);
   const [adhaanMuted, setAdhaanMuted] = useState(false);
+  const [iqamahMuted, setIqamahMuted] = useState(false);
   const [adhaanChooserVisible, setAdhaanChooserVisible] = useState(false);
   const [previewingUrl, setPreviewingUrl] = useState<string | null>(null);
   const previewPlayerRef = React.useRef<AudioPlayer | null>(null);
@@ -123,6 +126,21 @@ export default function PrayerScreen() {
       .then((muted) => {
         if (cancelled) return;
         setAdhaanMuted(muted);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    isIqamahMutedEnabled()
+      .then((muted) => {
+        if (cancelled) return;
+        setIqamahMuted(muted);
       })
       .catch(() => {});
 
@@ -233,6 +251,15 @@ export default function PrayerScreen() {
       setAdhaanMuted((current) => !current);
     });
   }, [adhaanMuted]);
+
+  const toggleIqamahMuted = React.useCallback(() => {
+    const nextMuted = !iqamahMuted;
+    setIqamahMuted(nextMuted);
+
+    setIqamahMutedEnabled(nextMuted).catch(() => {
+      setIqamahMuted((current) => !current);
+    });
+  }, [iqamahMuted]);
 
   const stopAdhaanNow = React.useCallback(() => {
     void stopActiveAdhaan();
@@ -366,8 +393,10 @@ export default function PrayerScreen() {
               style={styles.adhaanUnifiedPicker}
             >
               <MaterialIcons name="notifications-active" size={16} color={N ? '#9BC2EA' : '#1E5BA8'} />
-              <Text style={[styles.adhaanUnifiedTitle, N && { color: N.text }]} numberOfLines={1}>Adhaan for notifications</Text>
-              <Text style={[styles.adhaanUnifiedLabel, N && { color: N.textSub }]} numberOfLines={1}>{selectedAdhaan.label}</Text>
+              <View style={styles.adhaanPickerTextWrap}>
+                <Text style={[styles.adhaanUnifiedTitle, N && { color: N.text }]} numberOfLines={1}>Choose adhaan sound</Text>
+                <Text style={[styles.adhaanUnifiedLabel, N && { color: N.textSub }]} numberOfLines={1}>Selected: {selectedAdhaan.label}</Text>
+              </View>
               <MaterialIcons name="expand-more" size={18} color={N ? N.textSub : Colors.textSubtle} />
             </TouchableOpacity>
 
@@ -394,7 +423,33 @@ export default function PrayerScreen() {
                     { color: adhaanMuted ? '#D43737' : (N ? '#D7E8FF' : '#1E5BA8') },
                   ]}
                 >
-                  {adhaanMuted ? 'Unmute' : 'Mute'}
+                  Adhaan
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={toggleIqamahMuted}
+                style={[
+                  styles.adhaanMuteBtn,
+                  N && { borderColor: N.border, backgroundColor: N.surface },
+                  iqamahMuted && (N
+                    ? { backgroundColor: '#4D2A2A', borderColor: '#7F4A4A' }
+                    : { backgroundColor: '#FDECEC', borderColor: '#E4A1A1' }),
+                ]}
+              >
+                <MaterialIcons
+                  name={iqamahMuted ? 'notifications-off' : 'notifications-active'}
+                  size={16}
+                  color={iqamahMuted ? '#D43737' : (N ? '#D7E8FF' : '#1E5BA8')}
+                />
+                <Text
+                  style={[
+                    styles.adhaanMuteBtnText,
+                    { color: iqamahMuted ? '#D43737' : (N ? '#D7E8FF' : '#1E5BA8') },
+                  ]}
+                >
+                  Iqamah
                 </Text>
               </TouchableOpacity>
 
@@ -423,44 +478,50 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F9FF',
     paddingHorizontal: 10,
     paddingVertical: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: 6,
   },
   adhaanUnifiedPicker: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 8,
     flex: 1,
   },
+  adhaanPickerTextWrap: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: 'center',
+  },
   adhaanUnifiedTitle: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '800',
     color: '#1E5BA8',
-    maxWidth: '46%',
   },
   adhaanUnifiedLabel: {
-    fontSize: 11,
+    marginTop: 1,
+    fontSize: 12,
     fontWeight: '700',
     color: Colors.textSubtle,
-    maxWidth: '33%',
   },
   adhaanControlActions: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 6,
   },
   adhaanMuteBtn: {
+    flex: 1,
     borderRadius: Radius.full,
     borderWidth: 1,
     borderColor: '#9EC0E7',
     backgroundColor: '#EDF5FF',
-    paddingHorizontal: 8,
+    paddingHorizontal: 9,
     paddingVertical: 6,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    justifyContent: 'center',
   },
   adhaanMuteBtnText: {
     fontSize: 11,
