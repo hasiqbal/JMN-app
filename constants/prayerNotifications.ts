@@ -1,4 +1,5 @@
 export const ADHAAN_AUDIO_STORAGE_KEY = 'jmn_selected_adhaan_url';
+export const ADHAAN_MUTED_STORAGE_KEY = 'jmn_adhaan_muted';
 
 export type AdhaanAudioOption = {
   id: string;

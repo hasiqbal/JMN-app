@@ -7,6 +7,7 @@ import { useInAppBanner } from '@/template';
 import { getNextPrayer, getPrayerTimesForDate, PrayerTimesData } from '@/services/prayerService';
 import {
   ADHAAN_AUDIO_STORAGE_KEY,
+  ADHAAN_MUTED_STORAGE_KEY,
   DEFAULT_ADHAAN_AUDIO_URL,
   isValidAdhaanAudioUrl,
 } from '@/constants/prayerNotifications';
@@ -23,6 +24,9 @@ const ASR_MAKROOH_WARNING_MINUTES = 21;
 const CHECK_INTERVAL_MS = 15 * 1000;
 const DATA_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const NON_PRAYABLE_NAMES = new Set(['Sunrise', 'Ishraq', 'Zawaal']);
+
+let adhaanAudioModeReady = false;
+let activeAdhaanPlayer: AudioPlayer | null = null;
 
 const shownReminderKeys = new Set<string>();
 let lastReminderDayKey = '';
@@ -93,36 +97,62 @@ function isWithinZawaalWindow(prayers: PrayerTimesData['prayers'], now: Date): b
   return !!(zawaal && dhuhr && now >= zawaal && now < dhuhr);
 }
 
+export async function stopActiveAdhaan(): Promise<void> {
+  const player = activeAdhaanPlayer;
+  activeAdhaanPlayer = null;
+  if (!player) return;
+
+  try {
+    player.pause();
+  } catch {
+    // Ignore pause failures and continue cleanup.
+  }
+
+  try {
+    player.remove();
+  } catch {
+    // Ignore disposal failures on unsupported devices.
+  }
+}
+
+export async function isAdhaanMutedEnabled(): Promise<boolean> {
+  if (Platform.OS === 'web') return false;
+
+  try {
+    return (await AsyncStorage.getItem(ADHAAN_MUTED_STORAGE_KEY)) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export async function setAdhaanMutedEnabled(muted: boolean): Promise<void> {
+  if (Platform.OS === 'web') return;
+
+  try {
+    await AsyncStorage.setItem(ADHAAN_MUTED_STORAGE_KEY, muted ? 'true' : 'false');
+  } catch {
+    // Keep user flow intact if storage write fails.
+  }
+
+  if (muted) {
+    await stopActiveAdhaan();
+  }
+}
+
 export function useQuranPrayerPopups(): void {
   const { showBanner } = useInAppBanner();
   const appStateRef = React.useRef<AppStateStatus>(AppState.currentState);
   const prayerDataRef = React.useRef<PrayerTimesData | null>(null);
   const lastDataLoadAtRef = React.useRef<number>(0);
   const checkingRef = React.useRef(false);
-  const adhaanAudioModeReadyRef = React.useRef(false);
-  const adhaanPlayerRef = React.useRef<AudioPlayer | null>(null);
 
   const stopCurrentAdhaan = React.useCallback(async () => {
-    const player = adhaanPlayerRef.current;
-    adhaanPlayerRef.current = null;
-    if (!player) return;
-
-    try {
-      player.pause();
-    } catch {
-      // Ignore pause failures and continue cleanup.
-    }
-
-    try {
-      player.remove();
-    } catch {
-      // Ignore disposal failures on unsupported devices.
-    }
+    await stopActiveAdhaan();
   }, []);
 
   const ensureAdhaanAudioMode = React.useCallback(async (): Promise<boolean> => {
     if (Platform.OS === 'web') return false;
-    if (adhaanAudioModeReadyRef.current) return true;
+    if (adhaanAudioModeReady) return true;
 
     try {
       await setAudioModeAsync({
@@ -132,7 +162,7 @@ export function useQuranPrayerPopups(): void {
         shouldRouteThroughEarpiece: false,
         interruptionModeAndroid: 'doNotMix',
       });
-      adhaanAudioModeReadyRef.current = true;
+      adhaanAudioModeReady = true;
       return true;
     } catch {
       return false;
@@ -154,6 +184,12 @@ export function useQuranPrayerPopups(): void {
   const playSelectedAdhaan = React.useCallback(async () => {
     if (Platform.OS === 'web') return;
 
+    const muted = await isAdhaanMutedEnabled();
+    if (muted) {
+      await stopCurrentAdhaan();
+      return;
+    }
+
     const canPlay = await ensureAdhaanAudioMode();
     if (!canPlay) return;
 
@@ -161,11 +197,11 @@ export function useQuranPrayerPopups(): void {
     await stopCurrentAdhaan();
 
     try {
-      const player = createAudioPlayer({ uri: selectedUrl }, 400);
-      adhaanPlayerRef.current = player;
+      const player = createAudioPlayer({ uri: selectedUrl }, { updateInterval: 400 });
+      activeAdhaanPlayer = player;
 
       player.addListener('playbackStatusUpdate', (status) => {
-        if (adhaanPlayerRef.current !== player) return;
+        if (activeAdhaanPlayer !== player) return;
         if (!(status as { didJustFinish?: boolean }).didJustFinish) return;
 
         try {
@@ -174,8 +210,8 @@ export function useQuranPrayerPopups(): void {
           // Ignore remove failures during natural completion.
         }
 
-        if (adhaanPlayerRef.current === player) {
-          adhaanPlayerRef.current = null;
+        if (activeAdhaanPlayer === player) {
+          activeAdhaanPlayer = null;
         }
       });
 

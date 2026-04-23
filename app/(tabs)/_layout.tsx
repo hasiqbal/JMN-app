@@ -8,7 +8,12 @@ import Constants from 'expo-constants';
 import { Colors } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useJmnLiveStatus } from '@/hooks/useJmnLiveStatus';
-import { useQuranPrayerPopups } from '@/hooks/useQuranPrayerPopups';
+import {
+  isAdhaanMutedEnabled,
+  setAdhaanMutedEnabled,
+  stopActiveAdhaan,
+  useQuranPrayerPopups,
+} from '@/hooks/useQuranPrayerPopups';
 import { getPrayerTimesForDate, PrayerTime } from '@/services/prayerService';
 import { useInAppBanner } from '@/template';
 
@@ -22,8 +27,12 @@ const LIVE_NOTIFY_KEY = 'jmn_radio_notify';
 const LIVE_NOTIFY_TS_KEY = 'jmn_last_live_notify_ts';
 const LIVE_NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
 const PRAYER_CHANNEL_ID = 'jmn-prayer';
+const PRAYER_SILENT_CHANNEL_ID = 'jmn-prayer-silent';
 const PRAYER_SCHEDULE_REFRESH_MS = 15 * 60 * 1000;
 const PRAYER_NOTIFICATION_SCOPE = 'jmn-prayer';
+const PRAYER_NOTIFICATION_CATEGORY_ID = 'jmn-prayer-controls';
+const PRAYER_ACTION_STOP = 'jmn-prayer-stop';
+const PRAYER_ACTION_MUTE = 'jmn-prayer-mute';
 const JAMAAT_REMINDER_MINUTES = 10;
 const NOTIFICATION_MIN_LEAD_MS = 30 * 1000;
 const EXPO_GO_NOTIFICATIONS_FALLBACK =
@@ -188,6 +197,7 @@ export default function TabLayout() {
     const handleResponse = (
       response:
         | {
+            actionIdentifier?: string;
             notification?: {
               request?: {
                 identifier?: string;
@@ -202,6 +212,22 @@ export default function TabLayout() {
     ) => {
       const request = response?.notification?.request;
       const requestId = request?.identifier;
+      const actionIdentifier = response?.actionIdentifier;
+
+      if (actionIdentifier === PRAYER_ACTION_STOP) {
+        void stopActiveAdhaan();
+        showBanner('Adhaan stopped', 'Current adhaan playback has been stopped.');
+        router.push('/prayer');
+        return;
+      }
+
+      if (actionIdentifier === PRAYER_ACTION_MUTE) {
+        void setAdhaanMutedEnabled(true);
+        void stopActiveAdhaan();
+        showBanner('Adhaan muted', 'Prayer adhaan sound is now muted. You can unmute from the Prayer tab.');
+        router.push('/prayer');
+        return;
+      }
 
       if (typeof requestId === 'string') {
         if (handledNotificationIdsRef.current.has(requestId)) return;
@@ -233,26 +259,49 @@ export default function TabLayout() {
       mounted = false;
       sub.remove();
     };
-  }, [routeFromNotificationData]);
+  }, [routeFromNotificationData, router, showBanner]);
 
   useEffect(() => {
-    if (Platform.OS !== 'android' || !Notifications) return;
+    if (!Notifications) return;
 
-    Notifications.setNotificationChannelAsync('jmn-live', {
-      name: 'JMN Live Alerts',
-      importance: Notifications.AndroidImportance.HIGH,
-      vibrationPattern: [0, 250, 150, 250],
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      sound: 'default',
-    }).catch(() => {});
+    if (Platform.OS === 'android') {
+      Notifications.setNotificationChannelAsync('jmn-live', {
+        name: 'JMN Live Alerts',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 150, 250],
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        sound: 'default',
+      }).catch(() => {});
 
-    Notifications.setNotificationChannelAsync(PRAYER_CHANNEL_ID, {
-      name: 'JMN Prayer Alerts',
-      importance: Notifications.AndroidImportance.HIGH,
-      vibrationPattern: [0, 200, 120, 200],
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      sound: 'default',
-    }).catch(() => {});
+      Notifications.setNotificationChannelAsync(PRAYER_CHANNEL_ID, {
+        name: 'JMN Prayer Alerts',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 200, 120, 200],
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        sound: 'default',
+      }).catch(() => {});
+
+      Notifications.setNotificationChannelAsync(PRAYER_SILENT_CHANNEL_ID, {
+        name: 'JMN Prayer Alerts (Silent)',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 80],
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        sound: null,
+      }).catch(() => {});
+    }
+
+    Notifications.setNotificationCategoryAsync(PRAYER_NOTIFICATION_CATEGORY_ID, [
+      {
+        identifier: PRAYER_ACTION_STOP,
+        buttonTitle: 'Stop adhaan',
+        options: { opensAppToForeground: true },
+      },
+      {
+        identifier: PRAYER_ACTION_MUTE,
+        buttonTitle: 'Mute adhaan',
+        options: { opensAppToForeground: true },
+      },
+    ]).catch(() => {});
   }, []);
 
   const ensurePrayerNotificationPermission = useCallback(async (): Promise<boolean> => {
@@ -317,6 +366,9 @@ export default function TabLayout() {
         }
       }
 
+      const adhaanMuted = await isAdhaanMutedEnabled();
+      const prayerChannelId = adhaanMuted ? PRAYER_SILENT_CHANNEL_ID : PRAYER_CHANNEL_ID;
+
       const seen = new Set<string>();
       const planned = plannedRaw.filter((item) => {
         const key = `${item.data.type}:${item.data.prayerName}:${item.fireAt.toISOString()}`;
@@ -328,15 +380,19 @@ export default function TabLayout() {
       await clearScheduledPrayerNotifications();
 
       for (const item of planned) {
+        const trigger = Platform.OS === 'android'
+          ? ({ type: 'date', date: item.fireAt, channelId: prayerChannelId } as unknown as import('expo-notifications').NotificationTriggerInput)
+          : (item.fireAt as unknown as import('expo-notifications').NotificationTriggerInput);
+
         await Notifications.scheduleNotificationAsync({
           content: {
             title: item.title,
             body: item.body,
-            sound: 'default',
-            channelId: PRAYER_CHANNEL_ID,
+            sound: adhaanMuted ? undefined : 'default',
+            categoryIdentifier: PRAYER_NOTIFICATION_CATEGORY_ID,
             data: item.data,
           },
-          trigger: item.fireAt,
+          trigger,
         });
       }
     } catch {
@@ -386,16 +442,19 @@ export default function TabLayout() {
       return;
     }
 
+    const liveTrigger = Platform.OS === 'android'
+      ? ({ type: 'timeInterval', seconds: 1, channelId: 'jmn-live' } as unknown as import('expo-notifications').NotificationTriggerInput)
+      : null;
+
     try {
       await Notifications.scheduleNotificationAsync({
         content: {
           title: 'JMN Radio is now live',
           body: "Tap to open Jami' Masjid Noorani live stream.",
           sound: 'default',
-          channelId: 'jmn-live',
           data: { route: '/stream', type: 'jmn-live' },
         },
-        trigger: null,
+        trigger: liveTrigger,
       });
     } catch {}
 

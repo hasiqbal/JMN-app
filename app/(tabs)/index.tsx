@@ -640,8 +640,8 @@ export function FlippingLogoCard({ nightMode, sunnah }: {
 
   const renderFace = () => {
     if (displayFace === 'sunnah') {
-      const sunnahColor = nightMode ? '#4FE948' : Colors.primary;
-      const accentBg    = nightMode ? 'rgba(79,233,72,0.12)' : 'rgba(79,233,72,0.08)';
+      const sunnahColor = nightMode ? '#4FE948' : '#B88917';
+      const accentBg    = nightMode ? 'rgba(79,233,72,0.12)' : 'rgba(184,137,23,0.10)';
       return (
         <View style={flipCard.face}>
           <View style={flipCard.faceHeader}>
@@ -657,8 +657,8 @@ export function FlippingLogoCard({ nightMode, sunnah }: {
       );
     }
     if (displayFace === 'hadith') {
-      const hadithColor = nightMode ? NIGHT.accentSoft : Colors.primary;
-      const hadithBg    = nightMode ? NIGHT.accentGlow : 'rgba(79,233,72,0.07)';
+      const hadithColor = nightMode ? NIGHT.accentSoft : '#0D7C6E';
+      const hadithBg    = nightMode ? NIGHT.accentGlow : 'rgba(13,124,110,0.09)';
       return (
         <View style={flipCard.face}>
           <View style={flipCard.faceHeader}>
@@ -675,8 +675,8 @@ export function FlippingLogoCard({ nightMode, sunnah }: {
       );
     }
     if (displayFace === 'verse') {
-      const verseCol = nightMode ? '#4FE948' : Colors.primary;
-      const verseBg  = nightMode ? 'rgba(79,233,72,0.12)' : 'rgba(79,233,72,0.08)';
+      const verseCol = nightMode ? '#4FE948' : '#3949AB';
+      const verseBg  = nightMode ? 'rgba(79,233,72,0.12)' : 'rgba(57,73,171,0.09)';
       return (
         <View style={flipCard.face}>
           <View style={flipCard.faceHeader}>
@@ -3785,7 +3785,7 @@ const heroSupportStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F3F7F5' },
+  container: { flex: 1, backgroundColor: '#F3F4F2' },
   content: { paddingBottom: Spacing.xl, backgroundColor: '#F3F7F5' },
   donationModalRoot: {
     flex: 1,

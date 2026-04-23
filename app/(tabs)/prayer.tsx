@@ -12,6 +12,11 @@ import {
   DEFAULT_ADHAAN_AUDIO_URL,
   isValidAdhaanAudioUrl,
 } from '@/constants/prayerNotifications';
+import {
+  isAdhaanMutedEnabled,
+  setAdhaanMutedEnabled,
+  stopActiveAdhaan,
+} from '@/hooks/useQuranPrayerPopups';
 import { usePrayerTimes } from '@/hooks/usePrayerTimes';
 import { useNightMode } from '@/hooks/useNightMode';
 import MonthlyCalendarSection from '@/components/prayer/MonthlyCalendarSection';
@@ -92,6 +97,7 @@ export default function PrayerScreen() {
   const { data } = usePrayerTimes();
   const [lastUpdated, setLastUpdated] = useState(() => new Date());
   const [selectedAdhaanUrl, setSelectedAdhaanUrl] = useState(DEFAULT_ADHAAN_AUDIO_URL);
+  const [adhaanMuted, setAdhaanMuted] = useState(false);
   const [adhaanChooserVisible, setAdhaanChooserVisible] = useState(false);
   const [previewingUrl, setPreviewingUrl] = useState<string | null>(null);
   const previewPlayerRef = React.useRef<AudioPlayer | null>(null);
@@ -109,6 +115,21 @@ export default function PrayerScreen() {
         if (cancelled) return;
         if (!isValidAdhaanAudioUrl(saved)) return;
         setSelectedAdhaanUrl(saved);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    isAdhaanMutedEnabled()
+      .then((muted) => {
+        if (cancelled) return;
+        setAdhaanMuted(muted);
       })
       .catch(() => {});
 
@@ -174,7 +195,7 @@ export default function PrayerScreen() {
     await stopPreview();
 
     try {
-      const player = createAudioPlayer({ uri: url }, 400);
+      const player = createAudioPlayer({ uri: url }, { updateInterval: 400 });
       previewPlayerRef.current = player;
       setPreviewingUrl(url);
 
@@ -210,6 +231,19 @@ export default function PrayerScreen() {
     setAdhaanChooserVisible(false);
     void stopPreview();
   }, [stopPreview]);
+
+  const toggleAdhaanMuted = React.useCallback(() => {
+    const nextMuted = !adhaanMuted;
+    setAdhaanMuted(nextMuted);
+
+    setAdhaanMutedEnabled(nextMuted).catch(() => {
+      setAdhaanMuted((current) => !current);
+    });
+  }, [adhaanMuted]);
+
+  const stopAdhaanNow = React.useCallback(() => {
+    void stopActiveAdhaan();
+  }, []);
 
   const selectedAdhaan =
     ADHAAN_AUDIO_OPTIONS.find((item) => item.url === selectedAdhaanUrl) ?? ADHAAN_AUDIO_OPTIONS[0];
@@ -262,6 +296,48 @@ export default function PrayerScreen() {
             <MaterialIcons name="chevron-right" size={18} color={N ? N.textSub : Colors.textSubtle} />
           </View>
         </TouchableOpacity>
+
+        <View style={[styles.adhaanControlRow, N && { borderColor: N.border, backgroundColor: N.surfaceAlt }]}>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={toggleAdhaanMuted}
+            style={[
+              styles.adhaanMuteBtn,
+              N && { borderColor: N.border, backgroundColor: N.surface },
+              adhaanMuted && (N
+                ? { backgroundColor: '#4D2A2A', borderColor: '#7F4A4A' }
+                : { backgroundColor: '#FDECEC', borderColor: '#E4A1A1' }),
+            ]}
+          >
+            <MaterialIcons
+              name={adhaanMuted ? 'volume-off' : 'volume-up'}
+              size={16}
+              color={adhaanMuted ? '#D43737' : (N ? '#D7E8FF' : '#1E5BA8')}
+            />
+            <Text
+              style={[
+                styles.adhaanMuteBtnText,
+                { color: adhaanMuted ? '#D43737' : (N ? '#D7E8FF' : '#1E5BA8') },
+              ]}
+            >
+              {adhaanMuted ? 'Adhaan muted' : 'Adhaan sound on'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={stopAdhaanNow}
+            style={[styles.adhaanStopBtn, N && { borderColor: N.border, backgroundColor: N.surface }]}
+          >
+            <MaterialIcons name="stop" size={14} color={N ? '#F2D2D2' : '#B23838'} />
+            <Text style={[styles.adhaanStopBtnText, N && { color: '#F2D2D2' }]}>Stop now</Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={[styles.adhaanControlHint, N && { color: N.textMuted }]}>
+          {adhaanMuted
+            ? 'Adhaan notification sound is muted until you turn it back on.'
+            : 'Tap Stop now any time to silence an active adhaan immediately.'}
+        </Text>
       </View>
 
       <Modal
@@ -489,6 +565,55 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: Colors.textSubtle,
+  },
+  adhaanControlRow: {
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: '#B8CEE8',
+    backgroundColor: '#F5F9FF',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  adhaanMuteBtn: {
+    flex: 1,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: '#9EC0E7',
+    backgroundColor: '#EDF5FF',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  adhaanMuteBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  adhaanStopBtn: {
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: '#E7B1B1',
+    backgroundColor: '#FFF5F5',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  adhaanStopBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#B23838',
+  },
+  adhaanControlHint: {
+    fontSize: 11,
+    color: Colors.textSubtle,
+    marginTop: -2,
   },
   adhaanModalOverlay: {
     flex: 1,
