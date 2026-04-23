@@ -2298,14 +2298,13 @@ export default function HomeScreen() {
   const isFriday = currentTime.getDay() === 5;
   const isThursday = currentTime.getDay() === 4;
 
-  const fallbackHadithTitle = 'Sunnah Reminder';
-  const fallbackHadithPreview = 'Adhkar coming soon.';
-  const fallbackHadithSource = 'Reference pending';
-  const fallbackHadithFullText = 'Adhkar coming soon.';
+  const fallbackHadithPreview = '';
+  const fallbackHadithSource = '';
+  const fallbackHadithFullText = 'Open full Hadith to read the reminder.';
 
-  const fallbackVersePreview = 'Adhkar coming soon.';
+  const fallbackVersePreview = '';
   const fallbackVerseReference = '';
-  const fallbackVerseFullText = 'Adhkar coming soon.';
+  const fallbackVerseFullText = 'Open full Verse to read the reminder.';
 
   const hadithTitle = 'Daily Sunnah Reminder';
   const hadithTitleUrdu = 'روزانہ سنت یاددہانی';
@@ -2322,6 +2321,8 @@ export default function HomeScreen() {
   const verseReference = fallbackVerseReference;
   const verseArabic = '';
   const verseFullText = fallbackVerseFullText;
+  const expandHintEn = 'Tap to open';
+  const expandHintUr = 'کھولنے کے لیے ٹیپ کریں';
 
   const expandedSacredContent = {
     hadithFullText,
@@ -2912,8 +2913,10 @@ export default function HomeScreen() {
               versePreviewUrdu={versePreviewUrdu}
               verseReference={verseReference}
               onPressVerse={() => setActiveSacredPanel('verse')}
-              hadithExpandHint="Tap to open"
-              verseExpandHint="Tap to open"
+              hadithExpandHint={expandHintEn}
+              hadithExpandHintUrdu={expandHintUr}
+              verseExpandHint={expandHintEn}
+              verseExpandHintUrdu={expandHintUr}
               isLoading={false}
               nightMode={nightMode}
             />

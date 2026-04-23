@@ -26,7 +26,9 @@ export type SacredContentModuleProps = {
   verseReference: string;
   onPressVerse: () => void;
   hadithExpandHint?: string;
+  hadithExpandHintUrdu?: string;
   verseExpandHint?: string;
+  verseExpandHintUrdu?: string;
   autoFlipMs?: number;
   isLoading?: boolean;
   nightMode?: boolean;
@@ -140,28 +142,79 @@ export function SacredContentModule({
   verseReference,
   onPressVerse,
   hadithExpandHint = 'Read more',
+  hadithExpandHintUrdu,
   verseExpandHint = 'Read more',
+  verseExpandHintUrdu,
+  autoFlipMs = 3200,
   isLoading,
   nightMode,
 }: SacredContentModuleProps) {
   const palette = getPalette(nightMode);
 
+  const hadithLabelSafe = hadithLabel.trim();
+  const hadithLabelUrduSafe = (hadithLabelUrdu ?? '').trim();
+  const hadithPreviewSafe = hadithPreview.trim();
+  const hadithPreviewUrduSafe = (hadithPreviewUrdu ?? '').trim();
+  const hadithSourceSafe = hadithSource.trim();
+  const hadithExpandHintSafe = hadithExpandHint.trim();
+  const hadithExpandHintUrduSafe = (hadithExpandHintUrdu ?? '').trim();
+
+  const verseLabelSafe = verseLabel.trim();
+  const verseLabelUrduSafe = (verseLabelUrdu ?? '').trim();
+  const versePreviewSafe = versePreview.trim();
+  const versePreviewUrduSafe = (versePreviewUrdu ?? '').trim();
+  const verseReferenceSafe = verseReference.trim();
+  const verseExpandHintSafe = verseExpandHint.trim();
+  const verseExpandHintUrduSafe = (verseExpandHintUrdu ?? '').trim();
+
+  const shouldAutoFlipLanguage = !!(
+    (hadithLabelSafe && hadithLabelUrduSafe)
+    || (verseLabelSafe && verseLabelUrduSafe)
+    || (hadithExpandHintSafe && hadithExpandHintUrduSafe)
+    || (verseExpandHintSafe && verseExpandHintUrduSafe)
+  );
+
+  const [showUrduCopy, setShowUrduCopy] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!shouldAutoFlipLanguage || autoFlipMs <= 0) {
+      setShowUrduCopy(false);
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      setShowUrduCopy((prev) => !prev);
+    }, autoFlipMs);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [autoFlipMs, shouldAutoFlipLanguage]);
+
   if (isLoading) {
     return <LoadingSkeleton nightMode={nightMode} />;
   }
 
-  const hadithPreviewSafe = hadithPreview.trim();
-  const hadithPreviewUrduSafe = (hadithPreviewUrdu ?? '').trim();
-  const hadithSourceSafe = hadithSource.trim();
-  const versePreviewSafe = versePreview.trim();
-  const versePreviewUrduSafe = (versePreviewUrdu ?? '').trim();
-  const verseReferenceSafe = verseReference.trim();
+  const hadithDisplayLabel = showUrduCopy && hadithLabelUrduSafe
+    ? hadithLabelUrduSafe
+    : (hadithLabelSafe || hadithLabelUrduSafe);
+  const verseDisplayLabel = showUrduCopy && verseLabelUrduSafe
+    ? verseLabelUrduSafe
+    : (verseLabelSafe || verseLabelUrduSafe);
+  const hadithDisplayHint = showUrduCopy && hadithExpandHintUrduSafe
+    ? hadithExpandHintUrduSafe
+    : (hadithExpandHintSafe || hadithExpandHintUrduSafe);
+  const verseDisplayHint = showUrduCopy && verseExpandHintUrduSafe
+    ? verseExpandHintUrduSafe
+    : (verseExpandHintSafe || verseExpandHintUrduSafe);
 
-  const hasHadith = hadithLabel.trim().length > 0
+  const hasHadith = hadithLabelSafe.length > 0
+    || hadithLabelUrduSafe.length > 0
     || hadithPreviewSafe.length > 0
     || hadithPreviewUrduSafe.length > 0
     || hadithSourceSafe.length > 0;
-  const hasVerse = verseLabel.trim().length > 0
+  const hasVerse = verseLabelSafe.length > 0
+    || verseLabelUrduSafe.length > 0
     || versePreviewSafe.length > 0
     || versePreviewUrduSafe.length > 0
     || verseReferenceSafe.length > 0;
@@ -198,11 +251,17 @@ export function SacredContentModule({
               >
                 <View style={styles.tileTitleRow}>
                   <MaterialIcons name="auto-stories" size={16} color={palette.heading} />
-                  <Text style={[styles.tileTitle, { color: palette.text }]} numberOfLines={2}>{hadithLabel}</Text>
+                  <Text
+                    style={[
+                      styles.tileTitle,
+                      { color: palette.text },
+                      hasUrduGlyphs(hadithDisplayLabel) && styles.tileTitleUrdu,
+                    ]}
+                    numberOfLines={2}
+                  >
+                    {hadithDisplayLabel}
+                  </Text>
                 </View>
-                {!!hadithLabelUrdu && (
-                  <Text style={[styles.tileTitleUrdu, { color: palette.sheetSubText }]} numberOfLines={2}>{hadithLabelUrdu}</Text>
-                )}
                 {!!hadithPreviewSafe && (
                   <Text style={[styles.tileHint, { color: palette.reference }]} numberOfLines={2}>{hadithPreviewSafe}</Text>
                 )}
@@ -212,7 +271,17 @@ export function SacredContentModule({
                 {!!hadithSourceSafe && (
                   <Text style={[styles.tileSource, { color: palette.reference }]} numberOfLines={1}>{hadithSourceSafe}</Text>
                 )}
-                <Text style={[styles.tileAction, { color: palette.cta }]}>{hadithExpandHint}</Text>
+                {!!hadithDisplayHint && (
+                  <Text
+                    style={[
+                      styles.tileAction,
+                      { color: palette.cta },
+                      hasUrduGlyphs(hadithDisplayHint) && styles.tileActionUrdu,
+                    ]}
+                  >
+                    {hadithDisplayHint}
+                  </Text>
+                )}
               </Pressable>
             ) : null}
 
@@ -228,11 +297,17 @@ export function SacredContentModule({
               >
                 <View style={styles.tileTitleRow}>
                   <MaterialIcons name="menu-book" size={16} color={palette.heading} />
-                  <Text style={[styles.tileTitle, { color: palette.text }]} numberOfLines={2}>{verseLabel}</Text>
+                  <Text
+                    style={[
+                      styles.tileTitle,
+                      { color: palette.text },
+                      hasUrduGlyphs(verseDisplayLabel) && styles.tileTitleUrdu,
+                    ]}
+                    numberOfLines={2}
+                  >
+                    {verseDisplayLabel}
+                  </Text>
                 </View>
-                {!!verseLabelUrdu && (
-                  <Text style={[styles.tileTitleUrdu, { color: palette.sheetSubText }]} numberOfLines={2}>{verseLabelUrdu}</Text>
-                )}
                 {!!versePreviewSafe && (
                   <Text style={[styles.tileHint, { color: palette.reference }]} numberOfLines={2}>{versePreviewSafe}</Text>
                 )}
@@ -242,7 +317,17 @@ export function SacredContentModule({
                 {!!verseReferenceSafe && (
                   <Text style={[styles.tileSource, { color: palette.reference }]} numberOfLines={1}>{verseReferenceSafe}</Text>
                 )}
-                <Text style={[styles.tileAction, { color: palette.cta }]}>{verseExpandHint}</Text>
+                {!!verseDisplayHint && (
+                  <Text
+                    style={[
+                      styles.tileAction,
+                      { color: palette.cta },
+                      hasUrduGlyphs(verseDisplayHint) && styles.tileActionUrdu,
+                    ]}
+                  >
+                    {verseDisplayHint}
+                  </Text>
+                )}
               </Pressable>
             ) : null}
           </View>
@@ -418,8 +503,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: Radius.md,
     paddingHorizontal: 10,
-    paddingTop: 7,
-    paddingBottom: 7,
+    paddingTop: 9,
+    paddingBottom: 9,
+    minHeight: 112,
     justifyContent: 'flex-start',
   },
   tilePressed: {
@@ -466,11 +552,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   tileAction: {
-    marginTop: 5,
+    marginTop: 'auto',
+    paddingTop: 10,
     fontSize: 12,
     lineHeight: 16,
     fontWeight: '600',
     letterSpacing: 0.2,
+  },
+  tileActionUrdu: {
+    marginTop: 'auto',
+    paddingTop: 8,
+    fontSize: 12,
+    lineHeight: 17,
+    fontFamily: 'UrduNastaliqBold',
+    writingDirection: 'rtl',
+    textAlign: 'right',
+    letterSpacing: 0,
   },
   emptyState: {
     alignItems: 'center',
