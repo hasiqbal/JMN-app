@@ -3063,9 +3063,9 @@ export default function HomeScreen() {
 
             {donationConfirmation ? (
               <View style={styles.donationConfirmationCard}>
-                <Text style={styles.donationConfirmationTitle}>Donation confirmed</Text>
+                <Text style={styles.donationConfirmationTitle}>Donation Confirmation</Text>
                 <Text style={styles.donationConfirmationBody}>
-                  JazakAllahu Khayran. Your {donationConfirmation.optionTitle} donation was completed successfully.
+                  Thank you for your donation. JazakAllahu Khayran. Your {donationConfirmation.optionTitle} donation has been confirmed successfully.
                 </Text>
                 <Text style={styles.donationConfirmationMeta}>
                   Time: {new Date(donationConfirmation.atIso).toLocaleString('en-GB')}
@@ -3214,7 +3214,7 @@ export default function HomeScreen() {
                 });
                 setDonationCheckoutUrl(null);
                 setShowDonationOptions(true);
-                setDonationStatusMessage('Donation completed successfully.');
+                setDonationStatusMessage('Thank you for your donation. Payment confirmed successfully.');
                 setSelectedDonationOption(null);
                 return false;
               }
