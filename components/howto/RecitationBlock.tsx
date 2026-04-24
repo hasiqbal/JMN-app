@@ -7,6 +7,7 @@ import type { RecitationBlockData } from '@/howtoguides/types';
 
 interface RecitationBlockProps extends Omit<RecitationBlockData, 'kind'> {
   nightMode: boolean;
+  autoTransliteration?: boolean;
 }
 
 /**
@@ -29,6 +30,7 @@ export function RecitationBlock({
   repeat,
   source,
   nightMode,
+  autoTransliteration = true,
 }: RecitationBlockProps) {
   const P = pickPalette(nightMode);
 
@@ -36,12 +38,14 @@ export function RecitationBlock({
   const effectiveTranslit =
     transliteration && transliteration.length > 0
       ? transliteration
-      : arabic
+      : autoTransliteration
+        ? arabic
           .map((line) => {
             const auto = transliterationFromText(line);
             return shouldRenderAutoTransliteration(line, auto) ? (auto ?? '') : '';
           })
-          .filter(Boolean);
+          .filter(Boolean)
+        : [];
 
   const resolvedLabel = label ?? 'Recitation';
 

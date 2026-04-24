@@ -296,8 +296,8 @@ export function getPrayerTimesFromTimetable(date?: Date): PrayerTimesData | null
 
 // ── Next prayer helper ────────────────────────────────────────────────────
 
-export function getNextPrayer(prayers: PrayerTime[]): { prayer: PrayerTime; secondsLeft: number } | null {
-  const now = new Date();
+export function getNextPrayer(prayers: PrayerTime[], referenceTime?: Date): { prayer: PrayerTime; secondsLeft: number } | null {
+  const now = referenceTime ? new Date(referenceTime) : new Date();
   const isFriday = now.getDay() === 5;
 
   if (isFriday) {

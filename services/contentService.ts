@@ -1368,8 +1368,8 @@ function mapAnnouncementRow(raw: Record<string, unknown>): AnnouncementRow {
     urdu_lead_names: urduLeadNames,
     start_time:
       asTrimmedString(raw.start_time)
-      ?? asTrimmedString(raw.time)
       ?? asTrimmedString(raw.event_time)
+      ?? asTrimmedString(raw.time)
       ?? null,
     image_url: asTrimmedString(raw.image_url),
     link_url: asTrimmedString(raw.link_url),

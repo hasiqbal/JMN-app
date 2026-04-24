@@ -19,6 +19,7 @@ interface GuideStepCardProps {
   accentColor: string;
   isLast: boolean;
   nightMode: boolean;
+  contentLanguage?: 'en' | 'ur';
   /** Optional extra content (e.g. step image list) rendered below the blocks. */
   children?: React.ReactNode;
 }
@@ -42,6 +43,7 @@ export function GuideStepCard({
   accentColor,
   isLast,
   nightMode,
+  contentLanguage = 'en',
   children,
 }: GuideStepCardProps) {
   const P = pickPalette(nightMode);
@@ -94,7 +96,12 @@ export function GuideStepCard({
             },
           ]}
         >
-          <GuideBlockList blocks={blocks} detail={detail} nightMode={nightMode} />
+          <GuideBlockList
+            blocks={blocks}
+            detail={detail}
+            nightMode={nightMode}
+            contentLanguage={contentLanguage}
+          />
         </View>
         {note ? (
           <View

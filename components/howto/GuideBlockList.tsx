@@ -13,15 +13,17 @@ interface GuideBlockListProps {
   /** Raw detail string. Parsed into blocks automatically when `blocks` isn't provided. */
   detail?: string;
   nightMode: boolean;
+  contentLanguage?: 'en' | 'ur';
 }
 
 /**
  * Render an array of GuideBlock (or a raw detail string) through the shared component set.
  * This is the single entry point every guide step should use for its content.
  */
-export function GuideBlockList({ blocks, detail, nightMode }: GuideBlockListProps) {
+export function GuideBlockList({ blocks, detail, nightMode, contentLanguage = 'en' }: GuideBlockListProps) {
   const resolved = blocks ?? (detail ? parseDetailToBlocks(detail) : []);
   if (resolved.length === 0) return null;
+  const autoTransliteration = contentLanguage !== 'ur';
 
   return (
     <View style={styles.stack}>
@@ -39,6 +41,7 @@ export function GuideBlockList({ blocks, detail, nightMode }: GuideBlockListProp
                 repeat={block.repeat}
                 source={block.source}
                 nightMode={nightMode}
+                autoTransliteration={autoTransliteration}
               />
             );
           case 'note':
@@ -66,6 +69,7 @@ export function GuideBlockList({ blocks, detail, nightMode }: GuideBlockListProp
                 key={`text-${idx}`}
                 text={block.text}
                 nightMode={nightMode}
+                autoTransliteration={autoTransliteration}
               />
             );
         }

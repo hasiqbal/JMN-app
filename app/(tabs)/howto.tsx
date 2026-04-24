@@ -485,6 +485,7 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
                             accentColor={guide.color}
                             isLast={isLastStep}
                             nightMode={nightMode}
+                            contentLanguage={selectedLanguageCode}
                           >
                             {step.images && step.images.length > 0 ? (
                               <View style={howToStyles.stepMediaList}>

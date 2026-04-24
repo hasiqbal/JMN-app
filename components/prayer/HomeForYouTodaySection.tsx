@@ -15,7 +15,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { Colors, Radius, Spacing } from '@/constants/theme';
-import { getJuzEndPage, getJuzStartPage, getMushafTotalPages } from '@/constants/mushafJuzPages';
+import { getJuzEndPage, getJuzStartPage, getMushafTotalPages, getQuarterStartsInJuz } from '@/constants/mushafJuzPages';
 import { formatCountdownSeconds } from '@/services/prayerService';
 import { useAlert } from '@/template';
 
@@ -398,10 +398,8 @@ function QuranPortionCard({
       safeStartPage,
       clampMushafPage(targetEndPage ?? targetPage, mushafLayout)
     );
-    // quran-reader currently expects an index-aligned page input and displays +1,
-    // so pass one page lower than the human-readable page number.
-    const readerStartPage = Math.max(1, safeStartPage - 1);
-    const readerEndPage = Math.max(readerStartPage, Math.max(1, safeEndPage - 1));
+    const readerStartPage = safeStartPage;
+    const readerEndPage = safeEndPage;
     const chapterId = chapterForLayoutPage(safeStartPage, mushafLayout);
     AsyncStorage.setItem(PENDING_OPEN_KEY, `${chapterId}|${safeStartPage}`).catch(() => {});
     AsyncStorage.setItem(QURAN_MUSHAF_LAYOUT_KEY, mushafLayout).catch(() => {});
@@ -693,13 +691,16 @@ function QuranPortionCard({
       const isFirstHalf = (halfJuzState?.half ?? 'first') === 'first';
       const startPg = getJuzStartPage(mushafLayout, juzNum);
       const endPg = getJuzEndPage(mushafLayout, juzNum);
-      const midPage = Math.round((startPg + endPg) / 2);
-      const page = isFirstHalf ? startPg : midPage;
+      const quarterStarts = getQuarterStartsInJuz(mushafLayout, juzNum);
+      const thirdQuarterStart = quarterStarts.find((item) => item.quarter === 3)?.page
+        ?? Math.round((startPg + endPg) / 2);
+      const firstHalfEndPage = Math.max(startPg, thirdQuarterStart - 1);
+      const page = isFirstHalf ? startPg : thirdQuarterStart;
 
       return {
         page,
         chapter: chapterForLayoutPage(page, mushafLayout),
-        endPage: isFirstHalf ? midPage : endPg,
+        endPage: isFirstHalf ? firstHalfEndPage : endPg,
       };
     }
 

@@ -224,7 +224,6 @@ export function SacredContentModule({
       <View style={styles.moduleHeaderRow}>
         <View style={[styles.moduleHeaderBar, { backgroundColor: palette.heading }]} />
         <Text style={[styles.moduleHeaderText, { color: palette.reference }]}>Your Reminder</Text>
-        <Text style={[styles.moduleHeaderUrdu, { color: palette.reference }]}>آپ کی یاددہانی</Text>
       </View>
 
       <View
@@ -466,14 +465,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.4,
-  },
-  moduleHeaderUrdu: {
-    marginLeft: 'auto',
-    fontSize: 14,
-    lineHeight: 18,
-    fontFamily: 'UrduNastaliqBold',
-    writingDirection: 'rtl',
-    textAlign: 'right',
   },
   shell: {
     borderRadius: Radius.lg,

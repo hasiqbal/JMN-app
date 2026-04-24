@@ -50,7 +50,8 @@ export function usePrayerTimes() {
   useEffect(() => {
     if (!data) return;
     const tick = () => {
-      const next = getNextPrayer(data.prayers);
+      const now = new Date();
+      const next = getNextPrayer(data.prayers, now);
       if (next) {
         setNextPrayerName(next.prayer.name);
         setCountdown(formatCountdownSeconds(next.secondsLeft));

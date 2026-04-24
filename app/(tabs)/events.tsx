@@ -10,10 +10,13 @@ import {
   Modal,
   Pressable,
   Linking,
+  useWindowDimensions,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import RenderHtml from 'react-native-render-html';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import {
   MOCK_EVENTS,
@@ -29,6 +32,8 @@ import {
 import { useNightMode } from '@/hooks/useNightMode';
 
 type LanguageMode = 'en' | 'ur';
+
+const EVENTS_LANGUAGE_STORAGE_KEY = '@events_language_mode_v1';
 
 const LANGUAGE_LABELS: Record<LanguageMode, string> = {
   en: 'English',
@@ -94,12 +99,49 @@ function stripHtml(input: string): string {
   return input.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+function escapeHtml(input: string): string {
+  return input
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function splitGuestNames(value: string | null | undefined): string[] {
   if (!value) return [];
   return value
     .split(',')
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
+}
+
+function splitAnnouncementTimeEntries(value: string | null | undefined): string[] {
+  if (!value) return [];
+  return value
+    .split(/\s*\|\s*|\n+/)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
+function formatSimpleTimeForDisplay(value: string): string {
+  const plain = value.match(/^(\d{1,2}):(\d{2})$/);
+  if (plain) {
+    const hour24 = Number(plain[1]);
+    const minute = plain[2];
+    const suffix = hour24 >= 12 ? 'PM' : 'AM';
+    const hour12 = hour24 % 12 || 12;
+    return `${hour12}:${minute} ${suffix}`;
+  }
+
+  const range = value.match(/^(.*?)\s*[-\u2013]\s*(.*?)$/);
+  if (range) {
+    const start = formatSimpleTimeForDisplay(range[1].trim());
+    const end = formatSimpleTimeForDisplay(range[2].trim());
+    return `${start} - ${end}`;
+  }
+
+  return value;
 }
 
 function getAnnouncementType(announcement: AnnouncementRow): string {
@@ -130,6 +172,16 @@ function getAnnouncementPlain(announcement: AnnouncementRow, languageMode: Langu
   return containsHtml(englishBody) ? stripHtml(englishBody) : englishBody;
 }
 
+function getAnnouncementBodyHtml(announcement: AnnouncementRow, languageMode: LanguageMode): string | null {
+  const source = languageMode === 'ur'
+    ? asTrimmed(announcement.urdu_body)
+    : asTrimmed(announcement.body_html ?? announcement.body);
+
+  if (!source) return null;
+  if (containsHtml(source)) return source;
+  return `<p>${escapeHtml(source).replace(/\n/g, '<br />')}</p>`;
+}
+
 function formatAnnouncementDate(announcement: AnnouncementRow): string {
   const published = Date.parse(announcement.published_at || '');
   if (!Number.isFinite(published)) return 'Unknown date';
@@ -158,8 +210,15 @@ export default function EventsScreen() {
   const [annNotice, setAnnNotice] = useState<string | null>(null);
   const [annError, setAnnError] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState('All');
-  const [languageMode, setLanguageMode] = useState<LanguageMode>('en');
+  const [languageMode, setLanguageModeState] = useState<LanguageMode>('en');
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<AnnouncementRow | null>(null);
+
+  const setLanguageMode = useCallback((mode: LanguageMode) => {
+    setLanguageModeState(mode);
+    AsyncStorage.setItem(EVENTS_LANGUAGE_STORAGE_KEY, mode).catch(() => {
+      // Persist failure should not block UX.
+    });
+  }, []);
 
   const lastFetchedRef = useRef(0);
 
@@ -212,6 +271,24 @@ export default function EventsScreen() {
   }, [loadAnnouncements]);
 
   useEffect(() => {
+    let mounted = true;
+    AsyncStorage.getItem(EVENTS_LANGUAGE_STORAGE_KEY)
+      .then((stored) => {
+        if (!mounted) return;
+        if (stored === 'en' || stored === 'ur') {
+          setLanguageModeState(stored);
+        }
+      })
+      .catch(() => {
+        // Ignore read failures and keep default.
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
     const interval = setInterval(() => {
       loadAnnouncements();
     }, 10_000);
@@ -261,22 +338,15 @@ export default function EventsScreen() {
             style={styles.headerLogo}
             contentFit="contain"
           />
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.headerMasjidName, N && { color: '#4FE948' }]}>Jami&apos; Masjid Noorani</Text>
+          <View style={styles.headerTitleWrap}>
+            <Text style={[styles.headerMasjidName, N && { color: '#4FE948' }]}>Events & Announcements</Text>
+            {announcements.length > 0 ? (
+              <View style={[styles.tabBadge, N && { backgroundColor: N.accent }]}> 
+                <Text style={styles.tabBadgeText}>{announcements.length}</Text>
+              </View>
+            ) : null}
           </View>
         </View>
-      </View>
-
-      <View style={[styles.tabRow, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}> 
-        <View style={styles.unifiedTabWrap}>
-          <Text style={[styles.unifiedTabTitle, N && { color: N.accent }]}>Events & Announcements</Text>
-          {announcements.length > 0 ? (
-            <View style={[styles.tabBadge, N && { backgroundColor: N.accent }]}> 
-              <Text style={styles.tabBadgeText}>{announcements.length}</Text>
-            </View>
-          ) : null}
-        </View>
-
         <View style={styles.tabMetaWrap}>
           <Text style={[styles.tabMetaText, N && { color: N.textMuted }]}> 
             Updated {lastFetched ? new Date(lastFetched).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '--:--'}
@@ -313,6 +383,7 @@ export default function EventsScreen() {
                     onPress={() => setLanguageMode(mode)}
                     style={[
                       styles.languageBtn,
+                      mode === 'ur' && styles.languageBtnUrdu,
                       active && [styles.languageBtnActive, N && { backgroundColor: N.accent + '22', borderColor: N.accent }],
                     ]}
                     activeOpacity={0.85}
@@ -320,6 +391,7 @@ export default function EventsScreen() {
                     <Text
                       style={[
                         styles.languageBtnText,
+                        mode === 'ur' && styles.languageBtnTextUrdu,
                         N && { color: N.textSub },
                         active && [styles.languageBtnTextActive, N && { color: N.accent }],
                       ]}
@@ -525,6 +597,12 @@ function LiveAnnouncementCard({
     : announcement.lead_names;
   const guests = splitGuestNames(guestSource);
   const guestsDisplay = guests.join(', ');
+  const timeEntries = splitAnnouncementTimeEntries(announcement.start_time).map(formatSimpleTimeForDisplay);
+  const timeSummary = timeEntries.length === 0
+    ? null
+    : timeEntries.length === 1
+      ? timeEntries[0]
+      : `${timeEntries[0]} +${timeEntries.length - 1} more`;
 
   return (
     <TouchableOpacity
@@ -600,10 +678,10 @@ function LiveAnnouncementCard({
                 <Text style={[styles.annDate, N && { color: N.primary }]}>{publishedDate}</Text>
               </View>
 
-              {announcement.start_time ? (
+              {timeSummary ? (
                 <View style={styles.annFooterMeta}>
                   <MaterialIcons name="access-time" size={15} color={N ? N.primary : Colors.primary} />
-                  <Text style={[styles.annTime, N && { color: N.primary }]}>{announcement.start_time}</Text>
+                  <Text style={[styles.annTime, N && { color: N.primary }]}>{timeSummary}</Text>
                 </View>
               ) : null}
 
@@ -634,6 +712,7 @@ function AnnouncementDetailModal({
   onOpenLink: (url: string | null | undefined) => void;
 }) {
   const N = nightMode ? NIGHT : null;
+  const { width } = useWindowDimensions();
   const [bodyExpanded, setBodyExpanded] = useState(false);
   const MODAL_PREVIEW_LINES = 4;
 
@@ -647,12 +726,14 @@ function AnnouncementDetailModal({
 
   const title = getAnnouncementTitle(announcement, languageMode);
   const bodyPlain = getAnnouncementPlain(announcement, languageMode);
-  const shouldShowBodyToggle = bodyPlain.length > 280;
+  const bodyHtml = getAnnouncementBodyHtml(announcement, languageMode);
+  const shouldShowBodyToggle = !bodyHtml && bodyPlain.length > 280;
   const typeLabel = getAnnouncementType(announcement);
   const dateLabel = formatAnnouncementDate(announcement);
 
   const primaryGuests = splitGuestNames(announcement.lead_names);
   const urduGuests = splitGuestNames(announcement.urdu_lead_names);
+  const timeEntries = splitAnnouncementTimeEntries(announcement.start_time).map(formatSimpleTimeForDisplay);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -669,32 +750,44 @@ function AnnouncementDetailModal({
             </TouchableOpacity>
           </View>
 
-          <View style={styles.modalLanguageRow}>
-            {(['en', 'ur'] as LanguageMode[]).map((mode) => {
-              const active = mode === languageMode;
-              return (
-                <TouchableOpacity
-                  key={mode}
-                  onPress={() => onChangeLanguage(mode)}
-                  style={[
-                    styles.modalLanguageBtn,
-                    N && { borderColor: N.border, backgroundColor: N.surfaceAlt },
-                    active && [styles.modalLanguageBtnActive, N && { borderColor: N.accent, backgroundColor: N.accent + '22' }],
-                  ]}
-                  activeOpacity={0.85}
-                >
-                  <Text
+          <View style={[styles.modalControlsStrip, N && { borderColor: N.border, backgroundColor: N.surfaceAlt }]}>
+            <View style={[styles.modalLanguageRow, N && { borderColor: N.border, backgroundColor: N.surface }]}> 
+              {(['en', 'ur'] as LanguageMode[]).map((mode) => {
+                const active = mode === languageMode;
+                return (
+                  <TouchableOpacity
+                    key={mode}
+                    onPress={() => onChangeLanguage(mode)}
                     style={[
-                      styles.modalLanguageBtnText,
-                      N && { color: N.textSub },
-                      active && [styles.modalLanguageBtnTextActive, N && { color: N.accent }],
+                      styles.modalLanguageBtn,
+                      mode === 'ur' && styles.languageBtnUrdu,
+                      active && [styles.modalLanguageBtnActive, N && { borderColor: N.accent, backgroundColor: N.accent + '22' }],
                     ]}
+                    activeOpacity={0.85}
                   >
-                    {LANGUAGE_LABELS[mode]}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+                    <Text
+                      style={[
+                        styles.modalLanguageBtnText,
+                        mode === 'ur' && styles.languageBtnTextUrdu,
+                        N && { color: N.textSub },
+                        active && [styles.modalLanguageBtnTextActive, N && { color: N.accent }],
+                      ]}
+                    >
+                      {LANGUAGE_LABELS[mode]}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={styles.modalBadgeRowCompact}>
+              <View style={[styles.modalBadge, N && { backgroundColor: N.surface, borderColor: N.border }]}> 
+                <Text style={[styles.modalBadgeText, N && { color: N.textSub }]}>{typeLabel}</Text>
+              </View>
+              <View style={[styles.modalBadge, N && { backgroundColor: N.surface, borderColor: N.border }]}> 
+                <Text style={[styles.modalBadgeText, N && { color: N.textSub }]}>{announcement.tag ? 'Event' : 'Announcement'}</Text>
+              </View>
+            </View>
           </View>
 
           <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalScrollContent}>
@@ -707,22 +800,37 @@ function AnnouncementDetailModal({
               />
             ) : null}
 
-            <View style={styles.modalBadgeRow}>
-              <View style={[styles.modalBadge, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}> 
-                <Text style={[styles.modalBadgeText, N && { color: N.textSub }]}>{typeLabel}</Text>
-              </View>
-              <View style={[styles.modalBadge, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}> 
-                <Text style={[styles.modalBadgeText, N && { color: N.textSub }]}>{announcement.tag ? 'Event' : 'Announcement'}</Text>
-              </View>
-            </View>
-
             <View style={[styles.modalBodyWrap, N && { borderColor: N.border, backgroundColor: N.surfaceAlt }]}> 
-              <Text
-                style={[styles.modalBodyText, N && { color: N.textSub }, languageMode === 'ur' && styles.urduText]}
-                numberOfLines={bodyExpanded ? undefined : MODAL_PREVIEW_LINES}
-              >
-                {bodyPlain}
-              </Text>
+              {bodyHtml ? (
+                <RenderHtml
+                  contentWidth={Math.max(240, width - 72)}
+                  source={{ html: bodyHtml }}
+                  baseStyle={{
+                    color: N ? N.textSub : Colors.textSecondary,
+                    fontSize: 15,
+                    lineHeight: 24,
+                    ...(languageMode === 'ur' ? { writingDirection: 'rtl' as const, textAlign: 'right' as const, fontFamily: 'UrduNastaliq' } : {}),
+                  }}
+                  tagsStyles={{
+                    p: { marginTop: 0, marginBottom: 8 },
+                    li: { marginBottom: 4 },
+                    ul: { marginTop: 0, marginBottom: 8, paddingLeft: 18 },
+                    ol: { marginTop: 0, marginBottom: 8, paddingLeft: 18 },
+                    strong: { fontWeight: '700' },
+                    em: { fontStyle: 'italic' },
+                    h1: { marginTop: 0, marginBottom: 8, fontSize: 18, fontWeight: '700' },
+                    h2: { marginTop: 0, marginBottom: 7, fontSize: 17, fontWeight: '700' },
+                    h3: { marginTop: 0, marginBottom: 6, fontSize: 16, fontWeight: '700' },
+                  }}
+                />
+              ) : (
+                <Text
+                  style={[styles.modalBodyText, N && { color: N.textSub }, languageMode === 'ur' && styles.urduText]}
+                  numberOfLines={bodyExpanded ? undefined : MODAL_PREVIEW_LINES}
+                >
+                  {bodyPlain}
+                </Text>
+              )}
 
               {shouldShowBodyToggle ? (
                 <TouchableOpacity
@@ -737,10 +845,12 @@ function AnnouncementDetailModal({
               ) : null}
             </View>
 
-            {announcement.start_time ? (
+            {timeEntries.length > 0 ? (
               <View style={[styles.modalMetaBlock, N && { borderColor: N.border }]}> 
-                <Text style={[styles.modalMetaLabel, N && { color: N.textMuted }]}>Start Time</Text>
-                <Text style={[styles.modalMetaValue, N && { color: N.text }]}>{announcement.start_time}</Text>
+                <Text style={[styles.modalMetaLabel, N && { color: N.textMuted }]}>{languageMode === 'ur' ? 'اوقات' : 'Start Time'}</Text>
+                <Text style={[styles.modalMetaValue, N && { color: N.text }, languageMode === 'ur' && styles.urduText]}>
+                  {timeEntries.join('\n')}
+                </Text>
               </View>
             ) : null}
 
@@ -753,9 +863,9 @@ function AnnouncementDetailModal({
               </View>
             ) : null}
 
-            {urduGuests.length > 0 ? (
+            {languageMode === 'ur' && urduGuests.length > 0 ? (
               <View style={[styles.modalMetaBlock, N && { borderColor: N.border }]}> 
-                <Text style={[styles.modalMetaLabel, N && { color: N.textMuted }]}>Speakers (Urdu)</Text>
+                <Text style={[styles.modalMetaLabel, N && { color: N.textMuted }]}>مقررین</Text>
                 <Text style={[styles.modalMetaValue, N && { color: N.text }, styles.urduText]}>
                   {urduGuests.join(urduGuests.length >= 3 ? '\n' : ', ')}
                 </Text>
@@ -792,6 +902,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  headerTitleWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -858,7 +974,7 @@ const styles = StyleSheet.create({
   tabBadgeText: { fontSize: 10, fontWeight: '800', color: '#fff' },
   tabMetaWrap: { alignItems: 'flex-end', gap: 4 },
   tabMetaText: { ...Typography.bodySmall, color: Colors.textSubtle, fontSize: 11 },
-  content: { paddingHorizontal: Spacing.md, paddingTop: Spacing.sm, paddingBottom: Spacing.md },
+  content: { paddingHorizontal: Spacing.md, paddingTop: 6, paddingBottom: Spacing.md },
   sectionCount: { ...Typography.bodySmall, color: Colors.textSubtle, marginBottom: Spacing.sm },
 
   controlsWrap: {
@@ -871,28 +987,32 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 8,
   },
-  languageRow: { gap: 4 },
+  languageRow: { gap: 6 },
   typeRow: { gap: 4 },
   controlLabel: { fontSize: 11, fontWeight: '700', color: Colors.textSubtle, textTransform: 'uppercase' },
   languageToggle: {
     borderRadius: Radius.full,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Colors.border,
     backgroundColor: Colors.surfaceAlt,
-    padding: 2,
+    padding: 3,
     flexDirection: 'row',
     alignSelf: 'flex-start',
-    gap: 3,
+    gap: 4,
   },
   languageBtn: {
     borderRadius: Radius.full,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: 'transparent',
-    paddingHorizontal: 9,
-    paddingVertical: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  languageBtnUrdu: {
+    minWidth: 102,
   },
   languageBtnActive: { backgroundColor: '#EDF4FF', borderColor: '#A9C2E8' },
-  languageBtnText: { fontSize: 11, fontWeight: '600', color: Colors.textSubtle },
+  languageBtnText: { fontSize: 12, fontWeight: '700', color: Colors.textSubtle },
+  languageBtnTextUrdu: { fontFamily: 'UrduNastaliq', fontSize: 13 },
   languageBtnTextActive: { color: Colors.primary, fontWeight: '800' },
   typeScrollContent: { flexDirection: 'row', gap: 6, paddingRight: 4 },
   typeChip: {
@@ -1076,37 +1196,54 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#EEF2F6',
   },
-  modalLanguageRow: { flexDirection: 'row', gap: 8 },
-  modalLanguageBtn: {
+  modalControlsStrip: {
+    borderWidth: 1,
+    borderColor: '#E6EAF0',
+    backgroundColor: '#FBFCFD',
+    borderRadius: Radius.md,
+    padding: 8,
+    gap: 8,
+  },
+  modalLanguageRow: {
+    flexDirection: 'row',
+    alignSelf: 'flex-start',
+    gap: 4,
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: Radius.full,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
     backgroundColor: Colors.surfaceAlt,
+    padding: 3,
+  },
+  modalLanguageBtn: {
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+    borderRadius: Radius.full,
+    paddingHorizontal: 13,
+    paddingVertical: 6,
+    backgroundColor: 'transparent',
   },
   modalLanguageBtnActive: {
-    borderColor: Colors.primary,
-    backgroundColor: '#EDF8ED',
+    borderColor: '#A9C2E8',
+    backgroundColor: '#EDF4FF',
   },
-  modalLanguageBtnText: { fontSize: 12, fontWeight: '600', color: Colors.textSubtle },
+  modalLanguageBtnText: { fontSize: 13, fontWeight: '700', color: Colors.textSubtle },
   modalLanguageBtnTextActive: { color: Colors.primary, fontWeight: '800' },
   modalScroll: { flex: 1 },
-  modalScrollContent: { gap: 10, paddingBottom: 20 },
+  modalScrollContent: { gap: 8, paddingBottom: 20 },
   modalImage: {
     width: '100%',
     height: 190,
     borderRadius: Radius.md,
     backgroundColor: '#F2F3F5',
   },
-  modalBadgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  modalBadgeRowCompact: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   modalBadge: {
     borderWidth: 1,
     borderColor: Colors.border,
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: Colors.surface,
     borderRadius: Radius.full,
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 4,
   },
   modalBadgeText: { fontSize: 12, fontWeight: '700', color: Colors.textSecondary },
   modalBodyWrap: {
@@ -1160,5 +1297,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   modalLinkBtnText: { fontSize: 13, fontWeight: '800', color: Colors.primary },
-  urduText: { writingDirection: 'rtl', textAlign: 'right' },
+  urduText: { writingDirection: 'rtl', textAlign: 'right', fontFamily: 'UrduNastaliq' },
 });

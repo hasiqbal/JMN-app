@@ -42,16 +42,20 @@ import {
 } from '@/components/prayer/CommunityUpdatesSection';
 import { SacredContentModule, SacredReadingSheet } from '@/components/prayer/SacredContentModule';
 import HeroNewsBar from '@/components/prayer/HeroNewsBar';
-import { createDonationCheckoutUrl } from '@/services/donationService';
-import { triggerJmnMockLiveTransition } from '@/services/liveService';
 import {
-  DONATION_MONTHLY_OPTIONS,
-  DONATION_ONE_OFF_OPTIONS,
-  type DonationPriceSlot,
-} from '@/constants/donationTypes';
+  createDonationCheckoutUrl,
+  fetchDonationOptionsForApp,
+  type AppDonationOption,
+} from '@/services/donationService';
+import { triggerJmnMockLiveTransition } from '@/services/liveService';
 import WebView from 'react-native-webview';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+
+type DonationConfirmationState = {
+  optionTitle: string;
+  atIso: string;
+};
 
 function getFullDayTimelineProgress(
   prayers: { name: string; timeDate: Date }[] | undefined,
@@ -1978,6 +1982,10 @@ export default function HomeScreen() {
   const [donationCheckoutUrl, setDonationCheckoutUrl] = useState<string | null>(null);
   const [showDonationOptions, setShowDonationOptions] = useState(true);
   const [donationStatusMessage, setDonationStatusMessage] = useState<string | null>(null);
+  const [donationOptions, setDonationOptions] = useState<AppDonationOption[]>([]);
+  const [donationOptionsLoading, setDonationOptionsLoading] = useState(false);
+  const [selectedDonationOption, setSelectedDonationOption] = useState<AppDonationOption | null>(null);
+  const [donationConfirmation, setDonationConfirmation] = useState<DonationConfirmationState | null>(null);
   const [webPrayerDrawerVisible, setWebPrayerDrawerVisible] = useState(false);
   const prayerSheetRef = useRef<BottomSheet>(null);
 
@@ -1993,11 +2001,24 @@ export default function HomeScreen() {
     }
   }, []);
 
+  const loadDonationOptions = useCallback(async () => {
+    setDonationOptionsLoading(true);
+    try {
+      const rows = await fetchDonationOptionsForApp();
+      setDonationOptions(rows);
+    } catch {
+      setDonationOptions([]);
+    } finally {
+      setDonationOptionsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadCommunityUpdates();
+    loadDonationOptions();
 
     // Yaseen images are bundled as local assets — no preload needed
-  }, [loadCommunityUpdates]);
+  }, [loadCommunityUpdates, loadDonationOptions]);
 
   useEffect(() => {
     let mounted = true;
@@ -2057,7 +2078,10 @@ export default function HomeScreen() {
   const flashLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
   const currentTime = useCurrentTime();
-  const nextInfo = React.useMemo(() => (data ? getNextPrayer(data.prayers) : null), [data]);
+  const nextInfo = React.useMemo(
+    () => (data ? getNextPrayer(data.prayers, currentTime) : null),
+    [data?.prayers, currentTime]
+  );
 
   const {
     activePrayer,
@@ -2632,11 +2656,13 @@ export default function HomeScreen() {
       await Promise.all([
         refreshPrayerTimes(),
         loadCommunityUpdates(),
+        loadDonationOptions(),
       ]);
     } finally {
       setRefreshing(false);
     }
   }, [
+    loadDonationOptions,
     loadCommunityUpdates,
     refreshPrayerTimes,
   ]);
@@ -2666,23 +2692,43 @@ export default function HomeScreen() {
     });
   }, [communityUpdates]);
 
-  const startDonationCheckout = useCallback(async (priceSlot: DonationPriceSlot) => {
-    if (donationLoading) return;
+  const oneOffDonationOptions = React.useMemo(
+    () => donationOptions.filter((option) => option.frequency === 'one-off'),
+    [donationOptions],
+  );
+
+  const monthlyDonationOptions = React.useMemo(
+    () => donationOptions.filter((option) => option.frequency === 'monthly'),
+    [donationOptions],
+  );
+
+  const handleSelectDonationOption = useCallback((option: AppDonationOption) => {
+    setSelectedDonationOption(option);
+    setDonationStatusMessage(null);
+    setDonationConfirmation(null);
+  }, []);
+
+  const submitDonationCheckout = useCallback(async () => {
+    if (!selectedDonationOption || donationLoading) return;
 
     try {
       setDonationLoading(true);
       setDonationStatusMessage('Preparing secure checkout...');
-      setShowDonationOptions(false);
 
-      const checkoutUrl = await createDonationCheckoutUrl(priceSlot);
+      const checkoutUrl = await createDonationCheckoutUrl({
+        priceSlot: selectedDonationOption.priceSlot,
+        stripePriceId: selectedDonationOption.stripePriceId,
+        optionId: selectedDonationOption.id,
+        frequency: selectedDonationOption.frequency,
+      });
 
       if (Platform.OS === 'web') {
-        setShowDonationOptions(true);
         setDonationStatusMessage('Embedded Stripe checkout is only available in the mobile app. Use Android or iPhone for in-app payment.');
         return;
       }
 
       setDonationStatusMessage(null);
+      setShowDonationOptions(false);
       setDonationCheckoutUrl(checkoutUrl);
     } catch (error) {
       console.error('[Donate] error:', error);
@@ -2693,16 +2739,18 @@ export default function HomeScreen() {
     } finally {
       setDonationLoading(false);
     }
-  }, [donationLoading]);
+  }, [donationLoading, selectedDonationOption]);
 
   const resetDonationFlowToSelection = useCallback(() => {
     setDonationCheckoutUrl(null);
     setShowDonationOptions(true);
     setDonationStatusMessage(null);
+    setSelectedDonationOption(null);
   }, []);
 
   const closeDonationModal = useCallback(() => {
     setDonationModalVisible(false);
+    setDonationConfirmation(null);
     resetDonationFlowToSelection();
   }, [resetDonationFlowToSelection]);
 
@@ -2716,9 +2764,11 @@ export default function HomeScreen() {
   }, [closeDonationModal, resetDonationFlowToSelection, showDonationOptions]);
 
   const openDonationCheckout = useCallback(() => {
+    setDonationConfirmation(null);
     resetDonationFlowToSelection();
+    void loadDonationOptions();
     setDonationModalVisible(true);
-  }, [resetDonationFlowToSelection]);
+  }, [loadDonationOptions, resetDonationFlowToSelection]);
 
   const openPrayerDrawer = useCallback(() => {
     if (Platform.OS === 'web') {
@@ -3011,6 +3061,25 @@ export default function HomeScreen() {
           >
             <Text style={styles.donationOptionsTitle}>Choose Donation Amount</Text>
 
+            {donationConfirmation ? (
+              <View style={styles.donationConfirmationCard}>
+                <Text style={styles.donationConfirmationTitle}>Donation confirmed</Text>
+                <Text style={styles.donationConfirmationBody}>
+                  JazakAllahu Khayran. Your {donationConfirmation.optionTitle} donation was completed successfully.
+                </Text>
+                <Text style={styles.donationConfirmationMeta}>
+                  Time: {new Date(donationConfirmation.atIso).toLocaleString('en-GB')}
+                </Text>
+                <TouchableOpacity
+                  style={styles.donationConfirmationAction}
+                  onPress={closeDonationModal}
+                  activeOpacity={0.9}
+                >
+                  <Text style={styles.donationConfirmationActionText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
             {Platform.OS === 'web' ? (
               <View style={styles.donationWebNotice}>
                 <Text style={styles.donationWebNoticeText}>
@@ -3025,19 +3094,64 @@ export default function HomeScreen() {
               </View>
             ) : null}
 
+            {selectedDonationOption ? (
+              <View style={styles.donationGiftAidCard}>
+                <Text style={styles.donationGiftAidTitle}>Donation details</Text>
+                <Text style={styles.donationGiftAidSubtitle}>
+                  Option: {selectedDonationOption.title}
+                </Text>
+
+                <Text style={styles.donationGiftAidHint}>
+                  Gift Aid opt-in will be asked on the secure Stripe payment page at time of payment.
+                </Text>
+
+                <View style={styles.donationGiftAidActionsRow}>
+                  <TouchableOpacity
+                    style={styles.donationGiftAidContinueBtn}
+                    onPress={submitDonationCheckout}
+                    disabled={donationLoading}
+                    activeOpacity={0.9}
+                  >
+                    <Text style={styles.donationGiftAidContinueText}>Continue to secure checkout</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.donationGiftAidChangeBtn}
+                    onPress={() => {
+                      setSelectedDonationOption(null);
+                      setDonationStatusMessage(null);
+                    }}
+                    disabled={donationLoading}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.donationGiftAidChangeText}>Change amount</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.donationStatusNotice}>
+                <Text style={styles.donationStatusNoticeText}>Select an amount, then choose Gift Aid before checkout.</Text>
+              </View>
+            )}
+
             <View style={styles.donationOptionSection}>
               <Text style={styles.donationOptionSectionTitle}>One-off donation</Text>
               <View style={styles.donationOptionGrid}>
-                {DONATION_ONE_OFF_OPTIONS.map((option) => (
+                {oneOffDonationOptions.map((option) => (
                   <TouchableOpacity
-                    key={option.priceSlot}
-                    style={styles.donationOptionBtn}
+                    key={option.id}
+                    style={[
+                      styles.donationOptionBtn,
+                      selectedDonationOption?.id === option.id && styles.donationOptionBtnSelected,
+                    ]}
                     activeOpacity={0.9}
-                    onPress={() => startDonationCheckout(option.priceSlot)}
+                    onPress={() => handleSelectDonationOption(option)}
                     disabled={donationLoading}
                   >
+                    {option.campaignLabel ? (
+                      <Text style={styles.donationOptionBadge}>{option.campaignLabel}</Text>
+                    ) : null}
                     <Text style={styles.donationOptionTitle}>{option.title}</Text>
-                    <Text style={styles.donationOptionSub}>{option.subtitle}</Text>
+                    <Text style={styles.donationOptionSub}>{option.subtitle || option.campaignCopy || 'Support the masjid.'}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -3046,25 +3160,39 @@ export default function HomeScreen() {
             <View style={styles.donationOptionSection}>
               <Text style={styles.donationOptionSectionTitle}>Monthly subscription</Text>
               <View style={styles.donationOptionGrid}>
-                {DONATION_MONTHLY_OPTIONS.map((option) => (
+                {monthlyDonationOptions.map((option) => (
                   <TouchableOpacity
-                    key={option.priceSlot}
-                    style={styles.donationOptionBtn}
+                    key={option.id}
+                    style={[
+                      styles.donationOptionBtn,
+                      selectedDonationOption?.id === option.id && styles.donationOptionBtnSelected,
+                    ]}
                     activeOpacity={0.9}
-                    onPress={() => startDonationCheckout(option.priceSlot)}
+                    onPress={() => handleSelectDonationOption(option)}
                     disabled={donationLoading}
                   >
+                    {option.campaignLabel ? (
+                      <Text style={styles.donationOptionBadge}>{option.campaignLabel}</Text>
+                    ) : null}
                     <Text style={styles.donationOptionTitle}>{option.title}</Text>
-                    <Text style={styles.donationOptionSub}>{option.subtitle}</Text>
+                    <Text style={styles.donationOptionSub}>{option.subtitle || option.campaignCopy || 'Monthly support for the masjid.'}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
 
-            {donationLoading ? (
+            {!donationOptionsLoading && oneOffDonationOptions.length === 0 && monthlyDonationOptions.length === 0 ? (
+              <View style={styles.donationStatusNotice}>
+                <Text style={styles.donationStatusNoticeText}>No active donation options are available right now.</Text>
+              </View>
+            ) : null}
+
+            {(donationLoading || donationOptionsLoading) ? (
               <View style={{ marginTop: 16, alignItems: 'center' }}>
                 <ActivityIndicator size="small" color="#0B6B45" />
-                <Text style={styles.donationWebviewLoadingText}>Preparing checkout...</Text>
+                <Text style={styles.donationWebviewLoadingText}>
+                  {donationOptionsLoading ? 'Loading donation options...' : 'Preparing checkout...'}
+                </Text>
               </View>
             ) : null}
           </ScrollView>
@@ -3080,12 +3208,19 @@ export default function HomeScreen() {
             )}
             onShouldStartLoadWithRequest={(request) => {
               if (request.url.includes('jmn://donation-success') || request.url.startsWith('jmn://donation-success')) {
-                closeDonationModal();
-                Alert.alert('JazakAllahu Khayran', 'Your donation was successful. May Allah accept it from you.');
+                setDonationConfirmation({
+                  optionTitle: selectedDonationOption?.title ?? 'donation',
+                  atIso: new Date().toISOString(),
+                });
+                setDonationCheckoutUrl(null);
+                setShowDonationOptions(true);
+                setDonationStatusMessage('Donation completed successfully.');
+                setSelectedDonationOption(null);
                 return false;
               }
               if (request.url.includes('jmn://donation-cancel') || request.url.startsWith('jmn://donation-cancel')) {
                 resetDonationFlowToSelection();
+                setDonationStatusMessage('Donation was cancelled before payment completion.');
                 return false;
               }
               return true;
@@ -3962,6 +4097,101 @@ const styles = StyleSheet.create({
     color: '#29533F',
     fontWeight: '600',
   },
+  donationConfirmationCard: {
+    backgroundColor: '#E9F7EF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(11,107,69,0.25)',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 12,
+  },
+  donationConfirmationTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0A2A1B',
+    marginBottom: 4,
+  },
+  donationConfirmationBody: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: '#214734',
+    marginBottom: 6,
+  },
+  donationConfirmationMeta: {
+    fontSize: 12,
+    color: '#2D5B43',
+    marginBottom: 2,
+  },
+  donationConfirmationAction: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    backgroundColor: '#0B6B45',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  donationConfirmationActionText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  donationGiftAidCard: {
+    backgroundColor: '#F6FBF8',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(11,107,69,0.2)',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 12,
+  },
+  donationGiftAidTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#123524',
+  },
+  donationGiftAidSubtitle: {
+    marginTop: 2,
+    fontSize: 12,
+    color: '#2D5B43',
+    marginBottom: 8,
+  },
+  donationGiftAidHint: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#355E4B',
+    marginBottom: 8,
+  },
+  donationGiftAidActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  donationGiftAidContinueBtn: {
+    backgroundColor: '#0B6B45',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  donationGiftAidContinueText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  donationGiftAidChangeBtn: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(9,52,31,0.25)',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  donationGiftAidChangeText: {
+    color: '#244B38',
+    fontSize: 12,
+    fontWeight: '700',
+  },
   donationOptionGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -3990,6 +4220,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 14,
     marginBottom: 10,
+  },
+  donationOptionBtnSelected: {
+    borderColor: '#0B6B45',
+    backgroundColor: '#EAF5EE',
+  },
+  donationOptionBadge: {
+    alignSelf: 'center',
+    marginBottom: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: '#EAF4EE',
+    color: '#0B6B45',
+    fontSize: 10,
+    fontWeight: '700',
+    overflow: 'hidden',
   },
   donationOptionTitle: {
     fontSize: 15,

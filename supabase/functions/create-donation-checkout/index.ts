@@ -37,6 +37,31 @@ function normalizePriceSlot(value: unknown): DonationPriceSlot {
   return 1;
 }
 
+function parsePriceSlot(value: unknown): DonationPriceSlot | null {
+  const numericSlot = typeof value === 'number' ? value : Number(value);
+  if (
+    numericSlot === 1
+    || numericSlot === 2
+    || numericSlot === 3
+    || numericSlot === 4
+    || numericSlot === 5
+    || numericSlot === 6
+    || numericSlot === 7
+    || numericSlot === 8
+    || numericSlot === 9
+  ) {
+    return numericSlot;
+  }
+  return null;
+}
+
+function normalizeStripePriceId(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed;
+}
+
 function getMissingSlotConfigError(slot: DonationPriceSlot): string {
   switch (slot) {
     case 5:
@@ -65,15 +90,27 @@ Deno.serve(async (req) => {
 
   try {
     const requestBody = await req.json().catch(() => ({}));
-    const requestedPriceSlot = normalizePriceSlot(requestBody?.priceSlot);
+    const rawPriceSlot = parsePriceSlot(requestBody?.priceSlot);
+    const requestedPriceSlot = rawPriceSlot ?? normalizePriceSlot(requestBody?.priceSlot);
+    const directStripePriceId = normalizeStripePriceId(requestBody?.stripePriceId);
+    const directOptionId = typeof requestBody?.optionId === 'string' ? requestBody.optionId.trim() : '';
+    const requestedFrequency = typeof requestBody?.frequency === 'string'
+      ? requestBody.frequency.trim().toLowerCase()
+      : '';
+
+    const directMode = requestedFrequency === 'monthly'
+      ? 'subscription'
+      : requestedFrequency === 'one-off'
+      ? 'payment'
+      : null;
 
     const customPaymentLinkUrl = Deno.env.get('STRIPE_DONATION_PAYMENT_LINK_CUSTOM');
-    if (requestedPriceSlot === 5 && customPaymentLinkUrl) {
+    if (!directStripePriceId && requestedPriceSlot === 5 && customPaymentLinkUrl) {
       return jsonResponse({ url: customPaymentLinkUrl });
     }
 
     const paymentLinkUrl = Deno.env.get('STRIPE_DONATION_PAYMENT_LINK');
-    if (paymentLinkUrl) {
+    if (!directStripePriceId && paymentLinkUrl) {
       return jsonResponse({ url: paymentLinkUrl });
     }
 
@@ -172,18 +209,24 @@ Deno.serve(async (req) => {
     const cancelUrl = 'jmn://donation-cancel';
 
     const selectedDonationProduct = donationProductBySlot[requestedPriceSlot];
-    const selectedPriceId = selectedDonationProduct?.priceId;
+    const selectedPriceId = directStripePriceId || selectedDonationProduct?.priceId;
 
     if (!selectedPriceId) {
       return jsonResponse({ error: getMissingSlotConfigError(requestedPriceSlot) }, 400);
     }
 
-    const usesSubscriptionMode =
+    const slotUsesSubscriptionMode =
       requestedPriceSlot === 3
       || requestedPriceSlot === 4
       || requestedPriceSlot === 7
       || requestedPriceSlot === 8
       || requestedPriceSlot === 9;
+
+    const usesSubscriptionMode = directMode
+      ? directMode === 'subscription'
+      : slotUsesSubscriptionMode;
+
+    const selectedProductId = selectedDonationProduct?.productId || directOptionId || 'direct_price';
 
     const formData = new URLSearchParams();
     formData.set('mode', usesSubscriptionMode ? 'subscription' : 'payment');
@@ -192,10 +235,34 @@ Deno.serve(async (req) => {
     }
     formData.set('success_url', successUrl);
     formData.set('cancel_url', cancelUrl);
+    // Capture full billing details and Gift Aid opt-in at payment time on Stripe Checkout.
+    formData.set('billing_address_collection', 'required');
+    formData.set('custom_fields[0][key]', 'gift_aid_opt_in');
+    formData.set('custom_fields[0][label][type]', 'custom');
+    formData.set('custom_fields[0][label][custom]', 'Gift Aid: Are you a UK taxpayer and would you like to add Gift Aid?');
+    formData.set('custom_fields[0][type]', 'dropdown');
+    formData.set('custom_fields[0][dropdown][options][0][label]', 'Yes, add Gift Aid');
+    formData.set('custom_fields[0][dropdown][options][0][value]', 'yes');
+    formData.set('custom_fields[0][dropdown][options][1][label]', 'No, do not add Gift Aid');
+    formData.set('custom_fields[0][dropdown][options][1][value]', 'no');
+    formData.set('custom_fields[1][key]', 'gift_aid_declaration');
+    formData.set('custom_fields[1][label][type]', 'custom');
+    formData.set('custom_fields[1][label][custom]', 'Gift Aid declaration confirmation');
+    formData.set('custom_fields[1][type]', 'dropdown');
+    formData.set('custom_fields[1][dropdown][options][0][label]', 'I confirm I am a UK taxpayer and want Gift Aid applied');
+    formData.set('custom_fields[1][dropdown][options][0][value]', 'confirmed');
+    formData.set('custom_fields[1][dropdown][options][1][label]', 'I do not want to make this declaration');
+    formData.set('custom_fields[1][dropdown][options][1][value]', 'not_confirmed');
     formData.set('line_items[0][price]', selectedPriceId);
     formData.set('line_items[0][quantity]', '1');
-    formData.set('metadata[donation_slot]', String(requestedPriceSlot));
-    formData.set('metadata[donation_product_id]', selectedDonationProduct.productId);
+    if (rawPriceSlot !== null) {
+      formData.set('metadata[donation_slot]', String(rawPriceSlot));
+    }
+    formData.set('metadata[donation_product_id]', selectedProductId);
+    if (directStripePriceId) {
+      formData.set('metadata[donation_source]', 'direct_price_id');
+    }
+    formData.set('metadata[gift_aid_capture]', 'stripe_checkout_custom_fields');
 
     const stripeResponse = await fetch('https://api.stripe.com/v1/checkout/sessions', {
       method: 'POST',

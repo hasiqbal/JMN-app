@@ -340,7 +340,7 @@ export function useQuranPrayerPopups(): void {
         }
       }
 
-      const nextPrayer = getNextPrayer(data.prayers);
+      const nextPrayer = getNextPrayer(data.prayers, now);
       if (!nextPrayer) return;
 
       const nextPrayerName = getPrayerLabel(nextPrayer.prayer.name || 'Prayer');
