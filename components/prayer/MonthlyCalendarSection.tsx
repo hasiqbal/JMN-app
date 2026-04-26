@@ -5,6 +5,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Pressable,
   ScrollView,
   useWindowDimensions,
 } from 'react-native';
@@ -219,6 +220,8 @@ const StripDateChip = React.memo(function StripDateChip({
     }).start();
   }, [scale]);
 
+  const handleSelect = React.useCallback(() => onSelect(cell), [cell, onSelect]);
+
   const containerStyle = React.useMemo(
     () => [
       calStyles.stripItem,
@@ -264,25 +267,20 @@ const StripDateChip = React.memo(function StripDateChip({
     [N, isSelected]
   );
 
-  const handleSelect = React.useCallback(() => onSelect(cell), [cell, onSelect]);
-
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
-      <TouchableOpacity
+      <Pressable
         style={containerStyle}
         onPress={handleSelect}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
-        activeOpacity={0.9}
-        delayPressIn={0}
         hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
-        pressRetentionOffset={{ top: 16, bottom: 16, left: 16, right: 16 }}
       >
         <Text style={dayStyle}>{dow}</Text>
         <Text style={dateStyle}>{cell.date.getDate()}</Text>
         <Text style={hijriStyle}>{hijriDay || '--'}</Text>
         {cell.isFriday ? <View style={calStyles.stripFridayDot} /> : null}
-      </TouchableOpacity>
+      </Pressable>
     </Animated.View>
   );
 });
@@ -1324,6 +1322,7 @@ export default function MonthlyCalendarSection({
               horizontal
               showsHorizontalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
+              disableScrollViewPanResponder
               contentContainerStyle={calStyles.stripScrollContent}
               style={[calStyles.stripScroll, N && { borderTopColor: N.border }]}
             >
