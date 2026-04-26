@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
-  Pressable,
   View,
   Text,
   StyleSheet,
@@ -11,12 +10,16 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 import { Colors, Radius } from '@/constants/theme';
 import { isBST } from '@/services/prayerService';
 import { lookupTimetable, type DayTimetable } from '@/services/timetableData';
 import {
   fetchHijriCalendarForMonth,
+  fetchIslamicCalendarEventsForMonth,
+  fetchMasjidAnnouncementEventsForMonth,
   fetchPrayerTimesForMonth,
+  type IslamicCalendarEventRow,
   type PrayerTimeRow,
 } from '@/services/contentService';
 
@@ -88,6 +91,26 @@ const STRIP_TEXT_DAY = '#9AA09A';
 const STRIP_TEXT_HIJRI = '#C59B2D';
 const STRIP_TEXT_HIJRI_SOFT = '#D9BC6A';
 const STRIP_FRIDAY_DOT = '#D39C2F';
+
+function extractDayFromLinkedGregorianDate(value: string | null | undefined): number | null {
+  const text = (value ?? '').trim();
+  if (!text) return null;
+
+  const isoLikeMatch = text.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/);
+  if (isoLikeMatch) {
+    const day = Number.parseInt(isoLikeMatch[3], 10);
+    if (Number.isFinite(day) && day >= 1 && day <= 31) {
+      return day;
+    }
+    return null;
+  }
+
+  const parsed = new Date(text);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  const day = parsed.getUTCDate();
+  return Number.isFinite(day) && day >= 1 && day <= 31 ? day : null;
+}
 
 type HijriParts = {
   day: number;
@@ -179,20 +202,24 @@ const StripDateChip = React.memo(function StripDateChip({
   const N = nightMode ? nightPalette : null;
 
   const handlePressIn = React.useCallback(() => {
-    Animated.spring(scale, {
-      toValue: 0.96,
-      useNativeDriver: true,
-      speed: 28,
-      bounciness: 3,
-    }).start();
+    scale.stopAnimation(() => {
+      Animated.spring(scale, {
+        toValue: 0.96,
+        useNativeDriver: true,
+        speed: 28,
+        bounciness: 3,
+      }).start();
+    });
   }, [scale]);
 
   const handlePressOut = React.useCallback(() => {
-    Animated.timing(scale, {
-      toValue: 1,
-      duration: 170,
-      useNativeDriver: true,
-    }).start();
+    scale.stopAnimation(() => {
+      Animated.timing(scale, {
+        toValue: 1,
+        duration: 140,
+        useNativeDriver: true,
+      }).start();
+    });
   }, [scale]);
 
   const containerStyle = React.useMemo(
@@ -244,17 +271,21 @@ const StripDateChip = React.memo(function StripDateChip({
 
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
-      <Pressable
+      <TouchableOpacity
         style={containerStyle}
         onPress={handleSelect}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
+        activeOpacity={0.9}
+        delayPressIn={0}
+        hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+        pressRetentionOffset={{ top: 12, bottom: 12, left: 12, right: 12 }}
       >
         <Text style={dayStyle}>{dow}</Text>
         <Text style={dateStyle}>{cell.date.getDate()}</Text>
         <Text style={hijriStyle}>{hijriDay || '--'}</Text>
         {cell.isFriday ? <View style={calStyles.stripFridayDot} /> : null}
-      </Pressable>
+      </TouchableOpacity>
     </Animated.View>
   );
 });
@@ -671,36 +702,140 @@ function CalendarPrayerPanel({
 
 function CalendarEventPlaceholders({
   selectedDay,
+  eventsByDay,
   nightMode,
   nightPalette,
-  transliterateHijri,
+  onOpenMasjidAnnouncement,
 }: {
   selectedDay: MonthDay | null;
+  eventsByDay: Map<number, IslamicCalendarEventRow[]>;
   nightMode: boolean;
   nightPalette: NightPalette;
-  transliterateHijri: (hijri: string) => string;
+  onOpenMasjidAnnouncement: (event: IslamicCalendarEventRow) => void;
 }) {
   const N = nightMode ? nightPalette : null;
-  const islamicDateLabel = selectedDay?.day?.hijri
-    ? transliterateHijri(selectedDay.day.hijri)
-    : 'selected Islamic date';
+  const gregorianDateLabel = selectedDay
+    ? selectedDay.date.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })
+    : 'selected date';
+  const [importantDatesExpanded, setImportantDatesExpanded] = React.useState(true);
+  const [masjidEventsExpanded, setMasjidEventsExpanded] = React.useState(true);
+
+  const selectedEvents = selectedDay?.isCurrentMonth
+    ? (eventsByDay.get(selectedDay.date.getDate()) ?? [])
+    : [];
+
+  const importantDateEvents = selectedEvents.filter((event) => event.event_type === 'important_date');
+  const masjidEvents = selectedEvents.filter((event) => event.event_type === 'masjid_event');
+
+  const renderEventEntries = (
+    events: IslamicCalendarEventRow[],
+    emptyMessage: string,
+    options?: { announcementLinked?: boolean; showLinkedDate?: boolean },
+  ) => {
+    if (events.length === 0) {
+      return (
+        <Text style={[eventStyles.sub, N && { color: N.textSub }]}>{emptyMessage}</Text>
+      );
+    }
+
+    return (
+      <View style={eventStyles.entryList}>
+        {events.map((event) => {
+          const metaParts = [
+            options?.showLinkedDate ? event.linked_gregorian_date : null,
+            event.field_label,
+            event.region,
+          ].filter(Boolean);
+          const canOpenAnnouncement = options?.announcementLinked === true && Boolean(event.source_announcement_id);
+          const announcementCtaLabel = event.source_link_url
+            ? 'Open linked announcement'
+            : 'Open in Announcements';
+
+          return (
+            <View key={event.id} style={[eventStyles.entryItem, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}>
+              <Text style={[eventStyles.entryTitle, N && { color: N.text }]} numberOfLines={2}>{event.title}</Text>
+              {metaParts.length > 0 ? (
+                <Text style={[eventStyles.entryMeta, N && { color: N.textMuted }]} numberOfLines={1}>{metaParts.join(' • ')}</Text>
+              ) : null}
+              {event.notes ? (
+                <Text style={[eventStyles.entryNotes, N && { color: N.textSub }]} numberOfLines={2}>{event.notes}</Text>
+              ) : null}
+              {canOpenAnnouncement ? (
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => onOpenMasjidAnnouncement(event)}
+                  style={eventStyles.entryLinkButton}
+                >
+                  <MaterialIcons name="open-in-new" size={13} color={N ? '#9BC2EA' : '#2D7D5F'} />
+                  <Text style={[eventStyles.entryLinkText, N && { color: '#9BC2EA' }]}>{announcementCtaLabel}</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          );
+        })}
+      </View>
+    );
+  };
 
   return (
     <View style={eventStyles.wrap}>
       <View style={[eventStyles.card, N && { backgroundColor: N.surface, borderColor: N.border }]}>
-        <View style={eventStyles.headerRow}>
-          <MaterialIcons name="event-note" size={16} color={N ? '#E7C36C' : '#C98500'} />
-          <Text style={[eventStyles.title, N && { color: N.text }]}>Important Date Events</Text>
-        </View>
-        <Text style={[eventStyles.sub, N && { color: N.textSub }]}>Use this space for notable events linked to the Islamic date of {islamicDateLabel}.</Text>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => setImportantDatesExpanded((value) => !value)}
+          style={eventStyles.headerButton}
+        >
+          <View style={eventStyles.headerRow}>
+            <View style={eventStyles.headerLeft}>
+              <MaterialIcons name="event-note" size={16} color={N ? '#E7C36C' : '#C98500'} />
+              <Text style={[eventStyles.title, N && { color: N.text }]}>Important Islamic Dates (Selected Day)</Text>
+            </View>
+            <MaterialIcons
+              name={importantDatesExpanded ? 'expand-less' : 'expand-more'}
+              size={18}
+              color={N ? N.textMuted : Colors.textSubtle}
+            />
+          </View>
+        </TouchableOpacity>
+        {importantDatesExpanded ? (
+          <>
+            <Text style={[eventStyles.subtleHint, N && { color: N.textMuted }]}>Only dates linked to this selected day.</Text>
+            {renderEventEntries(
+              importantDateEvents,
+              `No important Islamic dates for ${gregorianDateLabel}.`
+            )}
+          </>
+        ) : null}
       </View>
 
       <View style={[eventStyles.card, N && { backgroundColor: N.surface, borderColor: N.border }]}>
-        <View style={eventStyles.headerRow}>
-          <MaterialIcons name="mosque" size={16} color={N ? '#69C995' : '#0F8D73'} />
-          <Text style={[eventStyles.title, N && { color: N.text }]}>Masjid Events</Text>
-        </View>
-        <Text style={[eventStyles.sub, N && { color: N.textSub }]}>Use this space for activities taking place at the masjid on that date.</Text>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => setMasjidEventsExpanded((value) => !value)}
+          style={eventStyles.headerButton}
+        >
+          <View style={eventStyles.headerRow}>
+            <View style={eventStyles.headerLeft}>
+              <MaterialIcons name="mosque" size={16} color={N ? '#69C995' : '#0F8D73'} />
+              <Text style={[eventStyles.title, N && { color: N.text }]}>Masjid Events (Announcements)</Text>
+            </View>
+            <MaterialIcons
+              name={masjidEventsExpanded ? 'expand-less' : 'expand-more'}
+              size={18}
+              color={N ? N.textMuted : Colors.textSubtle}
+            />
+          </View>
+        </TouchableOpacity>
+        {masjidEventsExpanded ? (
+          <>
+            <Text style={[eventStyles.subtleHint, N && { color: N.textMuted }]}>Only Event-tagged announcements for this selected day.</Text>
+            {renderEventEntries(
+              masjidEvents,
+              `No Event-tagged announcements for ${gregorianDateLabel}.`,
+              { announcementLinked: true }
+            )}
+          </>
+        ) : null}
       </View>
     </View>
   );
@@ -723,11 +858,14 @@ export default function MonthlyCalendarSection({
   getHijriMonthName: (hijri: string) => string;
   betweenCalendarAndTimetable?: React.ReactNode;
 }) {
+  const router = useRouter();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [dbRows, setDbRows] = useState<Map<number, PrayerTimeRow>>(new Map());
   const [hijriRows, setHijriRows] = useState<Map<number, string>>(new Map());
+  const [eventsByDay, setEventsByDay] = useState<Map<number, IslamicCalendarEventRow[]>>(new Map());
+  const [calendarRefreshToken, setCalendarRefreshToken] = useState(0);
 
   const pickerHeight = React.useMemo(() => {
     return Math.min(420, Math.max(300, Math.floor(screenHeight * 0.52)));
@@ -739,6 +877,7 @@ export default function MonthlyCalendarSection({
     return Math.floor(usable / 3);
   }, [screenWidth]);
   const [dbLoading, setDbLoading] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const [pickerStep, setPickerStep] = useState<'month' | 'day'>('month');
   const [pickerYear, setPickerYear] = useState(today.getFullYear());
@@ -748,6 +887,22 @@ export default function MonthlyCalendarSection({
   const N = nightMode ? nightPalette : null;
 
   const [selectedDay, setSelectedDay] = useState<MonthDay | null>(null);
+
+  const handleOpenMasjidAnnouncement = React.useCallback((event: IslamicCalendarEventRow) => {
+    const sourceAnnouncementId = event.source_announcement_id?.trim();
+    if (!sourceAnnouncementId) {
+      router.push('/(tabs)/events' as any);
+      return;
+    }
+
+    router.push({
+      pathname: '/(tabs)/events',
+      params: {
+        openAnnouncementId: sourceAnnouncementId,
+        openAt: String(Date.now()),
+      },
+    } as any);
+  }, [router]);
 
   const predictedHijriFromToday = React.useMemo(() => {
     const todayHijri = lookupTimetable(today)?.hijri ?? '';
@@ -815,17 +970,85 @@ export default function MonthlyCalendarSection({
   }, [predictedHijriFromToday]);
 
   const getHijriMonthHint = React.useCallback((year: number, month: number) => {
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
     if (predictedHijriFromToday) {
-      const p = predictedHijriFromToday(new Date(year, month, 1));
-      return `${HIJRI_MONTHS[p.monthIndex]} ${p.year}`;
+      const start = predictedHijriFromToday(new Date(year, month, 1));
+      const end = predictedHijriFromToday(new Date(year, month, daysInMonth));
+
+      const startMonth = HIJRI_MONTHS[start.monthIndex];
+      const endMonth = HIJRI_MONTHS[end.monthIndex];
+      if (start.monthIndex === end.monthIndex && start.year === end.year) {
+        return `${startMonth} ${start.year}`;
+      }
+      if (start.year === end.year) {
+        return `${startMonth}/${endMonth} ${start.year}`;
+      }
+      return `${startMonth} ${start.year}/${endMonth} ${end.year}`;
     }
 
-    const sample = lookupTimetable(new Date(year, month, 1))?.hijri ?? '';
-    if (!sample) return 'Hijri n/a';
-    const hMonth = getHijriMonthName(sample);
-    const hYearMatch = sample.match(/\b(\d{4})\b/);
-    const hYear = hYearMatch ? hYearMatch[1] : '';
-    return hMonth ? `${hMonth}${hYear ? ` ${hYear}` : ''}` : 'Hijri n/a';
+    const startSample = lookupTimetable(new Date(year, month, 1))?.hijri ?? '';
+    const endSample = lookupTimetable(new Date(year, month, daysInMonth))?.hijri ?? '';
+
+    const startMonth = startSample ? getHijriMonthName(startSample) : '';
+    const startYearMatch = startSample.match(/\b(\d{4})\b/);
+    const startYear = startYearMatch ? startYearMatch[1] : '';
+
+    const endMonth = endSample ? getHijriMonthName(endSample) : '';
+    const endYearMatch = endSample.match(/\b(\d{4})\b/);
+    const endYear = endYearMatch ? endYearMatch[1] : '';
+
+    if (!startMonth && !endMonth) return 'Hijri n/a';
+
+    const leftMonth = startMonth || endMonth;
+    const leftYear = startYear || endYear;
+    const rightMonth = endMonth || startMonth;
+    const rightYear = endYear || startYear;
+
+    if (leftMonth === rightMonth && leftYear === rightYear) {
+      return `${leftMonth}${leftYear ? ` ${leftYear}` : ''}`;
+    }
+    if (leftYear && rightYear && leftYear === rightYear) {
+      return `${leftMonth}/${rightMonth} ${leftYear}`;
+    }
+    return `${leftMonth}${leftYear ? ` ${leftYear}` : ''}/${rightMonth}${rightYear ? ` ${rightYear}` : ''}`;
+  }, [getHijriMonthName, predictedHijriFromToday]);
+
+  const getHijriMonthRangeHint = React.useCallback((year: number, month: number) => {
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    if (predictedHijriFromToday) {
+      const start = predictedHijriFromToday(new Date(year, month, 1));
+      const end = predictedHijriFromToday(new Date(year, month, daysInMonth));
+
+      const startLabel = `${HIJRI_MONTHS[start.monthIndex]} ${start.year}`;
+      const endLabel = `${HIJRI_MONTHS[end.monthIndex]} ${end.year}`;
+      if (start.monthIndex === end.monthIndex && start.year === end.year) {
+        return `${startLabel} AH`;
+      }
+      return `${startLabel} AH → ${endLabel} AH`;
+    }
+
+    const startSample = lookupTimetable(new Date(year, month, 1))?.hijri ?? '';
+    const endSample = lookupTimetable(new Date(year, month, daysInMonth))?.hijri ?? '';
+
+    const startMonth = startSample ? getHijriMonthName(startSample) : '';
+    const startYearMatch = startSample.match(/\b(\d{4})\b/);
+    const startYear = startYearMatch ? startYearMatch[1] : '';
+
+    const endMonth = endSample ? getHijriMonthName(endSample) : '';
+    const endYearMatch = endSample.match(/\b(\d{4})\b/);
+    const endYear = endYearMatch ? endYearMatch[1] : '';
+
+    if (!startMonth && !endMonth) return 'Hijri n/a';
+
+    const startLabel = `${startMonth || endMonth}${startYear ? ` ${startYear}` : ''}`.trim();
+    const endLabel = `${endMonth || startMonth}${endYear ? ` ${endYear}` : ''}`.trim();
+
+    if (startLabel === endLabel) {
+      return `${startLabel} AH`;
+    }
+    return `${startLabel} AH → ${endLabel} AH`;
   }, [getHijriMonthName, predictedHijriFromToday]);
 
   const pickerSections = React.useMemo(
@@ -844,11 +1067,24 @@ export default function MonthlyCalendarSection({
 
   const pickerMonthDays = React.useMemo(() => {
     const daysInMonth = new Date(pickerYear, pickerMonth + 1, 0).getDate();
-    return Array.from({ length: daysInMonth }, (_, i) => {
+    const entries = Array.from({ length: daysInMonth }, (_, i) => {
       const day = i + 1;
       const date = new Date(pickerYear, pickerMonth, day);
       const localHijri = lookupTimetable(date)?.hijri ?? '';
       const predicted = predictedHijriFromToday ? predictedHijriFromToday(date) : null;
+
+      const localMonthName = localHijri ? getHijriMonthName(localHijri) : '';
+      const localMonthIndex = localMonthName ? (HIJRI_MONTH_ALIASES[normMonthName(localMonthName)] ?? -1) : -1;
+      const localYearMatch = localHijri.match(/\b(\d{4})\b/);
+      const localYear = localYearMatch ? Number.parseInt(localYearMatch[1], 10) : NaN;
+
+      const resolvedMonthIndex = localMonthIndex >= 0
+        ? localMonthIndex
+        : (predicted ? predicted.monthIndex : -1);
+      const resolvedYear = Number.isFinite(localYear)
+        ? localYear
+        : (predicted ? predicted.year : NaN);
+
       const hijriDay = localHijri
         ? getHijriDayNum(localHijri)
         : predicted
@@ -858,7 +1094,27 @@ export default function MonthlyCalendarSection({
       const dd = String(day).padStart(2, '0');
       const mm = String(pickerMonth + 1).padStart(2, '0');
       const key = `${dd}/${mm}/${pickerYear}`;
-      return { day, date, dow, hijriDay, key };
+      const hijriMonthKey = (resolvedMonthIndex >= 0 && Number.isFinite(resolvedYear))
+        ? `${resolvedYear}-${resolvedMonthIndex}`
+        : null;
+      return { day, date, dow, hijriDay, key, hijriMonthKey };
+    });
+
+    return entries.map((entry, index) => {
+      const previous = index > 0 ? entries[index - 1] : null;
+      const dayNumber = Number.parseInt(entry.hijriDay, 10);
+      const isHijriDayOne = Number.isFinite(dayNumber) && dayNumber === 1;
+      const rolloverByMonthKey = Boolean(
+        previous
+        && previous.hijriMonthKey
+        && entry.hijriMonthKey
+        && previous.hijriMonthKey !== entry.hijriMonthKey
+      );
+
+      return {
+        ...entry,
+        isHijriMonthStart: isHijriDayOne || rolloverByMonthKey,
+      };
     });
   }, [pickerYear, pickerMonth, predictedHijriFromToday, getHijriDayNum]);
 
@@ -872,8 +1128,7 @@ export default function MonthlyCalendarSection({
       setPickerYear(now.getFullYear());
       setPickerMonth(now.getMonth());
       setSelectedDay(null);
-      setDbRows(new Map());
-      setHijriRows(new Map());
+      setCalendarRefreshToken((value) => value + 1);
       lastAutoCenteredMonthKeyRef.current = null;
       return undefined;
     }, [])
@@ -881,23 +1136,44 @@ export default function MonthlyCalendarSection({
 
   useEffect(() => {
     setDbLoading(true);
+    setSyncError(null);
     Promise.all([
       fetchPrayerTimesForMonth(viewMonth + 1),
       fetchHijriCalendarForMonth(viewYear, viewMonth + 1),
+      fetchIslamicCalendarEventsForMonth(viewYear, viewMonth + 1),
+      fetchMasjidAnnouncementEventsForMonth(viewYear, viewMonth + 1),
     ])
-      .then(([rows, hijri]) => {
+      .then(([rows, hijri, importantDateEvents, masjidAnnouncementEvents]) => {
         const prayerMap = new Map<number, PrayerTimeRow>();
         rows.forEach((r) => prayerMap.set(r.day, r));
 
         const hijriMap = new Map<number, string>();
         hijri.forEach((r) => hijriMap.set(r.gregorian_day, r.hijri_date));
 
+        const eventMap = new Map<number, IslamicCalendarEventRow[]>();
+        [...importantDateEvents, ...masjidAnnouncementEvents].forEach((event) => {
+          const day = extractDayFromLinkedGregorianDate(event.linked_gregorian_date);
+          if (typeof day !== 'number' || !Number.isFinite(day)) return;
+          const dayEvents = eventMap.get(day) ?? [];
+          dayEvents.push(event);
+          eventMap.set(day, dayEvents);
+        });
+
         setDbRows(prayerMap);
         setHijriRows(hijriMap);
+        setEventsByDay(eventMap);
         setDbLoading(false);
       })
-      .catch(() => setDbLoading(false));
-  }, [viewMonth, viewYear]);
+      .catch((error) => {
+        console.error('[MonthlyCalendarSection] Failed to sync calendar data', {
+          viewYear,
+          viewMonth: viewMonth + 1,
+          error,
+        });
+        setSyncError('Sync failed. Pull to refresh or reopen month.');
+        setDbLoading(false);
+      });
+  }, [viewMonth, viewYear, calendarRefreshToken]);
 
   useEffect(() => {
     if (selectedDay) {
@@ -961,6 +1237,7 @@ export default function MonthlyCalendarSection({
     setSelectedDay(null);
     setDbRows(new Map());
     setHijriRows(new Map());
+    setEventsByDay(new Map());
   };
 
   const goForward = () => {
@@ -973,6 +1250,7 @@ export default function MonthlyCalendarSection({
     setSelectedDay(null);
     setDbRows(new Map());
     setHijriRows(new Map());
+    setEventsByDay(new Map());
   };
 
   const firstWithHijri = currentGrid.find((c) => c.isCurrentMonth && c.day?.hijri);
@@ -1033,6 +1311,7 @@ export default function MonthlyCalendarSection({
                         </>
                       ) : null}
                       {dbLoading ? <Text style={calStyles.syncLabel}>  Syncing...</Text> : null}
+                      {!dbLoading && syncError ? <Text style={calStyles.syncErrorLabel}>  {syncError}</Text> : null}
                     </View>
                   )}
                 </View>
@@ -1047,6 +1326,7 @@ export default function MonthlyCalendarSection({
               ref={stripRef}
               horizontal
               showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
               contentContainerStyle={calStyles.stripScrollContent}
               style={[calStyles.stripScroll, N && { borderTopColor: N.border }]}
             >
@@ -1090,6 +1370,7 @@ export default function MonthlyCalendarSection({
                   setSelectedDay(null);
                   setDbRows(new Map());
                   setHijriRows(new Map());
+                  setEventsByDay(new Map());
                   setShowMonthPicker(false);
                 }}
                 activeOpacity={0.7}
@@ -1110,6 +1391,7 @@ export default function MonthlyCalendarSection({
               <ScrollView
                 showsVerticalScrollIndicator={true}
                 style={{ flex: 1 }}
+                keyboardShouldPersistTaps="handled"
                 contentContainerStyle={calStyles.pickerYearsWrap}
               >
                 {pickerSections.map((section) => {
@@ -1138,6 +1420,7 @@ export default function MonthlyCalendarSection({
                               setSelectedDay(null);
                               setDbRows(new Map());
                               setHijriRows(new Map());
+                              setEventsByDay(new Map());
                               setPickerStep('day');
                             }}
                             style={[
@@ -1179,11 +1462,12 @@ export default function MonthlyCalendarSection({
                   {MONTH_NAMES[pickerMonth]} {pickerYear}
                 </Text>
                 <Text style={[calStyles.dayPickerHijriHint, N && { color: N.textMuted }]}>
-                  {getHijriMonthHint(pickerYear, pickerMonth)}
+                  {getHijriMonthRangeHint(pickerYear, pickerMonth)}
                 </Text>
 
                 <ScrollView
                   showsVerticalScrollIndicator={true}
+                  keyboardShouldPersistTaps="handled"
                   contentContainerStyle={calStyles.dayGrid}
                 >
                   {pickerMonthDays.map((d) => {
@@ -1209,21 +1493,33 @@ export default function MonthlyCalendarSection({
                           });
                           setDbRows(new Map());
                           setHijriRows(new Map());
+                          setEventsByDay(new Map());
                         }}
                         style={[
                           calStyles.dayButton,
+                          d.isHijriMonthStart && calStyles.dayButtonHijriMonthStart,
                           isToday && calStyles.dayButtonToday,
                           isSelected && calStyles.dayButtonSelected,
                           N && {
                             backgroundColor: isSelected ? '#2E6CB9' : (isToday ? '#233857' : N.surface),
-                            borderColor: isSelected ? '#69A8FF' : (isToday ? '#69A8FF' : N.border),
+                            borderColor: isSelected
+                              ? '#69A8FF'
+                              : (d.isHijriMonthStart ? '#C59B2D' : (isToday ? '#69A8FF' : N.border)),
                           },
                         ]}
                         activeOpacity={0.82}
                       >
-                        <Text style={[calStyles.dayButtonDow, N && { color: isSelected ? '#DCEBFF' : N.textMuted }]}>{d.dow}</Text>
+                        <Text style={[
+                          calStyles.dayButtonDow,
+                          d.isHijriMonthStart && calStyles.dayButtonDowHijriMonthStart,
+                          N && { color: isSelected ? '#DCEBFF' : N.textMuted },
+                        ]}>{d.dow}</Text>
                         <Text style={[calStyles.dayButtonDate, isToday && calStyles.dayButtonDateToday, N && { color: (isToday || isSelected) ? '#F3F8FF' : N.text }]}>{d.day}</Text>
-                        <Text style={[calStyles.dayButtonHijri, N && { color: (isToday || isSelected) ? '#DCEBFF' : N.textMuted }]}>{d.hijriDay}</Text>
+                        <Text style={[
+                          calStyles.dayButtonHijri,
+                          d.isHijriMonthStart && calStyles.dayButtonHijriMonthStartText,
+                          N && { color: (isToday || isSelected) ? '#DCEBFF' : N.textMuted },
+                        ]}>{d.hijriDay}</Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -1245,9 +1541,10 @@ export default function MonthlyCalendarSection({
         <CalendarPrayerPanel selectedDay={selectedDay} nightMode={nightMode} nightPalette={nightPalette} />
         <CalendarEventPlaceholders
           selectedDay={selectedDay}
+          eventsByDay={eventsByDay}
           nightMode={nightMode}
           nightPalette={nightPalette}
-          transliterateHijri={transliterateHijri}
+          onOpenMasjidAnnouncement={handleOpenMasjidAnnouncement}
         />
       </ScrollView>
     </View>
@@ -1320,6 +1617,10 @@ const calStyles = StyleSheet.create({
   syncLabel: {
     fontSize: 9,
     color: Colors.textSubtle,
+  },
+  syncErrorLabel: {
+    fontSize: 9,
+    color: '#B42318',
   },
   pickerContainer: {
     maxHeight: 420,
@@ -1451,6 +1752,10 @@ const calStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  dayButtonHijriMonthStart: {
+    borderColor: '#C59B2D',
+    backgroundColor: '#FFF8E3',
+  },
   dayButtonToday: {
     borderColor: '#2E6CB9',
     backgroundColor: '#E6F1FF',
@@ -1464,6 +1769,9 @@ const calStyles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.textSubtle,
     textTransform: 'uppercase',
+  },
+  dayButtonDowHijriMonthStart: {
+    color: '#A27300',
   },
   dayButtonDate: {
     fontSize: 15,
@@ -1480,6 +1788,10 @@ const calStyles = StyleSheet.create({
     fontWeight: '600',
     color: STRIP_TEXT_HIJRI,
     marginTop: 0,
+  },
+  dayButtonHijriMonthStartText: {
+    color: '#A27300',
+    fontWeight: '800',
   },
   stripScroll: {
     marginTop: 4,
@@ -1747,18 +2059,75 @@ const eventStyles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
     marginBottom: 6,
+  },
+  headerButton: {
+    marginBottom: 2,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+    paddingRight: 8,
   },
   title: {
     fontSize: 14,
     fontWeight: '800',
     color: Colors.textPrimary,
+    flexShrink: 1,
   },
   sub: {
     fontSize: 12,
     fontWeight: '500',
     color: Colors.textSubtle,
     lineHeight: 18,
+  },
+  entryList: {
+    gap: 8,
+  },
+  entryItem: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.background,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  entryTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  entryMeta: {
+    marginTop: 2,
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textSubtle,
+  },
+  entryNotes: {
+    marginTop: 4,
+    fontSize: 12,
+    fontWeight: '500',
+    color: Colors.textPrimary,
+    lineHeight: 16,
+  },
+  subtleHint: {
+    marginBottom: 6,
+    fontSize: 10,
+    fontWeight: '600',
+    color: Colors.textSubtle,
+  },
+  entryLinkButton: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  entryLinkText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#2D7D5F',
   },
 });

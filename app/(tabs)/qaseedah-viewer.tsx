@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
   backBtn: {
     width: 34,
     height: 34,
-    borderRadius: Radius.round,
+    borderRadius: Radius.full,
     borderWidth: 1,
     borderColor: Colors.border,
     alignItems: 'center',

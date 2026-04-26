@@ -241,3 +241,17 @@ export const PRAYER_BG_IMAGES: Record<string, any> = {
   Eid: require('@/assets/images/sky/nabwi.jpg'),
   EidAdha: require('@/assets/images/sky/arafat.jpeg'),
 };
+
+export const SKY_CROSS_FADE_DURATION_MS = 1400;
+export const SKY_CYCLE_CHECK_MS = 60_000;
+export const SKY_DAY_CYCLE_KEYS = [
+  'Tahjjud',
+  'Fajr',
+  'Sunrise',
+  'Ishraq',
+  'Zawaal',
+  'Dhuhr',
+  'Asr',
+  'Maghrib',
+  'Isha',
+] as const;

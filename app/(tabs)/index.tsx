@@ -47,15 +47,196 @@ import {
   fetchDonationOptionsForApp,
   type AppDonationOption,
 } from '@/services/donationService';
-import { triggerJmnMockLiveTransition } from '@/services/liveService';
-import WebView from 'react-native-webview';
+import { fetchDailySunnah, type DailySunnahResult } from '@/services/sunnahReminderService';
+import WebView, { type WebViewMessageEvent } from 'react-native-webview';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+const DONATION_SUCCESS_SENTINEL = 'example.com/jmn-donation-success';
+const DONATION_CANCEL_SENTINEL = 'example.com/jmn-donation-cancel';
+
+const DONATION_CHECKOUT_INJECTED_SCRIPT = `
+(function () {
+  try {
+    let keyboardInset = 0;
+
+    const ensureViewport = () => {
+      const head = document.head || document.getElementsByTagName('head')[0];
+      let viewport = document.querySelector('meta[name="viewport"]');
+      if (!viewport && head) {
+        viewport = document.createElement('meta');
+        viewport.setAttribute('name', 'viewport');
+        head.appendChild(viewport);
+      }
+
+      if (viewport) {
+        viewport.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover');
+      }
+
+      if (document.documentElement) {
+        document.documentElement.style.overflowX = 'hidden';
+      }
+
+      if (document.body) {
+        document.body.style.overflowX = 'hidden';
+        document.body.style.maxWidth = '100vw';
+      }
+    };
+
+    const centerActiveElement = () => {
+      const active = document.activeElement;
+      if (!active || typeof active.scrollIntoView !== 'function') return;
+
+      try {
+        active.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+      } catch {
+        // ignore
+      }
+    };
+
+    const applyKeyboardInset = () => {
+      const vv = window.visualViewport;
+      if (!vv) return;
+
+      keyboardInset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+      if (document.body) {
+        document.body.style.paddingBottom = keyboardInset > 0 ? (keyboardInset + 24) + 'px' : '0px';
+      }
+
+      if (keyboardInset > 0) {
+        setTimeout(centerActiveElement, 100);
+      }
+    };
+
+    const notifyOutcome = () => {
+      if (!window.ReactNativeWebView) return;
+
+      const href = String((window.location && window.location.href) || '').toLowerCase();
+      const titleText = String(document.title || '').toLowerCase();
+      const bodyText = String((document.body && document.body.innerText) || '').toLowerCase();
+      const isStripeHosted = href.includes('checkout.stripe.com') || href.includes('pay.stripe.com');
+
+      const hasSuccessText =
+        titleText.includes('payment complete')
+        || titleText.includes('payment successful')
+        || bodyText.includes('payment complete')
+        || bodyText.includes('payment successful')
+        || bodyText.includes('thank you for your donation')
+        || bodyText.includes('thanks for your donation')
+        || bodyText.includes('receipt');
+
+      const hasCancelText =
+        titleText.includes('payment canceled')
+        || titleText.includes('payment cancelled')
+        || bodyText.includes('payment canceled')
+        || bodyText.includes('payment cancelled');
+
+      const isSuccess =
+        href.includes('jmn://donation-success')
+        || href.includes('${DONATION_SUCCESS_SENTINEL}')
+        || href.includes('/success')
+        || href.includes('/thank-you')
+        || href.includes('redirect_status=succeeded')
+        || href.includes('payment_intent=')
+        || (isStripeHosted && hasSuccessText);
+
+      const isCancel =
+        href.includes('jmn://donation-cancel')
+        || href.includes('${DONATION_CANCEL_SENTINEL}')
+        || href.includes('/cancel')
+        || href.includes('redirect_status=failed')
+        || (isStripeHosted && hasCancelText);
+
+      if (isSuccess && !window.__jmnDonationSuccessSent) {
+        window.__jmnDonationSuccessSent = true;
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'donation_success', url: href }));
+      }
+
+      if (isCancel && !window.__jmnDonationCancelSent) {
+        window.__jmnDonationCancelSent = true;
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'donation_cancel', url: href }));
+      }
+    };
+
+    const run = () => {
+      ensureViewport();
+      applyKeyboardInset();
+      notifyOutcome();
+    };
+
+    window.addEventListener('focusin', () => {
+      applyKeyboardInset();
+      setTimeout(centerActiveElement, 120);
+      setTimeout(centerActiveElement, 420);
+    });
+
+    window.addEventListener('focusout', () => {
+      setTimeout(applyKeyboardInset, 120);
+    });
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', applyKeyboardInset);
+      window.visualViewport.addEventListener('scroll', applyKeyboardInset);
+    }
+
+    run();
+    setTimeout(run, 250);
+    setTimeout(run, 1200);
+    const interval = setInterval(run, 900);
+    setTimeout(function () { clearInterval(interval); }, 30000);
+  } catch (error) {
+    // no-op
+  }
+  true;
+})();
+`;
 
 type DonationConfirmationState = {
   optionTitle: string;
   atIso: string;
 };
+
+function isDonationSuccessNavigation(url: string): boolean {
+  const normalized = (url || '').trim().toLowerCase();
+  if (!normalized) return false;
+
+  if (normalized.startsWith('jmn://donation-success') || normalized.includes('jmn://donation-success')) {
+    return true;
+  }
+
+  if (normalized.includes(DONATION_SUCCESS_SENTINEL)) {
+    return true;
+  }
+
+  if (normalized.includes('checkout.stripe.com') || normalized.includes('pay.stripe.com')) {
+    return (
+      normalized.includes('/success')
+      || normalized.includes('/thank-you')
+      || normalized.includes('redirect_status=succeeded')
+      || normalized.includes('payment_intent=')
+    );
+  }
+
+  return false;
+}
+
+function isDonationCancelNavigation(url: string): boolean {
+  const normalized = (url || '').trim().toLowerCase();
+  if (!normalized) return false;
+
+  if (normalized.startsWith('jmn://donation-cancel') || normalized.includes('jmn://donation-cancel')) {
+    return true;
+  }
+
+  if (normalized.includes(DONATION_CANCEL_SENTINEL)) {
+    return true;
+  }
+
+  if (normalized.includes('checkout.stripe.com') || normalized.includes('pay.stripe.com')) {
+    return normalized.includes('/cancel') || normalized.includes('redirect_status=failed');
+  }
+
+  return false;
+}
 
 function getFullDayTimelineProgress(
   prayers: { name: string; timeDate: Date }[] | undefined,
@@ -307,7 +488,7 @@ const PRAYER_ICONS_HOME: Record<string, string> = {
 };
 
 // ── Small Next Prayer Flipping Card ──────────────────────────────────────
-const JAMAAT_FLASH_DURATION_MS = 60 * 1000;
+const JAMAAT_FLASH_DURATION_MS = 3 * 60 * 1000;
 
 const PRAYER_ALERT_ICONS_MAP: Record<string, string> = {
   Fajr: 'wb-twilight', Dhuhr: 'wb-sunny', Asr: 'wb-cloudy',
@@ -357,8 +538,11 @@ export function SmallFlippingPrayerCard({
     if (!iq || iq === '-' || iq === '--:--') return null;
     const [h, m] = iq.split(':').map(Number);
     if (isNaN(h) || isNaN(m)) return null;
-    const d = new Date(currentTime);
+    const d = new Date(activePrayer.timeDate);
     d.setHours(h, m, 0, 0);
+    if (d < activePrayer.timeDate) {
+      d.setDate(d.getDate() + 1);
+    }
     return d;
   })();
 
@@ -510,7 +694,6 @@ export function SmallFlippingPrayerCard({
                 </View>
                 <View style={rebuildStyles.divider} />
                 <Text style={rebuildStyles.tagline}>Jami{"'"}  Masjid Noorani</Text>
-                <Text style={rebuildStyles.sub}>Halifax, UK</Text>
                 <TouchableOpacity
                   onPress={onDonatePress}
                   style={rebuildStyles.btn}
@@ -1295,7 +1478,7 @@ type HeroPrayerTimelineState = {
 
 const HERO_TIMELINE_ENDING_SOON_SECONDS = 15 * 60;
 const HERO_TIMELINE_STARTING_NOW_SECONDS = 2 * 60;
-const HERO_TIMELINE_JAMAAT_ONGOING_SECONDS = 7 * 60;
+const HERO_TIMELINE_JAMAAT_ONGOING_SECONDS = 15 * 60;
 const HERO_TIMELINE_PULSE_SECONDS = 30;
 const HERO_LOGO_MARKER_SIZE = 22;
 
@@ -1593,14 +1776,20 @@ function HeroPrayerStatus({
 
       <View style={heroTimelineStyles.footerRow}>
         <MaterialIcons name={isForbidden ? 'info-outline' : 'wb-sunny'} size={11} color="rgba(237,231,222,0.54)" />
-        <Text style={heroTimelineStyles.footerText} numberOfLines={1}>
+        <Text
+          style={heroTimelineStyles.footerText}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.78}
+          ellipsizeMode="tail"
+        >
           {isForbidden
-            ? <><Text style={heroTimelineStyles.footerLabel}>Prayer resumes at </Text><Text style={heroTimelineStyles.footerTime}>{nextPrayerTime || '--:--'}</Text></>
+            ? <><Text style={heroTimelineStyles.footerLabel}>Prayer resumes </Text><Text style={heroTimelineStyles.footerTime}>{nextPrayerTime || '--:--'}</Text></>
             : prayerName === 'Ishraq'
-            ? <><Text style={heroTimelineStyles.footerLabel}>Zawaal at </Text><Text style={heroTimelineStyles.footerTime}>{jamaatTimeText || '--:--'}</Text></>
-            : <><Text style={heroTimelineStyles.footerLabel}>Jamaat at </Text><Text style={heroTimelineStyles.footerTime}>{jamaatTimeText || '--:--'}</Text></>
+            ? <><Text style={heroTimelineStyles.footerLabel}>Zawaal </Text><Text style={heroTimelineStyles.footerTime}>{jamaatTimeText || '--:--'}</Text></>
+            : <><Text style={heroTimelineStyles.footerLabel}>Jamaat </Text><Text style={heroTimelineStyles.footerTime}>{jamaatTimeText || '--:--'}</Text></>
           }
-          {!isForbidden && nextPrayerName ? <><Text style={heroTimelineStyles.footerMuted}>  ·  Next: </Text><Text style={heroTimelineStyles.footerLabel}>{nextPrayerName} at </Text><Text style={heroTimelineStyles.footerTime}>{nextPrayerTime}</Text></> : ''}
+          {!isForbidden && nextPrayerName ? <><Text style={heroTimelineStyles.footerMuted}> · Next: </Text><Text style={heroTimelineStyles.footerLabel}>{nextPrayerName} </Text><Text style={heroTimelineStyles.footerTime}>{nextPrayerTime}</Text></> : ''}
         </Text>
       </View>
     </View>
@@ -1986,8 +2175,10 @@ export default function HomeScreen() {
   const [donationOptionsLoading, setDonationOptionsLoading] = useState(false);
   const [selectedDonationOption, setSelectedDonationOption] = useState<AppDonationOption | null>(null);
   const [donationConfirmation, setDonationConfirmation] = useState<DonationConfirmationState | null>(null);
+  const donationOutcomeHandledRef = useRef(false);
   const [webPrayerDrawerVisible, setWebPrayerDrawerVisible] = useState(false);
   const prayerSheetRef = useRef<BottomSheet>(null);
+  const [dailySunnah, setDailySunnah] = useState<DailySunnahResult | null>(null);
 
   const loadCommunityUpdates = useCallback(async () => {
     setCommunityLoading(true);
@@ -2019,6 +2210,12 @@ export default function HomeScreen() {
 
     // Yaseen images are bundled as local assets — no preload needed
   }, [loadCommunityUpdates, loadDonationOptions]);
+
+  useEffect(() => {
+    fetchDailySunnah().then((result) => {
+      if (result) setDailySunnah(result);
+    });
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -2067,7 +2264,7 @@ export default function HomeScreen() {
 
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { darkMode, toggleDarkMode } = useAppTheme();
+  const { darkMode } = useAppTheme();
   const nightMode = darkMode;
   const {
     data, countdown, nextPrayerName,
@@ -2122,7 +2319,6 @@ export default function HomeScreen() {
   // Falls back to Gregorian day-of-year mod 30 until Hijri data loads
   const hijriDayInt  = parseInt(hijriDayNum || '0', 10) || (((DAY_OF_YEAR - 1) % 30) + 1);
 
-  const nextIqamah = nextInfo?.prayer.iqamah && nextInfo.prayer.iqamah !== '-' ? nextInfo.prayer.iqamah : null;
   const fajrPrayer = data?.prayers.find(p => p.name === 'Fajr');
   const dhuhrPrayer = data?.prayers.find(p => p.name === 'Dhuhr');
   const asrPrayer = data?.prayers.find(p => p.name === 'Asr');
@@ -2322,21 +2518,19 @@ export default function HomeScreen() {
   const isFriday = currentTime.getDay() === 5;
   const isThursday = currentTime.getDay() === 4;
 
-  const fallbackHadithPreview = '';
-  const fallbackHadithSource = '';
-  const fallbackHadithFullText = 'Open full Hadith to read the reminder.';
-
   const fallbackVersePreview = '';
   const fallbackVerseReference = '';
   const fallbackVerseFullText = 'Open full Verse to read the reminder.';
 
   const hadithTitle = 'Daily Sunnah Reminder';
   const hadithTitleUrdu = 'روزانہ سنت یاددہانی';
-  const hadithPreview = fallbackHadithPreview;
+  const hadithPreview = dailySunnah?.preview ?? '';
   const hadithPreviewUrdu = '';
-  const hadithSource = fallbackHadithSource;
-  const hadithArabic = '';
-  const hadithFullText = fallbackHadithFullText;
+  const hadithSource = dailySunnah?.ref ?? '';
+  const hadithArabic = dailySunnah?.arabic ?? '';
+  const hadithFullText = dailySunnah
+    ? `${dailySunnah.narrator}\n\n${dailySunnah.text}`
+    : 'Open full Hadith to read the reminder.';
 
   const verseTitle = 'Daily Quran Reminder';
   const verseTitleUrdu = 'روزانہ قرآنی یاددہانی';
@@ -2482,14 +2676,12 @@ export default function HomeScreen() {
   const hasExplicitHeroMidEvent = !!effectiveHeroMidLabel && !!effectiveHeroMidTime;
   const isSpecialHeroPhase = ['Sunrise', 'Ishraq', 'Zawaal'].includes(effectiveHeroPrayerName);
   const heroPrayerSupportsJamaat = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha', 'Jumuah'].includes(effectiveHeroPrayerName);
-  const endEntrySupportsJamaat = ['Next Prayer', 'Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha', 'Jumuah'].includes(effectiveHeroEndLabel);
   const effectiveHeroJamaatValue = (() => {
     if (isEidHeroWindow) return '';
     if (isFridayPostZawaal) return '';
     if (isSpecialHeroPhase) return '';
     if (hasExplicitHeroMidEvent) return '';
     if (heroPrayerSupportsJamaat && currentPrayerIqamah) return currentPrayerIqamah;
-    if (endEntrySupportsJamaat && nextIqamah) return nextIqamah;
     return '';
   })();
   const effectiveHeroShowJamaat = !!effectiveHeroJamaatValue;
@@ -2615,7 +2807,6 @@ export default function HomeScreen() {
 
   // Calendar face removed: timetable now in drawer only
 
-  const backClock = currentTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
   const backGregorianWeekday = currentTime.toLocaleDateString('en-GB', { weekday: 'short' });
   const backGregorianDate = currentTime.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
   const backGregorian = `${backGregorianWeekday} ${backGregorianDate}`;
@@ -2727,6 +2918,7 @@ export default function HomeScreen() {
         return;
       }
 
+      donationOutcomeHandledRef.current = false;
       setDonationStatusMessage(null);
       setShowDonationOptions(false);
       setDonationCheckoutUrl(checkoutUrl);
@@ -2742,11 +2934,59 @@ export default function HomeScreen() {
   }, [donationLoading, selectedDonationOption]);
 
   const resetDonationFlowToSelection = useCallback(() => {
+    donationOutcomeHandledRef.current = false;
     setDonationCheckoutUrl(null);
     setShowDonationOptions(true);
     setDonationStatusMessage(null);
     setSelectedDonationOption(null);
   }, []);
+
+  const handleDonationSuccess = useCallback(() => {
+    if (donationOutcomeHandledRef.current) return;
+    donationOutcomeHandledRef.current = true;
+
+    const confirmedOptionTitle = selectedDonationOption?.title ?? 'Donation';
+    const confirmedAtIso = new Date().toISOString();
+
+    setDonationModalVisible(false);
+    setDonationConfirmation(null);
+    setDonationCheckoutUrl(null);
+    setShowDonationOptions(true);
+    setDonationStatusMessage(null);
+    setSelectedDonationOption(null);
+    router.push({
+      pathname: '/(tabs)/donation-confirmation',
+      params: {
+        title: confirmedOptionTitle,
+        atIso: confirmedAtIso,
+      },
+    } as never);
+  }, [router, selectedDonationOption?.title]);
+
+  const handleDonationCancel = useCallback(() => {
+    if (donationOutcomeHandledRef.current) return;
+    donationOutcomeHandledRef.current = true;
+    resetDonationFlowToSelection();
+    setDonationStatusMessage('Donation was cancelled before payment completion.');
+  }, [resetDonationFlowToSelection]);
+
+  const handleDonationWebMessage = useCallback((event: WebViewMessageEvent) => {
+    const rawData = event.nativeEvent.data;
+    if (!rawData) return;
+
+    try {
+      const parsed = JSON.parse(rawData) as { type?: string };
+      if (parsed.type === 'donation_success') {
+        handleDonationSuccess();
+        return;
+      }
+      if (parsed.type === 'donation_cancel') {
+        handleDonationCancel();
+      }
+    } catch {
+      // ignore malformed message payloads
+    }
+  }, [handleDonationCancel, handleDonationSuccess]);
 
   const closeDonationModal = useCallback(() => {
     setDonationModalVisible(false);
@@ -2775,7 +3015,7 @@ export default function HomeScreen() {
       setWebPrayerDrawerVisible(true);
       return;
     }
-    prayerSheetRef.current?.snapToIndex(0);
+    prayerSheetRef.current?.snapToIndex(1);
   }, []);
 
   const closePrayerDrawer = useCallback(() => {
@@ -2790,13 +3030,6 @@ export default function HomeScreen() {
     closePrayerDrawer();
     router.push('/(tabs)/prayer');
   }, [closePrayerDrawer, router]);
-
-  const runMockLiveNotificationTest = useCallback(() => {
-    if (!__DEV__) return;
-
-    triggerJmnMockLiveTransition();
-    Alert.alert('Mock live alert sent', 'You should now see the live banner/notification flow.');
-  }, []);
 
   return (
     <>
@@ -2813,7 +3046,7 @@ export default function HomeScreen() {
       }
     >
       {/* New Home layout: image-2 inspired editorial stack */}
-      <View style={[styles.heroHeader, { paddingTop: insets.top + 10 }]}> 
+      <View style={[styles.heroHeader, { paddingTop: insets.top + 6 }]}> 
         <LinearGradient
           colors={effectiveHeroSkyGradientColors}
           start={{ x: 0.5, y: 0 }}
@@ -2837,41 +3070,33 @@ export default function HomeScreen() {
               />
             </View>
             <View style={styles.topNavText}>
-              <Text numberOfLines={1} style={styles.topNavName}>Jami&apos; Masjid Noorani</Text>
-              <Text style={styles.topNavCity}>Halifax, UK</Text>
-              <Text style={styles.topNavDateLine}>{backGregorian}</Text>
-              <Text style={styles.topNavHijriLine}>{headerHijriLine}</Text>
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.84}
+                style={styles.topNavName}
+              >
+                Jami&apos; Masjid Noorani
+              </Text>
+              <Text numberOfLines={1} style={styles.topNavDateLine}>{backGregorian}</Text>
+              <Text numberOfLines={1} style={styles.topNavHijriLine}>{headerHijriLine}</Text>
             </View>
           </View>
           <View style={styles.headerControls}>
             <TouchableOpacity
               style={styles.modePill}
               activeOpacity={0.85}
-              onPress={toggleDarkMode}
+              onPress={() => router.push('/(tabs)/settings')}
             >
               <MaterialIcons
-                name={darkMode ? 'dark-mode' : 'light-mode'}
+                name="settings"
                 size={16}
                 color="#FFFFFF"
               />
-              <Text style={styles.modePillText}>{darkMode ? 'Dark' : 'Light'}</Text>
+              <Text style={styles.modePillText}>Settings</Text>
             </TouchableOpacity>
-            <Text style={styles.topNavUpdated}>{backClock}</Text>
           </View>
         </View>
-
-        {__DEV__ ? (
-          <View style={styles.homeMockLiveRow}>
-            <TouchableOpacity
-              style={styles.homeMockLiveBtn}
-              onPress={runMockLiveNotificationTest}
-              activeOpacity={0.85}
-            >
-              <MaterialIcons name="science" size={16} color="#FFFFFF" />
-              <Text style={styles.homeMockLiveBtnText}>Mock live alert</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
 
         {/* ── 3-part hero composition: live prayer + support cards ─────── */}
         <View style={heroNewStyles.heroInnerWrap}>
@@ -2915,7 +3140,7 @@ export default function HomeScreen() {
             </View>
 
             {/* Soft separator with extra space above donation card */}
-            <View style={{height: 30}} />
+            <View style={{ height: 16 }} />
             <View style={heroNewStyles.softSeparator} />
 
             {/* Donation Card — visually secondary, softer heading, less intense bg */}
@@ -3063,9 +3288,9 @@ export default function HomeScreen() {
 
             {donationConfirmation ? (
               <View style={styles.donationConfirmationCard}>
-                <Text style={styles.donationConfirmationTitle}>Donation Confirmation</Text>
+                <Text style={styles.donationConfirmationTitle}>Donation confirmed</Text>
                 <Text style={styles.donationConfirmationBody}>
-                  Thank you for your donation. JazakAllahu Khayran. Your {donationConfirmation.optionTitle} donation has been confirmed successfully.
+                  JazakAllahu Khayran. Your {donationConfirmation.optionTitle} donation was completed successfully.
                 </Text>
                 <Text style={styles.donationConfirmationMeta}>
                   Time: {new Date(donationConfirmation.atIso).toLocaleString('en-GB')}
@@ -3198,31 +3423,41 @@ export default function HomeScreen() {
           </ScrollView>
         ) : donationCheckoutUrl ? (
           <WebView
+            style={styles.donationCheckoutWebview}
             source={{ uri: donationCheckoutUrl }}
             startInLoadingState
+            javaScriptEnabled
+            domStorageEnabled
+            mixedContentMode="always"
+            injectedJavaScript={DONATION_CHECKOUT_INJECTED_SCRIPT}
             renderLoading={() => (
               <View style={styles.donationWebviewLoadingOverlay}>
                 <ActivityIndicator size="large" color="#0B6B45" />
                 <Text style={styles.donationWebviewLoadingText}>Opening Stripe checkout...</Text>
               </View>
             )}
+            onMessage={handleDonationWebMessage}
+            onNavigationStateChange={(navState) => {
+              if (isDonationSuccessNavigation(navState.url)) {
+                handleDonationSuccess();
+                return;
+              }
+
+              if (isDonationCancelNavigation(navState.url)) {
+                handleDonationCancel();
+              }
+            }}
             onShouldStartLoadWithRequest={(request) => {
-              if (request.url.includes('jmn://donation-success') || request.url.startsWith('jmn://donation-success')) {
-                setDonationConfirmation({
-                  optionTitle: selectedDonationOption?.title ?? 'donation',
-                  atIso: new Date().toISOString(),
-                });
-                setDonationCheckoutUrl(null);
-                setShowDonationOptions(true);
-                setDonationStatusMessage('Thank you for your donation. Payment confirmed successfully.');
-                setSelectedDonationOption(null);
+              if (isDonationSuccessNavigation(request.url)) {
+                handleDonationSuccess();
                 return false;
               }
-              if (request.url.includes('jmn://donation-cancel') || request.url.startsWith('jmn://donation-cancel')) {
-                resetDonationFlowToSelection();
-                setDonationStatusMessage('Donation was cancelled before payment completion.');
+
+              if (isDonationCancelNavigation(request.url)) {
+                handleDonationCancel();
                 return false;
               }
+
               return true;
             }}
             onError={() => {
@@ -3245,40 +3480,40 @@ export default function HomeScreen() {
 // ── Hero inner gradient card styles ──────────────────────────────────────
 const heroNewStyles = StyleSheet.create({
   heroInnerWrap: {
-    marginHorizontal: Spacing.md,
-    marginTop: 10,
-    marginBottom: 8,
-    borderRadius: 24,
-    overflow: 'hidden',
+    marginHorizontal: 0,
+    marginTop: 0,
+    marginBottom: 0,
+    borderRadius: 0,
+    overflow: 'visible',
     ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 10px 26px rgba(2,31,53,0.28)' }
+      ? { boxShadow: 'none' }
       : {
-          shadowColor: '#021F35',
-          shadowOffset: { width: 0, height: 10 },
-          shadowOpacity: 0.28,
-          shadowRadius: 26,
+          shadowColor: 'transparent',
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0,
+          shadowRadius: 0,
         }),
-    elevation: 7,
+    elevation: 0,
   },
   softSeparator: {
     height: 1,
     backgroundColor: 'rgba(236,244,238,0.08)',
     marginHorizontal: -18,
     borderRadius: 1,
-    marginBottom: 6,
+    marginBottom: 4,
   },
   heroGradient: {
     paddingHorizontal: 18,
-    paddingTop: 16,
-    paddingBottom: 12,
+    paddingTop: 0,
+    paddingBottom: 8,
   },
   mainSection: {
     alignItems: 'center',
-    paddingBottom: 18,
+    paddingBottom: 10,
   },
   heroNewsBar: {
     width: '100%',
-    marginTop: 10,
+    marginTop: 8,
   },
   eyebrow: {
     fontSize: 10,
@@ -3356,6 +3591,7 @@ const heroTimelineStyles = StyleSheet.create({
   statusBlock: {
     width: '100%',
     alignItems: 'center',
+    paddingTop: SCREEN_WIDTH < 390 ? 7.5 : 9.5,
   },
   islamicFrame: {
     width: '100%',
@@ -3431,7 +3667,7 @@ const heroTimelineStyles = StyleSheet.create({
     letterSpacing: 2.2,
     textTransform: 'uppercase',
     color: 'rgba(232,225,214,0.78)',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   prayerName: {
     marginTop: 4,
@@ -3502,15 +3738,15 @@ const heroTimelineStyles = StyleSheet.create({
     marginTop: 14,
   },
   countdownSegment: {
-    backgroundColor: 'rgba(12,54,38,0.21)',
+    backgroundColor: 'transparent',
     borderRadius: 9,
     paddingHorizontal: 10,
     paddingVertical: 4,
     minWidth: 64,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(208,234,217,0.05)',
+    borderWidth: 0,
+    borderColor: 'transparent',
   },
   countdownDigit: {
     fontSize: 50,
@@ -3553,15 +3789,22 @@ const heroTimelineStyles = StyleSheet.create({
     backgroundColor: 'rgba(244,239,231,0.72)',
   },
   footerRow: {
-    marginTop: 12,
+    marginTop: 10,
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
+    gap: 4,
+    paddingHorizontal: 4,
   },
   footerText: {
-    fontSize: 16,
+    fontSize: SCREEN_WIDTH < 390 ? 14 : 15,
+    lineHeight: SCREEN_WIDTH < 390 ? 18 : 20,
     fontWeight: '500',
     color: 'rgba(237,231,222,0.68)',
+    flexShrink: 1,
+    minWidth: 0,
+    textAlign: 'center',
   },
   footerLabel: {
     color: 'rgba(237,231,222,0.70)',
@@ -3986,6 +4229,10 @@ const styles = StyleSheet.create({
   donationModalContentLayer: {
     flex: 1,
   },
+  donationCheckoutWebview: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
   donationModalCloseBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -4290,9 +4537,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: Spacing.md + 2,
-    paddingTop: 10,
-    paddingBottom: 14,
+    paddingHorizontal: Spacing.md,
+    paddingTop: 8,
+    paddingBottom: 10,
     backgroundColor: 'rgba(5,18,14,0.18)',
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(255,255,255,0.08)',
@@ -4300,13 +4547,13 @@ const styles = StyleSheet.create({
   topNavBrand: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     flex: 1,
     minWidth: 0,
   },
   topNavLogoWrap: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     borderRadius: 4,
     marginRight: 2,
     alignItems: 'center',
@@ -4325,8 +4572,8 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   topNavLogo: {
-    width: 34,
-    height: 34,
+    width: 30,
+    height: 30,
     opacity: 1,
   },
   topNavText: {
@@ -4334,12 +4581,12 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   topNavName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.15,
-    lineHeight: 20,
-    marginBottom: 2,
+    lineHeight: 18,
+    marginBottom: 1,
     ...(Platform.OS === 'web'
       ? { textShadow: '0px 1px 2px rgba(0,0,0,0.35)' }
       : {
@@ -4361,7 +4608,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.62)',
   },
   topNavCity: {
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.75)',
     letterSpacing: 0.2,
@@ -4369,8 +4616,8 @@ const styles = StyleSheet.create({
   },
   topNavDateLine: {
     marginTop: 1,
-    fontSize: 10,
-    lineHeight: 13,
+    fontSize: 9.5,
+    lineHeight: 12,
     fontWeight: '500',
     color: 'rgba(255,255,255,0.58)',
     letterSpacing: 0.1,
@@ -4378,22 +4625,22 @@ const styles = StyleSheet.create({
   },
   topNavHijriLine: {
     marginTop: 0,
-    fontSize: 10,
-    lineHeight: 13,
+    fontSize: 9.5,
+    lineHeight: 12,
     fontWeight: '500',
     color: 'rgba(255,255,255,0.58)',
     letterSpacing: 0.1,
     flexShrink: 1,
   },
   topNavUpdated: {
-    fontSize: 28,
-    lineHeight: 32,
+    fontSize: 24,
+    lineHeight: 27,
     fontWeight: '800',
     color: '#FFFFFF',
     fontVariant: ['tabular-nums'] as any,
     letterSpacing: -0.5,
-    marginLeft: 12,
-    paddingRight: 2,
+    marginLeft: 0,
+    paddingRight: 0,
     ...(Platform.OS === 'web'
       ? { textShadow: '0px 1px 2px rgba(0,0,0,0.3)' }
       : {
@@ -4403,45 +4650,26 @@ const styles = StyleSheet.create({
         }),
   },
   headerControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  homeMockLiveRow: {
-    paddingHorizontal: Spacing.md + 2,
-    marginTop: -4,
-    marginBottom: 8,
-  },
-  homeMockLiveBtn: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: Radius.full,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-    backgroundColor: 'rgba(149,40,40,0.38)',
-  },
-  homeMockLiveBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 2,
+    marginLeft: 8,
+    flexShrink: 0,
   },
   modePill: {
-    height: 34,
-    borderRadius: 18,
-    paddingHorizontal: 12,
+    height: 30,
+    borderRadius: 16,
+    paddingHorizontal: 10,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.3)',
     backgroundColor: 'rgba(255,255,255,0.13)',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
   },
   modePillText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#FFFFFF',
     fontWeight: '700',
   },

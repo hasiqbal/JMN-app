@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
+const LIVE_NOTIFICATION_CHANNEL_ID = 'jmn-live-v2';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -61,7 +62,7 @@ Deno.serve(async (req) => {
         body: message,
         data,
         priority: 'high',
-        channelId: 'jmn-live',
+        channelId: LIVE_NOTIFICATION_CHANNEL_ID,
       }));
 
       const res = await fetch(EXPO_PUSH_URL, {

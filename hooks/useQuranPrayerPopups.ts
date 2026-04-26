@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import type { AudioPlayer } from 'expo-audio';
 import { Asset } from 'expo-asset';
+import { VolumeManager } from 'react-native-volume-manager';
 import { useInAppBanner } from '@/template';
 import { getNextPrayer, getPrayerTimesForDate, PrayerTimesData } from '@/services/prayerService';
 import {
@@ -21,13 +22,68 @@ const ASR_MAKROOH_WARNING_MINUTES = 21;
 const CHECK_INTERVAL_MS = 15 * 1000;
 const DATA_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const NON_PRAYABLE_NAMES = new Set(['Sunrise', 'Ishraq', 'Zawaal']);
+const VOLUME_DOWN_EPSILON = 0.005;
+// In-app banner default is 4200ms; keep prayer reminders visible 5s longer.
+const PRAYER_BANNER_DURATION_MS = 9200;
+
+type PrayerAudioKind = 'adhaan' | 'iqamah';
+export type PrayerAudioState = {
+  active: boolean;
+  kind: PrayerAudioKind | null;
+};
+type PrayerAudioStateListener = (state: PrayerAudioState) => void;
 
 let adhaanAudioModeReady = false;
 let activeAdhaanPlayer: AudioPlayer | null = null;
 let iqamahAudioUri: string | null = null;
+let activePrayerAudioKind: PrayerAudioKind | null = null;
+
+const prayerAudioStateListeners = new Set<PrayerAudioStateListener>();
 
 const shownReminderKeys = new Set<string>();
 let lastReminderDayKey = '';
+
+function getPrayerAudioStateSnapshot(): PrayerAudioState {
+  return {
+    active: activePrayerAudioKind !== null,
+    kind: activePrayerAudioKind,
+  };
+}
+
+function notifyPrayerAudioStateListeners(): void {
+  const snapshot = getPrayerAudioStateSnapshot();
+  for (const listener of prayerAudioStateListeners) {
+    try {
+      listener(snapshot);
+    } catch {
+      // Keep audio lifecycle resilient if a subscriber throws.
+    }
+  }
+}
+
+function setPrayerAudioKind(kind: PrayerAudioKind | null): void {
+  if (activePrayerAudioKind === kind) return;
+  activePrayerAudioKind = kind;
+  notifyPrayerAudioStateListeners();
+}
+
+export function isPrayerAudioActive(): boolean {
+  return activePrayerAudioKind !== null;
+}
+
+export function subscribePrayerAudioState(listener: PrayerAudioStateListener): () => void {
+  prayerAudioStateListeners.add(listener);
+
+  try {
+    listener(getPrayerAudioStateSnapshot());
+  } catch {
+    // Ignore immediate listener errors to avoid breaking caller setup.
+  }
+
+  return () => {
+    prayerAudioStateListeners.delete(listener);
+  };
+}
 
 function toDayKey(date: Date): string {
   const y = date.getFullYear();
@@ -98,6 +154,7 @@ function isWithinZawaalWindow(prayers: PrayerTimesData['prayers'], now: Date): b
 export async function stopActiveAdhaan(): Promise<void> {
   const player = activeAdhaanPlayer;
   activeAdhaanPlayer = null;
+  setPrayerAudioKind(null);
   if (!player) return;
 
   try {
@@ -154,6 +211,70 @@ export async function setIqamahMutedEnabled(muted: boolean): Promise<void> {
     await AsyncStorage.setItem(IQAMAH_MUTED_STORAGE_KEY, muted ? 'true' : 'false');
   } catch {
     // Keep user flow intact if storage write fails.
+  }
+}
+
+export async function playAdhaanNowForTesting(options?: { ignoreMute?: boolean }): Promise<boolean> {
+  if (Platform.OS === 'web') return false;
+
+  const ignoreMute = !!options?.ignoreMute;
+  const muted = ignoreMute ? false : await isAdhaanMutedEnabled();
+  if (muted) {
+    await stopActiveAdhaan();
+    return false;
+  }
+
+  let selectedUrl = DEFAULT_ADHAAN_AUDIO_URL;
+  try {
+    const stored = await AsyncStorage.getItem(ADHAAN_AUDIO_STORAGE_KEY);
+    selectedUrl = isValidAdhaanAudioUrl(stored) ? stored : DEFAULT_ADHAAN_AUDIO_URL;
+  } catch {
+    selectedUrl = DEFAULT_ADHAAN_AUDIO_URL;
+  }
+
+  try {
+    if (!adhaanAudioModeReady) {
+      await setAudioModeAsync({
+        allowsRecording: false,
+        shouldPlayInBackground: true,
+        playsInSilentMode: true,
+        shouldRouteThroughEarpiece: false,
+        interruptionModeAndroid: 'doNotMix',
+      });
+      adhaanAudioModeReady = true;
+    }
+  } catch {
+    return false;
+  }
+
+  await stopActiveAdhaan();
+
+  try {
+    const player = createAudioPlayer({ uri: selectedUrl }, { updateInterval: 400 });
+    activeAdhaanPlayer = player;
+    setPrayerAudioKind('adhaan');
+
+    player.addListener('playbackStatusUpdate', (status) => {
+      if (activeAdhaanPlayer !== player) return;
+      if (!(status as { didJustFinish?: boolean }).didJustFinish) return;
+
+      try {
+        player.remove();
+      } catch {
+        // Ignore remove failures during natural completion.
+      }
+
+      if (activeAdhaanPlayer === player) {
+        activeAdhaanPlayer = null;
+        setPrayerAudioKind(null);
+      }
+    });
+
+    player.play();
+    return true;
+  } catch {
+    await stopActiveAdhaan();
+    return false;
   }
 }
 
@@ -216,7 +337,7 @@ export function useQuranPrayerPopups(): void {
     }
   }, []);
 
-  const playPrayerAudio = React.useCallback(async (uri: string) => {
+  const playPrayerAudio = React.useCallback(async (uri: string, kind: PrayerAudioKind) => {
     const canPlay = await ensureAdhaanAudioMode();
     if (!canPlay) return;
 
@@ -225,6 +346,7 @@ export function useQuranPrayerPopups(): void {
     try {
       const player = createAudioPlayer({ uri }, { updateInterval: 400 });
       activeAdhaanPlayer = player;
+      setPrayerAudioKind(kind);
 
       player.addListener('playbackStatusUpdate', (status) => {
         if (activeAdhaanPlayer !== player) return;
@@ -238,6 +360,7 @@ export function useQuranPrayerPopups(): void {
 
         if (activeAdhaanPlayer === player) {
           activeAdhaanPlayer = null;
+          setPrayerAudioKind(null);
         }
       });
 
@@ -257,7 +380,7 @@ export function useQuranPrayerPopups(): void {
     }
 
     const selectedUrl = await loadSelectedAdhaanUrl();
-    await playPrayerAudio(selectedUrl);
+    await playPrayerAudio(selectedUrl, 'adhaan');
   }, [loadSelectedAdhaanUrl, playPrayerAudio, stopCurrentAdhaan]);
 
   const playJamaatCue = React.useCallback(async () => {
@@ -272,7 +395,7 @@ export function useQuranPrayerPopups(): void {
     const iqamahUrl = await loadIqamahAudioUrl();
     if (!iqamahUrl) return;
 
-    await playPrayerAudio(iqamahUrl);
+    await playPrayerAudio(iqamahUrl, 'iqamah');
   }, [loadIqamahAudioUrl, playPrayerAudio, stopCurrentAdhaan]);
 
   React.useEffect(() => {
@@ -283,6 +406,54 @@ export function useQuranPrayerPopups(): void {
       void stopCurrentAdhaan();
     };
   }, [loadIqamahAudioUrl, loadSelectedAdhaanUrl, stopCurrentAdhaan]);
+
+  React.useEffect(() => {
+    if (Platform.OS === 'web') return;
+
+    let mounted = true;
+    let previousVolume: number | null = null;
+
+    VolumeManager.getVolume()
+      .then((result) => {
+        if (!mounted) return;
+        previousVolume = Number.isFinite(result.volume) ? result.volume : null;
+      })
+      .catch(() => {
+        previousVolume = null;
+      });
+
+    const subscription = VolumeManager.addVolumeListener((result) => {
+      const nextVolume = Number.isFinite(result.volume) ? result.volume : null;
+      if (nextVolume === null) return;
+
+      // Treat any hardware volume-key interaction as an explicit mute intent
+      // while adhaan/iqamah is playing. This is more reliable than checking
+      // only for volume-down deltas, which can miss boundary presses.
+      if (activeAdhaanPlayer) {
+        previousVolume = nextVolume;
+        void stopCurrentAdhaan();
+        return;
+      }
+
+      if (previousVolume === null) {
+        previousVolume = nextVolume;
+        return;
+      }
+
+      const didDecrease = nextVolume < previousVolume - VOLUME_DOWN_EPSILON;
+      previousVolume = nextVolume;
+
+      if (!didDecrease) return;
+      if (!activeAdhaanPlayer) return;
+
+      void stopCurrentAdhaan();
+    });
+
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, [stopCurrentAdhaan]);
 
   const resetReminderDayIfNeeded = React.useCallback((now: Date) => {
     const dayKey = toDayKey(now);
@@ -312,7 +483,7 @@ export function useQuranPrayerPopups(): void {
   ): boolean => {
     if (shownReminderKeys.has(key)) return false;
     shownReminderKeys.add(key);
-    showBanner(title, message, undefined, variant);
+    showBanner(title, message, PRAYER_BANNER_DURATION_MS, variant);
     return true;
   }, [showBanner]);
 

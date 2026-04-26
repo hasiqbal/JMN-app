@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Platform, PanResponder } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors, Spacing } from '@/constants/theme';
 
@@ -25,6 +25,9 @@ const ATTACHED = {
   handle: '#C8E2D4',
 };
 
+const DRAG_ACTIVATION_DY = 6;
+const DRAG_OPEN_THRESHOLD_DY = -18;
+
 export default function PrayerDrawerTrigger({ nightMode, onPress, attached }: PrayerDrawerTriggerProps) {
   const textColor  = attached ? ATTACHED.text  : nightMode ? NIGHT.text  : undefined;
   const hintColor  = attached ? ATTACHED.sub   : nightMode ? NIGHT.sub   : undefined;
@@ -34,40 +37,62 @@ export default function PrayerDrawerTrigger({ nightMode, onPress, attached }: Pr
     ? { backgroundColor: ATTACHED.handle }
     : nightMode ? { backgroundColor: NIGHT.handle } : undefined;
 
+  const panResponder = React.useMemo(
+    () => PanResponder.create({
+      onMoveShouldSetPanResponder: (_evt, gestureState) => (
+        Math.abs(gestureState.dy) > DRAG_ACTIVATION_DY
+        && Math.abs(gestureState.dy) > Math.abs(gestureState.dx)
+      ),
+      onPanResponderRelease: (_evt, gestureState) => {
+        if (gestureState.dy <= DRAG_OPEN_THRESHOLD_DY) {
+          onPress();
+        }
+      },
+      onPanResponderTerminate: (_evt, gestureState) => {
+        if (gestureState.dy <= DRAG_OPEN_THRESHOLD_DY) {
+          onPress();
+        }
+      },
+    }),
+    [onPress],
+  );
+
   const inner = (
-    <TouchableOpacity
-      accessibilityRole="button"
-      accessibilityLabel="Open today's salah drawer"
-      activeOpacity={0.9}
-      onPress={onPress}
-      style={[
-        styles.panel,
-        attached ? styles.panelAttached : nightMode ? styles.panelNight : styles.panelDay,
-      ]}
-    >
-      <View style={[styles.handle, handleStyle]} />
-      <View style={styles.row}>
-        <View style={styles.leftMeta}>
-          <View style={[styles.iconBadge, iconBadgeStyle]}>
-            <Image
-              source={require('../../assets/images/masjid-building.jpg')}
-              style={styles.iconImage}
-              resizeMode="cover"
-            />
+    <View {...panResponder.panHandlers}>
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel="Open today's salah drawer"
+        activeOpacity={0.9}
+        onPress={onPress}
+        style={[
+          styles.panel,
+          attached ? styles.panelAttached : nightMode ? styles.panelNight : styles.panelDay,
+        ]}
+      >
+        <View style={[styles.handle, handleStyle]} />
+        <View style={styles.row}>
+          <View style={styles.leftMeta}>
+            <View style={[styles.iconBadge, iconBadgeStyle]}>
+              <Image
+                source={require('../../assets/images/masjid-building.jpg')}
+                style={styles.iconImage}
+                resizeMode="cover"
+              />
+            </View>
+            <Text style={[styles.title, textColor ? { color: textColor } : undefined]}>Today&apos;s Salah</Text>
           </View>
-          <Text style={[styles.title, textColor ? { color: textColor } : undefined]}>Today&apos;s Salah</Text>
+          <View style={styles.rightMeta}>
+            <Text
+              style={[styles.hint, hintColor ? { color: hintColor } : undefined]}
+              numberOfLines={1}
+            >
+              View prayer times
+            </Text>
+            <MaterialIcons name="keyboard-arrow-up" size={17} color={arrowColor} />
+          </View>
         </View>
-        <View style={styles.rightMeta}>
-          <Text
-            style={[styles.hint, hintColor ? { color: hintColor } : undefined]}
-            numberOfLines={1}
-          >
-            View prayer times
-          </Text>
-          <MaterialIcons name="keyboard-arrow-up" size={17} color={arrowColor} />
-        </View>
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </View>
   );
 
   if (attached) return inner;

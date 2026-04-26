@@ -2,20 +2,20 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Tabs, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Platform, View, StyleSheet, Animated, AppState } from 'react-native';
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Colors } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useJmnLiveStatus } from '@/hooks/useJmnLiveStatus';
 import {
-  isAdhaanMutedEnabled,
-  isIqamahMutedEnabled,
+  playAdhaanNowForTesting,
   setAdhaanMutedEnabled,
   stopActiveAdhaan,
   useQuranPrayerPopups,
 } from '@/hooks/useQuranPrayerPopups';
 import { getPrayerTimesForDate, PrayerTime } from '@/services/prayerService';
+import { syncPushTokenWithBackend } from '@/services/pushRegistrationService';
 import { useInAppBanner } from '@/template';
 
 type ExpoNotificationsModule = typeof import('expo-notifications');
@@ -24,21 +24,32 @@ const Notifications: ExpoNotificationsModule | null =
   Platform.OS === 'web' ? null : require('expo-notifications');
 
 const HIDDEN_TAB_OPTIONS = { href: null };
+const LIVE_NOTIFICATION_CHANNEL_ID = 'jmn-live-v2';
 const LIVE_NOTIFY_KEY = 'jmn_radio_notify';
 const LIVE_NOTIFY_TS_KEY = 'jmn_last_live_notify_ts';
 const LIVE_NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
-const PRAYER_CHANNEL_ID = 'jmn-prayer';
-const PRAYER_SILENT_CHANNEL_ID = 'jmn-prayer-silent';
+const PUSH_SUCCESS_TS_KEY = 'jmn_last_push_success_ts';
+const PUSH_SUCCESS_FLAG_WINDOW_MS = 10 * 60 * 1000;
+const PRAYER_ADHAAN_CHANNEL_ID = 'jmn-prayer-adhaan-v2';
+const PRAYER_JAMAAT_CHANNEL_ID = 'jmn-prayer-jamaat-v2';
+const PRAYER_SILENT_CHANNEL_ID = 'jmn-prayer-silent-v3';
+const PRAYER_ALERT_CHANNEL_ID = 'jmn-prayer-alerts-v1';
+const ADHAAN_BACKGROUND_SOUND_FILE = 'adhaan.mp3';
+const IQAMAH_BACKGROUND_SOUND_FILE = 'iqamah.mp3';
 const PRAYER_SCHEDULE_REFRESH_MS = 15 * 60 * 1000;
+const PRAYER_SCHEDULE_DAY_WINDOW = 3;
 const PRAYER_NOTIFICATION_SCOPE = 'jmn-prayer';
 const PRAYER_NOTIFICATION_CATEGORY_ID = 'jmn-prayer-controls';
 const PRAYER_ACTION_STOP = 'jmn-prayer-stop';
 const PRAYER_ACTION_MUTE = 'jmn-prayer-mute';
+const DEBUG_ADHAAN_TEST_LAST_SENT_TS_KEY = 'jmn_debug_adhaan_test_last_sent_ts_v1';
 const JAMAAT_REMINDER_MINUTES = 10;
 const NOTIFICATION_MIN_LEAD_MS = 30 * 1000;
+const ANDROID_PRAYER_START_ADVANCE_MS = 60 * 1000;
 const EXPO_GO_NOTIFICATIONS_FALLBACK =
   Constants.appOwnership === 'expo' &&
   Number((Constants.expoConfig?.sdkVersion ?? '0').split('.')[0] || 0) >= 53;
+const PUSH_SYNC_DEBUG_ENABLED = __DEV__;
 
 const NON_PRAYABLE_NAMES = new Set(['Sunrise', 'Ishraq', 'Zawaal']);
 
@@ -74,12 +85,15 @@ function buildPrayerNotifications(prayer: PrayerTime, now: Date): PlannedPrayerN
 
   const notifications: PlannedPrayerNotification[] = [];
   const prayerStart = prayer.timeDate;
+  const prayerStartNotifyAt = Platform.OS === 'android'
+    ? new Date(prayerStart.getTime() - ANDROID_PRAYER_START_ADVANCE_MS)
+    : prayerStart;
 
-  if (prayerStart.getTime() - now.getTime() > NOTIFICATION_MIN_LEAD_MS) {
+  if (prayerStartNotifyAt.getTime() - now.getTime() > NOTIFICATION_MIN_LEAD_MS) {
     notifications.push({
       title: `${prayer.name} prayer time`,
       body: `Azaan for ${prayer.name} has started.`,
-      fireAt: prayerStart,
+      fireAt: prayerStartNotifyAt,
       data: {
         scope: PRAYER_NOTIFICATION_SCOPE,
         type: 'prayer-start',
@@ -112,6 +126,53 @@ function buildPrayerNotifications(prayer: PrayerTime, now: Date): PlannedPrayerN
   return notifications;
 }
 
+async function ensureAndroidLiveNotificationChannel(): Promise<void> {
+  if (!Notifications || Platform.OS !== 'android') return;
+
+  await Notifications.setNotificationChannelAsync(LIVE_NOTIFICATION_CHANNEL_ID, {
+    name: 'JMN Live Alerts',
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 250, 150, 250],
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    sound: 'default',
+  }).catch(() => {});
+}
+
+async function ensureAndroidPrayerNotificationChannels(): Promise<void> {
+  if (!Notifications || Platform.OS !== 'android') return;
+
+  await Promise.all([
+    Notifications.setNotificationChannelAsync(PRAYER_ALERT_CHANNEL_ID, {
+      name: 'JMN Prayer Alerts',
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 150, 250],
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      sound: 'default',
+    }),
+    Notifications.setNotificationChannelAsync(PRAYER_ADHAAN_CHANNEL_ID, {
+      name: 'JMN Adhaan Alerts',
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 200, 120, 200],
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      sound: ADHAAN_BACKGROUND_SOUND_FILE,
+    }),
+    Notifications.setNotificationChannelAsync(PRAYER_JAMAAT_CHANNEL_ID, {
+      name: 'JMN Jamaat Alerts',
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 200, 120, 200],
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      sound: IQAMAH_BACKGROUND_SOUND_FILE,
+    }),
+    Notifications.setNotificationChannelAsync(PRAYER_SILENT_CHANNEL_ID, {
+      name: 'JMN Prayer Alerts (Silent)',
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 80],
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      sound: null,
+    }),
+  ]).catch(() => {});
+}
+
 function LiveDot() {
   const pulse = useRef(new Animated.Value(0.4)).current;
   useEffect(() => {
@@ -129,12 +190,33 @@ function LiveDot() {
   );
 }
 
+function PushSuccessFlag() {
+  return (
+    <View style={dotStyles.flagWrap}>
+      <MaterialIcons name="flag" size={9} color="#FFFFFF" />
+    </View>
+  );
+}
+
 const dotStyles = StyleSheet.create({
   dot: {
     position: 'absolute', top: -2, right: -4,
     width: 8, height: 8, borderRadius: 4,
     backgroundColor: '#ff2222',
     borderWidth: 1.5, borderColor: '#fff',
+  },
+  flagWrap: {
+    position: 'absolute',
+    top: -4,
+    right: -8,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#16A34A',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 
@@ -147,8 +229,91 @@ export default function TabLayout() {
   const schedulingPrayerNotificationsRef = useRef(false);
   const prayerPermissionRequestedRef = useRef(false);
   const handledNotificationIdsRef = useRef<Set<string>>(new Set());
+  const lastPushSyncDebugReasonRef = useRef<string | null>(null);
+  const pushFlagTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [hasRecentPushSuccess, setHasRecentPushSuccess] = useState(false);
 
   useQuranPrayerPopups();
+
+  const clearPushFlagTimeout = useCallback(() => {
+    if (pushFlagTimeoutRef.current) {
+      clearTimeout(pushFlagTimeoutRef.current);
+      pushFlagTimeoutRef.current = null;
+    }
+  }, []);
+
+  const schedulePushFlagExpiry = useCallback((delayMs: number) => {
+    clearPushFlagTimeout();
+    const timeout = Math.max(1000, delayMs);
+    pushFlagTimeoutRef.current = setTimeout(() => {
+      setHasRecentPushSuccess(false);
+      pushFlagTimeoutRef.current = null;
+    }, timeout);
+  }, [clearPushFlagTimeout]);
+
+  const parseNotificationData = useCallback((rawData: unknown): Record<string, unknown> | null => {
+    if (rawData && typeof rawData === 'object') {
+      return rawData as Record<string, unknown>;
+    }
+
+    if (typeof rawData === 'string') {
+      try {
+        const parsed = JSON.parse(rawData) as unknown;
+        if (parsed && typeof parsed === 'object') {
+          return parsed as Record<string, unknown>;
+        }
+      } catch {
+        return null;
+      }
+    }
+
+    return null;
+  }, []);
+
+  const maybeMarkPushSuccess = useCallback(async (rawData: unknown) => {
+    const data = parseNotificationData(rawData);
+    if (!data) return;
+
+    const notificationId = typeof data.notificationId === 'string' ? data.notificationId.trim() : '';
+    if (!notificationId) return;
+
+    const now = Date.now();
+    setHasRecentPushSuccess(true);
+    schedulePushFlagExpiry(PUSH_SUCCESS_FLAG_WINDOW_MS);
+
+    await AsyncStorage.setItem(PUSH_SUCCESS_TS_KEY, String(now)).catch(() => {});
+
+    showBanner(
+      'Push delivered successfully',
+      'This phone received the notification.',
+      4500,
+    );
+  }, [parseNotificationData, schedulePushFlagExpiry, showBanner]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const restorePushFlag = async () => {
+      const raw = await AsyncStorage.getItem(PUSH_SUCCESS_TS_KEY).catch(() => null);
+      if (!mounted || !raw) return;
+
+      const ts = Number(raw);
+      if (!Number.isFinite(ts)) return;
+
+      const elapsed = Date.now() - ts;
+      if (elapsed >= PUSH_SUCCESS_FLAG_WINDOW_MS) return;
+
+      setHasRecentPushSuccess(true);
+      schedulePushFlagExpiry(PUSH_SUCCESS_FLAG_WINDOW_MS - elapsed);
+    };
+
+    void restorePushFlag();
+
+    return () => {
+      mounted = false;
+      clearPushFlagTimeout();
+    };
+  }, [clearPushFlagTimeout, schedulePushFlagExpiry]);
 
   const openLiveStreamFromIntent = useCallback(() => {
     router.push({
@@ -161,20 +326,7 @@ export default function TabLayout() {
   }, [router]);
 
   const routeFromNotificationData = useCallback((rawData: unknown) => {
-    let data: Record<string, unknown> | null = null;
-    if (rawData && typeof rawData === 'object') {
-      data = rawData as Record<string, unknown>;
-    } else if (typeof rawData === 'string') {
-      try {
-        const parsed = JSON.parse(rawData) as unknown;
-        if (parsed && typeof parsed === 'object') {
-          data = parsed as Record<string, unknown>;
-        }
-      } catch {
-        return;
-      }
-    }
-
+    const data = parseNotificationData(rawData);
     if (!data) return;
 
     const routeRaw = typeof data.route === 'string' ? data.route.trim() : null;
@@ -190,7 +342,7 @@ export default function TabLayout() {
     }
 
     router.push(route as never);
-  }, [openLiveStreamFromIntent, router]);
+  }, [openLiveStreamFromIntent, parseNotificationData, router]);
 
   useEffect(() => {
     if (Platform.OS === 'web' || !Notifications) return;
@@ -216,17 +368,29 @@ export default function TabLayout() {
       const actionIdentifier = response?.actionIdentifier;
 
       if (actionIdentifier === PRAYER_ACTION_STOP) {
+        if (typeof requestId === 'string') {
+          void Notifications.dismissNotificationAsync(requestId).catch(() => {});
+        }
+        void Notifications.dismissAllNotificationsAsync().catch(() => {});
         void stopActiveAdhaan();
-        showBanner('Adhaan stopped', 'Current adhaan playback has been stopped.');
-        router.push('/prayer');
+        if (AppState.currentState === 'active') {
+          showBanner('Adhaan stopped', 'Current adhaan playback has been stopped.');
+          router.push('/prayer');
+        }
         return;
       }
 
       if (actionIdentifier === PRAYER_ACTION_MUTE) {
+        if (typeof requestId === 'string') {
+          void Notifications.dismissNotificationAsync(requestId).catch(() => {});
+        }
+        void Notifications.dismissAllNotificationsAsync().catch(() => {});
         void setAdhaanMutedEnabled(true);
         void stopActiveAdhaan();
-        showBanner('Adhaan muted', 'Prayer adhaan sound is now muted. You can unmute from the Prayer tab.');
-        router.push('/prayer');
+        if (AppState.currentState === 'active') {
+          showBanner('Adhaan muted', 'Prayer adhaan sound is now muted. You can unmute from the Prayer tab.');
+          router.push('/prayer');
+        }
         return;
       }
 
@@ -239,6 +403,8 @@ export default function TabLayout() {
           handledNotificationIdsRef.current = new Set(recentIds);
         }
       }
+
+      void maybeMarkPushSuccess(request?.content?.data);
 
       routeFromNotificationData(request?.content?.data);
     };
@@ -256,58 +422,109 @@ export default function TabLayout() {
       handleResponse(response);
     });
 
+    const receivedSub = Notifications.addNotificationReceivedListener((notification) => {
+      void maybeMarkPushSuccess(notification.request.content.data);
+    });
+
     return () => {
       mounted = false;
       sub.remove();
+      receivedSub.remove();
     };
-  }, [routeFromNotificationData, router, showBanner]);
+  }, [maybeMarkPushSuccess, routeFromNotificationData, router, showBanner]);
 
   useEffect(() => {
     if (!Notifications) return;
 
-    if (Platform.OS === 'android') {
-      Notifications.setNotificationChannelAsync('jmn-live', {
-        name: 'JMN Live Alerts',
-        importance: Notifications.AndroidImportance.HIGH,
-        vibrationPattern: [0, 250, 150, 250],
-        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-        sound: 'default',
-      }).catch(() => {});
-
-      Notifications.setNotificationChannelAsync(PRAYER_CHANNEL_ID, {
-        name: 'JMN Prayer Alerts',
-        importance: Notifications.AndroidImportance.HIGH,
-        vibrationPattern: [0, 200, 120, 200],
-        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-        sound: 'default',
-      }).catch(() => {});
-
-      Notifications.setNotificationChannelAsync(PRAYER_SILENT_CHANNEL_ID, {
-        name: 'JMN Prayer Alerts (Silent)',
-        importance: Notifications.AndroidImportance.HIGH,
-        vibrationPattern: [0, 80],
-        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-        sound: null,
-      }).catch(() => {});
-    }
+    void ensureAndroidLiveNotificationChannel();
+    void ensureAndroidPrayerNotificationChannels();
 
     Notifications.setNotificationCategoryAsync(PRAYER_NOTIFICATION_CATEGORY_ID, [
       {
         identifier: PRAYER_ACTION_STOP,
         buttonTitle: 'Stop adhaan',
-        options: { opensAppToForeground: true },
+        options: { opensAppToForeground: false },
       },
       {
         identifier: PRAYER_ACTION_MUTE,
         buttonTitle: 'Mute adhaan',
-        options: { opensAppToForeground: true },
+        options: { opensAppToForeground: false },
       },
     ]).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    if (!__DEV__ || Platform.OS === 'web' || !Notifications) return;
+
+    let cancelled = false;
+
+    const triggerImmediateAdhaanTest = async () => {
+      const currentPerm = await Notifications.getPermissionsAsync().catch(() => null);
+      let status = currentPerm?.status ?? 'undetermined';
+      if (status !== 'granted') {
+        const requested = await Notifications.requestPermissionsAsync().catch(() => null);
+        status = requested?.status ?? status;
+      }
+
+      if (status !== 'granted') {
+        if (!cancelled) {
+          showBanner('Test adhaan failed', 'Notification permission is not granted.', 5500, 'warning');
+        }
+        return;
+      }
+
+      const lastRaw = await AsyncStorage.getItem(DEBUG_ADHAAN_TEST_LAST_SENT_TS_KEY).catch(() => null);
+      const lastSent = Number(lastRaw || 0);
+      if (Number.isFinite(lastSent) && Date.now() - lastSent < 5000) {
+        return;
+      }
+
+      await ensureAndroidPrayerNotificationChannels();
+
+      const fireAt = new Date(Date.now() + 7000);
+      const trigger = Platform.OS === 'android'
+        ? ({ type: 'date', date: fireAt, channelId: PRAYER_ADHAAN_CHANNEL_ID } as unknown as import('expo-notifications').NotificationTriggerInput)
+        : (fireAt as unknown as import('expo-notifications').NotificationTriggerInput);
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: 'Test Adhaan (Now)',
+          body: 'Testing volume-button mute and notification actions.',
+          sound: ADHAAN_BACKGROUND_SOUND_FILE,
+          categoryIdentifier: PRAYER_NOTIFICATION_CATEGORY_ID,
+          data: {
+            scope: PRAYER_NOTIFICATION_SCOPE,
+            type: 'prayer-start',
+            prayerName: 'Test Adhaan',
+            route: '/prayer',
+          },
+        },
+        trigger,
+      });
+
+      // Fallback for devices/builds where custom notification sounds do not
+      // play reliably: start adhaan directly from app audio only while app is
+      // active. In background, rely on OS notification sound behavior.
+      setTimeout(() => {
+        if (AppState.currentState !== 'active') return;
+        void playAdhaanNowForTesting({ ignoreMute: true });
+      }, 7000);
+
+      if (cancelled) return;
+
+      await AsyncStorage.setItem(DEBUG_ADHAAN_TEST_LAST_SENT_TS_KEY, String(Date.now())).catch(() => {});
+      showBanner('Test adhaan sent', 'It will ring in about 7 seconds.');
+    };
+
+    void triggerImmediateAdhaanTest();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showBanner]);
+
   const ensurePrayerNotificationPermission = useCallback(async (): Promise<boolean> => {
     if (Platform.OS === 'web' || !Notifications) return false;
-    if (EXPO_GO_NOTIFICATIONS_FALLBACK) return false;
 
     const current = await Notifications.getPermissionsAsync();
     let finalStatus = current.status;
@@ -347,28 +564,64 @@ export default function TabLayout() {
     schedulingPrayerNotificationsRef.current = true;
     try {
       const allowed = await ensurePrayerNotificationPermission();
-      if (!allowed) return;
+      if (!allowed) {
+        if (PUSH_SYNC_DEBUG_ENABLED) {
+          const reason = 'permission-not-granted';
+          if (lastPushSyncDebugReasonRef.current !== reason) {
+            lastPushSyncDebugReasonRef.current = reason;
+            showBanner('Push token not synced', `Reason: ${reason}`, 6500, 'warning');
+          }
+        }
+        return;
+      }
+
+      await ensureAndroidPrayerNotificationChannels();
+
+      // Register and refresh Expo push token in the backend while permissions are valid.
+      const syncResult = await syncPushTokenWithBackend(Notifications).catch((error) => {
+        if (PUSH_SYNC_DEBUG_ENABLED) {
+          const message = error instanceof Error ? error.message : String(error);
+          const reason = `sync-exception:${message}`;
+          if (lastPushSyncDebugReasonRef.current !== reason) {
+            lastPushSyncDebugReasonRef.current = reason;
+            showBanner('Push token sync failed', message.slice(0, 180), 6500, 'warning');
+          }
+        }
+        return { synced: false, reason: 'exception' } as const;
+      });
+
+      if (PUSH_SYNC_DEBUG_ENABLED) {
+        const reason = syncResult.synced
+          ? 'synced'
+          : `not-synced:${syncResult.reason ?? 'unknown'}`;
+        if (lastPushSyncDebugReasonRef.current !== reason) {
+          lastPushSyncDebugReasonRef.current = reason;
+          if (syncResult.synced) {
+            showBanner('Push token synced', 'This phone is now registered for portal pushes.', 4500);
+          } else {
+            showBanner('Push token not synced', `Reason: ${syncResult.reason ?? 'unknown'}`, 6500, 'warning');
+          }
+        }
+      }
 
       const now = new Date();
-      const today = new Date(now);
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
+      const scheduleDates = Array.from({ length: PRAYER_SCHEDULE_DAY_WINDOW }, (_, index) => {
+        const date = new Date(now);
+        date.setDate(date.getDate() + index);
+        return date;
+      });
 
-      const [todayData, tomorrowData] = await Promise.all([
-        getPrayerTimesForDate(today).catch(() => null),
-        getPrayerTimesForDate(tomorrow).catch(() => null),
-      ]);
+      const dayData = await Promise.all(
+        scheduleDates.map((date) => getPrayerTimesForDate(date).catch(() => null))
+      );
 
       const plannedRaw: PlannedPrayerNotification[] = [];
-      for (const data of [todayData, tomorrowData]) {
+      for (const data of dayData) {
         if (!data) continue;
         for (const prayer of data.prayers) {
           plannedRaw.push(...buildPrayerNotifications(prayer, now));
         }
       }
-
-      const adhaanMuted = await isAdhaanMutedEnabled();
-      const iqamahMuted = await isIqamahMutedEnabled();
 
       const seen = new Set<string>();
       const planned = plannedRaw.filter((item) => {
@@ -380,32 +633,71 @@ export default function TabLayout() {
 
       await clearScheduledPrayerNotifications();
 
+      let scheduledCount = 0;
+      const scheduleErrors: string[] = [];
+
       for (const item of planned) {
         const isJamaatReminder = item.data.type === 'jamaat-10';
-        const mutedForItem = isJamaatReminder ? iqamahMuted : adhaanMuted;
-        const prayerChannelId = mutedForItem ? PRAYER_SILENT_CHANNEL_ID : PRAYER_CHANNEL_ID;
+
+        const prayerChannelId = isJamaatReminder
+          ? PRAYER_JAMAAT_CHANNEL_ID
+          : PRAYER_ADHAAN_CHANNEL_ID;
+
+        const scheduledSound = isJamaatReminder
+          ? IQAMAH_BACKGROUND_SOUND_FILE
+          : ADHAAN_BACKGROUND_SOUND_FILE;
 
         const trigger = Platform.OS === 'android'
           ? ({ type: 'date', date: item.fireAt, channelId: prayerChannelId } as unknown as import('expo-notifications').NotificationTriggerInput)
           : (item.fireAt as unknown as import('expo-notifications').NotificationTriggerInput);
 
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: item.title,
-            body: item.body,
-            sound: mutedForItem ? undefined : 'default',
-            categoryIdentifier: PRAYER_NOTIFICATION_CATEGORY_ID,
-            data: item.data,
-          },
-          trigger,
-        });
+        try {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: item.title,
+              body: item.body,
+              sound: scheduledSound,
+              categoryIdentifier: PRAYER_NOTIFICATION_CATEGORY_ID,
+              data: item.data,
+            },
+            trigger,
+          });
+          scheduledCount++;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          scheduleErrors.push(msg);
+        }
+      }
+
+      if (__DEV__) {
+        if (scheduleErrors.length > 0) {
+          showBanner(
+            `Prayer scheduling: ${scheduledCount}/${planned.length} ok`,
+            `First error: ${scheduleErrors[0]}`,
+            8000,
+            'warning',
+          );
+        } else if (scheduledCount === 0 && planned.length > 0) {
+          showBanner(
+            'Prayer scheduling failed',
+            'No notifications were scheduled. Check exact alarm permission in Android settings.',
+            8000,
+            'warning',
+          );
+        } else {
+          showBanner(
+            `Prayer notifications scheduled`,
+            `${scheduledCount} notifications scheduled for next ${PRAYER_SCHEDULE_DAY_WINDOW} days.`,
+            4500,
+          );
+        }
       }
     } catch {
       // Ignore transient scheduling failures; next refresh will retry.
     } finally {
       schedulingPrayerNotificationsRef.current = false;
     }
-  }, [clearScheduledPrayerNotifications, ensurePrayerNotificationPermission]);
+  }, [clearScheduledPrayerNotifications, ensurePrayerNotificationPermission, showBanner]);
 
   useEffect(() => {
     if (Platform.OS === 'web' || !Notifications) return;
@@ -442,13 +734,8 @@ export default function TabLayout() {
     const lastSentTs = lastRaw ? Number(lastRaw) : 0;
     if (Number.isFinite(lastSentTs) && now - lastSentTs < LIVE_NOTIFY_COOLDOWN_MS) return;
 
-    if (EXPO_GO_NOTIFICATIONS_FALLBACK) {
-      await AsyncStorage.setItem(LIVE_NOTIFY_TS_KEY, String(now));
-      return;
-    }
-
     const liveTrigger = Platform.OS === 'android'
-      ? ({ type: 'timeInterval', seconds: 1, channelId: 'jmn-live' } as unknown as import('expo-notifications').NotificationTriggerInput)
+      ? ({ type: 'timeInterval', seconds: 1, channelId: LIVE_NOTIFICATION_CHANNEL_ID } as unknown as import('expo-notifications').NotificationTriggerInput)
       : null;
 
     try {
@@ -498,7 +785,7 @@ export default function TabLayout() {
     borderTopColor: darkMode ? '#1E2D47' : Colors.border,
   };
 
-  const hiddenRoutes = ['howto', 'events', 'youtube-live', 'qaseedah-naat', 'qaseedah-viewer', 'qaseedah-group'] as const;
+  const hiddenRoutes = ['howto', 'events', 'youtube-live', 'qaseedah-naat', 'qaseedah-viewer', 'qaseedah-group', 'settings'] as const;
 
   return (
     <Tabs
@@ -520,7 +807,10 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="home" size={size} color={color} />
+            <View>
+              <MaterialIcons name="home" size={size} color={color} />
+              {hasRecentPushSuccess ? <PushSuccessFlag /> : null}
+            </View>
           ),
         }}
       />

@@ -374,7 +374,7 @@ export default function EventsScreen() {
         <View style={[styles.controlsWrap, N && { backgroundColor: N.surface, borderColor: N.border }]}> 
           <View style={styles.languageRow}>
             <Text style={[styles.controlLabel, N && { color: N.textMuted }]}>Language</Text>
-            <View style={[styles.languageToggle, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}> 
+            <View style={styles.controlsLanguageChipRow}>
               {(['en', 'ur'] as LanguageMode[]).map((mode) => {
                 const active = languageMode === mode;
                 return (
@@ -382,18 +382,19 @@ export default function EventsScreen() {
                     key={mode}
                     onPress={() => setLanguageMode(mode)}
                     style={[
-                      styles.languageBtn,
-                      mode === 'ur' && styles.languageBtnUrdu,
-                      active && [styles.languageBtnActive, N && { backgroundColor: N.accent + '22', borderColor: N.accent }],
+                      styles.controlsLanguageBtn,
+                      mode === 'ur' && styles.controlsLanguageBtnUrdu,
+                      N && !active && { backgroundColor: N.surfaceAlt, borderColor: N.border },
+                      active && [styles.controlsLanguageBtnActive, N && { backgroundColor: N.accent + '22', borderColor: N.accent }],
                     ]}
                     activeOpacity={0.85}
                   >
                     <Text
                       style={[
-                        styles.languageBtnText,
-                        mode === 'ur' && styles.languageBtnTextUrdu,
+                        styles.controlsLanguageBtnText,
+                        mode === 'ur' && styles.controlsLanguageBtnTextUrdu,
                         N && { color: N.textSub },
-                        active && [styles.languageBtnTextActive, N && { color: N.accent }],
+                        active && [styles.controlsLanguageBtnTextActive, N && { color: N.accent }],
                       ]}
                     >
                       {LANGUAGE_LABELS[mode]}
@@ -406,7 +407,12 @@ export default function EventsScreen() {
 
           <View style={styles.typeRow}>
             <Text style={[styles.controlLabel, N && { color: N.textMuted }]}>Type</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.typeScrollContent}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.typeScroll}
+              contentContainerStyle={styles.typeScrollContent}
+            >
               {typeOptions.map((type) => {
                 const active = selectedType === type;
                 return (
@@ -712,6 +718,7 @@ function AnnouncementDetailModal({
   onOpenLink: (url: string | null | undefined) => void;
 }) {
   const N = nightMode ? NIGHT : null;
+  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [bodyExpanded, setBodyExpanded] = useState(false);
   const MODAL_PREVIEW_LINES = 4;
@@ -734,12 +741,17 @@ function AnnouncementDetailModal({
   const primaryGuests = splitGuestNames(announcement.lead_names);
   const urduGuests = splitGuestNames(announcement.urdu_lead_names);
   const timeEntries = splitAnnouncementTimeEntries(announcement.start_time).map(formatSimpleTimeForDisplay);
+  const modalBottomInset = Math.max(Spacing.md, insets.bottom + 10);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.modalBackdrop}>
         <Pressable style={styles.modalDismissZone} onPress={onClose} />
-        <View style={[styles.modalSheet, N && { backgroundColor: N.surface, borderColor: N.border }]}> 
+        <View style={[
+          styles.modalSheet,
+          { paddingBottom: modalBottomInset },
+          N && { backgroundColor: N.surface, borderColor: N.border },
+        ]}> 
           <View style={styles.modalHeader}>
             <View style={{ flex: 1 }}>
               <Text style={[styles.modalTitle, N && { color: N.text }, languageMode === 'ur' && styles.urduText]} numberOfLines={2}>{title}</Text>
@@ -790,7 +802,14 @@ function AnnouncementDetailModal({
             </View>
           </View>
 
-          <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalScrollContent}>
+          <ScrollView
+            style={styles.modalScroll}
+            contentContainerStyle={[styles.modalScrollContent, { paddingBottom: modalBottomInset + 12 }]}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled
+            showsVerticalScrollIndicator
+            scrollIndicatorInsets={{ bottom: modalBottomInset }}
+          >
             {announcement.image_url ? (
               <Image
                 source={{ uri: announcement.image_url }}
@@ -982,23 +1001,56 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     backgroundColor: Colors.surface,
     borderRadius: Radius.md,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    gap: 8,
-    marginBottom: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    gap: 6,
+    marginBottom: 6,
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
   },
-  languageRow: { gap: 6 },
-  typeRow: { gap: 4 },
-  controlLabel: { fontSize: 11, fontWeight: '700', color: Colors.textSubtle, textTransform: 'uppercase' },
-  languageToggle: {
-    borderRadius: Radius.full,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surfaceAlt,
-    padding: 3,
+  languageRow: { gap: 4, alignSelf: 'flex-start' },
+  typeRow: { gap: 3, alignSelf: 'flex-start' },
+  controlLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.textSubtle,
+    textTransform: 'uppercase',
+    letterSpacing: 0.25,
+  },
+  controlsLanguageChipRow: {
     flexDirection: 'row',
     alignSelf: 'flex-start',
-    gap: 4,
+    gap: 6,
+  },
+  controlsLanguageBtn: {
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceAlt,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  controlsLanguageBtnUrdu: {
+    paddingHorizontal: 11,
+  },
+  controlsLanguageBtnActive: {
+    borderColor: '#A9C2E8',
+    backgroundColor: '#EDF4FF',
+  },
+  controlsLanguageBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textSubtle,
+  },
+  controlsLanguageBtnTextUrdu: {
+    fontFamily: 'UrduNastaliq',
+    fontSize: 13,
+  },
+  controlsLanguageBtnTextActive: {
+    color: Colors.primary,
+    fontWeight: '800',
   },
   languageBtn: {
     borderRadius: Radius.full,
@@ -1014,17 +1066,18 @@ const styles = StyleSheet.create({
   languageBtnText: { fontSize: 12, fontWeight: '700', color: Colors.textSubtle },
   languageBtnTextUrdu: { fontFamily: 'UrduNastaliq', fontSize: 13 },
   languageBtnTextActive: { color: Colors.primary, fontWeight: '800' },
-  typeScrollContent: { flexDirection: 'row', gap: 6, paddingRight: 4 },
+  typeScroll: { alignSelf: 'flex-start', maxWidth: '100%' },
+  typeScrollContent: { flexDirection: 'row', gap: 5, paddingRight: 2 },
   typeChip: {
     borderRadius: Radius.full,
     borderWidth: 1,
     borderColor: Colors.border,
     backgroundColor: Colors.surfaceAlt,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
   },
   typeChipActive: { borderColor: Colors.primary, backgroundColor: '#EDF8ED' },
-  typeChipText: { fontSize: 11, fontWeight: '600', color: Colors.textSecondary },
+  typeChipText: { fontSize: 10, fontWeight: '600', color: Colors.textSecondary },
   typeChipTextActive: { color: Colors.primary, fontWeight: '800' },
 
   banner: {
@@ -1174,7 +1227,8 @@ const styles = StyleSheet.create({
   },
   modalDismissZone: { flex: 1 },
   modalSheet: {
-    maxHeight: '84%',
+    height: '90%',
+    minHeight: 0,
     backgroundColor: Colors.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -1228,8 +1282,8 @@ const styles = StyleSheet.create({
   },
   modalLanguageBtnText: { fontSize: 13, fontWeight: '700', color: Colors.textSubtle },
   modalLanguageBtnTextActive: { color: Colors.primary, fontWeight: '800' },
-  modalScroll: { flex: 1 },
-  modalScrollContent: { gap: 8, paddingBottom: 20 },
+  modalScroll: { flex: 1, minHeight: 0 },
+  modalScrollContent: { flexGrow: 1, gap: 8, paddingBottom: 20 },
   modalImage: {
     width: '100%',
     height: 190,

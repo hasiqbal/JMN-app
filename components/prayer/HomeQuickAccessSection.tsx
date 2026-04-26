@@ -39,6 +39,7 @@ export const DEFAULT_QUICK_ACCESS_ACTIONS: QuickAccessAction[] = [
     accent: '#6D5E2E',
   },
   { icon: 'library-books', label: 'Qaseedahs & Naats', route: '/(tabs)/qaseedah-naat', accent: '#2B6A6F' },
+  { icon: 'settings',      label: 'Settings', route: '/(tabs)/settings', accent: '#406A8E' },
 ];
 
 function ShortcutButton({

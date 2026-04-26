@@ -3,6 +3,7 @@ import {
   Animated,
   Easing,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   RefreshControl,
@@ -12,20 +13,26 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Slider from '@react-native-community/slider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Asset } from 'expo-asset';
 import Constants from 'expo-constants';
+import * as ExpoNotifications from 'expo-notifications';
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import type { AudioPlayer } from 'expo-audio';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useIsFocused } from '@react-navigation/native';
 import { APP_CONFIG } from '@/constants/config';
 import { Colors, Radius, Spacing, Typography } from '@/constants/theme';
+import { isPrayerAudioActive, subscribePrayerAudioState } from '@/hooks/useQuranPrayerPopups';
 import { useJmnLiveStatus } from '@/hooks/useJmnLiveStatus';
 import { useNightMode } from '@/hooks/useNightMode';
 import { refreshJmnLiveStatus } from '@/services/liveService';
@@ -33,9 +40,9 @@ import { refreshJmnLiveStatus } from '@/services/liveService';
 type ExpoNotificationsModule = typeof import('expo-notifications');
 
 const Notifications: ExpoNotificationsModule | null =
-  Platform.OS === 'web' ? null : require('expo-notifications');
+  Platform.OS === 'web' ? null : ExpoNotifications;
 
-type StreamId = 'masjid' | 'qiraat' | 'basit';
+type StreamId = string;
 
 type PreviewVariant = 'eid-fitr' | 'eid-fitr-jumuah' | 'eid-adha' | 'eid-adha-jumuah';
 type LayoutMode = 'default' | 'split' | 'mosaic' | 'focus';
@@ -46,6 +53,8 @@ type Station = {
   sublabel: string;
   url: string;
 };
+
+type AudioSource = string | number;
 
 type StreamScreenProps = {
   previewVariant?: PreviewVariant;
@@ -244,12 +253,81 @@ const SURAH_LIST = Object.entries(SURAH_NAMES).map(([num, name]) => ({
   label: `${num}. ${name}`,
 }));
 
+const JUZ_START_SURAH: Record<number, number> = {
+  1: 1,
+  2: 2,
+  3: 2,
+  4: 3,
+  5: 4,
+  6: 4,
+  7: 5,
+  8: 6,
+  9: 7,
+  10: 8,
+  11: 9,
+  12: 11,
+  13: 12,
+  14: 15,
+  15: 17,
+  16: 18,
+  17: 21,
+  18: 23,
+  19: 25,
+  20: 27,
+  21: 29,
+  22: 33,
+  23: 36,
+  24: 39,
+  25: 41,
+  26: 46,
+  27: 51,
+  28: 58,
+  29: 67,
+  30: 78,
+};
+
+const HADR_JUZ_TRACKS: Partial<Record<number, number>> = {
+  1: require('../../assets/quran-hadr/juz-01.mp3'),
+  2: require('../../assets/quran-hadr/juz-02.mp3'),
+  3: require('../../assets/quran-hadr/juz-03.mp3'),
+  4: require('../../assets/quran-hadr/juz-04.mp3'),
+  5: require('../../assets/quran-hadr/juz-05.mp3'),
+  6: require('../../assets/quran-hadr/juz-06.mp3'),
+  7: require('../../assets/quran-hadr/juz-07.mp3'),
+  8: require('../../assets/quran-hadr/juz-08.mp3'),
+  9: require('../../assets/quran-hadr/juz-09.mp3'),
+  10: require('../../assets/quran-hadr/juz-10.mp3'),
+  11: require('../../assets/quran-hadr/juz-11.mp3'),
+  12: require('../../assets/quran-hadr/juz-12.mp3'),
+  13: require('../../assets/quran-hadr/juz-13.mp3'),
+  14: require('../../assets/quran-hadr/juz-14.mp3'),
+  15: require('../../assets/quran-hadr/juz-15.mp3'),
+  16: require('../../assets/quran-hadr/juz-16.mp3'),
+  17: require('../../assets/quran-hadr/juz-17.mp3'),
+  18: require('../../assets/quran-hadr/juz-18.mp3'),
+  19: require('../../assets/quran-hadr/juz-19.mp3'),
+  20: require('../../assets/quran-hadr/juz-20.mp3'),
+  21: require('../../assets/quran-hadr/juz-21.mp3'),
+  22: require('../../assets/quran-hadr/juz-22.mp3'),
+  23: require('../../assets/quran-hadr/juz-23.mp3'),
+  24: require('../../assets/quran-hadr/juz-24.mp3'),
+  25: require('../../assets/quran-hadr/juz-25.mp3'),
+  26: require('../../assets/quran-hadr/juz-26.mp3'),
+  27: require('../../assets/quran-hadr/juz-27.mp3'),
+  28: require('../../assets/quran-hadr/juz-28.mp3'),
+  29: require('../../assets/quran-hadr/juz-29.mp3'),
+  30: require('../../assets/quran-hadr/juz-30.mp3'),
+};
+
 const NOTIF_KEY = 'jmn_radio_notify';
+const LIVE_NOTIFICATION_CHANNEL_ID = 'jmn-live-v2';
 const REWIND_STEP_SEC = 10;
 const MAX_TIMESHIFT_SEC = 120;
-const MAX_REWIND_SEEK_ATTEMPTS = 12;
 const REWIND_SEEK_SETTLE_MS = 90;
+const SEEK_EPSILON_SEC = 0.35;
+const BOTTOM_PLAYER_COLLAPSED_HEIGHT = 200;
 const ANDROID_PLAYER_BOOTSTRAP_DELAY_MS = 40;
+const PRAYER_AUDIO_LOCK_NOTICE = 'Adhaan or iqamah is playing. Other app audio stays paused until prayer audio is muted or ends.';
 const EXPO_GO_NOTIFICATIONS_FALLBACK =
   Constants.appOwnership === 'expo' &&
   Number((Constants.expoConfig?.sdkVersion ?? '0').split('.')[0] || 0) >= 53;
@@ -260,9 +338,90 @@ function readSingleQueryParam(value: unknown): string | null {
   return null;
 }
 
+function formatPlaybackClock(rawSeconds: number): string {
+  const totalSec = Math.max(0, Math.floor(rawSeconds));
+  const hours = Math.floor(totalSec / 3600);
+  const minutes = Math.floor((totalSec % 3600) / 60);
+  const seconds = totalSec % 60;
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }
+
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+function sanitizeQariPathSegment(value: string | null): string {
+  const fallback = 'mansour-al-salmi';
+  if (!value) return fallback;
+  const normalized = value.trim().replace(/^\/+|\/+$/g, '');
+  return normalized.length ? normalized : fallback;
+}
+
+function normalizeTrackFile(value: string | null): string {
+  const fallback = '008.mp3';
+  if (!value) return fallback;
+
+  const trimmed = value.trim();
+  const digitMatch = trimmed.match(/\d{1,3}/);
+  if (!digitMatch) return fallback;
+
+  const padded = digitMatch[0].padStart(3, '0');
+  return `${padded}.mp3`;
+}
+
+function buildQiraatTrackUrl(
+  template: string,
+  qariPath: string,
+  trackFile: string,
+): string {
+  return template
+    .replace('{QARI_PATH}', qariPath)
+    .replace('{TRACK_FILE}', trackFile);
+}
+
+function isSurahTemplateUrl(url: string): boolean {
+  return url.includes('{}') || url.includes('{SURAH_PADDED}') || url.includes('{SURAH}');
+}
+
 function getNextSurahNumber(current: number): number {
   if (!Number.isFinite(current) || current < 1 || current > 114) return 1;
   return current >= 114 ? 1 : current + 1;
+}
+
+function buildSurahTrackUrl(template: string, surah: number): string {
+  const normalizedSurah = Math.max(1, Math.min(114, Math.round(surah)));
+  const padded = String(normalizedSurah).padStart(3, '0');
+  return template
+    .replace('{}', `${padded}.mp3`)
+    .replace('{SURAH_PADDED}', padded)
+    .replace('{SURAH}', String(normalizedSurah));
+}
+
+function isSurahTemplateStation(stream: Station): boolean {
+  return stream.id !== 'hadr' && isSurahTemplateUrl(stream.url);
+}
+
+function getNextJuzNumber(current: number): number {
+  if (!Number.isFinite(current) || current < 1 || current > 30) return 1;
+  return current >= 30 ? 1 : current + 1;
+}
+
+async function resolveAudioSourceUri(source: AudioSource): Promise<string> {
+  if (typeof source === 'string') {
+    return source;
+  }
+
+  const asset = Asset.fromModule(source);
+  if (!asset.localUri) {
+    await asset.downloadAsync().catch(() => {});
+  }
+
+  const uri = asset.localUri ?? asset.uri;
+  if (!uri) {
+    throw new Error('audio-asset-uri-missing');
+  }
+  return uri;
 }
 
 function PulsingDot({ active }: { active: boolean }) {
@@ -326,7 +485,21 @@ function EqualizerBars({ active, color }: { active: boolean; color: string }) {
 function stationImageSource(id: string) {
   if (id === 'masjid') return require('@/assets/images/masjid-logo.png');
   if (id === 'qiraat') return require('@/assets/images/quran-radio-thumb.jpg');
-  return require('@/assets/images/qari-basit.png');
+  if (id === 'hadr') return require('@/assets/images/quran-radio-thumb.jpg');
+  if (id === 'minshawi-mujawwad') return require('@/assets/images/reciters/minshawi.jpg');
+  if (id === 'sadaqat-ali') return require('@/assets/images/reciters/sadaqat-ali.jpg');
+  if (id === 'ibrahim-kashidan') return require('@/assets/images/reciters/ibrahim.png');
+  if (id === 'tablawy-mujawwad') return require('@/assets/images/reciters/tablawy.jpg');
+  if (id === 'noreen-siddiq') return require('@/assets/images/reciters/noreen.jpg');
+  return require('@/assets/images/quran-radio-thumb.jpg');
+}
+
+function isQariReciterStation(station: Station): boolean {
+  if (station.id === 'masjid' || station.id === 'qiraat' || station.id === 'hadr') {
+    return false;
+  }
+
+  return station.label.toLowerCase().includes('qari');
 }
 
 export function StreamScreen({ previewVariant, autoPlayOnMount = false }: StreamScreenProps) {
@@ -334,36 +507,72 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
   const params = useLocalSearchParams<{
     autoplayLive?: string | string[];
     autoplayIntentId?: string | string[];
+    qari?: string | string[];
+    qariPath?: string | string[];
+    track?: string | string[];
+    trackFile?: string | string[];
   }>();
   const isFocused = useIsFocused();
+  const bottomTabBarHeight = useBottomTabBarHeight();
   const insets = useSafeAreaInsets();
+  const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
   const { nightMode } = useNightMode();
-  const { isLive, refresh: refreshLiveStatus } = useJmnLiveStatus({ enabled: isFocused });
+  const { isLive } = useJmnLiveStatus({ enabled: isFocused });
 
   const notificationAutoplayFlag = readSingleQueryParam(params.autoplayLive);
   const notificationAutoplayIntentId = readSingleQueryParam(params.autoplayIntentId);
+  const qiraatParamQariPath = readSingleQueryParam(params.qariPath) ?? readSingleQueryParam(params.qari);
+  const qiraatParamTrackFile = readSingleQueryParam(params.trackFile) ?? readSingleQueryParam(params.track);
+  const qiraatQariPath = sanitizeQariPathSegment(
+    qiraatParamQariPath,
+  );
+  const qiraatTrackFile = normalizeTrackFile(
+    qiraatParamTrackFile,
+  );
 
   const [activeStationId, setActiveStationId] = useState<StreamId>('masjid');
   const [audioPlaying, setAudioPlaying] = useState(false);
+  const [audioPaused, setAudioPaused] = useState(false);
   const [audioLoading, setAudioLoading] = useState(false);
   const [playingSurah, setPlayingSurah] = useState<number | null>(null);
+  const [surahPickerOpen, setSurahPickerOpen] = useState(false);
+  const [surahSearch, setSurahSearch] = useState('');
+  const [selectedSurahStationId, setSelectedSurahStationId] = useState<string | null>(null);
+  const [selectedSurahByStation, setSelectedSurahByStation] = useState<Record<string, number>>({});
   const [notifyEnabled, setNotifyEnabled] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [basitOpen, setBasitOpen] = useState(false);
-  const [surahSearch, setSurahSearch] = useState('');
+  const [hadrOpen, setHadrOpen] = useState(false);
+  const [selectedHadrJuz, setSelectedHadrJuz] = useState<number>(1);
+  const [playingHadrJuz, setPlayingHadrJuz] = useState<number | null>(null);
   const [rewindNotice, setRewindNotice] = useState<string | null>(null);
+  const [playbackPositionSec, setPlaybackPositionSec] = useState(0);
+  const [playbackDurationSec, setPlaybackDurationSec] = useState(0);
+  const [seekDraftSec, setSeekDraftSec] = useState<number | null>(null);
+  const [timeshiftDraftSec, setTimeshiftDraftSec] = useState<number | null>(null);
   const [timeshiftSec, setTimeshiftSec] = useState(0);
+  const [bottomPlayerExpanded, setBottomPlayerExpanded] = useState(false);
 
   const soundRef = useRef<AudioPlayer | null>(null);
   const webAudioRef = useRef<any>(null);
-  const playBasitSurahRef = useRef<((surah: number) => Promise<void>) | null>(null);
+  const allPlayersRef = useRef<Set<AudioPlayer>>(new Set());
+  const allWebAudiosRef = useRef<Set<any>>(new Set());
+  const playRequestIdRef = useRef(0);
+  const playHadrJuzRef = useRef<((juz: number) => Promise<void>) | null>(null);
+  const playSurahTrackRef = useRef<((stationId: string, surah: number) => Promise<void>) | null>(null);
   const activeStationIdRef = useRef<StreamId>('masjid');
+  const playingHadrJuzRef = useRef<number | null>(null);
   const playingSurahRef = useRef<number | null>(null);
-  const basitAutoAdvanceLockRef = useRef(false);
+  const surahTemplateStationIdsRef = useRef<Set<string>>(new Set());
+  const autoAdvanceLockRef = useRef(false);
   const playbackStartedAtRef = useRef<number | null>(null);
   const playbackPositionSecRef = useRef(0);
+  const playbackDurationSecRef = useRef(0);
   const timeshiftSecRef = useRef(0);
   const seekQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const bottomPlayerTranslateY = useRef(new Animated.Value(0)).current;
+  const bottomPlayerTranslateYRef = useRef(0);
+  const bottomPlayerTravelRef = useRef(0);
+  const bottomPlayerDragStartRef = useRef(0);
   const audioModeReadyRef = useRef(false);
   const autoplayAttempted = useRef(false);
   const handledNotificationAutoplayIntentRef = useRef<string | null>(null);
@@ -372,15 +581,65 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
   const palette = nightMode ? NIGHT : DAY;
   const previewTheme = previewVariant ? PREVIEW_THEME[previewVariant] : null;
   const layoutMode: LayoutMode = previewTheme?.mode ?? 'default';
+  const isNarrowViewport = viewportWidth <= 390;
+  const bottomPlayerSafeInset = Math.max(insets.bottom, 0);
+  const bottomPlayerDockOffset = useMemo(() => {
+    const platformFallback = Platform.OS === 'ios' ? 82 : Platform.OS === 'web' ? 60 : 68;
+    const measured = bottomTabBarHeight > 0 ? bottomTabBarHeight : platformFallback;
+    return Math.max(measured + 14, bottomPlayerSafeInset + 68);
+  }, [bottomPlayerSafeInset, bottomTabBarHeight]);
+  const bottomPlayerCollapsedHeight = BOTTOM_PLAYER_COLLAPSED_HEIGHT + bottomPlayerSafeInset;
+  const bottomPlayerExpandedHeight = useMemo(
+    () => Math.min(420, Math.max(290, Math.round(viewportHeight * 0.62))) + bottomPlayerSafeInset,
+    [bottomPlayerSafeInset, viewportHeight],
+  );
+  const bottomPlayerTravel = Math.max(0, bottomPlayerExpandedHeight - bottomPlayerCollapsedHeight);
+
+  const qariCardWidth = useMemo(() => {
+    const preferred = Math.round(viewportWidth * (isNarrowViewport ? 0.72 : 0.68));
+    return Math.max(228, Math.min(286, preferred));
+  }, [isNarrowViewport, viewportWidth]);
 
   const accentColor = palette.accent;
 
   const radioStreams = useMemo(
-    () =>
-      APP_CONFIG.radioStreams.filter((stream) =>
-        stream.id === 'masjid' || stream.id === 'qiraat' || stream.id === 'basit',
-      ) as Station[],
+    () => APP_CONFIG.radioStreams as Station[],
     [],
+  );
+
+  const masjidStation = useMemo(
+    () => radioStreams.find((station) => station.id === 'masjid') ?? null,
+    [radioStreams],
+  );
+
+  const qariStations = useMemo(
+    () => radioStreams.filter(isQariReciterStation),
+    [radioStreams],
+  );
+
+  const qariStationIds = useMemo(
+    () => new Set(qariStations.map((station) => station.id)),
+    [qariStations],
+  );
+
+  const otherStations = useMemo(
+    () => radioStreams.filter((station) => station.id !== 'masjid' && !qariStationIds.has(station.id)),
+    [qariStationIds, radioStreams],
+  );
+
+  const surahTemplateStationIds = useMemo(
+    () => new Set(radioStreams.filter(isSurahTemplateStation).map((station) => station.id)),
+    [radioStreams],
+  );
+
+  const selectedSurahStation = useMemo(
+    () => (selectedSurahStationId ? radioStreams.find((item) => item.id === selectedSurahStationId) ?? null : null),
+    [radioStreams, selectedSurahStationId],
+  );
+
+  const selectedSurahForStation = useMemo(
+    () => (selectedSurahStationId ? selectedSurahByStation[selectedSurahStationId] ?? 1 : 1),
+    [selectedSurahByStation, selectedSurahStationId],
   );
 
   const filteredSurahs = useMemo(() => {
@@ -391,13 +650,34 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
     );
   }, [surahSearch]);
 
+  const updatePlaybackPosition = useCallback((positionSec: number) => {
+    if (!Number.isFinite(positionSec)) return;
+    const normalized = Math.max(0, positionSec);
+    playbackPositionSecRef.current = normalized;
+    setPlaybackPositionSec((prev) => (Math.abs(prev - normalized) >= 0.2 ? normalized : prev));
+  }, []);
+
+  const updatePlaybackDuration = useCallback((durationSec: number) => {
+    const normalized = Number.isFinite(durationSec) && durationSec > 0 ? durationSec : 0;
+    playbackDurationSecRef.current = normalized;
+    setPlaybackDurationSec((prev) => (Math.abs(prev - normalized) >= 0.5 ? normalized : prev));
+  }, []);
+
   useEffect(() => {
     activeStationIdRef.current = activeStationId;
   }, [activeStationId]);
 
   useEffect(() => {
+    playingHadrJuzRef.current = playingHadrJuz;
+  }, [playingHadrJuz]);
+
+  useEffect(() => {
     playingSurahRef.current = playingSurah;
   }, [playingSurah]);
+
+  useEffect(() => {
+    surahTemplateStationIdsRef.current = surahTemplateStationIds;
+  }, [surahTemplateStationIds]);
 
   useEffect(() => {
     AsyncStorage.getItem(NOTIF_KEY).then((value) => {
@@ -412,21 +692,69 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
   }, []);
 
   useEffect(() => {
+    const playersRef = allPlayersRef;
+    const webAudiosRef = allWebAudiosRef;
+
     return () => {
-      soundRef.current?.remove();
+      playRequestIdRef.current += 1;
+
+      const playersSet = playersRef.current;
+      const playersToStop = new Set<AudioPlayer>(playersSet);
+      if (soundRef.current) playersToStop.add(soundRef.current);
+      playersSet.clear();
       soundRef.current = null;
 
-      const webAudio = webAudioRef.current;
-      if (webAudio) {
+      const webAudiosSet = webAudiosRef.current;
+      const webAudiosToStop = new Set<any>(webAudiosSet);
+      if (webAudioRef.current) webAudiosToStop.add(webAudioRef.current);
+      webAudiosSet.clear();
+      webAudioRef.current = null;
+
+      playersToStop.forEach((player) => {
+        try {
+          player.pause();
+        } catch {
+          // Ignore pause failures while unmounting.
+        }
+
+        try {
+          void player.seekTo(0).catch(() => {});
+        } catch {
+          // Some streams don't support seek.
+        }
+
+        try {
+          player.remove();
+        } catch {
+          // Ignore removal failures while unmounting.
+        }
+      });
+
+      webAudiosToStop.forEach((webAudio) => {
         try {
           webAudio.pause();
+        } catch {
+          // Ignore web pause failures while unmounting.
+        }
+
+        try {
+          webAudio.currentTime = 0;
+        } catch {
+          // Some streams don't support setting current time.
+        }
+
+        try {
           webAudio.src = '';
           if (typeof webAudio.load === 'function') webAudio.load();
         } catch {
-          // Ignore web audio cleanup errors during unmount.
+          // Ignore web cleanup failures while unmounting.
         }
-      }
-      webAudioRef.current = null;
+      });
+
+      playbackStartedAtRef.current = null;
+      playbackPositionSecRef.current = 0;
+      playbackDurationSecRef.current = 0;
+      timeshiftSecRef.current = 0;
     };
   }, []);
 
@@ -455,13 +783,79 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
     }).start();
   }, [revealAnim]);
 
+  useEffect(() => {
+    bottomPlayerTravelRef.current = bottomPlayerTravel;
+    const next = bottomPlayerExpanded ? 0 : bottomPlayerTravel;
+    bottomPlayerTranslateYRef.current = next;
+    bottomPlayerTranslateY.setValue(next);
+  }, [bottomPlayerExpanded, bottomPlayerTravel, bottomPlayerTranslateY]);
+
+  const animateBottomPlayer = useCallback((expand: boolean) => {
+    const toValue = expand ? 0 : bottomPlayerTravelRef.current;
+    setBottomPlayerExpanded(expand);
+
+    Animated.spring(bottomPlayerTranslateY, {
+      toValue,
+      damping: 26,
+      stiffness: 260,
+      mass: 0.9,
+      overshootClamping: true,
+      useNativeDriver: true,
+    }).start(() => {
+      bottomPlayerTranslateYRef.current = toValue;
+    });
+  }, [bottomPlayerTranslateY]);
+
+  const bottomPlayerPanResponder = useMemo(
+    () => PanResponder.create({
+      onMoveShouldSetPanResponder: (_evt, gesture) => {
+        return Math.abs(gesture.dy) > 6 && Math.abs(gesture.dy) > Math.abs(gesture.dx);
+      },
+      onPanResponderGrant: () => {
+        bottomPlayerTranslateY.stopAnimation((value) => {
+          bottomPlayerTranslateYRef.current = value;
+          bottomPlayerDragStartRef.current = value;
+        });
+      },
+      onPanResponderMove: (_evt, gesture) => {
+        const travel = bottomPlayerTravelRef.current;
+        const next = Math.max(0, Math.min(travel, bottomPlayerDragStartRef.current + gesture.dy));
+        bottomPlayerTranslateYRef.current = next;
+        bottomPlayerTranslateY.setValue(next);
+      },
+      onPanResponderRelease: (_evt, gesture) => {
+        const travel = bottomPlayerTravelRef.current;
+        const current = bottomPlayerTranslateYRef.current;
+        const expandByVelocity = gesture.vy < -0.24;
+        const collapseByVelocity = gesture.vy > 0.24;
+        const expandByPosition = current < travel * 0.45;
+        const shouldExpand = collapseByVelocity ? false : expandByVelocity ? true : expandByPosition;
+        animateBottomPlayer(shouldExpand);
+      },
+      onPanResponderTerminationRequest: () => true,
+      onPanResponderTerminate: () => {
+        const travel = bottomPlayerTravelRef.current;
+        animateBottomPlayer(bottomPlayerTranslateYRef.current < travel * 0.5);
+      },
+    }),
+    [animateBottomPlayer, bottomPlayerTranslateY],
+  );
+
   const stopAudio = useCallback(async () => {
-    const player = soundRef.current;
+    playRequestIdRef.current += 1;
+
+    const playersToStop = new Set<AudioPlayer>(allPlayersRef.current);
+    if (soundRef.current) playersToStop.add(soundRef.current);
+    allPlayersRef.current.clear();
+
+    const webAudiosToStop = new Set<any>(allWebAudiosRef.current);
+    if (webAudioRef.current) webAudiosToStop.add(webAudioRef.current);
+    allWebAudiosRef.current.clear();
+
     soundRef.current = null;
-    const webAudio = webAudioRef.current;
     webAudioRef.current = null;
 
-    if (player) {
+    for (const player of playersToStop) {
       try {
         player.pause();
       } catch {
@@ -471,17 +865,17 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
       try {
         await player.seekTo(0);
       } catch {
-        // Some live streams do not support seek. Continue to remove the player.
+        // Some streams do not support seek.
       }
 
       try {
         player.remove();
       } catch {
-        // Intentionally silent: disposal errors should never block UI flow.
+        // Disposal errors should not block UI flow.
       }
     }
 
-    if (webAudio) {
+    for (const webAudio of webAudiosToStop) {
       try {
         webAudio.pause();
       } catch {
@@ -504,16 +898,132 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
 
     playbackStartedAtRef.current = null;
     playbackPositionSecRef.current = 0;
+    playbackDurationSecRef.current = 0;
     timeshiftSecRef.current = 0;
+    setPlaybackPositionSec(0);
+    setPlaybackDurationSec(0);
+    setSeekDraftSec(null);
+    setTimeshiftDraftSec(null);
     setTimeshiftSec(0);
     setAudioPlaying(false);
+    setAudioPaused(false);
     setAudioLoading(false);
   }, []);
 
+  const ensurePrayerAudioUnlocked = useCallback((): boolean => {
+    if (!isPrayerAudioActive()) return true;
+
+    setAudioPlaying(false);
+    setAudioPaused(false);
+    setAudioLoading(false);
+    setRewindNotice(PRAYER_AUDIO_LOCK_NOTICE);
+    return false;
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = subscribePrayerAudioState((state) => {
+      if (!state.active) return;
+      setRewindNotice(PRAYER_AUDIO_LOCK_NOTICE);
+      void stopAudio();
+    });
+
+    return unsubscribe;
+  }, [stopAudio]);
+
+  const pauseActiveAudio = useCallback(async () => {
+    if ((!soundRef.current && !webAudioRef.current) || audioLoading) return;
+
+    try {
+      if (webAudioRef.current) {
+        webAudioRef.current.pause();
+      }
+      if (soundRef.current) {
+        soundRef.current.pause();
+      }
+      setAudioPlaying(false);
+      setAudioPaused(true);
+      setAudioLoading(false);
+    } catch {
+      setRewindNotice('Unable to pause right now. Please try again.');
+    }
+  }, [audioLoading]);
+
+  const resumeActiveAudio = useCallback(async () => {
+    if ((!soundRef.current && !webAudioRef.current) || audioLoading) return;
+    if (!ensurePrayerAudioUnlocked()) return;
+
+    try {
+      if (webAudioRef.current) {
+        const resumeResult = webAudioRef.current.play();
+        if (resumeResult && typeof resumeResult.then === 'function') {
+          await resumeResult;
+        }
+      }
+      if (soundRef.current) {
+        soundRef.current.play();
+      }
+      setAudioPaused(false);
+      setAudioPlaying(true);
+      setAudioLoading(false);
+      setRewindNotice(null);
+    } catch {
+      setRewindNotice('Unable to resume playback. Please tap Play again.');
+    }
+  }, [audioLoading, ensurePrayerAudioUnlocked]);
+
   const playUrl = useCallback(async (
-    url: string,
+    source: AudioSource,
     options?: { retries?: number; connectTimeoutMs?: number },
   ) => {
+    if (!ensurePrayerAudioUnlocked()) return;
+
+    const requestId = ++playRequestIdRef.current;
+
+    const cleanupWebAudio = (audio: any) => {
+      allWebAudiosRef.current.delete(audio);
+      if (webAudioRef.current === audio) {
+        webAudioRef.current = null;
+      }
+
+      try {
+        audio.pause();
+      } catch {
+        // Ignore pause failures for web audio cleanup.
+      }
+
+      try {
+        audio.src = '';
+        if (typeof audio.load === 'function') audio.load();
+      } catch {
+        // Ignore source cleanup failures.
+      }
+    };
+
+    const cleanupPlayer = (player: AudioPlayer) => {
+      allPlayersRef.current.delete(player);
+      if (soundRef.current === player) {
+        soundRef.current = null;
+      }
+
+      try {
+        player.pause();
+      } catch {
+        // Ignore pause failures.
+      }
+
+      try {
+        void player.seekTo(0).catch(() => {});
+      } catch {
+        // Ignore seek failures.
+      }
+
+      try {
+        player.remove();
+      } catch {
+        // Ignore removal failures.
+      }
+    };
+
     const maxAttempts = Math.max(1, options?.retries ?? 1);
     const connectTimeoutMs = options?.connectTimeoutMs ?? 2500;
 
@@ -521,11 +1031,20 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
       let connected = false;
 
       try {
+        const url = await resolveAudioSourceUri(source);
+        if (requestId !== playRequestIdRef.current) return;
+
         setAudioLoading(true);
         setAudioPlaying(true);
+        setAudioPaused(false);
         playbackStartedAtRef.current = Date.now();
         playbackPositionSecRef.current = 0;
+        playbackDurationSecRef.current = 0;
         timeshiftSecRef.current = 0;
+        setPlaybackPositionSec(0);
+        setPlaybackDurationSec(0);
+        setSeekDraftSec(null);
+        setTimeshiftDraftSec(null);
         setTimeshiftSec(0);
 
         if (Platform.OS === 'web') {
@@ -535,7 +1054,13 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
           }
 
           const audio = new AudioCtor(url);
+          if (requestId !== playRequestIdRef.current) {
+            cleanupWebAudio(audio);
+            return;
+          }
+
           webAudioRef.current = audio;
+          allWebAudiosRef.current.add(audio);
 
           audio.preload = 'none';
           audio.playsInline = true;
@@ -544,39 +1069,76 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
             if (webAudioRef.current !== audio) return;
             const currentTime = audio.currentTime;
             if (typeof currentTime === 'number' && Number.isFinite(currentTime)) {
-              playbackPositionSecRef.current = currentTime;
+              updatePlaybackPosition(currentTime);
+            }
+
+            const duration = audio.duration;
+            if (typeof duration === 'number' && Number.isFinite(duration) && duration > 0) {
+              updatePlaybackDuration(duration);
+            }
+          };
+
+          audio.onloadedmetadata = () => {
+            if (webAudioRef.current !== audio) return;
+            const duration = audio.duration;
+            if (typeof duration === 'number' && Number.isFinite(duration) && duration > 0) {
+              updatePlaybackDuration(duration);
             }
           };
 
           audio.onplaying = () => {
             if (webAudioRef.current !== audio) return;
             connected = true;
+            setAudioPaused(false);
             setAudioLoading(false);
           };
 
           audio.oncanplay = () => {
             if (webAudioRef.current !== audio) return;
             connected = true;
+            setAudioPaused(false);
             setAudioLoading(false);
           };
 
           audio.onended = () => {
+            allWebAudiosRef.current.delete(audio);
             if (webAudioRef.current !== audio) return;
 
+            const activeStation = activeStationIdRef.current;
             if (
-              activeStationIdRef.current === 'basit'
-              && !basitAutoAdvanceLockRef.current
-              && typeof playingSurahRef.current === 'number'
+              activeStation === 'hadr'
+              && !autoAdvanceLockRef.current
+              && typeof playingHadrJuzRef.current === 'number'
             ) {
-              const playNext = playBasitSurahRef.current;
-              const nextSurah = getNextSurahNumber(playingSurahRef.current);
-              if (playNext) {
-                basitAutoAdvanceLockRef.current = true;
+              const playNextJuz = playHadrJuzRef.current;
+              const nextJuz = getNextJuzNumber(playingHadrJuzRef.current);
+              if (playNextJuz) {
+                autoAdvanceLockRef.current = true;
                 setTimeout(() => {
-                  playNext(nextSurah)
+                  playNextJuz(nextJuz)
                     .catch(() => {})
                     .finally(() => {
-                      basitAutoAdvanceLockRef.current = false;
+                      autoAdvanceLockRef.current = false;
+                    });
+                }, 140);
+                return;
+              }
+            }
+
+            if (
+              surahTemplateStationIdsRef.current.has(activeStation)
+              && !autoAdvanceLockRef.current
+              && typeof playingSurahRef.current === 'number'
+            ) {
+              const playNextSurah = playSurahTrackRef.current;
+              const nextSurah = getNextSurahNumber(playingSurahRef.current);
+              if (playNextSurah) {
+                autoAdvanceLockRef.current = true;
+                setTimeout(() => {
+                  playNextSurah(activeStation, nextSurah)
+                    .catch(() => {})
+                    .finally(() => {
+                      autoAdvanceLockRef.current = false;
                     });
                 }, 140);
                 return;
@@ -585,7 +1147,13 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
 
             playbackStartedAtRef.current = null;
             playbackPositionSecRef.current = 0;
+            playbackDurationSecRef.current = 0;
+            setPlaybackPositionSec(0);
+            setPlaybackDurationSec(0);
+            setSeekDraftSec(null);
+            setTimeshiftDraftSec(null);
             setAudioPlaying(false);
+            setAudioPaused(false);
             setAudioLoading(false);
           };
 
@@ -596,22 +1164,20 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
 
           await new Promise((resolve) => setTimeout(resolve, connectTimeoutMs));
 
+          if (requestId !== playRequestIdRef.current) {
+            cleanupWebAudio(audio);
+            return;
+          }
+
           if (!connected) {
-            if (webAudioRef.current === audio) {
-              webAudioRef.current = null;
-            }
-            try {
-              audio.pause();
-              audio.src = '';
-              if (typeof audio.load === 'function') audio.load();
-            } catch {
-              // Ignore cleanup failures.
-            }
+            cleanupWebAudio(audio);
             throw new Error('connect-timeout');
           }
 
           setTimeout(() => {
-            setAudioLoading(false);
+            if (requestId === playRequestIdRef.current) {
+              setAudioLoading(false);
+            }
           }, 1200);
 
           setRewindNotice(null);
@@ -630,43 +1196,82 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
           audioModeReadyRef.current = true;
         }
 
+        if (requestId !== playRequestIdRef.current) return;
+
         if (Platform.OS === 'android') {
           await new Promise((resolve) => setTimeout(resolve, ANDROID_PLAYER_BOOTSTRAP_DELAY_MS));
         }
 
-        const player = createAudioPlayer({ uri: url }, 250);
+        if (requestId !== playRequestIdRef.current) return;
+
+        const player = createAudioPlayer({ uri: url }, { updateInterval: 250 });
+        if (requestId !== playRequestIdRef.current) {
+          cleanupPlayer(player);
+          return;
+        }
+
         soundRef.current = player;
+        allPlayersRef.current.add(player);
 
         player.addListener('playbackStatusUpdate', (status) => {
           if (soundRef.current !== player) return;
 
           const currentTime = (status as { currentTime?: number }).currentTime;
+          const duration = (status as { duration?: number }).duration;
+
+          if (typeof duration === 'number' && Number.isFinite(duration) && duration > 0) {
+            updatePlaybackDuration(duration);
+          }
+
           if (typeof currentTime === 'number' && Number.isFinite(currentTime)) {
-            playbackPositionSecRef.current = currentTime;
+            updatePlaybackPosition(currentTime);
           } else if (playbackStartedAtRef.current && status.playing) {
-            playbackPositionSecRef.current = (Date.now() - playbackStartedAtRef.current) / 1000;
+            updatePlaybackPosition((Date.now() - playbackStartedAtRef.current) / 1000);
           }
 
           if (status.isLoaded && (status.playing || status.isBuffering)) {
             connected = true;
+            setAudioPaused(false);
             setAudioLoading(false);
           }
 
           if (status.didJustFinish) {
+            allPlayersRef.current.delete(player);
+            const activeStation = activeStationIdRef.current;
             if (
-              activeStationIdRef.current === 'basit'
-              && !basitAutoAdvanceLockRef.current
-              && typeof playingSurahRef.current === 'number'
+              activeStation === 'hadr'
+              && !autoAdvanceLockRef.current
+              && typeof playingHadrJuzRef.current === 'number'
             ) {
-              const playNext = playBasitSurahRef.current;
-              const nextSurah = getNextSurahNumber(playingSurahRef.current);
-              if (playNext) {
-                basitAutoAdvanceLockRef.current = true;
+              const playNextJuz = playHadrJuzRef.current;
+              const nextJuz = getNextJuzNumber(playingHadrJuzRef.current);
+              if (playNextJuz) {
+                autoAdvanceLockRef.current = true;
                 setTimeout(() => {
-                  playNext(nextSurah)
+                  playNextJuz(nextJuz)
                     .catch(() => {})
                     .finally(() => {
-                      basitAutoAdvanceLockRef.current = false;
+                      autoAdvanceLockRef.current = false;
+                    });
+                }, 140);
+                return;
+              }
+            }
+
+            if (
+              surahTemplateStationIdsRef.current.has(activeStation)
+              && !autoAdvanceLockRef.current
+              && typeof playingSurahRef.current === 'number'
+            ) {
+              const playNextSurah = playSurahTrackRef.current;
+              const nextSurah = getNextSurahNumber(playingSurahRef.current);
+              if (playNextSurah) {
+                autoAdvanceLockRef.current = true;
+                setTimeout(() => {
+                  playNextSurah(activeStation, nextSurah)
+                    .catch(() => {})
+                    .finally(() => {
+                      autoAdvanceLockRef.current = false;
                     });
                 }, 140);
                 return;
@@ -675,7 +1280,13 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
 
             playbackStartedAtRef.current = null;
             playbackPositionSecRef.current = 0;
+            playbackDurationSecRef.current = 0;
+            setPlaybackPositionSec(0);
+            setPlaybackDurationSec(0);
+            setSeekDraftSec(null);
+            setTimeshiftDraftSec(null);
             setAudioPlaying(false);
+            setAudioPaused(false);
             setAudioLoading(false);
           }
         });
@@ -684,76 +1295,170 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
 
         await new Promise((resolve) => setTimeout(resolve, connectTimeoutMs));
 
+        if (requestId !== playRequestIdRef.current) {
+          cleanupPlayer(player);
+          return;
+        }
+
         if (!connected) {
-          if (soundRef.current === player) {
-            soundRef.current = null;
-          }
-          player.remove();
+          cleanupPlayer(player);
           throw new Error('connect-timeout');
         }
 
         setTimeout(() => {
-          setAudioLoading(false);
+          if (requestId === playRequestIdRef.current) {
+            setAudioLoading(false);
+          }
         }, 2200);
 
         setRewindNotice(null);
 
         return;
-      } catch (_error) {
+      } catch {
+        if (requestId !== playRequestIdRef.current) {
+          return;
+        }
+
         const hasMoreAttempts = attempt < maxAttempts;
         if (!hasMoreAttempts) {
           setAudioLoading(false);
           setAudioPlaying(false);
+          setAudioPaused(false);
           setRewindNotice('Unable to play this station in-app right now. Please try again in a moment.');
           return;
         }
       }
     }
-  }, []);
+  }, [ensurePrayerAudioUnlocked, updatePlaybackDuration, updatePlaybackPosition]);
+
+  const playSurahTrack = useCallback(
+    async (stationId: string, surah: number) => {
+      const station = radioStreams.find((item) => item.id === stationId);
+      if (!station) return;
+
+      if (soundRef.current || webAudioRef.current || allPlayersRef.current.size || allWebAudiosRef.current.size) {
+        await stopAudio();
+      }
+
+      const normalizedSurah = Math.max(1, Math.min(114, Math.round(surah)));
+      setActiveStationId(stationId);
+      setPlayingHadrJuz(null);
+      setHadrOpen(false);
+      setPlayingSurah(normalizedSurah);
+      setSelectedSurahByStation((prev) => ({ ...prev, [stationId]: normalizedSurah }));
+
+      const source = buildSurahTrackUrl(station.url, normalizedSurah);
+      await playUrl(source, { retries: 1, connectTimeoutMs: 2200 });
+    },
+    [playUrl, radioStreams, stopAudio],
+  );
+
+  useEffect(() => {
+    playSurahTrackRef.current = playSurahTrack;
+  }, [playSurahTrack]);
 
   const playStation = useCallback(
     async (stationId: StreamId) => {
       const stream = radioStreams.find((item) => item.id === stationId);
       if (!stream) return;
 
+      const isSurahTemplate = surahTemplateStationIds.has(stationId);
+
       const tappingSame = activeStationId === stationId;
       if (tappingSame && (audioPlaying || audioLoading || soundRef.current || webAudioRef.current)) {
         await stopAudio();
-        if (stationId === 'basit') setPlayingSurah(null);
+        if (stationId === 'hadr') {
+          setPlayingHadrJuz(null);
+        }
+        if (isSurahTemplate) {
+          setPlayingSurah(null);
+        }
         return;
       }
 
-      if (soundRef.current || webAudioRef.current) await stopAudio();
+      if (isSurahTemplate) {
+        const surahToPlay = selectedSurahByStation[stationId] ?? playingSurahRef.current ?? 1;
+        await playSurahTrack(stationId, surahToPlay);
+        return;
+      }
+
+      if (soundRef.current || webAudioRef.current || allPlayersRef.current.size || allWebAudiosRef.current.size) {
+        await stopAudio();
+      }
 
       setActiveStationId(stationId);
+      setPlayingHadrJuz(null);
       setPlayingSurah(null);
+      setHadrOpen(false);
+
       const isQiraat = stationId === 'qiraat';
-      await playUrl(stream.url, {
-        retries: isQiraat ? 2 : 1,
-        connectTimeoutMs: isQiraat ? 1800 : 2500,
+      let source: AudioSource = stream.url;
+      let retries = 1;
+      let connectTimeoutMs = 2500;
+
+      if (isQiraat) {
+        source = buildQiraatTrackUrl(stream.url, qiraatQariPath, qiraatTrackFile);
+        retries = 2;
+        connectTimeoutMs = 1800;
+      }
+
+      await playUrl(source, {
+        retries,
+        connectTimeoutMs,
       });
     },
-    [activeStationId, audioLoading, audioPlaying, playUrl, radioStreams, stopAudio],
+    [activeStationId, audioLoading, audioPlaying, playSurahTrack, playUrl, qiraatQariPath, qiraatTrackFile, radioStreams, selectedSurahByStation, stopAudio, surahTemplateStationIds],
   );
 
-  const playBasitSurah = useCallback(
-    async (surah: number) => {
-      const basit = radioStreams.find((item) => item.id === 'basit');
-      if (!basit) return;
+  const playHadrJuz = useCallback(
+    async (juz: number, options?: { closeSheet?: boolean }) => {
+      const hadr = radioStreams.find((item) => item.id === 'hadr');
+      if (!hadr) return;
 
-      if (soundRef.current || webAudioRef.current) await stopAudio();
+      if (soundRef.current || webAudioRef.current || allPlayersRef.current.size || allWebAudiosRef.current.size) {
+        await stopAudio();
+      }
 
-      setActiveStationId('basit');
-      setPlayingSurah(surah);
-      await playUrl(basit.url.replace('{SURAH}', String(surah)), { retries: 1, connectTimeoutMs: 2200 });
-      setBasitOpen(false);
+      const normalizedJuz = Math.max(1, Math.min(30, Math.round(juz)));
+      const hadrTrack = HADR_JUZ_TRACKS[normalizedJuz];
+      if (!hadrTrack) {
+        setRewindNotice(`Juz ${normalizedJuz} audio file is missing in assets/Quran hadr.`);
+        return;
+      }
+
+      setActiveStationId('hadr');
+      setPlayingHadrJuz(normalizedJuz);
+      setSelectedHadrJuz(normalizedJuz);
+
+      if (options?.closeSheet ?? false) {
+        setHadrOpen(false);
+      }
+
+      await playUrl(hadrTrack, { retries: 1, connectTimeoutMs: 2200 });
     },
     [playUrl, radioStreams, stopAudio],
   );
 
+  const playRandomHadrJuz = useCallback(async (options?: { closeSheet?: boolean }) => {
+    const availableJuz = Array.from({ length: 30 }, (_, index) => index + 1)
+      .filter((juz) => Boolean(HADR_JUZ_TRACKS[juz]));
+
+    if (!availableJuz.length) {
+      setRewindNotice('No Hadr Juz audio files are available in assets/quran-hadr.');
+      return;
+    }
+
+    const currentJuz = playingHadrJuzRef.current ?? selectedHadrJuz;
+    const candidatePool = availableJuz.length > 1
+      ? availableJuz.filter((juz) => juz !== currentJuz)
+      : availableJuz;
+    const randomJuz = candidatePool[Math.floor(Math.random() * candidatePool.length)];
+    await playHadrJuz(randomJuz, options);
+  }, [playHadrJuz, selectedHadrJuz]);
+
   useEffect(() => {
-    playBasitSurahRef.current = playBasitSurah;
-  }, [playBasitSurah]);
+    playHadrJuzRef.current = (juz: number) => playHadrJuz(juz);
+  }, [playHadrJuz]);
 
   useEffect(() => {
     if (!autoPlayOnMount || autoplayAttempted.current) return;
@@ -799,118 +1504,167 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
   const onPullRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await refreshLiveStatus();
+      const latest = await refreshJmnLiveStatus();
+      const hasActiveAudio = audioPlaying || audioLoading || !!soundRef.current || !!webAudioRef.current;
+      const isMasjidPlaying = activeStationIdRef.current === 'masjid';
+
+      if (isMasjidPlaying && hasActiveAudio && !latest.isLive) {
+        await stopAudio();
+        setRewindNotice('Live stream is currently offline. Playback stopped.');
+      }
     } finally {
       setRefreshing(false);
     }
-  }, [refreshLiveStatus]);
+  }, [audioLoading, audioPlaying, stopAudio]);
 
   const resyncActiveStreamToLive = useCallback(async (notice?: string) => {
-    if ((!soundRef.current && !webAudioRef.current) || (!audioPlaying && !audioLoading)) return;
+    if ((!soundRef.current && !webAudioRef.current) || (!audioPlaying && !audioLoading && !audioPaused)) return;
 
     const activeStream = radioStreams.find((item) => item.id === activeStationId);
     if (!activeStream) return;
 
-    let targetUrl = activeStream.url;
+    let targetSource: AudioSource = activeStream.url;
     let retries = 1;
     let connectTimeoutMs = 2200;
 
     if (activeStationId === 'qiraat') {
       retries = 2;
       connectTimeoutMs = 1800;
+      targetSource = buildQiraatTrackUrl(activeStream.url, qiraatQariPath, qiraatTrackFile);
     }
 
-    if (activeStationId === 'basit') {
+    if (surahTemplateStationIds.has(activeStationId)) {
       const surah = playingSurah ?? 1;
-      targetUrl = activeStream.url.replace('{SURAH}', String(surah));
+      targetSource = buildSurahTrackUrl(activeStream.url, surah);
+      retries = 1;
+      connectTimeoutMs = 2200;
+    }
+
+    if (activeStationId === 'hadr') {
+      const hadrTrack = HADR_JUZ_TRACKS[playingHadrJuz ?? selectedHadrJuz];
+      if (!hadrTrack) {
+        setRewindNotice(`Juz ${playingHadrJuz ?? selectedHadrJuz} audio file is missing in assets/Quran hadr.`);
+        return;
+      }
+      targetSource = hadrTrack;
     }
 
     await stopAudio();
-    await playUrl(targetUrl, { retries, connectTimeoutMs });
+    await playUrl(targetSource, { retries, connectTimeoutMs });
     timeshiftSecRef.current = 0;
     setTimeshiftSec(0);
     setRewindNotice(notice ?? 'Resynced to current live position.');
-  }, [activeStationId, audioLoading, audioPlaying, playUrl, playingSurah, radioStreams, stopAudio]);
+  }, [activeStationId, audioLoading, audioPaused, audioPlaying, playUrl, playingHadrJuz, playingSurah, qiraatQariPath, qiraatTrackFile, radioStreams, selectedHadrJuz, stopAudio, surahTemplateStationIds]);
 
   const readCurrentPlaybackTime = useCallback(() => {
     const webTime = webAudioRef.current?.currentTime;
     if (typeof webTime === 'number' && Number.isFinite(webTime) && webTime >= 0) {
-      playbackPositionSecRef.current = webTime;
+      updatePlaybackPosition(webTime);
       return webTime;
     }
 
     const liveValue = soundRef.current?.currentTime;
     if (typeof liveValue === 'number' && Number.isFinite(liveValue) && liveValue >= 0) {
-      playbackPositionSecRef.current = liveValue;
+      updatePlaybackPosition(liveValue);
       return liveValue;
     }
     return Math.max(0, playbackPositionSecRef.current);
-  }, []);
+  }, [updatePlaybackPosition]);
 
-  const rewindActiveStreamByTen = useCallback(async () => {
+  const readCurrentPlaybackDuration = useCallback(() => {
+    const webDuration = webAudioRef.current?.duration;
+    if (typeof webDuration === 'number' && Number.isFinite(webDuration) && webDuration > 0) {
+      updatePlaybackDuration(webDuration);
+      return webDuration;
+    }
+
+    const nativeDuration = (soundRef.current as { duration?: number } | null)?.duration;
+    if (typeof nativeDuration === 'number' && Number.isFinite(nativeDuration) && nativeDuration > 0) {
+      updatePlaybackDuration(nativeDuration);
+      return nativeDuration;
+    }
+
+    return Math.max(0, playbackDurationSecRef.current);
+  }, [updatePlaybackDuration]);
+
+  const seekActiveStreamToPosition = useCallback(async (targetSec: number) => {
     seekQueueRef.current = seekQueueRef.current.then(async () => {
-      if ((!soundRef.current && !webAudioRef.current) || !audioPlaying) return;
+      if ((!soundRef.current && !webAudioRef.current) || (!audioPlaying && !audioPaused)) return;
+
       const player = soundRef.current;
       const webAudio = webAudioRef.current;
+      const before = readCurrentPlaybackTime();
+      const knownDuration = readCurrentPlaybackDuration();
+      const boundedTarget = knownDuration > 0
+        ? Math.max(0, Math.min(knownDuration, targetSec))
+        : Math.max(0, targetSec);
 
-      try {
-        let before = readCurrentPlaybackTime();
-        let movedTotalSec = 0;
-        let stalledAttempts = 0;
+      if (Math.abs(boundedTarget - before) < SEEK_EPSILON_SEC) return;
 
-        for (let attempt = 0; attempt < MAX_REWIND_SEEK_ATTEMPTS; attempt += 1) {
-          const remaining = REWIND_STEP_SEC - movedTotalSec;
-          if (remaining <= 0.5) break;
-
-          const target = Math.max(0, before - remaining);
-          if (webAudio) {
-            webAudio.currentTime = target;
-          } else if (player) {
-            await player.seekTo(target);
-          } else {
-            break;
-          }
-          await new Promise((resolve) => setTimeout(resolve, REWIND_SEEK_SETTLE_MS));
-
-          const after = readCurrentPlaybackTime();
-          const movedThisAttempt = Math.max(0, before - after);
-
-          if (movedThisAttempt < 0.25) {
-            stalledAttempts += 1;
-            if (stalledAttempts >= 2) break;
-          } else {
-            stalledAttempts = 0;
-            movedTotalSec += movedThisAttempt;
-          }
-
-          before = after;
-        }
-
-        if (movedTotalSec < 0.75) {
-          throw new Error('seek-not-effective');
-        }
-
-        if (playbackStartedAtRef.current) {
-          playbackStartedAtRef.current = Date.now() - before * 1000;
-        }
-
-        const nextTimeshift = Math.min(MAX_TIMESHIFT_SEC, timeshiftSecRef.current + movedTotalSec);
-        timeshiftSecRef.current = nextTimeshift;
-        setTimeshiftSec(nextTimeshift);
-        setRewindNotice(null);
-      } catch {
-        if (activeStationId === 'qiraat') {
-          await resyncActiveStreamToLive(
-            'Qiraat is a true live stream. 10-second seek is not supported, so it was resynced to current live.',
-          );
-          return;
-        }
-        setRewindNotice('Rewind is not available on this stream source. Use Resync to jump to current live.');
+      if (webAudio) {
+        webAudio.currentTime = boundedTarget;
+      } else if (player) {
+        await player.seekTo(boundedTarget);
+      } else {
+        return;
       }
-    }).catch(() => {});
+
+      await new Promise((resolve) => setTimeout(resolve, REWIND_SEEK_SETTLE_MS));
+
+      const afterRaw = readCurrentPlaybackTime();
+      const after = knownDuration > 0
+        ? Math.max(0, Math.min(knownDuration, afterRaw))
+        : Math.max(0, afterRaw);
+      const movedSec = Math.abs(after - before);
+
+      if (movedSec < SEEK_EPSILON_SEC) {
+        throw new Error('seek-not-effective');
+      }
+
+      updatePlaybackPosition(after);
+
+      if (playbackStartedAtRef.current) {
+        playbackStartedAtRef.current = Date.now() - after * 1000;
+      }
+
+      const deltaSec = after - before;
+      const nextTimeshift = Math.max(0, Math.min(MAX_TIMESHIFT_SEC, timeshiftSecRef.current - deltaSec));
+      timeshiftSecRef.current = nextTimeshift;
+      setTimeshiftSec(nextTimeshift);
+      setRewindNotice(null);
+    }).catch(async () => {
+      if (activeStationId === 'qiraat') {
+        await resyncActiveStreamToLive(
+          'This qiraat track does not support seek. It was resynced.',
+        );
+        return;
+      }
+      setRewindNotice('Seek is not available on this stream source. Use Resync to jump to current live.');
+    }).finally(() => {
+      setSeekDraftSec(null);
+      setTimeshiftDraftSec(null);
+    });
 
     await seekQueueRef.current;
-  }, [activeStationId, audioPlaying, readCurrentPlaybackTime, resyncActiveStreamToLive]);
+  }, [activeStationId, audioPaused, audioPlaying, readCurrentPlaybackDuration, readCurrentPlaybackTime, resyncActiveStreamToLive, updatePlaybackPosition]);
+
+  const seekActiveStreamToTimeshift = useCallback(async (targetTimeshiftSec: number) => {
+    const desiredTimeshiftSec = Math.max(0, Math.min(MAX_TIMESHIFT_SEC, targetTimeshiftSec));
+    const currentPositionSec = readCurrentPlaybackTime();
+    const currentTimeshiftSec = Math.max(0, Math.min(MAX_TIMESHIFT_SEC, timeshiftSecRef.current));
+    const targetPositionSec = currentPositionSec + (currentTimeshiftSec - desiredTimeshiftSec);
+    await seekActiveStreamToPosition(targetPositionSec);
+  }, [readCurrentPlaybackTime, seekActiveStreamToPosition]);
+
+  const rewindActiveStreamByTen = useCallback(async () => {
+    const current = readCurrentPlaybackTime();
+    await seekActiveStreamToPosition(current - REWIND_STEP_SEC);
+  }, [readCurrentPlaybackTime, seekActiveStreamToPosition]);
+
+  const forwardActiveStreamByTen = useCallback(async () => {
+    const current = readCurrentPlaybackTime();
+    await seekActiveStreamToPosition(current + REWIND_STEP_SEC);
+  }, [readCurrentPlaybackTime, seekActiveStreamToPosition]);
 
   const ensureNotificationPermission = useCallback(async () => {
     if (Platform.OS === 'web' || !Notifications) return false;
@@ -927,7 +1681,7 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
     if (finalStatus !== 'granted') return false;
 
     if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('jmn-live', {
+      await Notifications.setNotificationChannelAsync(LIVE_NOTIFICATION_CHANNEL_ID, {
         name: 'JMN Live Alerts',
         importance: Notifications.AndroidImportance.HIGH,
         vibrationPattern: [0, 250, 150, 250],
@@ -951,49 +1705,88 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
     await AsyncStorage.setItem(NOTIF_KEY, String(allowed));
   }, [ensureNotificationPermission]);
 
+  const openSurahPickerForStation = useCallback((stationId: string) => {
+    setActiveStationId(stationId as StreamId);
+    setSelectedSurahStationId(stationId);
+    setSurahSearch('');
+    setSurahPickerOpen(true);
+  }, []);
+
   const renderStationCard = (station: Station, compact = false) => {
     const isActive = station.id === activeStationId;
     const isPlaying = isActive && audioPlaying;
+    const isPaused = isActive && audioPaused;
     const isLoading = isActive && audioLoading;
-    const isBasit = station.id === 'basit';
+    const isQiraat = station.id === 'qiraat';
+    const isHadr = station.id === 'hadr';
+    const isSurahTemplate = isSurahTemplateStation(station);
+    const selectedSurahForThisStation = selectedSurahByStation[station.id] ?? 1;
+    const selectedSurahCode = String(selectedSurahForThisStation).padStart(3, '0');
+    const selectedSurahName = SURAH_NAMES[selectedSurahForThisStation] ?? `Surah ${selectedSurahCode}`;
     const isMasjid = station.id === 'masjid';
-    const isEngaged = isPlaying || isLoading;
-    const showRewind = isActive && isEngaged;
-    const stationTimeshiftSec = isActive ? timeshiftSec : 0;
-    const timeshiftFill = Math.max(0, Math.min(1, stationTimeshiftSec / MAX_TIMESHIFT_SEC));
+    const isRunning = isPlaying || isLoading || isPaused;
+    const isEngaged = isRunning;
 
     const statusText = isLoading
       ? 'Connecting...'
+      : isPaused
+      ? isHadr
+        ? `Paused Juz ${playingHadrJuz ?? selectedHadrJuz}`
+        : isSurahTemplate
+        ? `Paused ${String(playingSurah ?? selectedSurahForThisStation).padStart(3, '0')}. ${SURAH_NAMES[playingSurah ?? selectedSurahForThisStation]}`
+        : isQiraat
+        ? 'Paused live Quran stream'
+        : 'Paused'
       : isPlaying
-      ? isBasit && playingSurah
-        ? `Playing ${SURAH_NAMES[playingSurah]}`
+      ? isHadr
+        ? `Playing Juz ${playingHadrJuz ?? selectedHadrJuz}`
+        : isSurahTemplate
+        ? `Playing ${String(playingSurah ?? selectedSurahForThisStation).padStart(3, '0')}. ${SURAH_NAMES[playingSurah ?? selectedSurahForThisStation]}`
+        : isQiraat
+        ? 'Playing live Quran stream'
         : 'Now playing'
-      : isBasit
-      ? 'Search and play any surah'
+      : isHadr
+      ? `Select a Juz (current: ${selectedHadrJuz})`
+      : isSurahTemplate
+      ? `Select Surah (current: ${selectedSurahCode}. ${SURAH_NAMES[selectedSurahForThisStation]})`
       : station.sublabel;
 
-    const primaryLabel = isBasit
-      ? isPlaying
+    const primaryLabel = isSurahTemplate
+      ? isRunning
         ? 'Stop'
-        : 'Choose Surah'
-      : isPlaying
+        : `Play ${selectedSurahName}`
+      : isHadr
+      ? isRunning
+        ? 'Stop'
+        : 'Choose Juz'
+      : isRunning
       ? 'Stop'
       : 'Play';
 
     const onPrimaryPress = () => {
-      if (isBasit) {
-        if (isPlaying || isLoading) {
+      if (isSurahTemplate) {
+        if (isRunning) {
           stopAudio().catch(() => {});
           return;
         }
-        setActiveStationId('basit');
-        setBasitOpen(true);
+        playStation(station.id as StreamId).catch(() => {});
         return;
       }
 
-      if (!isPlaying && !isLoading) {
+      if (isHadr) {
+        if (isRunning) {
+          stopAudio().catch(() => {});
+          return;
+        }
+        setActiveStationId('hadr');
+        setHadrOpen(true);
+        return;
+      }
+
+      if (!isRunning) {
         setActiveStationId(station.id as StreamId);
         setAudioPlaying(true);
+        setAudioPaused(false);
         setAudioLoading(true);
       }
 
@@ -1007,6 +1800,7 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
           styles.stationCard,
           isActive && styles.stationCardActive,
           compact && styles.stationCardCompact,
+          compact && { width: qariCardWidth },
           {
             backgroundColor: palette.surface,
             borderColor: isActive ? accentColor : palette.border,
@@ -1014,7 +1808,7 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
           },
         ]}
       >
-        <View style={styles.stationMediaWrap}>
+        <View style={[styles.stationMediaWrap, compact && styles.stationMediaWrapCompact]}>
           <Image source={stationImageSource(station.id)} style={styles.stationMedia} contentFit="cover" />
           <LinearGradient
             colors={['transparent', 'rgba(0,0,0,0.45)']}
@@ -1028,51 +1822,29 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
           {(isPlaying || (isMasjid && isLive)) && <PulsingDot active={isPlaying || isLive} />}
         </View>
 
-        <View style={styles.stationBody}>
+        <View style={[styles.stationBody, compact && styles.stationBodyCompact]}>
           <Text style={[styles.stationName, { color: palette.text }]} numberOfLines={2}>
             {station.label}
           </Text>
 
           <View style={styles.stationStatusRow}>
-            <EqualizerBars active={isEngaged} color={isActive ? accentColor : palette.textMuted} />
+            <EqualizerBars active={isPlaying || isLoading} color={isActive ? accentColor : palette.textMuted} />
             <Text style={[styles.stationStatus, { color: isActive ? accentColor : palette.textSub }]} numberOfLines={2}>
               {statusText}
             </Text>
             {isEngaged ? (
-              <View style={[styles.stationStatusPill, { backgroundColor: isLoading ? '#B48925' : accentColor }]}>
-                <Text style={styles.stationStatusPillText}>{isLoading ? 'Buffering' : 'Playing'}</Text>
+              <View style={[styles.stationStatusPill, { backgroundColor: isLoading ? '#B48925' : isPaused ? '#6E7E96' : accentColor }]}>
+                <Text style={styles.stationStatusPillText}>{isLoading ? 'Buffering' : isPaused ? 'Paused' : 'Playing'}</Text>
               </View>
             ) : null}
           </View>
 
           <View style={styles.stationActions}>
-            {showRewind ? (
-              <TouchableOpacity
-                style={[styles.rewindControl, { borderColor: palette.border, backgroundColor: palette.surfaceAlt }]}
-                onPress={() => rewindActiveStreamByTen().catch(() => {})}
-                activeOpacity={0.85}
-              >
-                <MaterialIcons name="replay-10" size={18} color={palette.textSub} />
-                <Text style={[styles.rewindControlText, { color: palette.textSub }]}>-10s</Text>
-              </TouchableOpacity>
-            ) : null}
-
-            {showRewind ? (
-              <TouchableOpacity
-                style={[styles.resyncControl, { borderColor: palette.border, backgroundColor: palette.surfaceAlt }]}
-                onPress={() => resyncActiveStreamToLive().catch(() => {})}
-                activeOpacity={0.85}
-              >
-                <MaterialIcons name="sync" size={16} color={palette.textSub} />
-                <Text style={[styles.resyncControlText, { color: palette.textSub }]}>Resync</Text>
-              </TouchableOpacity>
-            ) : null}
-
             <TouchableOpacity
               style={[
                 styles.primaryControl,
                 {
-                  backgroundColor: isPlaying ? '#BC2F2F' : accentColor,
+                  backgroundColor: isRunning ? '#BC2F2F' : accentColor,
                 },
               ]}
               onPress={onPrimaryPress}
@@ -1081,31 +1853,44 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <MaterialIcons
-                name={isLoading ? 'hourglass-empty' : isPlaying ? 'stop' : 'play-arrow'}
+                name={isLoading ? 'hourglass-empty' : isRunning ? 'stop' : 'play-arrow'}
                 size={18}
                 color="#FFFFFF"
               />
               <Text style={styles.primaryControlText}>{primaryLabel}</Text>
             </TouchableOpacity>
 
-            {isBasit && !isPlaying ? (
+            {isSurahTemplate && !isRunning ? (
               <TouchableOpacity
-                style={[styles.secondaryControl, { borderColor: palette.border, backgroundColor: palette.surfaceAlt }]}
+                style={[styles.secondaryControlWide, { borderColor: palette.border, backgroundColor: palette.surfaceAlt }]}
                 onPress={() => {
-                  setActiveStationId('basit');
-                  setBasitOpen(true);
+                  openSurahPickerForStation(station.id);
                 }}
                 activeOpacity={0.85}
               >
                 <MaterialIcons name="search" size={16} color={palette.textSub} />
+                <Text style={[styles.secondaryControlWideText, { color: palette.textSub }]}>Select Surah</Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {isHadr && !isRunning ? (
+              <TouchableOpacity
+                style={[styles.secondaryControl, { borderColor: palette.border, backgroundColor: palette.surfaceAlt }]}
+                onPress={() => {
+                  setActiveStationId('hadr');
+                  setHadrOpen(true);
+                }}
+                activeOpacity={0.85}
+              >
+                <MaterialIcons name="queue-music" size={16} color={palette.textSub} />
               </TouchableOpacity>
             ) : null}
           </View>
 
-          {isBasit ? (
+          {isHadr || isSurahTemplate ? (
             <View
               style={[
-                styles.basitAutoNextRow,
+                styles.autoNextRow,
                 {
                   borderColor: palette.border,
                   backgroundColor: palette.surfaceAlt,
@@ -1113,29 +1898,8 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
               ]}
             >
               <MaterialIcons name="autorenew" size={14} color={accentColor} />
-              <Text style={[styles.basitAutoNextText, { color: palette.textSub }]}>Auto-next enabled</Text>
-            </View>
-          ) : null}
-
-          {isEngaged ? (
-            <View style={styles.timeshiftWrap}>
-              <View style={styles.timeshiftHeader}>
-                <Text style={[styles.timeshiftTitle, { color: palette.textSub }]}>Time Shift</Text>
-                <Text style={[styles.timeshiftValue, { color: palette.text }]}>{Math.round(stationTimeshiftSec)}s</Text>
-              </View>
-              <View style={[styles.timeshiftTrack, { backgroundColor: palette.border }]}>
-                <View
-                  style={[
-                    styles.timeshiftFill,
-                    {
-                      width: `${timeshiftFill * 100}%`,
-                      backgroundColor: isActive ? accentColor : palette.textMuted,
-                    },
-                  ]}
-                />
-              </View>
-              <Text style={[styles.timeshiftHint, { color: stationTimeshiftSec > 0 ? palette.textSub : palette.textMuted }]}>
-                {stationTimeshiftSec > 0 ? `-${Math.round(stationTimeshiftSec)}s behind live` : 'Live edge (0s)'}
+              <Text style={[styles.autoNextText, { color: palette.textSub }]}>
+                {isHadr ? 'Auto-next enabled across Quran' : 'Auto-next enabled across Surahs'}
               </Text>
             </View>
           ) : null}
@@ -1168,56 +1932,116 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
   };
 
   const renderStations = () => {
-    if (layoutMode === 'split') {
-      const first = radioStreams[0];
-      const rest = radioStreams.slice(1);
-      return (
-        <>
-          {first ? renderStationCard(first) : null}
-          <View style={styles.halfRow}>
-            {rest.map((station) => (
-              <View key={station.id} style={styles.halfCol}>
-                {renderStationCard(station, true)}
-              </View>
-            ))}
-          </View>
-        </>
-      );
-    }
+    return (
+      <View style={styles.stationStack}>
+        {masjidStation ? renderStationCard(masjidStation) : null}
 
-    if (layoutMode === 'mosaic') {
-      return (
-        <View style={styles.mosaicWrap}>
-          {radioStreams.map((station) => (
-            <View key={station.id} style={styles.mosaicItem}>
-              {renderStationCard(station, true)}
+        {qariStations.length ? (
+          <View style={[styles.stationGroupCard, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+            <View style={styles.stationGroupHeader}>
+              <Text style={[styles.stationGroupTitle, { color: palette.text }]}>Qari Channels</Text>
+              <Text style={[styles.stationGroupMeta, { color: palette.textSub }]}>{qariStations.length} channels</Text>
             </View>
-          ))}
-        </View>
-      );
-    }
 
-    if (layoutMode === 'focus') {
-      const masjid = radioStreams.find((item) => item.id === 'masjid');
-      const others = radioStreams.filter((item) => item.id !== 'masjid');
-      return (
-        <>
-          {masjid ? renderStationCard(masjid) : null}
-          <View style={styles.focusStack}>{others.map((station) => renderStationCard(station, true))}</View>
-        </>
-      );
-    }
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={[
+                styles.qariRailContent,
+                isNarrowViewport && styles.qariRailContentNarrow,
+                layoutMode === 'mosaic' && styles.qariRailContentTight,
+              ]}
+            >
+              {qariStations.map((station) => renderStationCard(station, true))}
+            </ScrollView>
+          </View>
+        ) : null}
 
-    return <View style={styles.stationStack}>{radioStreams.map((station) => renderStationCard(station))}</View>;
+        {otherStations.length ? (
+          <View style={styles.otherStreamsWrap}>
+            <Text style={[styles.otherStreamsTitle, { color: palette.text }]}>Other Streams</Text>
+            <View style={styles.otherStreamsStack}>
+              {otherStations.map((station) => renderStationCard(station))}
+            </View>
+          </View>
+        ) : null}
+      </View>
+    );
   };
 
   const activeStation = radioStreams.find((station) => station.id === activeStationId);
+  const activeStationIsSurahTemplate = activeStation ? isSurahTemplateStation(activeStation) : false;
+  const activeStationIsHadr = activeStation?.id === 'hadr';
+  const activeStationIsRunning = audioPlaying || audioPaused || audioLoading;
+  const activeSurahForControls = activeStation && activeStationIsSurahTemplate
+    ? selectedSurahByStation[activeStation.id] ?? 1
+    : 1;
+  const activeSurahCode = String(activeSurahForControls).padStart(3, '0');
+  const activeSurahName = SURAH_NAMES[activeSurahForControls] ?? `Surah ${activeSurahCode}`;
+  const controlsStatusText = audioLoading
+    ? 'Connecting...'
+    : audioPaused
+    ? 'Paused'
+    : audioPlaying
+    ? 'Playing'
+    : 'Ready';
+  const activeStationMetaText = activeStationIsSurahTemplate
+    ? `Surah: ${activeSurahName}`
+    : activeStationIsHadr
+    ? `Juz ${playingHadrJuz ?? selectedHadrJuz}`
+    : activeStation?.sublabel ?? 'No station selected';
+
+  const controlsCanSeek = Boolean(soundRef.current || webAudioRef.current) && (audioPlaying || audioPaused);
+  const controlsDurationSeekEnabled = controlsCanSeek && playbackDurationSec > 0;
+  const controlsTimeshiftSeekEnabled = controlsCanSeek && !controlsDurationSeekEnabled;
+  const controlsCurrentSec = controlsDurationSeekEnabled
+    ? Math.max(0, Math.min(playbackDurationSec, playbackPositionSec))
+    : Math.max(0, playbackPositionSec);
+  const controlsSeekDisplaySec = typeof seekDraftSec === 'number'
+    ? Math.max(
+      0,
+      Math.min(controlsDurationSeekEnabled ? playbackDurationSec : controlsCurrentSec + REWIND_STEP_SEC, seekDraftSec),
+    )
+    : controlsCurrentSec;
+  const controlsTimeshiftDisplaySec = typeof timeshiftDraftSec === 'number'
+    ? Math.max(0, Math.min(MAX_TIMESHIFT_SEC, timeshiftDraftSec))
+    : Math.max(0, Math.min(MAX_TIMESHIFT_SEC, timeshiftSec));
+  const simpleBottomPlayer = true;
+  const bottomPlayerVisualExpanded = simpleBottomPlayer ? false : bottomPlayerExpanded;
+  const bottomPlayerBg = bottomPlayerVisualExpanded ? '#070A10' : (nightMode ? '#112B20' : '#EAF7EF');
+  const bottomPlayerBorder = bottomPlayerVisualExpanded
+    ? 'rgba(255,255,255,0.14)'
+    : (nightMode ? 'rgba(133, 213, 172, 0.34)' : '#B8DFC8');
+  const bottomPlayerSubText = bottomPlayerVisualExpanded ? '#9CA6B8' : (nightMode ? '#A4CDB8' : '#4A6B5D');
+  const bottomPlayerIcon = bottomPlayerVisualExpanded ? '#D0D7E4' : (nightMode ? '#9BE7C0' : '#0E7F53');
+  const bottomPlayerMainActionBg = bottomPlayerVisualExpanded ? accentColor : (nightMode ? '#1F8358' : '#14955E');
+  const bottomPlayerMiniTimeLabel = controlsDurationSeekEnabled
+    ? `${formatPlaybackClock(controlsSeekDisplaySec)} / ${formatPlaybackClock(playbackDurationSec)}`
+    : formatPlaybackClock(controlsSeekDisplaySec);
+  const bottomPlayerStreamName = activeStation?.label ?? 'Station';
+  const bottomPlayerNowPlayingDetail = activeStationIsSurahTemplate
+    ? `${controlsStatusText}: ${activeSurahName}`
+    : activeStationIsHadr
+    ? `${controlsStatusText}: Juz ${playingHadrJuz ?? selectedHadrJuz}`
+    : controlsStatusText;
+  const bottomPlayerNowPlayingMeta = `${bottomPlayerNowPlayingDetail} • ${bottomPlayerMiniTimeLabel}`;
+  const bottomPlayerRightTimeLabel = controlsDurationSeekEnabled
+    ? formatPlaybackClock(playbackDurationSec)
+    : `${Math.round(controlsTimeshiftDisplaySec)}s`;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, backgroundColor: palette.bg }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing.xl }]}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingBottom:
+              bottomPlayerCollapsedHeight +
+              10 +
+              (activeStation && activeStationIsRunning ? bottomPlayerDockOffset : 0),
+          },
+        ]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -1271,12 +2095,18 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
           <Text style={[styles.sectionTitle, { color: palette.text }]}>Listen Now</Text>
           <View style={[styles.sectionNowPill, { backgroundColor: palette.surfaceAlt, borderColor: palette.border }]}> 
             <MaterialIcons
-              name={audioPlaying ? 'graphic-eq' : 'radio'}
+              name={audioLoading ? 'hourglass-empty' : audioPlaying ? 'graphic-eq' : audioPaused ? 'pause-circle-outline' : 'radio'}
               size={13}
-              color={audioPlaying ? accentColor : palette.textMuted}
+              color={audioPlaying || audioPaused ? accentColor : palette.textMuted}
             />
-            <Text style={[styles.sectionNowPillText, { color: audioPlaying ? accentColor : palette.textMuted }]} numberOfLines={1}>
-              {audioPlaying ? `Now: ${activeStation?.label ?? 'Station'}` : 'Ready'}
+            <Text style={[styles.sectionNowPillText, { color: audioPlaying || audioPaused ? accentColor : palette.textMuted }]} numberOfLines={1}>
+              {audioLoading
+                ? `Connecting: ${activeStation?.label ?? 'Station'}`
+                : audioPlaying
+                ? `Now: ${activeStation?.label ?? 'Station'}`
+                : audioPaused
+                ? `Paused: ${activeStation?.label ?? 'Station'}`
+                : 'Ready'}
             </Text>
           </View>
         </View>
@@ -1298,19 +2128,344 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
         ) : null}
       </ScrollView>
 
-      <Modal visible={basitOpen} transparent animationType="slide" onRequestClose={() => setBasitOpen(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setBasitOpen(false)}>
+      {!surahPickerOpen && !hadrOpen && activeStation && activeStationIsRunning ? (
+        <Animated.View
+          style={[
+            styles.bottomPlayerShell,
+            {
+              backgroundColor: bottomPlayerBg,
+              borderColor: bottomPlayerBorder,
+              height: bottomPlayerCollapsedHeight,
+              bottom: bottomPlayerDockOffset,
+            },
+          ]}
+        >
+          {simpleBottomPlayer || !bottomPlayerExpanded ? (
+            <View
+              style={[
+                styles.bottomPlayerCollapsedRow,
+                {
+                  height: bottomPlayerCollapsedHeight,
+                  paddingBottom: bottomPlayerSafeInset,
+                },
+              ]}
+            >
+              <View style={styles.bottomPlayerCollapsedControlsWrap}>
+                <Text style={[styles.bottomPlayerCollapsedNowPlayingText, { color: bottomPlayerSubText }]} numberOfLines={1}>
+                  {bottomPlayerNowPlayingMeta}
+                </Text>
+                <Text style={[styles.bottomPlayerCollapsedStreamNameText, { color: bottomPlayerIcon }]} numberOfLines={1}>
+                  {bottomPlayerStreamName}
+                </Text>
+
+                <View style={styles.bottomPlayerCollapsedSeekCard}>
+                  <View style={styles.bottomPlayerCollapsedSeekHeader}>
+                    <Text style={[styles.bottomPlayerCollapsedSeekLabel, { color: bottomPlayerMainActionBg }]}>Timelapse</Text>
+                    <Text style={[styles.bottomPlayerCollapsedSeekLabelValue, { color: bottomPlayerSubText }]}>{bottomPlayerRightTimeLabel}</Text>
+                  </View>
+
+                  <View style={styles.bottomPlayerCollapsedSeekWrap}>
+                    {controlsDurationSeekEnabled ? (
+                      <Slider
+                        style={styles.bottomPlayerCollapsedSeekSlider}
+                        minimumValue={0}
+                        maximumValue={playbackDurationSec}
+                        value={controlsSeekDisplaySec}
+                        minimumTrackTintColor={bottomPlayerMainActionBg}
+                        maximumTrackTintColor="rgba(21,67,51,0.2)"
+                        thumbTintColor={bottomPlayerMainActionBg}
+                        onSlidingStart={() => {
+                          setSeekDraftSec(controlsCurrentSec);
+                        }}
+                        onValueChange={(value) => {
+                          setSeekDraftSec(value);
+                        }}
+                        onSlidingComplete={(value) => {
+                          setSeekDraftSec(value);
+                          seekActiveStreamToPosition(value).catch(() => {});
+                        }}
+                      />
+                    ) : controlsTimeshiftSeekEnabled ? (
+                      <Slider
+                        style={styles.bottomPlayerCollapsedSeekSlider}
+                        minimumValue={0}
+                        maximumValue={MAX_TIMESHIFT_SEC}
+                        value={controlsTimeshiftDisplaySec}
+                        minimumTrackTintColor={bottomPlayerMainActionBg}
+                        maximumTrackTintColor="rgba(21,67,51,0.2)"
+                        thumbTintColor={bottomPlayerMainActionBg}
+                        onSlidingStart={() => {
+                          setTimeshiftDraftSec(timeshiftSec);
+                        }}
+                        onValueChange={(value) => {
+                          setTimeshiftDraftSec(value);
+                        }}
+                        onSlidingComplete={(value) => {
+                          setTimeshiftDraftSec(value);
+                          seekActiveStreamToTimeshift(value).catch(() => {});
+                        }}
+                      />
+                    ) : (
+                      <View style={styles.bottomPlayerCollapsedSeekFallback} />
+                    )}
+                  </View>
+
+                  <Text style={[styles.bottomPlayerCollapsedSeekTimelineText, { color: bottomPlayerSubText }]} numberOfLines={1}>
+                    {bottomPlayerMiniTimeLabel}
+                  </Text>
+                </View>
+
+                <View style={styles.bottomPlayerCollapsedTransportRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.bottomPlayerCollapsedStepBtn,
+                      !controlsCanSeek && styles.bottomPlayerCollapsedStepBtnDisabled,
+                    ]}
+                    onPress={() => rewindActiveStreamByTen().catch(() => {})}
+                    disabled={!controlsCanSeek}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <MaterialIcons name="replay-10" size={19} color={bottomPlayerIcon} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.bottomPlayerCollapsedMainBtn, { backgroundColor: bottomPlayerMainActionBg }]}
+                    onPress={() => {
+                      if (activeStationIsRunning) {
+                        if (audioLoading) {
+                          stopAudio().catch(() => {});
+                          return;
+                        }
+                        (audioPaused ? resumeActiveAudio() : pauseActiveAudio()).catch(() => {});
+                        return;
+                      }
+
+                      if (activeStationIsHadr) {
+                        setActiveStationId('hadr');
+                        setHadrOpen(true);
+                        return;
+                      }
+
+                      playStation(activeStation.id as StreamId).catch(() => {});
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <MaterialIcons
+                      name={audioLoading ? 'hourglass-empty' : activeStationIsRunning ? (audioPaused ? 'play-arrow' : 'pause') : 'play-arrow'}
+                      size={24}
+                      color="#FFFFFF"
+                    />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.bottomPlayerCollapsedStepBtn,
+                      !controlsCanSeek && styles.bottomPlayerCollapsedStepBtnDisabled,
+                    ]}
+                    onPress={() => forwardActiveStreamByTen().catch(() => {})}
+                    disabled={!controlsCanSeek}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <MaterialIcons name="forward-10" size={19} color={bottomPlayerIcon} />
+                  </TouchableOpacity>
+
+                  {activeStationIsRunning ? (
+                    <TouchableOpacity
+                      style={[styles.bottomPlayerCollapsedStopBtn]}
+                      onPress={() => stopAudio().catch(() => {})}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <MaterialIcons name="stop" size={18} color="#BC2F2F" />
+                      <Text style={styles.bottomPlayerCollapsedStopBtnText}>Stop</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              </View>
+
+            </View>
+          ) : (
+            <View style={[styles.bottomPlayerExpandedPanel, { paddingBottom: bottomPlayerSafeInset + 12 }]}>
+              <View style={styles.bottomPlayerExpandedHeader} {...bottomPlayerPanResponder.panHandlers}>
+                <View style={styles.bottomPlayerExpandedTitleWrap}>
+                  <Text style={styles.bottomPlayerExpandedTitle} numberOfLines={1}>
+                    {activeStationIsSurahTemplate ? activeSurahName : activeStation.label}
+                  </Text>
+                  <Text style={styles.bottomPlayerExpandedMeta} numberOfLines={1}>
+                    {`${activeStation.label} • ${activeStationMetaText}`}
+                  </Text>
+                </View>
+
+                <View style={styles.bottomPlayerExpandedHeaderActions}>
+                  <TouchableOpacity
+                    style={styles.bottomPlayerExpandedHeaderBtn}
+                    onPress={() => animateBottomPlayer(false)}
+                  >
+                    <MaterialIcons name="keyboard-arrow-down" size={22} color="#AEB5C2" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.bottomPlayerExpandedHeaderBtn}
+                    onPress={() => {
+                      stopAudio().catch(() => {});
+                      animateBottomPlayer(false);
+                    }}
+                  >
+                    <MaterialIcons name="close" size={21} color="#AEB5C2" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.bottomPlayerExpandedSeekBlock}>
+                {controlsDurationSeekEnabled ? (
+                  <Slider
+                    style={styles.bottomPlayerExpandedSeekSlider}
+                    minimumValue={0}
+                    maximumValue={playbackDurationSec}
+                    value={controlsSeekDisplaySec}
+                    minimumTrackTintColor={accentColor}
+                    maximumTrackTintColor="rgba(255,255,255,0.12)"
+                    thumbTintColor={accentColor}
+                    onSlidingStart={() => {
+                      setSeekDraftSec(controlsCurrentSec);
+                    }}
+                    onValueChange={(value) => {
+                      setSeekDraftSec(value);
+                    }}
+                    onSlidingComplete={(value) => {
+                      setSeekDraftSec(value);
+                      seekActiveStreamToPosition(value).catch(() => {});
+                    }}
+                  />
+                ) : controlsTimeshiftSeekEnabled ? (
+                  <Slider
+                    style={styles.bottomPlayerExpandedSeekSlider}
+                    minimumValue={0}
+                    maximumValue={MAX_TIMESHIFT_SEC}
+                    value={controlsTimeshiftDisplaySec}
+                    minimumTrackTintColor={accentColor}
+                    maximumTrackTintColor="rgba(255,255,255,0.12)"
+                    thumbTintColor={accentColor}
+                    onSlidingStart={() => {
+                      setTimeshiftDraftSec(timeshiftSec);
+                    }}
+                    onValueChange={(value) => {
+                      setTimeshiftDraftSec(value);
+                    }}
+                    onSlidingComplete={(value) => {
+                      setTimeshiftDraftSec(value);
+                      seekActiveStreamToTimeshift(value).catch(() => {});
+                    }}
+                  />
+                ) : (
+                  <View style={styles.bottomPlayerExpandedSeekFallback} />
+                )}
+
+                <View style={styles.bottomPlayerExpandedTimeRow}>
+                  <Text style={styles.bottomPlayerExpandedTimeText}>{formatPlaybackClock(controlsSeekDisplaySec)}</Text>
+                  <Text style={styles.bottomPlayerExpandedTimeText}>{bottomPlayerRightTimeLabel}</Text>
+                </View>
+              </View>
+
+              <View style={styles.bottomPlayerMainControlsRow}>
+                <TouchableOpacity
+                  style={[styles.bottomPlayerCircleAction, !controlsCanSeek && styles.bottomPlayerCircleActionDisabled]}
+                  onPress={() => rewindActiveStreamByTen().catch(() => {})}
+                  disabled={!controlsCanSeek}
+                >
+                  <MaterialIcons name="replay-10" size={24} color="#AEB5C2" />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.bottomPlayerMainPlayBtn, { backgroundColor: accentColor }]}
+                  onPress={() => {
+                    if (activeStationIsRunning) {
+                      if (audioLoading) {
+                        stopAudio().catch(() => {});
+                        return;
+                      }
+                      (audioPaused ? resumeActiveAudio() : pauseActiveAudio()).catch(() => {});
+                      return;
+                    }
+
+                    if (activeStationIsHadr) {
+                      setActiveStationId('hadr');
+                      setHadrOpen(true);
+                      return;
+                    }
+
+                    playStation(activeStation.id as StreamId).catch(() => {});
+                  }}
+                >
+                  <MaterialIcons
+                    name={audioLoading ? 'hourglass-empty' : activeStationIsRunning ? (audioPaused ? 'play-arrow' : 'pause') : 'play-arrow'}
+                    size={36}
+                    color="#FFFFFF"
+                  />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.bottomPlayerCircleAction, !controlsCanSeek && styles.bottomPlayerCircleActionDisabled]}
+                  onPress={() => forwardActiveStreamByTen().catch(() => {})}
+                  disabled={!controlsCanSeek}
+                >
+                  <MaterialIcons name="forward-10" size={24} color="#AEB5C2" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.bottomPlayerUtilityRow}>
+                {controlsCanSeek ? (
+                  <TouchableOpacity style={styles.bottomPlayerUtilityBtn} onPress={() => resyncActiveStreamToLive().catch(() => {})}>
+                    <MaterialIcons name="sync" size={18} color="#AEB5C2" />
+                    <Text style={styles.bottomPlayerUtilityText}>Resync</Text>
+                  </TouchableOpacity>
+                ) : null}
+
+                {activeStationIsSurahTemplate ? (
+                  <TouchableOpacity style={styles.bottomPlayerUtilityBtn} onPress={() => openSurahPickerForStation(activeStation.id)}>
+                    <MaterialIcons name="search" size={18} color="#AEB5C2" />
+                    <Text style={styles.bottomPlayerUtilityText}>Surah List</Text>
+                  </TouchableOpacity>
+                ) : null}
+
+                {activeStationIsHadr ? (
+                  <TouchableOpacity
+                    style={styles.bottomPlayerUtilityBtn}
+                    onPress={() => {
+                      setActiveStationId('hadr');
+                      setHadrOpen(true);
+                    }}
+                  >
+                    <MaterialIcons name="queue-music" size={18} color="#AEB5C2" />
+                    <Text style={styles.bottomPlayerUtilityText}>Juz List</Text>
+                  </TouchableOpacity>
+                ) : null}
+
+                {activeStationIsRunning ? (
+                  <TouchableOpacity style={styles.bottomPlayerUtilityBtn} onPress={() => stopAudio().catch(() => {})}>
+                    <MaterialIcons name="stop" size={18} color="#AEB5C2" />
+                    <Text style={styles.bottomPlayerUtilityText}>Stop</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            </View>
+          )}
+        </Animated.View>
+      ) : null}
+
+      <Modal visible={surahPickerOpen} transparent animationType="slide" onRequestClose={() => setSurahPickerOpen(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setSurahPickerOpen(false)}>
           <View />
         </Pressable>
         <View style={[styles.sheet, { backgroundColor: palette.surface, borderColor: palette.border }]}> 
           <View style={styles.sheetHeader}>
-            <Text style={[styles.sheetTitle, { color: palette.text }]}>Qari Abdul Basit</Text>
-            <TouchableOpacity onPress={() => setBasitOpen(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={[styles.sheetTitle, { color: palette.text }]} numberOfLines={2}>
+              {selectedSurahStation?.label ?? 'Choose Surah'}
+            </Text>
+            <TouchableOpacity onPress={() => setSurahPickerOpen(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <MaterialIcons name="close" size={22} color={palette.textMuted} />
             </TouchableOpacity>
           </View>
 
-          <Text style={[styles.sheetSub, { color: palette.textSub }]}>Search and tap a surah to play.</Text>
+          <Text style={[styles.sheetSub, { color: palette.textSub }]}>Search by surah number or name, then tap to play.</Text>
 
           <View style={[styles.searchWrap, { borderColor: palette.border, backgroundColor: palette.surfaceAlt }]}> 
             <MaterialIcons name="search" size={16} color={palette.textMuted} />
@@ -1333,15 +2488,27 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
             <TouchableOpacity
               style={[styles.sheetActionBtn, { backgroundColor: accentColor }]}
               onPress={() => {
-                const randomSurah = Math.floor(Math.random() * 114) + 1;
-                playBasitSurah(randomSurah).catch(() => {});
+                if (!selectedSurahStationId) return;
+                playSurahTrack(selectedSurahStationId, selectedSurahForStation).catch(() => {});
+                setSurahPickerOpen(false);
               }}
+              disabled={!selectedSurahStationId}
             >
-              <MaterialIcons name="shuffle" size={16} color="#FFFFFF" />
-              <Text style={styles.sheetActionText}>Random</Text>
+              <MaterialIcons name="play-arrow" size={16} color="#FFFFFF" />
+              <Text style={styles.sheetActionText}>Play Surah {selectedSurahForStation}</Text>
             </TouchableOpacity>
 
-            {activeStationId === 'basit' && (audioPlaying || audioLoading) ? (
+            {selectedSurahStationId === activeStationId && !audioLoading && (audioPlaying || audioPaused) ? (
+              <TouchableOpacity
+                style={[styles.sheetActionBtn, { backgroundColor: '#5B6B82' }]}
+                onPress={() => (audioPaused ? resumeActiveAudio() : pauseActiveAudio()).catch(() => {})}
+              >
+                <MaterialIcons name={audioPaused ? 'play-arrow' : 'pause'} size={16} color="#FFFFFF" />
+                <Text style={styles.sheetActionText}>{audioPaused ? 'Resume' : 'Pause'}</Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {selectedSurahStationId === activeStationId && (audioPlaying || audioLoading || audioPaused) ? (
               <TouchableOpacity
                 style={[styles.sheetActionBtn, { backgroundColor: '#BC2F2F' }]}
                 onPress={() => stopAudio().catch(() => {})}
@@ -1353,31 +2520,140 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
           </View>
 
           <ScrollView showsVerticalScrollIndicator style={styles.surahList} keyboardShouldPersistTaps="handled">
-            {filteredSurahs.map((surah) => (
-              <TouchableOpacity
-                key={surah.num}
-                style={[
-                  styles.surahRow,
-                  {
-                    borderBottomColor: palette.border,
-                    backgroundColor: palette.surface,
-                  },
-                ]}
-                onPress={() => playBasitSurah(surah.num).catch(() => {})}
-                activeOpacity={0.8}
-              >
-                <View style={[styles.surahNum, { backgroundColor: `${accentColor}24` }]}>
-                  <Text style={[styles.surahNumText, { color: accentColor }]}>{surah.num}</Text>
-                </View>
-                <Text style={[styles.surahName, { color: palette.text }]}>{surah.name}</Text>
-                <MaterialIcons name="play-circle-outline" size={20} color={accentColor} />
-              </TouchableOpacity>
-            ))}
+            {filteredSurahs.map((surah) => {
+              const isSelected = selectedSurahForStation === surah.num;
+              const isCurrent = selectedSurahStationId === activeStationId && playingSurah === surah.num;
+
+              return (
+                <TouchableOpacity
+                  key={surah.num}
+                  style={[
+                    styles.surahRow,
+                    {
+                      borderBottomColor: palette.border,
+                      backgroundColor: isSelected ? palette.surfaceAlt : palette.surface,
+                    },
+                  ]}
+                  onPress={() => {
+                    if (!selectedSurahStationId) return;
+                    setSelectedSurahByStation((prev) => ({ ...prev, [selectedSurahStationId]: surah.num }));
+                    playSurahTrack(selectedSurahStationId, surah.num).catch(() => {});
+                    setSurahPickerOpen(false);
+                  }}
+                  activeOpacity={0.82}
+                >
+                  <View style={[styles.surahNum, { backgroundColor: `${accentColor}24` }]}>
+                    <Text style={[styles.surahNumText, { color: accentColor }]}>{surah.num}</Text>
+                  </View>
+                  <View style={styles.sheetRowTextWrap}>
+                    <Text style={[styles.surahName, { color: palette.text }]}>{surah.name}</Text>
+                    <Text style={[styles.sheetRowMeta, { color: palette.textSub }]}>{`${String(surah.num).padStart(3, '0')}.mp3`}</Text>
+                  </View>
+                  <MaterialIcons name={isCurrent ? 'graphic-eq' : 'play-circle-outline'} size={20} color={accentColor} />
+                </TouchableOpacity>
+              );
+            })}
             {!filteredSurahs.length ? (
               <View style={styles.emptyRow}>
                 <Text style={[styles.emptyText, { color: palette.textMuted }]}>No surahs found</Text>
               </View>
             ) : null}
+          </ScrollView>
+        </View>
+      </Modal>
+
+      <Modal visible={hadrOpen} transparent animationType="slide" onRequestClose={() => setHadrOpen(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setHadrOpen(false)}>
+          <View />
+        </Pressable>
+        <View style={[styles.sheet, { backgroundColor: palette.surface, borderColor: palette.border }]}> 
+          <View style={styles.sheetHeader}>
+            <Text style={[styles.sheetTitle, { color: palette.text }]}>Full Quran Hadr</Text>
+            <TouchableOpacity onPress={() => setHadrOpen(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <MaterialIcons name="close" size={22} color={palette.textMuted} />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={[styles.sheetSub, { color: palette.textSub }]}>
+            Tap any Juz row to play instantly. Auto-next is always on.
+          </Text>
+
+          <View style={styles.sheetActions}>
+            <TouchableOpacity
+              style={[styles.sheetActionBtn, { backgroundColor: accentColor }]}
+              onPress={() => playHadrJuz(selectedHadrJuz, { closeSheet: true }).catch(() => {})}
+            >
+              <MaterialIcons name="play-arrow" size={16} color="#FFFFFF" />
+              <Text style={styles.sheetActionText}>Play Juz {selectedHadrJuz}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.sheetActionBtn, { backgroundColor: '#2F6DB6' }]}
+              onPress={() => playRandomHadrJuz({ closeSheet: true }).catch(() => {})}
+            >
+              <MaterialIcons name="shuffle" size={16} color="#FFFFFF" />
+              <Text style={styles.sheetActionText}>Random Juz</Text>
+            </TouchableOpacity>
+
+            {activeStationId === 'hadr' && !audioLoading && (audioPlaying || audioPaused) ? (
+              <TouchableOpacity
+                style={[styles.sheetActionBtn, { backgroundColor: '#5B6B82' }]}
+                onPress={() => (audioPaused ? resumeActiveAudio() : pauseActiveAudio()).catch(() => {})}
+              >
+                <MaterialIcons name={audioPaused ? 'play-arrow' : 'pause'} size={16} color="#FFFFFF" />
+                <Text style={styles.sheetActionText}>{audioPaused ? 'Resume' : 'Pause'}</Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {activeStationId === 'hadr' && (audioPlaying || audioLoading || audioPaused) ? (
+              <TouchableOpacity
+                style={[styles.sheetActionBtn, { backgroundColor: '#BC2F2F' }]}
+                onPress={() => stopAudio().catch(() => {})}
+              >
+                <MaterialIcons name="stop" size={16} color="#FFFFFF" />
+                <Text style={styles.sheetActionText}>Stop</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator style={styles.surahList} keyboardShouldPersistTaps="handled">
+            {Array.from({ length: 30 }, (_, index) => index + 1).map((juz) => {
+              const startSurah = JUZ_START_SURAH[juz] ?? 1;
+              const isSelected = selectedHadrJuz === juz;
+              const isCurrent = activeStationId === 'hadr' && playingHadrJuz === juz;
+              const isAvailable = Boolean(HADR_JUZ_TRACKS[juz]);
+
+              return (
+                <TouchableOpacity
+                  key={juz}
+                  style={[
+                    styles.surahRow,
+                    {
+                      borderBottomColor: palette.border,
+                      backgroundColor: isSelected ? palette.surfaceAlt : palette.surface,
+                      opacity: isAvailable ? 1 : 0.45,
+                    },
+                  ]}
+                  onPress={() => {
+                    setSelectedHadrJuz(juz);
+                    playHadrJuz(juz, { closeSheet: true }).catch(() => {});
+                  }}
+                  disabled={!isAvailable}
+                  activeOpacity={0.82}
+                >
+                  <View style={[styles.surahNum, { backgroundColor: `${accentColor}24` }]}>
+                    <Text style={[styles.surahNumText, { color: accentColor }]}>{juz}</Text>
+                  </View>
+                  <View style={styles.sheetRowTextWrap}>
+                    <Text style={[styles.surahName, { color: palette.text }]}>Juz {juz}</Text>
+                    <Text style={[styles.sheetRowMeta, { color: palette.textSub }]}>
+                      {isAvailable ? `Starts at ${SURAH_NAMES[startSurah]}` : 'File missing'}
+                    </Text>
+                  </View>
+                  <MaterialIcons name={isCurrent ? 'graphic-eq' : 'play-circle-outline'} size={20} color={accentColor} />
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         </View>
       </Modal>
@@ -1630,6 +2906,47 @@ const styles = StyleSheet.create({
   stationStack: {
     gap: 12,
   },
+  stationGroupCard: {
+    borderWidth: 1,
+    borderRadius: Radius.lg,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  stationGroupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+  },
+  stationGroupTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  stationGroupMeta: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  qariRailContent: {
+    paddingHorizontal: 12,
+    gap: 10,
+  },
+  qariRailContentNarrow: {
+    paddingHorizontal: 10,
+    gap: 8,
+  },
+  qariRailContentTight: {
+    gap: 8,
+  },
+  otherStreamsWrap: {
+    gap: 8,
+  },
+  otherStreamsTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  otherStreamsStack: {
+    gap: 12,
+  },
   halfRow: {
     flexDirection: 'row',
     gap: 10,
@@ -1666,6 +2983,9 @@ const styles = StyleSheet.create({
   stationMediaWrap: {
     height: 130,
     position: 'relative',
+  },
+  stationMediaWrapCompact: {
+    height: 88,
   },
   stationMedia: {
     width: '100%',
@@ -1707,6 +3027,10 @@ const styles = StyleSheet.create({
   stationBody: {
     padding: Spacing.md,
     gap: 8,
+  },
+  stationBodyCompact: {
+    padding: 10,
+    gap: 6,
   },
   stationName: {
     fontSize: 16,
@@ -1751,7 +3075,264 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
-  basitAutoNextRow: {
+  bottomPlayerShell: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderTopWidth: 1,
+    overflow: 'hidden',
+    shadowColor: '#000000',
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: -4 },
+    shadowRadius: 10,
+    elevation: 12,
+    zIndex: 24,
+  },
+  bottomPlayerCollapsedRow: {
+    flex: 1,
+    justifyContent: 'flex-start',
+    paddingHorizontal: 14,
+    paddingTop: 8,
+  },
+  bottomPlayerCollapsedControlsWrap: {
+    flex: 1,
+    gap: 6,
+  },
+  bottomPlayerCollapsedTransportRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    minHeight: 46,
+    marginTop: 1,
+  },
+  bottomPlayerCollapsedStepBtn: {
+    width: 46,
+    height: 46,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(20,149,94,0.3)',
+    backgroundColor: 'rgba(255,255,255,0.45)',
+  },
+  bottomPlayerCollapsedStepBtnDisabled: {
+    opacity: 0.34,
+  },
+  bottomPlayerCollapsedStopBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: '#BC2F2F',
+    backgroundColor: 'rgba(188,47,47,0.10)',
+  },
+  bottomPlayerCollapsedStopBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#BC2F2F',
+  },
+  bottomPlayerCollapsedMainBtn: {
+    width: 60,
+    height: 60,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  bottomPlayerCollapsedNowPlayingText: {
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: '600',
+  },
+  bottomPlayerCollapsedStreamNameText: {
+    marginTop: 0,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: '700',
+  },
+  bottomPlayerCollapsedTimeWrap: {
+    minWidth: 72,
+    maxWidth: 112,
+  },
+  bottomPlayerCollapsedTimeText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  bottomPlayerCollapsedSeekWrap: {
+    justifyContent: 'center',
+  },
+  bottomPlayerCollapsedSeekSlider: {
+    height: 42,
+    marginHorizontal: 0,
+  },
+  bottomPlayerCollapsedSeekFallback: {
+    height: 10,
+    borderRadius: Radius.full,
+    backgroundColor: 'rgba(21,67,51,0.24)',
+  },
+  bottomPlayerCollapsedSeekCard: {
+    marginTop: 0,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(20,149,94,0.42)',
+    backgroundColor: 'rgba(255,255,255,0.72)',
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 6,
+    shadowColor: '#0E7F53',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  bottomPlayerCollapsedSeekHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  bottomPlayerCollapsedSeekLabel: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
+  bottomPlayerCollapsedSeekLabelValue: {
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: '700',
+  },
+  bottomPlayerCollapsedSeekTimelineText: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '700',
+  },
+  bottomPlayerCollapsedIconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomPlayerExpandedPanel: {
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 12,
+    gap: 12,
+  },
+  bottomPlayerExpandedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  bottomPlayerExpandedTitleWrap: {
+    flex: 1,
+    gap: 3,
+  },
+  bottomPlayerExpandedTitle: {
+    color: '#EDEFF4',
+    fontSize: 24,
+    fontWeight: '800',
+    lineHeight: 30,
+  },
+  bottomPlayerExpandedMeta: {
+    color: '#98A1B1',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  bottomPlayerExpandedHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  bottomPlayerExpandedHeaderBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomPlayerExpandedSeekBlock: {
+    gap: 6,
+  },
+  bottomPlayerExpandedSeekSlider: {
+    height: 34,
+    marginHorizontal: -6,
+  },
+  bottomPlayerExpandedSeekFallback: {
+    height: 6,
+    borderRadius: Radius.full,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+  },
+  bottomPlayerExpandedTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  bottomPlayerExpandedTimeText: {
+    color: '#8E97A8',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  bottomPlayerMainControlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 20,
+    paddingVertical: 2,
+  },
+  bottomPlayerCircleAction: {
+    width: 44,
+    height: 44,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomPlayerCircleActionDisabled: {
+    opacity: 0.35,
+  },
+  bottomPlayerMainPlayBtn: {
+    width: 86,
+    height: 86,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOpacity: 0.28,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 18,
+    elevation: 7,
+  },
+  bottomPlayerUtilityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  bottomPlayerUtilityBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  bottomPlayerUtilityText: {
+    color: '#AEB5C2',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  autoNextRow: {
     borderWidth: 1,
     borderRadius: Radius.md,
     paddingHorizontal: 10,
@@ -1761,7 +3342,7 @@ const styles = StyleSheet.create({
     gap: 6,
     alignSelf: 'flex-start',
   },
-  basitAutoNextText: {
+  autoNextText: {
     fontSize: 11,
     fontWeight: '700',
   },
@@ -1822,6 +3403,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
+  seekSlider: {
+    height: 36,
+    marginHorizontal: -4,
+    marginVertical: 0,
+  },
   primaryControl: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1843,6 +3429,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  secondaryControlWide: {
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    paddingHorizontal: 10,
+    minHeight: 40,
+  },
+  secondaryControlWideText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   notifyRow: {
     marginTop: 2,
@@ -1906,6 +3506,79 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     fontWeight: '600',
   },
+  controlsStatusPill: {
+    borderWidth: 1,
+    borderRadius: Radius.full,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+  },
+  controlsStatusText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  controlsActionWrap: {
+    marginTop: 10,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  controlsActionWrapCompact: {
+    gap: 6,
+  },
+  controlsActionBtn: {
+    borderRadius: Radius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    minHeight: 42,
+  },
+  controlsActionBtnCompact: {
+    flexBasis: '48.5%',
+    flexGrow: 1,
+    paddingHorizontal: 10,
+  },
+  controlsActionText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  controlsActionTextCompact: {
+    fontSize: 11,
+  },
+  controlsSeekCard: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    gap: 8,
+  },
+  controlsSeekHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 1,
+  },
+  controlsSeekTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  controlsSeekValue: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  controlsSeekHint: {
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 18,
+  },
   searchWrap: {
     borderWidth: 1,
     borderRadius: Radius.md,
@@ -1965,6 +3638,14 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     fontWeight: '700',
+  },
+  sheetRowTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  sheetRowMeta: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   emptyRow: {
     paddingVertical: 22,

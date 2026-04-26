@@ -159,15 +159,15 @@ export default function QaseedahNaatScreen() {
   const scaleFactor = TEXT_SCALE_FACTOR[textScale];
   const sized = React.useCallback((base: number) => Math.round(base * scaleFactor), [scaleFactor]);
 
-  const loadData = React.useCallback(async (asRefresh = false) => {
+  const loadData = React.useCallback(async (asRefresh = false, options?: { silent?: boolean }) => {
     if (asRefresh) {
       setRefreshing(true);
-    } else {
+    } else if (!options?.silent) {
       setLoading(true);
     }
 
     try {
-      const data = await fetchQaseedahNaatEntries();
+      const data = await fetchQaseedahNaatEntries({ forceRefresh: asRefresh });
       setRows(sortRows(data));
       setError(null);
     } catch {
@@ -180,7 +180,7 @@ export default function QaseedahNaatScreen() {
 
   useFocusEffect(
     React.useCallback(() => {
-      void loadData(false);
+      void loadData(false, { silent: true });
     }, [loadData])
   );
 

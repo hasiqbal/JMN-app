@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
 import { AlertProvider, InAppBannerProvider } from '@/template';
 import { runInitialTranslationWarmup } from '@/services/translationWarmupService';
+import { prewarmQaseedahAndHowToCaches } from '@/services/contentService';
 import { NightModeProvider } from '@/contexts/NightModeContext';
 import { AppThemeProvider } from '@/contexts/AppThemeContext';
 
@@ -35,8 +36,8 @@ LogBox.ignoreLogs([
 export default function RootLayout() {
   useFonts({
     IndopakNastaleeq: require('@/assets/fonts/IndopakNastaleeq.ttf'),
-    UrduNastaliq: require('@/assets/fonts/UrduNastaliq.ttf'),
-    UrduNastaliqBold: require('@/assets/fonts/UrduNastaliqBold.ttf'),
+    UrduNastaliq: require('@/assets/fonts/Gulzar-Regular.ttf'),
+    UrduNastaliqBold: require('@/assets/fonts/Gulzar-Regular.ttf'),
   });
 
   React.useEffect(() => {
@@ -64,6 +65,7 @@ export default function RootLayout() {
 
   React.useEffect(() => {
     void runInitialTranslationWarmup();
+    void prewarmQaseedahAndHowToCaches();
   }, []);
 
   return (

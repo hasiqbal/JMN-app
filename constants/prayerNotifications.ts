@@ -1,6 +1,7 @@
 export const ADHAAN_AUDIO_STORAGE_KEY = 'jmn_selected_adhaan_url';
 export const ADHAAN_MUTED_STORAGE_KEY = 'jmn_adhaan_muted';
 export const IQAMAH_MUTED_STORAGE_KEY = 'jmn_iqamah_muted';
+export const PRAYER_REMINDER_LIVE_ALERTS_STORAGE_KEY = 'jmn_prayer_live_alerts_mode';
 
 export type AdhaanAudioOption = {
   id: string;

@@ -1,6 +1,6 @@
 import { formatCountdownHMS, type PrayerTime } from '@/services/prayerService';
 
-const JAMAAT_ONGOING_MS = 7 * 60 * 1000;
+const JAMAAT_ONGOING_MS = 15 * 60 * 1000;
 
 export type ActivePrayerState = {
   activePrayer: PrayerTime | null;

@@ -22,7 +22,13 @@ import {
   type ReadingMode,
   type VerseRole,
 } from '@/components/qaseedah';
-import { AdhkarRow, fetchQaseedahNaatEntries, translateTextToArabic, translateTextToEnglish, translateTextToUrdu } from '@/services/contentService';
+import {
+  AdhkarRow,
+  fetchQaseedahNaatEntriesForGroup,
+  translateTextToArabic,
+  translateTextToEnglish,
+  translateTextToUrdu,
+} from '@/services/contentService';
 
 type GroupChapterItem = {
   id: string;
@@ -384,6 +390,12 @@ function extractChapterItems(rows: AdhkarRow[]): GroupChapterItem[] {
   return items;
 }
 
+function buildChapterSignature(chapters: GroupChapterItem[]): string {
+  return chapters
+    .map((chapter) => `${chapter.id}:${chapter.lines.length}:${chapter.lines[0]?.heading ?? ''}`)
+    .join('|');
+}
+
 export default function QaseedahGroupScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ group?: string; type?: string }>();
@@ -405,6 +417,7 @@ export default function QaseedahGroupScreen() {
   const [chapterTitleEnglish, setChapterTitleEnglish] = React.useState<Record<string, string>>({});
   const [chapterTitleUrdu, setChapterTitleUrdu] = React.useState<Record<string, string>>({});
   const [chapterTitleArabic, setChapterTitleArabic] = React.useState<Record<string, string>>({});
+  const chapterSignatureRef = React.useRef('');
 
   const handleModeChange = React.useCallback((next: ReadingMode) => {
     setReadingMode(next);
@@ -415,20 +428,25 @@ export default function QaseedahGroupScreen() {
     else if (next === 'full') setLayers({ arabic: true, transliteration: true, english: true, urdu: true });
   }, []);
 
-  const load = React.useCallback(async (asRefresh = false) => {
+  const load = React.useCallback(async (asRefresh = false, options?: { silent?: boolean }) => {
     if (asRefresh) {
       setRefreshing(true);
-    } else {
+    } else if (!options?.silent) {
       setLoading(true);
     }
 
     try {
-      const rows = await fetchQaseedahNaatEntries();
-      const filtered = rows.filter((row) => (
-        (row.group_name || 'General') === groupName
-        && (row.content_type || 'qaseedah') === type
-      ));
-      setChapters(extractChapterItems(filtered));
+      const rows = await fetchQaseedahNaatEntriesForGroup(
+        groupName,
+        type === 'naat' ? 'naat' : 'qaseedah',
+        { forceRefresh: asRefresh },
+      );
+      const nextChapters = extractChapterItems(rows);
+      const nextSignature = buildChapterSignature(nextChapters);
+      if (nextSignature !== chapterSignatureRef.current) {
+        chapterSignatureRef.current = nextSignature;
+        setChapters(nextChapters);
+      }
       setError(null);
     } catch {
       setError('Could not load chapters for this group.');
@@ -440,7 +458,7 @@ export default function QaseedahGroupScreen() {
 
   useFocusEffect(
     React.useCallback(() => {
-      void load(false);
+      void load(false, { silent: true });
     }, [load])
   );
 
