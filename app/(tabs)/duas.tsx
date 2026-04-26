@@ -416,8 +416,8 @@ export default function DuasScreen() {
   useFonts({
     'IndoPakNastaleeq': 'https://static-cdn.tarteel.ai/qul/fonts/nastaleeq/Hanafi/normal-v4.2.2/with-waqf-lazmi/font.ttf',
     'MarwanIndoPak': 'https://static-cdn.tarteel.ai/qul/fonts/nastaleeq/Hanafi/normal-v4.2.2/with-waqf-lazmi/font.ttf',
-    'UrduNastaliq': require('@/assets/fonts/Gulzar-Regular.ttf'),
-    'UrduNastaliqBold': require('@/assets/fonts/Gulzar-Regular.ttf'),
+    'UrduNastaliq': require('@/assets/fonts/UrduNastaliq.ttf'),
+    'UrduNastaliqBold': require('@/assets/fonts/UrduNastaliqBold.ttf'),
   });
   const [refreshing, setRefreshing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);

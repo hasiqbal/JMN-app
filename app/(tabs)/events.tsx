@@ -371,73 +371,69 @@ export default function EventsScreen() {
           />
         }
       >
-        <View style={[styles.controlsWrap, N && { backgroundColor: N.surface, borderColor: N.border }]}> 
-          <View style={styles.languageRow}>
-            <Text style={[styles.controlLabel, N && { color: N.textMuted }]}>Language</Text>
-            <View style={styles.controlsLanguageChipRow}>
-              {(['en', 'ur'] as LanguageMode[]).map((mode) => {
-                const active = languageMode === mode;
-                return (
-                  <TouchableOpacity
-                    key={mode}
-                    onPress={() => setLanguageMode(mode)}
+        <View style={[styles.controlsWrap, N && { backgroundColor: N.surface, borderColor: N.border }]}>
+          <View style={styles.controlsLanguageChipRow}>
+            {(['en', 'ur'] as LanguageMode[]).map((mode) => {
+              const active = languageMode === mode;
+              return (
+                <TouchableOpacity
+                  key={mode}
+                  onPress={() => setLanguageMode(mode)}
+                  style={[
+                    styles.controlsLanguageBtn,
+                    mode === 'ur' && styles.controlsLanguageBtnUrdu,
+                    N && !active && { backgroundColor: N.surfaceAlt, borderColor: N.border },
+                    active && [styles.controlsLanguageBtnActive, N && { backgroundColor: N.accent + '22', borderColor: N.accent }],
+                  ]}
+                  activeOpacity={0.85}
+                >
+                  <Text
                     style={[
-                      styles.controlsLanguageBtn,
-                      mode === 'ur' && styles.controlsLanguageBtnUrdu,
-                      N && !active && { backgroundColor: N.surfaceAlt, borderColor: N.border },
-                      active && [styles.controlsLanguageBtnActive, N && { backgroundColor: N.accent + '22', borderColor: N.accent }],
+                      styles.controlsLanguageBtnText,
+                      mode === 'ur' && styles.controlsLanguageBtnTextUrdu,
+                      N && { color: N.textSub },
+                      active && [styles.controlsLanguageBtnTextActive, N && { color: N.accent }],
                     ]}
-                    activeOpacity={0.85}
                   >
-                    <Text
-                      style={[
-                        styles.controlsLanguageBtnText,
-                        mode === 'ur' && styles.controlsLanguageBtnTextUrdu,
-                        N && { color: N.textSub },
-                        active && [styles.controlsLanguageBtnTextActive, N && { color: N.accent }],
-                      ]}
-                    >
-                      {LANGUAGE_LABELS[mode]}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+                    {LANGUAGE_LABELS[mode]}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
-          <View style={styles.typeRow}>
-            <Text style={[styles.controlLabel, N && { color: N.textMuted }]}>Type</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.typeScroll}
-              contentContainerStyle={styles.typeScrollContent}
-            >
-              {typeOptions.map((type) => {
-                const active = selectedType === type;
-                return (
-                  <TouchableOpacity
-                    key={type}
-                    style={[
-                      styles.typeChip,
-                      N && { borderColor: N.border, backgroundColor: N.surfaceAlt },
-                      active && [styles.typeChipActive, N && { borderColor: N.accent, backgroundColor: N.accent + '22' }],
-                    ]}
-                    onPress={() => setSelectedType(type)}
-                    activeOpacity={0.82}
-                  >
-                    <Text style={[
-                      styles.typeChipText,
-                      N && { color: N.textSub },
-                      active && [styles.typeChipTextActive, N && { color: N.accent }],
-                    ]}>
-                      {type}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </View>
+          <View style={[styles.controlsDivider, N && { backgroundColor: N.border }]} />
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.typeScroll}
+            contentContainerStyle={styles.typeScrollContent}
+          >
+            {typeOptions.map((type) => {
+              const active = selectedType === type;
+              return (
+                <TouchableOpacity
+                  key={type}
+                  style={[
+                    styles.typeChip,
+                    N && { borderColor: N.border, backgroundColor: N.surfaceAlt },
+                    active && [styles.typeChipActive, N && { borderColor: N.accent, backgroundColor: N.accent + '22' }],
+                  ]}
+                  onPress={() => setSelectedType(type)}
+                  activeOpacity={0.82}
+                >
+                  <Text style={[
+                    styles.typeChipText,
+                    N && { color: N.textSub },
+                    active && [styles.typeChipTextActive, N && { color: N.accent }],
+                  ]}>
+                    {type}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </View>
 
         {bannerMessage ? (
@@ -1002,25 +998,22 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderRadius: Radius.md,
     paddingHorizontal: 8,
-    paddingVertical: 6,
-    gap: 6,
+    paddingVertical: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     marginBottom: 6,
-    alignSelf: 'flex-start',
-    maxWidth: '100%',
   },
-  languageRow: { gap: 4, alignSelf: 'flex-start' },
-  typeRow: { gap: 3, alignSelf: 'flex-start' },
-  controlLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: Colors.textSubtle,
-    textTransform: 'uppercase',
-    letterSpacing: 0.25,
+  controlsDivider: {
+    width: 1,
+    height: 18,
+    backgroundColor: Colors.border,
+    borderRadius: 1,
   },
   controlsLanguageChipRow: {
     flexDirection: 'row',
-    alignSelf: 'flex-start',
-    gap: 6,
+    alignItems: 'center',
+    gap: 5,
   },
   controlsLanguageBtn: {
     borderRadius: Radius.full,
@@ -1046,7 +1039,8 @@ const styles = StyleSheet.create({
   },
   controlsLanguageBtnTextUrdu: {
     fontFamily: 'UrduNastaliq',
-    fontSize: 13,
+    fontSize: 15,
+    lineHeight: 22,
   },
   controlsLanguageBtnTextActive: {
     color: Colors.primary,
@@ -1064,9 +1058,9 @@ const styles = StyleSheet.create({
   },
   languageBtnActive: { backgroundColor: '#EDF4FF', borderColor: '#A9C2E8' },
   languageBtnText: { fontSize: 12, fontWeight: '700', color: Colors.textSubtle },
-  languageBtnTextUrdu: { fontFamily: 'UrduNastaliq', fontSize: 13 },
+  languageBtnTextUrdu: { fontFamily: 'UrduNastaliq', fontSize: 15, lineHeight: 22 },
   languageBtnTextActive: { color: Colors.primary, fontWeight: '800' },
-  typeScroll: { alignSelf: 'flex-start', maxWidth: '100%' },
+  typeScroll: { flex: 1 },
   typeScrollContent: { flexDirection: 'row', gap: 5, paddingRight: 2 },
   typeChip: {
     borderRadius: Radius.full,
@@ -1351,5 +1345,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   modalLinkBtnText: { fontSize: 13, fontWeight: '800', color: Colors.primary },
-  urduText: { writingDirection: 'rtl', textAlign: 'right', fontFamily: 'UrduNastaliq' },
+  urduText: { writingDirection: 'rtl', textAlign: 'right', fontFamily: 'UrduNastaliq', fontSize: 17, lineHeight: 34, fontWeight: '400' },
 });
