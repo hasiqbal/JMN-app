@@ -5,7 +5,7 @@
  */
 
 const FETCH_TIMEOUT_MS = 8000;
-const CACHE_KEY = '@daily_sunnah_v1';
+const CACHE_KEY = '@daily_sunnah_v2';
 const CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 
 export type DailySunnahResult = {

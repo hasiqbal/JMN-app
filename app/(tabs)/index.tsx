@@ -2529,7 +2529,9 @@ export default function HomeScreen() {
   const hadithSource = dailySunnah?.ref ?? '';
   const hadithArabic = dailySunnah?.arabic ?? '';
   const hadithFullText = dailySunnah
-    ? `${dailySunnah.narrator}\n\n${dailySunnah.text}`
+    ? dailySunnah.narrator
+      ? `${dailySunnah.narrator}\n\n${dailySunnah.text}`
+      : dailySunnah.text
     : 'Open full Hadith to read the reminder.';
 
   const verseTitle = 'Daily Quran Reminder';

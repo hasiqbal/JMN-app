@@ -202,24 +202,21 @@ const StripDateChip = React.memo(function StripDateChip({
   const N = nightMode ? nightPalette : null;
 
   const handlePressIn = React.useCallback(() => {
-    scale.stopAnimation(() => {
-      Animated.spring(scale, {
-        toValue: 0.96,
-        useNativeDriver: true,
-        speed: 28,
-        bounciness: 3,
-      }).start();
-    });
+    Animated.spring(scale, {
+      toValue: 0.93,
+      useNativeDriver: true,
+      speed: 50,
+      bounciness: 0,
+    }).start();
   }, [scale]);
 
   const handlePressOut = React.useCallback(() => {
-    scale.stopAnimation(() => {
-      Animated.timing(scale, {
-        toValue: 1,
-        duration: 140,
-        useNativeDriver: true,
-      }).start();
-    });
+    Animated.spring(scale, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 40,
+      bounciness: 4,
+    }).start();
   }, [scale]);
 
   const containerStyle = React.useMemo(
@@ -278,8 +275,8 @@ const StripDateChip = React.memo(function StripDateChip({
         onPressOut={handlePressOut}
         activeOpacity={0.9}
         delayPressIn={0}
-        hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
-        pressRetentionOffset={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+        pressRetentionOffset={{ top: 16, bottom: 16, left: 16, right: 16 }}
       >
         <Text style={dayStyle}>{dow}</Text>
         <Text style={dateStyle}>{cell.date.getDate()}</Text>

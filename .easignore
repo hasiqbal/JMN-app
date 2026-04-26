@@ -20,3 +20,7 @@ ios/build
 tomorrow-work-plan.txt
 quran.py
 
+# Firebase native config must stay local-only (gitignored) but still be uploaded for EAS builds.
+!google-services.json
+!android/app/google-services.json
+
