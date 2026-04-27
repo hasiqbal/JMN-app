@@ -45,13 +45,13 @@ const PRAYER_ACTION_MUTE = 'jmn-prayer-mute';
 const DEBUG_ADHAAN_TEST_LAST_SENT_TS_KEY = 'jmn_debug_adhaan_test_last_sent_ts_v1';
 const JAMAAT_REMINDER_MINUTES = 10;
 const NOTIFICATION_MIN_LEAD_MS = 30 * 1000;
-const ANDROID_PRAYER_START_ADVANCE_MS = 60 * 1000;
 const EXPO_GO_NOTIFICATIONS_FALLBACK =
   Constants.appOwnership === 'expo' &&
   Number((Constants.expoConfig?.sdkVersion ?? '0').split('.')[0] || 0) >= 53;
 const PUSH_SYNC_DEBUG_ENABLED = __DEV__;
 
-const NON_PRAYABLE_NAMES = new Set(['Sunrise', 'Ishraq', 'Zawaal']);
+const NON_PRAYABLE_NAMES = new Set(['Sunrise']);
+const START_TIME_ONLY_NAMES = new Set(['Ishraq', 'Zawaal']);
 
 type PlannedPrayerNotification = {
   title: string;
@@ -59,7 +59,7 @@ type PlannedPrayerNotification = {
   fireAt: Date;
   data: {
     scope: string;
-    type: 'prayer-start' | 'jamaat-10';
+    type: 'prayer-reminder-60' | 'prayer-reminder-30' | 'prayer-start' | 'jamaat-10' | 'jamaat-start';
     prayerName: string;
     route: string;
   };
@@ -85,15 +85,50 @@ function buildPrayerNotifications(prayer: PrayerTime, now: Date): PlannedPrayerN
 
   const notifications: PlannedPrayerNotification[] = [];
   const prayerStart = prayer.timeDate;
-  const prayerStartNotifyAt = Platform.OS === 'android'
-    ? new Date(prayerStart.getTime() - ANDROID_PRAYER_START_ADVANCE_MS)
-    : prayerStart;
+  const startTimeOnly = START_TIME_ONLY_NAMES.has(prayer.name);
 
-  if (prayerStartNotifyAt.getTime() - now.getTime() > NOTIFICATION_MIN_LEAD_MS) {
+  if (!startTimeOnly) {
+    // 1-hour reminder before prayer
+    const reminder60Date = new Date(prayerStart.getTime() - 60 * 60 * 1000);
+    if (reminder60Date.getTime() - now.getTime() > NOTIFICATION_MIN_LEAD_MS) {
+      notifications.push({
+        title: `${prayer.name} prayer in 1 hour`,
+        body: `${prayer.name} prayer starts in 1 hour.\nنماز ${prayer.name} میں 1 گھنٹہ باقی ہے۔`,
+        fireAt: reminder60Date,
+        data: {
+          scope: PRAYER_NOTIFICATION_SCOPE,
+          type: 'prayer-reminder-60',
+          prayerName: prayer.name,
+          route: '/prayer',
+        },
+      });
+    }
+
+    // 30-minute reminder before prayer
+    const reminder30Date = new Date(prayerStart.getTime() - 30 * 60 * 1000);
+    if (reminder30Date.getTime() - now.getTime() > NOTIFICATION_MIN_LEAD_MS) {
+      notifications.push({
+        title: `${prayer.name} prayer in 30 minutes`,
+        body: `${prayer.name} prayer starts in 30 minutes.\nنماز ${prayer.name} میں 30 منٹ باقی ہیں۔`,
+        fireAt: reminder30Date,
+        data: {
+          scope: PRAYER_NOTIFICATION_SCOPE,
+          type: 'prayer-reminder-30',
+          prayerName: prayer.name,
+          route: '/prayer',
+        },
+      });
+    }
+  }
+
+  // Start-time notification (fire at exact prayer time, no early offset)
+  if (prayerStart.getTime() - now.getTime() > NOTIFICATION_MIN_LEAD_MS) {
     notifications.push({
-      title: `${prayer.name} prayer time`,
-      body: `Azaan for ${prayer.name} has started.`,
-      fireAt: prayerStartNotifyAt,
+      title: `${prayer.name} time`,
+      body: startTimeOnly
+        ? `${prayer.name} time has started.\nوقت ${prayer.name} شروع ہو گیا۔`
+        : `Azaan for ${prayer.name} has started.\nنماز ${prayer.name} کا وقت ہو گیا — اذان شروع ہو گئی۔`,
+      fireAt: prayerStart,
       data: {
         scope: PRAYER_NOTIFICATION_SCOPE,
         type: 'prayer-start',
@@ -106,22 +141,36 @@ function buildPrayerNotifications(prayer: PrayerTime, now: Date): PlannedPrayerN
   const iqamahDate = parseIqamahDate(prayer.iqamah, prayerStart);
   if (!iqamahDate) return notifications;
 
+  // 10-minute jamaat reminder
   const jamaatReminderDate = new Date(iqamahDate.getTime() - JAMAAT_REMINDER_MINUTES * 60 * 1000);
-  if (jamaatReminderDate.getTime() - now.getTime() <= NOTIFICATION_MIN_LEAD_MS) {
-    return notifications;
+  if (jamaatReminderDate.getTime() - now.getTime() > NOTIFICATION_MIN_LEAD_MS) {
+    notifications.push({
+      title: `${prayer.name} jamaat in ${JAMAAT_REMINDER_MINUTES} minutes`,
+      body: `${prayer.name} jamaat starts in ${JAMAAT_REMINDER_MINUTES} minutes.\nنماز ${prayer.name} کی جماعت میں 10 منٹ باقی ہیں۔`,
+      fireAt: jamaatReminderDate,
+      data: {
+        scope: PRAYER_NOTIFICATION_SCOPE,
+        type: 'jamaat-10',
+        prayerName: prayer.name,
+        route: '/prayer',
+      },
+    });
   }
 
-  notifications.push({
-    title: `${prayer.name} jamaat in ${JAMAAT_REMINDER_MINUTES} minutes`,
-    body: `As-salatu khayrun minan nawm. ${prayer.name} jamaat starts in ${JAMAAT_REMINDER_MINUTES} minutes.`,
-    fireAt: jamaatReminderDate,
-    data: {
-      scope: PRAYER_NOTIFICATION_SCOPE,
-      type: 'jamaat-10',
-      prayerName: prayer.name,
-      route: '/prayer',
-    },
-  });
+  // Jamaat-started notification (at iqamah time)
+  if (iqamahDate.getTime() - now.getTime() > NOTIFICATION_MIN_LEAD_MS) {
+    notifications.push({
+      title: `${prayer.name} jamaat has started`,
+      body: `Time to go to the masjid — ${prayer.name} jamaat has started.\nمسجد چلیے — نماز ${prayer.name} کی جماعت شروع ہو گئی۔`,
+      fireAt: iqamahDate,
+      data: {
+        scope: PRAYER_NOTIFICATION_SCOPE,
+        type: 'jamaat-start',
+        prayerName: prayer.name,
+        route: '/prayer',
+      },
+    });
+  }
 
   return notifications;
 }
@@ -637,15 +686,21 @@ export default function TabLayout() {
       const scheduleErrors: string[] = [];
 
       for (const item of planned) {
-        const isJamaatReminder = item.data.type === 'jamaat-10';
+        const notifType = item.data.type;
 
-        const prayerChannelId = isJamaatReminder
-          ? PRAYER_JAMAAT_CHANNEL_ID
-          : PRAYER_ADHAAN_CHANNEL_ID;
+        const prayerChannelId =
+          notifType === 'jamaat-10' || notifType === 'jamaat-start'
+            ? PRAYER_JAMAAT_CHANNEL_ID
+            : notifType === 'prayer-start'
+            ? PRAYER_ADHAAN_CHANNEL_ID
+            : PRAYER_ALERT_CHANNEL_ID; // prayer-reminder-60 / prayer-reminder-30
 
-        const scheduledSound = isJamaatReminder
-          ? IQAMAH_BACKGROUND_SOUND_FILE
-          : ADHAAN_BACKGROUND_SOUND_FILE;
+        const scheduledSound =
+          notifType === 'jamaat-10' || notifType === 'jamaat-start'
+            ? IQAMAH_BACKGROUND_SOUND_FILE
+            : notifType === 'prayer-start'
+            ? ADHAAN_BACKGROUND_SOUND_FILE
+            : 'default'; // gentle alert for 1hr / 30min reminders
 
         const trigger = Platform.OS === 'android'
           ? ({ type: 'date', date: item.fireAt, channelId: prayerChannelId } as unknown as import('expo-notifications').NotificationTriggerInput)
