@@ -432,7 +432,7 @@ export default function QaseedahNaatScreen() {
                 </View>
               </TouchableOpacity>
 
-              {section.description || section.tafsir ? (
+              {section.description ? (
                 <View style={styles.groupDetailsWrap}>
                   <TouchableOpacity
                     style={[styles.viewDetailsBtn, N && { backgroundColor: N.goldSoft }]}
