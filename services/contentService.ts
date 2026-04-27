@@ -1225,58 +1225,33 @@ async function fetchHowToGuidesFromNetwork(language: 'en' | 'ur'): Promise<HowTo
   const guideIds = guideRows.map((row) => row.id);
   const groupIds = Array.from(new Set(guideRows.map((row) => row.group_id)));
 
-  const groupsResult = await supabase
-    .from('howto_groups')
-    .select('id,name,urdu_name')
-    .in('id', groupIds);
+  const [groupsResult, sectionsResult] = await Promise.all([
+    supabase
+      .from('howto_groups')
+      .select('id,name,urdu_name')
+      .in('id', groupIds),
+    supabase
+      .from('howto_sections')
+      .select('id,guide_id,heading,section_order')
+      .in('guide_id', guideIds)
+      .order('section_order', { ascending: true }),
+  ]);
 
   const groupRows = groupsResult.error ? [] : ((groupsResult.data ?? []) as HowToGroupRow[]);
-
-  const QUERY_CHUNK_SIZE = 120;
-
-  const guideIdChunks: string[][] = [];
-  for (let i = 0; i < guideIds.length; i += QUERY_CHUNK_SIZE) {
-    guideIdChunks.push(guideIds.slice(i, i + QUERY_CHUNK_SIZE));
-  }
-
-  let sectionRows: HowToSectionRow[] = [];
-  if (guideIdChunks.length > 0) {
-    const sectionChunkResults = await Promise.all(
-      guideIdChunks.map(async (chunk) => supabase
-        .from('howto_sections')
-        .select('id,guide_id,heading,section_order')
-        .in('guide_id', chunk)
-        .order('section_order', { ascending: true })),
-    );
-
-    for (const result of sectionChunkResults) {
-      if (!result.error) {
-        sectionRows.push(...((result.data ?? []) as HowToSectionRow[]));
-      }
-    }
-  }
+  const sectionRows = sectionsResult.error ? [] : ((sectionsResult.data ?? []) as HowToSectionRow[]);
 
   const sectionIds = sectionRows.map((section) => section.id);
 
   let stepRows: HowToStepRow[] = [];
   if (sectionIds.length > 0) {
-    const sectionIdChunks: string[][] = [];
-    for (let i = 0; i < sectionIds.length; i += QUERY_CHUNK_SIZE) {
-      sectionIdChunks.push(sectionIds.slice(i, i + QUERY_CHUNK_SIZE));
-    }
+    const { data: steps, error: stepsError } = await supabase
+      .from('howto_steps')
+      .select('id,section_id,step_order,title,detail,note')
+      .in('section_id', sectionIds)
+      .order('step_order', { ascending: true });
 
-    const stepChunkResults = await Promise.all(
-      sectionIdChunks.map(async (chunk) => supabase
-        .from('howto_steps')
-        .select('id,section_id,step_order,title,detail,note')
-        .in('section_id', chunk)
-        .order('step_order', { ascending: true })),
-    );
-
-    for (const result of stepChunkResults) {
-      if (!result.error) {
-        stepRows.push(...((result.data ?? []) as HowToStepRow[]));
-      }
+    if (!stepsError) {
+      stepRows = (steps ?? []) as HowToStepRow[];
     }
   }
 
@@ -1285,41 +1260,25 @@ async function fetchHowToGuidesFromNetwork(language: 'en' | 'ur'): Promise<HowTo
   let blockRows: HowToStepBlockRow[] = [];
   let imageRows: HowToStepImageRow[] = [];
   if (stepIds.length > 0) {
-    // Large `in(...)` filters can exceed transport/query limits and return empty datasets.
-    // Query step-linked rows in chunks so structured blocks keep loading for big guide trees.
-    const STEP_ID_CHUNK_SIZE = 120;
-    const stepIdChunks: string[][] = [];
-    for (let i = 0; i < stepIds.length; i += STEP_ID_CHUNK_SIZE) {
-      stepIdChunks.push(stepIds.slice(i, i + STEP_ID_CHUNK_SIZE));
-    }
-
-    const [blockChunkResults, imageChunkResults] = await Promise.all([
-      Promise.all(
-        stepIdChunks.map(async (chunk) => supabase
-          .from('howto_step_blocks')
-          .select('step_id,block_order,kind,payload')
-          .in('step_id', chunk)
-          .order('block_order', { ascending: true })),
-      ),
-      Promise.all(
-        stepIdChunks.map(async (chunk) => supabase
-          .from('howto_step_images')
-          .select('step_id,display_order,image_url,caption,source')
-          .in('step_id', chunk)
-          .order('display_order', { ascending: true })),
-      ),
+    const [blocksResult, imagesResult] = await Promise.all([
+      supabase
+        .from('howto_step_blocks')
+        .select('step_id,block_order,kind,payload')
+        .in('step_id', stepIds)
+        .order('block_order', { ascending: true }),
+      supabase
+        .from('howto_step_images')
+        .select('step_id,display_order,image_url,caption,source')
+        .in('step_id', stepIds)
+        .order('display_order', { ascending: true }),
     ]);
 
-    for (const result of blockChunkResults) {
-      if (!result.error) {
-        blockRows.push(...((result.data ?? []) as HowToStepBlockRow[]));
-      }
+    if (!blocksResult.error) {
+      blockRows = (blocksResult.data ?? []) as HowToStepBlockRow[];
     }
 
-    for (const result of imageChunkResults) {
-      if (!result.error) {
-        imageRows.push(...((result.data ?? []) as HowToStepImageRow[]));
-      }
+    if (!imagesResult.error) {
+      imageRows = (imagesResult.data ?? []) as HowToStepImageRow[];
     }
   }
 
@@ -1436,16 +1395,7 @@ export async function fetchHowToGuides(language: 'en' | 'ur' = 'en', options?: {
 }
 
 export async function prewarmQaseedahAndHowToCaches(): Promise<void> {
-  const qaseedahTask = fetchQaseedahNaatEntries()
-    .then((rows) => {
-      void seedQaseedahGroupCaches(rows);
-
-      // Revalidate startup cache in background so users get updates quickly
-      // without blocking first render of qaseedah/naat screens.
-      return fetchQaseedahNaatEntries({ forceRefresh: true })
-        .then((liveRows) => seedQaseedahGroupCaches(liveRows))
-        .catch(() => {});
-    });
+  const qaseedahTask = fetchQaseedahNaatEntries().then((rows) => seedQaseedahGroupCaches(rows));
 
   await Promise.allSettled([
     qaseedahTask,
@@ -2586,14 +2536,24 @@ export async function fetchMasjidAnnouncementEventsForMonth(
   month: number
 ): Promise<IslamicCalendarEventRow[]> {
   try {
-    const { rows, meta } = await fetchAnnouncementsWithMeta();
+    let rows: AnnouncementRow[] = [];
 
-    if (meta.error) {
-      console.warn('[announcements] Meta reported an announcement fetch issue for masjid events', {
-        source: meta.source,
-        notice: meta.notice,
-        error: meta.error,
-      });
+    // Calendar recurrence expansion needs full DB fields (event_date/recurrence_*).
+    // Prefer direct table rows first; formatted edge payload can omit these fields.
+    const directRows = await fetchAnnouncementsDirect();
+    if (directRows) {
+      rows = directRows;
+    } else {
+      const { rows: fallbackRows, meta } = await fetchAnnouncementsWithMeta();
+      rows = fallbackRows;
+
+      if (meta.error) {
+        console.warn('[announcements] Meta reported an announcement fetch issue for masjid events', {
+          source: meta.source,
+          notice: meta.notice,
+          error: meta.error,
+        });
+      }
     }
 
     const mapped = rows

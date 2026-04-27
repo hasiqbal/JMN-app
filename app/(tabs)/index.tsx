@@ -49,6 +49,7 @@ import {
   type AppDonationOption,
 } from '@/services/donationService';
 import { fetchDailySunnah, type DailySunnahResult } from '@/services/sunnahReminderService';
+import { fetchDailyQuranReminder, type DailyQuranResult } from '@/services/quranReminderService';
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -2180,6 +2181,7 @@ export default function HomeScreen() {
   const [webPrayerDrawerVisible, setWebPrayerDrawerVisible] = useState(false);
   const prayerSheetRef = useRef<BottomSheet>(null);
   const [dailySunnah, setDailySunnah] = useState<DailySunnahResult | null>(null);
+  const [dailyQuran, setDailyQuran] = useState<DailyQuranResult | null>(null);
 
   const loadCommunityUpdates = useCallback(async () => {
     setCommunityLoading(true);
@@ -2215,6 +2217,12 @@ export default function HomeScreen() {
   useEffect(() => {
     fetchDailySunnah().then((result) => {
       if (result) setDailySunnah(result);
+    });
+  }, []);
+
+  useEffect(() => {
+    fetchDailyQuranReminder().then((result) => {
+      if (result) setDailyQuran(result);
     });
   }, []);
 
@@ -2537,11 +2545,11 @@ export default function HomeScreen() {
 
   const verseTitle = 'Daily Quran Reminder';
   const verseTitleUrdu = 'روزانہ قرآنی یاددہانی';
-  const versePreview = fallbackVersePreview;
+  const versePreview = dailyQuran?.preview ?? fallbackVersePreview;
   const versePreviewUrdu = '';
-  const verseReference = fallbackVerseReference;
-  const verseArabic = '';
-  const verseFullText = fallbackVerseFullText;
+  const verseReference = dailyQuran?.ref ?? fallbackVerseReference;
+  const verseArabic = dailyQuran?.arabic ?? '';
+  const verseFullText = dailyQuran?.text ?? fallbackVerseFullText;
   const expandHintEn = 'Tap to open';
   const expandHintUr = 'کھولنے کے لیے ٹیپ کریں';
 
