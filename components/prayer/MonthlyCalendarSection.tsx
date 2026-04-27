@@ -4,10 +4,10 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Pressable,
   ScrollView,
   useWindowDimensions,
 } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';

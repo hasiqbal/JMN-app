@@ -10,22 +10,6 @@ import { prewarmQaseedahAndHowToCaches } from '@/services/contentService';
 import { NightModeProvider } from '@/contexts/NightModeContext';
 import { AppThemeProvider } from '@/contexts/AppThemeContext';
 
-type ExpoNotificationsModule = typeof import('expo-notifications');
-
-const Notifications: ExpoNotificationsModule | null =
-  Platform.OS === 'web' ? null : require('expo-notifications');
-
-if (Platform.OS !== 'web' && Notifications) {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-    }),
-  });
-}
-
 LogBox.ignoreLogs([
   'props.pointerEvents is deprecated. Use style.pointerEvents',
   '"shadow*" style props are deprecated. Use "boxShadow".',
@@ -66,6 +50,36 @@ export default function RootLayout() {
   React.useEffect(() => {
     void runInitialTranslationWarmup();
     void prewarmQaseedahAndHowToCaches();
+  }, []);
+
+  React.useEffect(() => {
+    if (Platform.OS === 'web') return;
+
+    let cancelled = false;
+
+    const configureNotificationHandler = async () => {
+      try {
+        const notifications = await import('expo-notifications');
+        if (cancelled) return;
+
+        notifications.setNotificationHandler({
+          handleNotification: async () => ({
+            shouldShowBanner: true,
+            shouldShowList: true,
+            shouldPlaySound: true,
+            shouldSetBadge: false,
+          }),
+        });
+      } catch {
+        // Keep app startup resilient when notifications module is unavailable.
+      }
+    };
+
+    void configureNotificationHandler();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (

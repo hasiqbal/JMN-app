@@ -2,14 +2,13 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Tabs, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Platform, View, StyleSheet, Animated, AppState } from 'react-native';
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Colors } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useJmnLiveStatus } from '@/hooks/useJmnLiveStatus';
 import {
-  playAdhaanNowForTesting,
   setAdhaanMutedEnabled,
   stopActiveAdhaan,
   useQuranPrayerPopups,
@@ -20,16 +19,23 @@ import { useInAppBanner } from '@/template';
 
 type ExpoNotificationsModule = typeof import('expo-notifications');
 
-const Notifications: ExpoNotificationsModule | null =
-  Platform.OS === 'web' ? null : require('expo-notifications');
+let notificationsModulePromise: Promise<ExpoNotificationsModule | null> | null = null;
+
+async function getNotificationsModule(): Promise<ExpoNotificationsModule | null> {
+  if (Platform.OS === 'web') return null;
+  if (!notificationsModulePromise) {
+    notificationsModulePromise = import('expo-notifications')
+      .then((mod) => mod)
+      .catch(() => null);
+  }
+  return notificationsModulePromise;
+}
 
 const HIDDEN_TAB_OPTIONS = { href: null };
 const LIVE_NOTIFICATION_CHANNEL_ID = 'jmn-live-v2';
 const LIVE_NOTIFY_KEY = 'jmn_radio_notify';
 const LIVE_NOTIFY_TS_KEY = 'jmn_last_live_notify_ts';
 const LIVE_NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
-const PUSH_SUCCESS_TS_KEY = 'jmn_last_push_success_ts';
-const PUSH_SUCCESS_FLAG_WINDOW_MS = 10 * 60 * 1000;
 const PRAYER_ADHAAN_CHANNEL_ID = 'jmn-prayer-adhaan-v2';
 const PRAYER_JAMAAT_CHANNEL_ID = 'jmn-prayer-jamaat-v2';
 const PRAYER_SILENT_CHANNEL_ID = 'jmn-prayer-silent-v3';
@@ -42,16 +48,12 @@ const PRAYER_NOTIFICATION_SCOPE = 'jmn-prayer';
 const PRAYER_NOTIFICATION_CATEGORY_ID = 'jmn-prayer-controls';
 const PRAYER_ACTION_STOP = 'jmn-prayer-stop';
 const PRAYER_ACTION_MUTE = 'jmn-prayer-mute';
-const DEBUG_ADHAAN_TEST_LAST_SENT_TS_KEY = 'jmn_debug_adhaan_test_last_sent_ts_v1';
 const JAMAAT_REMINDER_MINUTES = 10;
 const NOTIFICATION_MIN_LEAD_MS = 30 * 1000;
-const EXPO_GO_NOTIFICATIONS_FALLBACK =
-  Constants.appOwnership === 'expo' &&
-  Number((Constants.expoConfig?.sdkVersion ?? '0').split('.')[0] || 0) >= 53;
-const PUSH_SYNC_DEBUG_ENABLED = __DEV__;
+const ANDROID_PRAYER_START_ADVANCE_MS = 60 * 1000;
+const IS_EXPO_GO = Constants.appOwnership === 'expo';
 
-const NON_PRAYABLE_NAMES = new Set(['Sunrise']);
-const START_TIME_ONLY_NAMES = new Set(['Ishraq', 'Zawaal']);
+const NON_PRAYABLE_NAMES = new Set(['Sunrise', 'Ishraq', 'Zawaal']);
 
 type PlannedPrayerNotification = {
   title: string;
@@ -59,7 +61,7 @@ type PlannedPrayerNotification = {
   fireAt: Date;
   data: {
     scope: string;
-    type: 'prayer-reminder-60' | 'prayer-reminder-30' | 'prayer-start' | 'jamaat-10' | 'jamaat-start';
+    type: 'prayer-start' | 'jamaat-10';
     prayerName: string;
     route: string;
   };
@@ -85,50 +87,15 @@ function buildPrayerNotifications(prayer: PrayerTime, now: Date): PlannedPrayerN
 
   const notifications: PlannedPrayerNotification[] = [];
   const prayerStart = prayer.timeDate;
-  const startTimeOnly = START_TIME_ONLY_NAMES.has(prayer.name);
+  const prayerStartNotifyAt = Platform.OS === 'android'
+    ? new Date(prayerStart.getTime() - ANDROID_PRAYER_START_ADVANCE_MS)
+    : prayerStart;
 
-  if (!startTimeOnly) {
-    // 1-hour reminder before prayer
-    const reminder60Date = new Date(prayerStart.getTime() - 60 * 60 * 1000);
-    if (reminder60Date.getTime() - now.getTime() > NOTIFICATION_MIN_LEAD_MS) {
-      notifications.push({
-        title: `${prayer.name} prayer in 1 hour`,
-        body: `${prayer.name} prayer starts in 1 hour.\nنماز ${prayer.name} میں 1 گھنٹہ باقی ہے۔`,
-        fireAt: reminder60Date,
-        data: {
-          scope: PRAYER_NOTIFICATION_SCOPE,
-          type: 'prayer-reminder-60',
-          prayerName: prayer.name,
-          route: '/prayer',
-        },
-      });
-    }
-
-    // 30-minute reminder before prayer
-    const reminder30Date = new Date(prayerStart.getTime() - 30 * 60 * 1000);
-    if (reminder30Date.getTime() - now.getTime() > NOTIFICATION_MIN_LEAD_MS) {
-      notifications.push({
-        title: `${prayer.name} prayer in 30 minutes`,
-        body: `${prayer.name} prayer starts in 30 minutes.\nنماز ${prayer.name} میں 30 منٹ باقی ہیں۔`,
-        fireAt: reminder30Date,
-        data: {
-          scope: PRAYER_NOTIFICATION_SCOPE,
-          type: 'prayer-reminder-30',
-          prayerName: prayer.name,
-          route: '/prayer',
-        },
-      });
-    }
-  }
-
-  // Start-time notification (fire at exact prayer time, no early offset)
-  if (prayerStart.getTime() - now.getTime() > NOTIFICATION_MIN_LEAD_MS) {
+  if (prayerStartNotifyAt.getTime() - now.getTime() > NOTIFICATION_MIN_LEAD_MS) {
     notifications.push({
-      title: `${prayer.name} time`,
-      body: startTimeOnly
-        ? `${prayer.name} time has started.\nوقت ${prayer.name} شروع ہو گیا۔`
-        : `Azaan for ${prayer.name} has started.\nنماز ${prayer.name} کا وقت ہو گیا — اذان شروع ہو گئی۔`,
-      fireAt: prayerStart,
+      title: `${prayer.name} prayer time`,
+      body: `Azaan for ${prayer.name} has started.`,
+      fireAt: prayerStartNotifyAt,
       data: {
         scope: PRAYER_NOTIFICATION_SCOPE,
         type: 'prayer-start',
@@ -141,41 +108,28 @@ function buildPrayerNotifications(prayer: PrayerTime, now: Date): PlannedPrayerN
   const iqamahDate = parseIqamahDate(prayer.iqamah, prayerStart);
   if (!iqamahDate) return notifications;
 
-  // 10-minute jamaat reminder
   const jamaatReminderDate = new Date(iqamahDate.getTime() - JAMAAT_REMINDER_MINUTES * 60 * 1000);
-  if (jamaatReminderDate.getTime() - now.getTime() > NOTIFICATION_MIN_LEAD_MS) {
-    notifications.push({
-      title: `${prayer.name} jamaat in ${JAMAAT_REMINDER_MINUTES} minutes`,
-      body: `${prayer.name} jamaat starts in ${JAMAAT_REMINDER_MINUTES} minutes.\nنماز ${prayer.name} کی جماعت میں 10 منٹ باقی ہیں۔`,
-      fireAt: jamaatReminderDate,
-      data: {
-        scope: PRAYER_NOTIFICATION_SCOPE,
-        type: 'jamaat-10',
-        prayerName: prayer.name,
-        route: '/prayer',
-      },
-    });
+  if (jamaatReminderDate.getTime() - now.getTime() <= NOTIFICATION_MIN_LEAD_MS) {
+    return notifications;
   }
 
-  // Jamaat-started notification (at iqamah time)
-  if (iqamahDate.getTime() - now.getTime() > NOTIFICATION_MIN_LEAD_MS) {
-    notifications.push({
-      title: `${prayer.name} jamaat has started`,
-      body: `Time to go to the masjid — ${prayer.name} jamaat has started.\nمسجد چلیے — نماز ${prayer.name} کی جماعت شروع ہو گئی۔`,
-      fireAt: iqamahDate,
-      data: {
-        scope: PRAYER_NOTIFICATION_SCOPE,
-        type: 'jamaat-start',
-        prayerName: prayer.name,
-        route: '/prayer',
-      },
-    });
-  }
+  notifications.push({
+    title: `${prayer.name} jamaat in ${JAMAAT_REMINDER_MINUTES} minutes`,
+    body: `As-salatu khayrun minan nawm. ${prayer.name} jamaat starts in ${JAMAAT_REMINDER_MINUTES} minutes.`,
+    fireAt: jamaatReminderDate,
+    data: {
+      scope: PRAYER_NOTIFICATION_SCOPE,
+      type: 'jamaat-10',
+      prayerName: prayer.name,
+      route: '/prayer',
+    },
+  });
 
   return notifications;
 }
 
 async function ensureAndroidLiveNotificationChannel(): Promise<void> {
+  const Notifications = await getNotificationsModule();
   if (!Notifications || Platform.OS !== 'android') return;
 
   await Notifications.setNotificationChannelAsync(LIVE_NOTIFICATION_CHANNEL_ID, {
@@ -188,6 +142,7 @@ async function ensureAndroidLiveNotificationChannel(): Promise<void> {
 }
 
 async function ensureAndroidPrayerNotificationChannels(): Promise<void> {
+  const Notifications = await getNotificationsModule();
   if (!Notifications || Platform.OS !== 'android') return;
 
   await Promise.all([
@@ -239,33 +194,12 @@ function LiveDot() {
   );
 }
 
-function PushSuccessFlag() {
-  return (
-    <View style={dotStyles.flagWrap}>
-      <MaterialIcons name="flag" size={9} color="#FFFFFF" />
-    </View>
-  );
-}
-
 const dotStyles = StyleSheet.create({
   dot: {
     position: 'absolute', top: -2, right: -4,
     width: 8, height: 8, borderRadius: 4,
     backgroundColor: '#ff2222',
     borderWidth: 1.5, borderColor: '#fff',
-  },
-  flagWrap: {
-    position: 'absolute',
-    top: -4,
-    right: -8,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#16A34A',
-    borderWidth: 1.5,
-    borderColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });
 
@@ -278,27 +212,18 @@ export default function TabLayout() {
   const schedulingPrayerNotificationsRef = useRef(false);
   const prayerPermissionRequestedRef = useRef(false);
   const handledNotificationIdsRef = useRef<Set<string>>(new Set());
-  const lastPushSyncDebugReasonRef = useRef<string | null>(null);
-  const pushFlagTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [hasRecentPushSuccess, setHasRecentPushSuccess] = useState(false);
 
   useQuranPrayerPopups();
 
-  const clearPushFlagTimeout = useCallback(() => {
-    if (pushFlagTimeoutRef.current) {
-      clearTimeout(pushFlagTimeoutRef.current);
-      pushFlagTimeoutRef.current = null;
-    }
-  }, []);
-
-  const schedulePushFlagExpiry = useCallback((delayMs: number) => {
-    clearPushFlagTimeout();
-    const timeout = Math.max(1000, delayMs);
-    pushFlagTimeoutRef.current = setTimeout(() => {
-      setHasRecentPushSuccess(false);
-      pushFlagTimeoutRef.current = null;
-    }, timeout);
-  }, [clearPushFlagTimeout]);
+  useEffect(() => {
+    if (!__DEV__ || !IS_EXPO_GO) return;
+    showBanner(
+      'Running in Expo Go',
+      'Background adhaan tests are unreliable in Expo Go. Open the installed JMN build app instead.',
+      9000,
+      'warning',
+    );
+  }, [showBanner]);
 
   const parseNotificationData = useCallback((rawData: unknown): Record<string, unknown> | null => {
     if (rawData && typeof rawData === 'object') {
@@ -319,50 +244,13 @@ export default function TabLayout() {
     return null;
   }, []);
 
-  const maybeMarkPushSuccess = useCallback(async (rawData: unknown) => {
+  const maybeMarkPushSuccess = useCallback((rawData: unknown) => {
     const data = parseNotificationData(rawData);
     if (!data) return;
 
     const notificationId = typeof data.notificationId === 'string' ? data.notificationId.trim() : '';
     if (!notificationId) return;
-
-    const now = Date.now();
-    setHasRecentPushSuccess(true);
-    schedulePushFlagExpiry(PUSH_SUCCESS_FLAG_WINDOW_MS);
-
-    await AsyncStorage.setItem(PUSH_SUCCESS_TS_KEY, String(now)).catch(() => {});
-
-    showBanner(
-      'Push delivered successfully',
-      'This phone received the notification.',
-      4500,
-    );
-  }, [parseNotificationData, schedulePushFlagExpiry, showBanner]);
-
-  useEffect(() => {
-    let mounted = true;
-
-    const restorePushFlag = async () => {
-      const raw = await AsyncStorage.getItem(PUSH_SUCCESS_TS_KEY).catch(() => null);
-      if (!mounted || !raw) return;
-
-      const ts = Number(raw);
-      if (!Number.isFinite(ts)) return;
-
-      const elapsed = Date.now() - ts;
-      if (elapsed >= PUSH_SUCCESS_FLAG_WINDOW_MS) return;
-
-      setHasRecentPushSuccess(true);
-      schedulePushFlagExpiry(PUSH_SUCCESS_FLAG_WINDOW_MS - elapsed);
-    };
-
-    void restorePushFlag();
-
-    return () => {
-      mounted = false;
-      clearPushFlagTimeout();
-    };
-  }, [clearPushFlagTimeout, schedulePushFlagExpiry]);
+  }, [parseNotificationData]);
 
   const openLiveStreamFromIntent = useCallback(() => {
     router.push({
@@ -394,9 +282,14 @@ export default function TabLayout() {
   }, [openLiveStreamFromIntent, parseNotificationData, router]);
 
   useEffect(() => {
-    if (Platform.OS === 'web' || !Notifications) return;
+    if (Platform.OS === 'web') return;
 
-    const handleResponse = (
+    let mounted = true;
+    let sub: { remove: () => void } | null = null;
+    let receivedSub: { remove: () => void } | null = null;
+
+    const handleResponse = async (
+      Notifications: ExpoNotificationsModule,
       response:
         | {
             actionIdentifier?: string;
@@ -458,122 +351,65 @@ export default function TabLayout() {
       routeFromNotificationData(request?.content?.data);
     };
 
-    let mounted = true;
+    const setup = async () => {
+      const Notifications = await getNotificationsModule();
+      if (!mounted || !Notifications) return;
 
-    Notifications.getLastNotificationResponseAsync()
-      .then((response) => {
-        if (!mounted) return;
-        handleResponse(response);
-      })
-      .catch(() => {});
+      Notifications.getLastNotificationResponseAsync()
+        .then((response) => {
+          if (!mounted) return;
+          void handleResponse(Notifications, response);
+        })
+        .catch(() => {});
 
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      handleResponse(response);
-    });
+      sub = Notifications.addNotificationResponseReceivedListener((response) => {
+        void handleResponse(Notifications, response);
+      });
 
-    const receivedSub = Notifications.addNotificationReceivedListener((notification) => {
-      void maybeMarkPushSuccess(notification.request.content.data);
-    });
+      receivedSub = Notifications.addNotificationReceivedListener((notification) => {
+        void maybeMarkPushSuccess(notification.request.content.data);
+      });
+    };
+
+    void setup();
 
     return () => {
       mounted = false;
-      sub.remove();
-      receivedSub.remove();
+      sub?.remove();
+      receivedSub?.remove();
     };
   }, [maybeMarkPushSuccess, routeFromNotificationData, router, showBanner]);
 
   useEffect(() => {
-    if (!Notifications) return;
+    const setup = async () => {
+      const Notifications = await getNotificationsModule();
+      if (!Notifications) return;
 
-    void ensureAndroidLiveNotificationChannel();
-    void ensureAndroidPrayerNotificationChannels();
-
-    Notifications.setNotificationCategoryAsync(PRAYER_NOTIFICATION_CATEGORY_ID, [
-      {
-        identifier: PRAYER_ACTION_STOP,
-        buttonTitle: 'Stop adhaan',
-        options: { opensAppToForeground: false },
-      },
-      {
-        identifier: PRAYER_ACTION_MUTE,
-        buttonTitle: 'Mute adhaan',
-        options: { opensAppToForeground: false },
-      },
-    ]).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (!__DEV__ || Platform.OS === 'web' || !Notifications) return;
-
-    let cancelled = false;
-
-    const triggerImmediateAdhaanTest = async () => {
-      const currentPerm = await Notifications.getPermissionsAsync().catch(() => null);
-      let status = currentPerm?.status ?? 'undetermined';
-      if (status !== 'granted') {
-        const requested = await Notifications.requestPermissionsAsync().catch(() => null);
-        status = requested?.status ?? status;
-      }
-
-      if (status !== 'granted') {
-        if (!cancelled) {
-          showBanner('Test adhaan failed', 'Notification permission is not granted.', 5500, 'warning');
-        }
-        return;
-      }
-
-      const lastRaw = await AsyncStorage.getItem(DEBUG_ADHAAN_TEST_LAST_SENT_TS_KEY).catch(() => null);
-      const lastSent = Number(lastRaw || 0);
-      if (Number.isFinite(lastSent) && Date.now() - lastSent < 5000) {
-        return;
-      }
-
+      await ensureAndroidLiveNotificationChannel();
       await ensureAndroidPrayerNotificationChannels();
 
-      const fireAt = new Date(Date.now() + 7000);
-      const trigger = Platform.OS === 'android'
-        ? ({ type: 'date', date: fireAt, channelId: PRAYER_ADHAAN_CHANNEL_ID } as unknown as import('expo-notifications').NotificationTriggerInput)
-        : (fireAt as unknown as import('expo-notifications').NotificationTriggerInput);
-
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: 'Test Adhaan (Now)',
-          body: 'Testing volume-button mute and notification actions.',
-          sound: ADHAAN_BACKGROUND_SOUND_FILE,
-          categoryIdentifier: PRAYER_NOTIFICATION_CATEGORY_ID,
-          data: {
-            scope: PRAYER_NOTIFICATION_SCOPE,
-            type: 'prayer-start',
-            prayerName: 'Test Adhaan',
-            route: '/prayer',
-          },
+      Notifications.setNotificationCategoryAsync(PRAYER_NOTIFICATION_CATEGORY_ID, [
+        {
+          identifier: PRAYER_ACTION_STOP,
+          buttonTitle: 'Stop adhaan',
+          options: { opensAppToForeground: false },
         },
-        trigger,
-      });
-
-      // Fallback for devices/builds where custom notification sounds do not
-      // play reliably: start adhaan directly from app audio only while app is
-      // active. In background, rely on OS notification sound behavior.
-      setTimeout(() => {
-        if (AppState.currentState !== 'active') return;
-        void playAdhaanNowForTesting({ ignoreMute: true });
-      }, 7000);
-
-      if (cancelled) return;
-
-      await AsyncStorage.setItem(DEBUG_ADHAAN_TEST_LAST_SENT_TS_KEY, String(Date.now())).catch(() => {});
-      showBanner('Test adhaan sent', 'It will ring in about 7 seconds.');
+        {
+          identifier: PRAYER_ACTION_MUTE,
+          buttonTitle: 'Mute adhaan',
+          options: { opensAppToForeground: false },
+        },
+      ]).catch(() => {});
     };
 
-    void triggerImmediateAdhaanTest();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [showBanner]);
+    void setup();
+  }, []);
 
   const ensurePrayerNotificationPermission = useCallback(async (): Promise<boolean> => {
-    if (Platform.OS === 'web' || !Notifications) return false;
+    if (Platform.OS === 'web') return false;
+
+    const Notifications = await getNotificationsModule();
+    if (!Notifications) return false;
 
     const current = await Notifications.getPermissionsAsync();
     let finalStatus = current.status;
@@ -588,6 +424,7 @@ export default function TabLayout() {
   }, []);
 
   const clearScheduledPrayerNotifications = useCallback(async () => {
+    const Notifications = await getNotificationsModule();
     if (!Notifications) return;
 
     try {
@@ -608,49 +445,23 @@ export default function TabLayout() {
   }, []);
 
   const schedulePrayerNotifications = useCallback(async () => {
-    if (Platform.OS === 'web' || !Notifications || schedulingPrayerNotificationsRef.current) return;
+    if (Platform.OS === 'web' || schedulingPrayerNotificationsRef.current) return;
+
+    const Notifications = await getNotificationsModule();
+    if (!Notifications) return;
 
     schedulingPrayerNotificationsRef.current = true;
     try {
       const allowed = await ensurePrayerNotificationPermission();
-      if (!allowed) {
-        if (PUSH_SYNC_DEBUG_ENABLED) {
-          const reason = 'permission-not-granted';
-          if (lastPushSyncDebugReasonRef.current !== reason) {
-            lastPushSyncDebugReasonRef.current = reason;
-            showBanner('Push token not synced', `Reason: ${reason}`, 6500, 'warning');
-          }
-        }
-        return;
-      }
+      if (!allowed) return;
 
       await ensureAndroidPrayerNotificationChannels();
 
-      // Register and refresh Expo push token in the backend while permissions are valid.
-      const syncResult = await syncPushTokenWithBackend(Notifications).catch((error) => {
-        if (PUSH_SYNC_DEBUG_ENABLED) {
-          const message = error instanceof Error ? error.message : String(error);
-          const reason = `sync-exception:${message}`;
-          if (lastPushSyncDebugReasonRef.current !== reason) {
-            lastPushSyncDebugReasonRef.current = reason;
-            showBanner('Push token sync failed', message.slice(0, 180), 6500, 'warning');
-          }
-        }
-        return { synced: false, reason: 'exception' } as const;
-      });
-
-      if (PUSH_SYNC_DEBUG_ENABLED) {
-        const reason = syncResult.synced
-          ? 'synced'
-          : `not-synced:${syncResult.reason ?? 'unknown'}`;
-        if (lastPushSyncDebugReasonRef.current !== reason) {
-          lastPushSyncDebugReasonRef.current = reason;
-          if (syncResult.synced) {
-            showBanner('Push token synced', 'This phone is now registered for portal pushes.', 4500);
-          } else {
-            showBanner('Push token not synced', `Reason: ${syncResult.reason ?? 'unknown'}`, 6500, 'warning');
-          }
-        }
+      // Local prayer scheduling does not depend on push token sync; skip this in Expo Go.
+      if (!IS_EXPO_GO) {
+        await syncPushTokenWithBackend(Notifications).catch(() => {
+          return { synced: false, reason: 'exception' } as const;
+        });
       }
 
       const now = new Date();
@@ -682,25 +493,16 @@ export default function TabLayout() {
 
       await clearScheduledPrayerNotifications();
 
-      let scheduledCount = 0;
-      const scheduleErrors: string[] = [];
-
       for (const item of planned) {
-        const notifType = item.data.type;
+        const isJamaatReminder = item.data.type === 'jamaat-10';
 
-        const prayerChannelId =
-          notifType === 'jamaat-10' || notifType === 'jamaat-start'
-            ? PRAYER_JAMAAT_CHANNEL_ID
-            : notifType === 'prayer-start'
-            ? PRAYER_ADHAAN_CHANNEL_ID
-            : PRAYER_ALERT_CHANNEL_ID; // prayer-reminder-60 / prayer-reminder-30
+        const prayerChannelId = isJamaatReminder
+          ? PRAYER_JAMAAT_CHANNEL_ID
+          : PRAYER_ADHAAN_CHANNEL_ID;
 
-        const scheduledSound =
-          notifType === 'jamaat-10' || notifType === 'jamaat-start'
-            ? IQAMAH_BACKGROUND_SOUND_FILE
-            : notifType === 'prayer-start'
-            ? ADHAAN_BACKGROUND_SOUND_FILE
-            : 'default'; // gentle alert for 1hr / 30min reminders
+        const scheduledSound = isJamaatReminder
+          ? IQAMAH_BACKGROUND_SOUND_FILE
+          : ADHAAN_BACKGROUND_SOUND_FILE;
 
         const trigger = Platform.OS === 'android'
           ? ({ type: 'date', date: item.fireAt, channelId: prayerChannelId } as unknown as import('expo-notifications').NotificationTriggerInput)
@@ -717,34 +519,8 @@ export default function TabLayout() {
             },
             trigger,
           });
-          scheduledCount++;
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          scheduleErrors.push(msg);
-        }
-      }
-
-      if (__DEV__) {
-        if (scheduleErrors.length > 0) {
-          showBanner(
-            `Prayer scheduling: ${scheduledCount}/${planned.length} ok`,
-            `First error: ${scheduleErrors[0]}`,
-            8000,
-            'warning',
-          );
-        } else if (scheduledCount === 0 && planned.length > 0) {
-          showBanner(
-            'Prayer scheduling failed',
-            'No notifications were scheduled. Check exact alarm permission in Android settings.',
-            8000,
-            'warning',
-          );
-        } else {
-          showBanner(
-            `Prayer notifications scheduled`,
-            `${scheduledCount} notifications scheduled for next ${PRAYER_SCHEDULE_DAY_WINDOW} days.`,
-            4500,
-          );
+        } catch {
+          // Ignore individual schedule failures; future refreshes will retry.
         }
       }
     } catch {
@@ -752,10 +528,10 @@ export default function TabLayout() {
     } finally {
       schedulingPrayerNotificationsRef.current = false;
     }
-  }, [clearScheduledPrayerNotifications, ensurePrayerNotificationPermission, showBanner]);
+  }, [clearScheduledPrayerNotifications, ensurePrayerNotificationPermission]);
 
   useEffect(() => {
-    if (Platform.OS === 'web' || !Notifications) return;
+    if (Platform.OS === 'web') return;
 
     void schedulePrayerNotifications();
 
@@ -776,7 +552,10 @@ export default function TabLayout() {
   }, [schedulePrayerNotifications]);
 
   const maybeNotifyLiveStart = useCallback(async () => {
-    if (Platform.OS === 'web' || !Notifications) return;
+    if (Platform.OS === 'web') return;
+
+    const Notifications = await getNotificationsModule();
+    if (!Notifications) return;
 
     const enabled = (await AsyncStorage.getItem(LIVE_NOTIFY_KEY)) === 'true';
     if (!enabled) return;
@@ -861,12 +640,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color, size }) => (
-            <View>
-              <MaterialIcons name="home" size={size} color={color} />
-              {hasRecentPushSuccess ? <PushSuccessFlag /> : null}
-            </View>
-          ),
+          tabBarIcon: ({ color, size }) => <MaterialIcons name="home" size={size} color={color} />,
         }}
       />
       <Tabs.Screen

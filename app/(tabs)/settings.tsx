@@ -1,12 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Linking, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Constants from 'expo-constants';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
-import { syncPushTokenWithBackend } from '@/services/pushRegistrationService';
 import {
   isAdhaanMutedEnabled,
   isIqamahMutedEnabled,
@@ -23,32 +21,6 @@ const Notifications: ExpoNotificationsModule | null =
 
 const LIVE_NOTIFICATION_CHANNEL_ID = 'jmn-live-v2';
 const LIVE_NOTIFY_KEY = 'jmn_radio_notify';
-const EXPO_GO_NOTIFICATIONS_FALLBACK =
-  Constants.appOwnership === 'expo' &&
-  Number((Constants.expoConfig?.sdkVersion ?? '0').split('.')[0] || 0) >= 53;
-
-function formatPushSyncHint(reason: string | undefined): string {
-  const value = (reason ?? '').trim();
-  if (!value) return 'unknown';
-
-  if (value.includes('firebase-not-configured')) {
-    return 'Firebase is not configured for Android build. Add google-services.json and rebuild the dev app.';
-  }
-
-  if (value.includes('missing-project-id')) {
-    return 'Expo EAS project id is missing from app config.';
-  }
-
-  if (value.includes('permission-blocked-open-settings')) {
-    return 'Notifications are blocked at system level. Open system settings and allow notifications.';
-  }
-
-  if (value.includes('permission-not-granted')) {
-    return 'Notification permission has not been granted yet.';
-  }
-
-  return value;
-}
 
 type SwitchRowProps = {
   label: string;
@@ -99,8 +71,6 @@ export default function SettingsScreen() {
   const [prayerLiveAlertsEnabled, setPrayerLiveAlertsEnabled] = useState(true);
   const [adhaanMuted, setAdhaanMuted] = useState(false);
   const [iqamahMuted, setIqamahMuted] = useState(false);
-  const [notificationPermissionStatus, setNotificationPermissionStatus] = useState('unknown');
-  const [pushPermissionHint, setPushPermissionHint] = useState('');
 
   const palette = useMemo(
     () =>
@@ -152,25 +122,8 @@ export default function SettingsScreen() {
     };
   }, []);
 
-  const refreshNotificationPermissionStatus = useCallback(async (): Promise<string> => {
-    if (Platform.OS === 'web' || !Notifications) {
-      setNotificationPermissionStatus('web');
-      return 'web';
-    }
-
-    const current = await Notifications.getPermissionsAsync().catch(() => null);
-    const status = current?.status ?? 'unknown';
-    setNotificationPermissionStatus(status);
-    return status;
-  }, []);
-
-  useEffect(() => {
-    void refreshNotificationPermissionStatus();
-  }, [refreshNotificationPermissionStatus]);
-
   const ensureLiveNotificationPermission = useCallback(async (): Promise<boolean> => {
     if (Platform.OS === 'web' || !Notifications) return false;
-    if (EXPO_GO_NOTIFICATIONS_FALLBACK) return true;
 
     const current = await Notifications.getPermissionsAsync();
     let finalStatus = current.status;
@@ -209,44 +162,6 @@ export default function SettingsScreen() {
     },
     [ensureLiveNotificationPermission],
   );
-
-  const onRequestNotificationPermission = useCallback(async () => {
-    if (Platform.OS === 'web' || !Notifications) {
-      setPushPermissionHint('Push notifications are not available on web.');
-      return;
-    }
-
-    const requested = await Notifications.requestPermissionsAsync().catch(() => null);
-    const status = requested?.status ?? 'unknown';
-    setNotificationPermissionStatus(status);
-
-    if (status !== 'granted') {
-      if (requested?.canAskAgain === false) {
-        setPushPermissionHint('Permission is blocked by system. Use Open System Settings.');
-      } else {
-        setPushPermissionHint('Permission not granted yet. Try again and accept the OS prompt.');
-      }
-      return;
-    }
-
-    const sync = await syncPushTokenWithBackend(Notifications);
-    if (sync.synced) {
-      setPushPermissionHint('Permission granted and this phone is now registered.');
-      return;
-    }
-
-    setPushPermissionHint(`Permission granted, but token not synced: ${formatPushSyncHint(sync.reason)}`);
-  }, []);
-
-  const onOpenSystemSettings = useCallback(() => {
-    Linking.openSettings()
-      .then(() => {
-        setPushPermissionHint('Opened system settings. Enable notifications, then return to the app.');
-      })
-      .catch(() => {
-        setPushPermissionHint('Could not open settings automatically. Open app settings manually.');
-      });
-  }, []);
 
   const onTogglePrayerLiveAlerts = useCallback(async (value: boolean) => {
     setPrayerLiveAlertsEnabled(value);
@@ -341,60 +256,6 @@ export default function SettingsScreen() {
             textColor={palette.text}
             hintColor={palette.sub}
           />
-
-          <View style={[styles.inlineNotice, { backgroundColor: palette.chip, borderColor: palette.border }]}> 
-            <MaterialIcons name="shield" size={14} color={palette.sub} />
-            <View style={styles.permissionNoticeContent}>
-              <Text style={[styles.inlineNoticeText, { color: palette.sub }]}>
-                Push permission status: {notificationPermissionStatus}
-              </Text>
-              {pushPermissionHint ? (
-                <Text style={[styles.inlineNoticeText, { color: palette.sub }]}>{pushPermissionHint}</Text>
-              ) : null}
-            </View>
-          </View>
-
-          <View style={styles.buttonRow}>
-            <TouchableOpacity
-              activeOpacity={0.85}
-              style={[styles.actionButton, { borderColor: palette.border, backgroundColor: palette.chip }]}
-              onPress={() => {
-                void onRequestNotificationPermission();
-              }}
-            >
-              <MaterialIcons name="notifications" size={16} color={palette.text} />
-              <Text style={[styles.actionButtonText, { color: palette.text }]}>Request notification permission</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              activeOpacity={0.85}
-              style={[styles.actionButton, { borderColor: palette.border, backgroundColor: palette.chip }]}
-              onPress={onOpenSystemSettings}
-            >
-              <MaterialIcons name="open-in-new" size={16} color={palette.text} />
-              <Text style={[styles.actionButtonText, { color: palette.text }]}>Open system settings</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              activeOpacity={0.85}
-              style={[styles.actionButton, { borderColor: palette.border, backgroundColor: palette.chip }]}
-              onPress={() => {
-                void refreshNotificationPermissionStatus();
-              }}
-            >
-              <MaterialIcons name="refresh" size={16} color={palette.text} />
-              <Text style={[styles.actionButtonText, { color: palette.text }]}>Refresh permission status</Text>
-            </TouchableOpacity>
-          </View>
-
-          {EXPO_GO_NOTIFICATIONS_FALLBACK ? (
-            <View style={[styles.inlineNotice, { backgroundColor: palette.chip, borderColor: palette.border }]}> 
-              <MaterialIcons name="info" size={14} color={palette.sub} />
-              <Text style={[styles.inlineNoticeText, { color: palette.sub }]}>
-                Expo Go SDK 53+ shows in-app alerts. Use a development build for full system notifications.
-              </Text>
-            </View>
-          ) : null}
         </View>
 
         <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}> 
@@ -520,10 +381,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 16,
     fontWeight: '600',
-  },
-  permissionNoticeContent: {
-    flex: 1,
-    gap: 2,
   },
   buttonRow: {
     marginTop: 8,

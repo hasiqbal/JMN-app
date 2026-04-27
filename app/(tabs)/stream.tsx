@@ -38,8 +38,17 @@ import { refreshJmnLiveStatus } from '@/services/liveService';
 
 type ExpoNotificationsModule = typeof import('expo-notifications');
 
-const Notifications: ExpoNotificationsModule | null =
-  Platform.OS === 'web' ? null : require('expo-notifications');
+let notificationsModulePromise: Promise<ExpoNotificationsModule | null> | null = null;
+
+async function getNotificationsModule(): Promise<ExpoNotificationsModule | null> {
+  if (Platform.OS === 'web') return null;
+  if (!notificationsModulePromise) {
+    notificationsModulePromise = import('expo-notifications')
+      .then((mod) => mod)
+      .catch(() => null);
+  }
+  return notificationsModulePromise;
+}
 
 type StreamId = string;
 
@@ -1666,8 +1675,11 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
   }, [readCurrentPlaybackTime, seekActiveStreamToPosition]);
 
   const ensureNotificationPermission = useCallback(async () => {
-    if (Platform.OS === 'web' || !Notifications) return false;
+    if (Platform.OS === 'web') return false;
     if (EXPO_GO_NOTIFICATIONS_FALLBACK) return true;
+
+    const Notifications = await getNotificationsModule();
+    if (!Notifications) return false;
 
     const current = await Notifications.getPermissionsAsync();
     let finalStatus = current.status;

@@ -87,6 +87,15 @@ export async function syncPushTokenWithBackend(
       return { synced: false, reason: 'web-platform' };
     }
 
+    const maybeStorage = (globalThis as { localStorage?: unknown }).localStorage;
+    if (
+      maybeStorage &&
+      typeof maybeStorage === 'object' &&
+      typeof (maybeStorage as { getItem?: unknown }).getItem !== 'function'
+    ) {
+      return { synced: false, reason: 'unsupported-localstorage-runtime' };
+    }
+
     const projectId = resolveProjectId();
     if (!projectId) {
       return { synced: false, reason: 'missing-project-id' };
