@@ -1,9 +1,20 @@
 const FETCH_TIMEOUT_MS = 10000;
-const CACHE_KEY = '@daily_quran_v2';
+const CACHE_KEY = '@daily_quran_v3';
 const CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 const BASE_URL = 'https://api.quran.com/api/v4';
 const DEFAULT_TRANSLATION_IDS = [20, 131]; // Sahih International primary, fallback to legacy id
 const TOTAL_MUSHAF_PAGES = 604;
+
+// Verse restrictions for the daily reminder.
+// Empty arrays mean "no restriction".
+const INCLUDED_SURAHS: number[] = [];
+const EXCLUDED_SURAHS: number[] = [];
+const EXCLUDED_AYAH_RANGES: Array<{ surah: number; from: number; to: number }> = [];
+
+// Context behavior: on some days, include nearby verses in the full text.
+const INCLUDE_CONTEXT_EVERY_N_DAYS = 3;
+const CONTEXT_BEFORE_VERSES = 1;
+const CONTEXT_AFTER_VERSES = 1;
 
 type CachePayload = {
   updatedAt: number;
@@ -23,6 +34,14 @@ export type DailyQuranResult = {
   juzNumber: number;
   surahNumber: number;
   verseNumber: number;
+  contextVerseKeys: string[];
+};
+
+type ChapterVerse = {
+  verseNumber: number;
+  verseKey: string;
+  arabic: string;
+  english: string;
 };
 
 function stripHtml(value: string): string {
@@ -38,6 +57,28 @@ function dayOfYearUtc(): number {
   const start = new Date(Date.UTC(now.getUTCFullYear(), 0, 0));
   const diff = now.getTime() - start.getTime();
   return Math.floor(diff / 86_400_000);
+}
+
+function shouldIncludeVerse(surahNumber: number, verseNumber: number): boolean {
+  if (INCLUDED_SURAHS.length > 0 && !INCLUDED_SURAHS.includes(surahNumber)) {
+    return false;
+  }
+
+  if (EXCLUDED_SURAHS.includes(surahNumber)) {
+    return false;
+  }
+
+  for (const range of EXCLUDED_AYAH_RANGES) {
+    if (
+      range.surah === surahNumber
+      && verseNumber >= range.from
+      && verseNumber <= range.to
+    ) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 async function readCache(): Promise<DailyQuranResult | null> {
@@ -113,6 +154,53 @@ async function fetchTranslationForVerse(
   return '';
 }
 
+async function fetchChapterVerseMap(
+  surahNumber: number,
+  signal: AbortSignal,
+): Promise<Map<number, ChapterVerse>> {
+  for (const translationId of DEFAULT_TRANSLATION_IDS) {
+    const result = new Map<number, ChapterVerse>();
+    const perPage = 50;
+
+    for (let page = 1; page <= 12; page += 1) {
+      const url =
+        `${BASE_URL}/verses/by_chapter/${surahNumber}` +
+        `?per_page=${perPage}` +
+        `&page=${page}` +
+        `&translations=${translationId}` +
+        `&fields=verse_key,verse_number,text_uthmani` +
+        `&language=en`;
+
+      const data = await fetchJson(url, signal);
+      const verses: any[] = data?.verses ?? [];
+
+      for (const verse of verses) {
+        const verseNumber = Number(verse?.verse_number);
+        if (!Number.isFinite(verseNumber)) continue;
+
+        const verseKey = String(verse?.verse_key ?? `${surahNumber}:${verseNumber}`);
+        const arabic = String(verse?.text_uthmani ?? '').trim();
+        const english = stripHtml(String(verse?.translations?.[0]?.text ?? ''));
+
+        result.set(verseNumber, {
+          verseNumber,
+          verseKey,
+          arabic,
+          english,
+        });
+      }
+
+      if (verses.length < perPage) break;
+    }
+
+    if (result.size > 0) {
+      return result;
+    }
+  }
+
+  return new Map<number, ChapterVerse>();
+}
+
 export async function fetchDailyQuranReminder(): Promise<DailyQuranResult | null> {
   const cached = await readCache();
   if (cached) return cached;
@@ -142,18 +230,60 @@ export async function fetchDailyQuranReminder(): Promise<DailyQuranResult | null
       return null;
     }
 
-    const verseIndex = (day * 7) % candidates.length;
-    const selected = candidates[verseIndex];
-    const verseKey = String(selected?.verse_key ?? '');
-    const [surahRaw, verseRaw] = verseKey.split(':');
-    const surahNumber = Number(surahRaw);
-    const verseNumber = Number(verseRaw);
+    const startIndex = (day * 7) % candidates.length;
 
-    const translation = await fetchTranslationForVerse(
-      Number.isFinite(surahNumber) ? surahNumber : 1,
+    let selected: any | null = null;
+    let surahNumber = 0;
+    let verseNumber = 0;
+    let verseKey = '';
+
+    for (let offset = 0; offset < candidates.length; offset += 1) {
+      const candidate = candidates[(startIndex + offset) % candidates.length];
+      const candidateKey = String(candidate?.verse_key ?? '');
+      const [candidateSurahRaw, candidateVerseRaw] = candidateKey.split(':');
+      const candidateSurah = Number(candidateSurahRaw);
+      const candidateVerse = Number(candidateVerseRaw);
+
+      if (!Number.isFinite(candidateSurah) || !Number.isFinite(candidateVerse)) continue;
+      if (!shouldIncludeVerse(candidateSurah, candidateVerse)) continue;
+
+      selected = candidate;
+      verseKey = candidateKey;
+      surahNumber = candidateSurah;
+      verseNumber = candidateVerse;
+      break;
+    }
+
+    if (!selected) {
+      clearTimeout(timeoutId);
+      return null;
+    }
+
+    const chapterVerseMap = await fetchChapterVerseMap(surahNumber, controller.signal);
+    const directTranslation = chapterVerseMap.get(verseNumber)?.english ?? '';
+    const translation = directTranslation || await fetchTranslationForVerse(
+      surahNumber,
       verseKey,
       controller.signal,
     );
+
+    const shouldIncludeContext = day % INCLUDE_CONTEXT_EVERY_N_DAYS === 0;
+    const contextVerseNumbers = [verseNumber];
+
+    if (shouldIncludeContext) {
+      for (let i = CONTEXT_BEFORE_VERSES; i >= 1; i -= 1) {
+        const n = verseNumber - i;
+        if (n >= 1) contextVerseNumbers.unshift(n);
+      }
+      for (let i = 1; i <= CONTEXT_AFTER_VERSES; i += 1) {
+        contextVerseNumbers.push(verseNumber + i);
+      }
+    }
+
+    const contextRows = contextVerseNumbers
+      .filter((n) => shouldIncludeVerse(surahNumber, n))
+      .map((n) => chapterVerseMap.get(n))
+      .filter((row): row is ChapterVerse => !!row && row.english.length > 0);
 
     clearTimeout(timeoutId);
 
@@ -166,7 +296,9 @@ export async function fetchDailyQuranReminder(): Promise<DailyQuranResult | null
       arabic: String(selected?.text_uthmani ?? '').trim(),
       englishTranslation,
       // Keep text for compatibility with existing consumers.
-      text: englishTranslation,
+      text: contextRows.length > 1
+        ? contextRows.map((row) => `${row.verseKey} — ${row.english}`).join('\n\n')
+        : englishTranslation,
       preview,
       ref: verseKey ? `Quran ${verseKey}` : 'Quran Reminder',
       verseKey,
@@ -174,6 +306,7 @@ export async function fetchDailyQuranReminder(): Promise<DailyQuranResult | null
       juzNumber: Number(selected?.juz_number ?? 0),
       surahNumber: Number.isFinite(surahNumber) ? surahNumber : 0,
       verseNumber: Number.isFinite(verseNumber) ? verseNumber : 0,
+      contextVerseKeys: contextRows.map((row) => row.verseKey),
     };
 
     await writeCache(result);

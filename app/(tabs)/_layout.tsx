@@ -33,6 +33,7 @@ async function getNotificationsModule(): Promise<ExpoNotificationsModule | null>
 
 const HIDDEN_TAB_OPTIONS = { href: null };
 const LIVE_NOTIFICATION_CHANNEL_ID = 'jmn-live-v2';
+const GENERAL_NOTIFICATION_CHANNEL_ID = 'jmn-general-v1';
 const LIVE_NOTIFY_KEY = 'jmn_radio_notify';
 const LIVE_NOTIFY_TS_KEY = 'jmn_last_live_notify_ts';
 const LIVE_NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
@@ -139,6 +140,19 @@ function buildPrayerNotifications(prayer: PrayerTime, now: Date): PlannedPrayerN
   });
 
   return notifications;
+}
+
+async function ensureAndroidGeneralNotificationChannel(): Promise<void> {
+  const Notifications = await getNotificationsModule();
+  if (!Notifications || Platform.OS !== 'android') return;
+
+  await Notifications.setNotificationChannelAsync(GENERAL_NOTIFICATION_CHANNEL_ID, {
+    name: 'JMN General',
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 250, 150, 250],
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    sound: 'default',
+  }).catch(() => {});
 }
 
 async function ensureAndroidLiveNotificationChannel(): Promise<void> {
@@ -398,6 +412,7 @@ export default function TabLayout() {
       const Notifications = await getNotificationsModule();
       if (!Notifications) return;
 
+      await ensureAndroidGeneralNotificationChannel();
       await ensureAndroidLiveNotificationChannel();
       await ensureAndroidPrayerNotificationChannels();
 

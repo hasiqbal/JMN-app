@@ -296,6 +296,51 @@ export async function playAdhaanNowForTesting(options?: { ignoreMute?: boolean }
   }
 }
 
+export async function previewAdhaanUrl(url: string): Promise<boolean> {
+  if (Platform.OS === 'web') return false;
+
+  try {
+    if (!adhaanAudioModeReady) {
+      await setAudioModeAsync({
+        allowsRecording: false,
+        shouldPlayInBackground: true,
+        playsInSilentMode: true,
+        shouldRouteThroughEarpiece: false,
+        interruptionMode: 'doNotMix',
+      });
+      adhaanAudioModeReady = true;
+    }
+  } catch {
+    return false;
+  }
+
+  await stopActiveAdhaan();
+
+  try {
+    const player = createAudioPlayer({ uri: url }, { updateInterval: 400 });
+    activeAdhaanPlayer = player;
+    setPrayerAudioKind('adhaan');
+
+    player.addListener('playbackStatusUpdate', (status) => {
+      if (activeAdhaanPlayer !== player) return;
+      if (!(status as { didJustFinish?: boolean }).didJustFinish) return;
+
+      try { player.remove(); } catch {}
+
+      if (activeAdhaanPlayer === player) {
+        activeAdhaanPlayer = null;
+        setPrayerAudioKind(null);
+      }
+    });
+
+    player.play();
+    return true;
+  } catch {
+    await stopActiveAdhaan();
+    return false;
+  }
+}
+
 export function useQuranPrayerPopups(): void {
   const { showBanner } = useInAppBanner();
   const appStateRef = React.useRef<AppStateStatus>(AppState.currentState);

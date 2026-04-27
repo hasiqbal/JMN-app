@@ -8,11 +8,15 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import {
   isAdhaanMutedEnabled,
   isIqamahMutedEnabled,
+  playAdhaanNowForTesting,
+  previewAdhaanUrl,
   setAdhaanMutedEnabled,
   setIqamahMutedEnabled,
   stopActiveAdhaan,
+  subscribePrayerAudioState,
 } from '@/hooks/useQuranPrayerPopups';
 import {
+  type AdhaanAudioOption,
   ADHAAN_AUDIO_OPTIONS,
   ADHAAN_AUDIO_STORAGE_KEY,
   DEFAULT_ADHAAN_AUDIO_URL,
@@ -94,6 +98,7 @@ export default function SettingsScreen() {
   const [adhaanMuted, setAdhaanMuted] = useState(false);
   const [iqamahMuted, setIqamahMuted] = useState(false);
   const [selectedAdhaanUrl, setSelectedAdhaanUrl] = useState(DEFAULT_ADHAAN_AUDIO_URL);
+  const [previewingId, setPreviewingId] = useState<string | null>(null);
 
   const palette = useMemo(
     () =>
@@ -145,6 +150,14 @@ export default function SettingsScreen() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    return subscribePrayerAudioState((state) => {
+      if (!state.active) {
+        setPreviewingId(null);
+      }
+    });
   }, []);
 
   const ensureLiveNotificationPermission = useCallback(async (): Promise<boolean> => {
@@ -274,6 +287,7 @@ export default function SettingsScreen() {
       channelSound,
     })).catch(() => {});
 
+    void playAdhaanNowForTesting({ ignoreMute: true });
     showBanner('Adhaan test scheduled', `${info} Prayer schedules: ${ownPrayerCount}. Channel sound: ${channelSound}.`, 10000);
   }, [showBanner]);
 
@@ -376,6 +390,19 @@ export default function SettingsScreen() {
     showBanner('Adhaan updated', 'Selected adhaan will be used for in-app prayer audio.', 4500);
   }, [showBanner]);
 
+  const onPreviewAdhaan = useCallback(async (option: AdhaanAudioOption) => {
+    if (previewingId === option.id) {
+      setPreviewingId(null);
+      await stopActiveAdhaan();
+      return;
+    }
+    setPreviewingId(option.id);
+    const ok = await previewAdhaanUrl(option.url);
+    if (!ok) {
+      setPreviewingId(null);
+    }
+  }, [previewingId]);
+
   return (
     <View style={[styles.container, { backgroundColor: palette.bg, paddingTop: insets.top + 8 }]}> 
       <ScrollView
@@ -453,24 +480,38 @@ export default function SettingsScreen() {
           <View style={styles.buttonRow}>
             {ADHAAN_AUDIO_OPTIONS.map((option) => {
               const selected = option.url === selectedAdhaanUrl;
+              const previewing = previewingId === option.id;
               return (
-                <TouchableOpacity
+                <View
                   key={option.id}
-                  activeOpacity={0.85}
                   style={[
-                    styles.actionButton,
+                    styles.adhaanOptionRow,
                     {
                       borderColor: selected ? palette.accent : palette.border,
                       backgroundColor: selected ? `${palette.accent}20` : palette.chip,
                     },
                   ]}
-                  onPress={() => {
-                    void onSelectAdhaan(option.url);
-                  }}
                 >
-                  <MaterialIcons name={selected ? 'check-circle' : 'radio-button-unchecked'} size={16} color={selected ? palette.accent : palette.text} />
-                  <Text style={[styles.actionButtonText, { color: palette.text }]}>{option.label}</Text>
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.adhaanOptionSelect}
+                    activeOpacity={0.85}
+                    onPress={() => void onSelectAdhaan(option.url)}
+                  >
+                    <MaterialIcons name={selected ? 'check-circle' : 'radio-button-unchecked'} size={16} color={selected ? palette.accent : palette.text} />
+                    <Text style={[styles.actionButtonText, { color: palette.text }]}>{option.label}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => void onPreviewAdhaan(option)}
+                    style={styles.adhaanPreviewBtn}
+                  >
+                    <MaterialIcons
+                      name={previewing ? 'stop-circle' : 'play-circle-outline'}
+                      size={24}
+                      color={previewing ? palette.accent : palette.sub}
+                    />
+                  </TouchableOpacity>
+                </View>
               );
             })}
           </View>
@@ -645,5 +686,24 @@ const styles = StyleSheet.create({
   actionButtonText: {
     fontSize: 13,
     fontWeight: '700',
+  },
+  adhaanOptionRow: {
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  adhaanOptionSelect: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  adhaanPreviewBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 10,
   },
 });

@@ -2549,7 +2549,7 @@ export default function HomeScreen() {
   const versePreviewUrdu = '';
   const verseReference = dailyQuran?.ref ?? fallbackVerseReference;
   const verseArabic = dailyQuran?.arabic ?? '';
-  const verseFullText = dailyQuran?.englishTranslation ?? dailyQuran?.text ?? fallbackVerseFullText;
+  const verseFullText = dailyQuran?.text ?? dailyQuran?.englishTranslation ?? fallbackVerseFullText;
   const expandHintEn = 'Tap to open';
   const expandHintUr = 'کھولنے کے لیے ٹیپ کریں';
 
