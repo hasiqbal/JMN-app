@@ -808,11 +808,15 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
         {/* Disclaimer */}
         <View style={[howToStyles.disclaimer, N && { backgroundColor: N.surface, borderColor: N.border }]}>
           <MaterialIcons name="menu-book" size={14} color={N ? N.textMuted : Colors.textSubtle} />
-          <InlineArabicText
-            text="یہ رہنما حنفی مسلک کے مطابق ہیں۔ ذاتی مسائل کے لیے ہمیشہ اپنے مقامی مستند عالم سے رہنمائی لیں۔"
-            nightMode={nightMode}
-            style={[howToStyles.disclaimerText, N && { color: N.textMuted }]}
-          />
+          {selectedLanguageCode === 'ur' ? (
+            <InlineArabicText
+              text="یہ رہنما حنفی مسلک کے مطابق ہیں۔ ذاتی مسائل کے لیے ہمیشہ اپنے مقامی مستند عالم سے رہنمائی لیں۔"
+              nightMode={nightMode}
+              style={[howToStyles.disclaimerText, N && { color: N.textMuted }]}
+            />
+          ) : (
+            <Text style={[howToStyles.disclaimerText, N && { color: N.textMuted }]}>These guides follow the Hanafi school. For personal rulings, always consult a qualified local scholar.</Text>
+          )}
         </View>
         <View style={{ height: 64 }} />
       </ScrollView>
