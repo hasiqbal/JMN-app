@@ -54,6 +54,21 @@ async function readCache(): Promise<DailySunnahResult | null> {
   return null;
 }
 
+async function readLastSuccessfulCache(): Promise<DailySunnahResult | null> {
+  if (memoryCache?.data) return memoryCache.data;
+
+  try {
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+    const raw = await AsyncStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const payload: CachePayload = JSON.parse(raw);
+    memoryCache = payload;
+    return payload.data;
+  } catch {
+    return null;
+  }
+}
+
 async function writeCache(data: DailySunnahResult): Promise<void> {
   const payload: CachePayload = { updatedAt: Date.now(), data };
   memoryCache = payload;
@@ -93,7 +108,13 @@ export async function fetchDailySunnah(): Promise<DailySunnahResult | null> {
       return null;
     }
 
-    const data: DailySunnahResult = await response.json();
+    const parsed = await response.json() as DailySunnahResult | { noCandidate?: boolean };
+    if ('noCandidate' in parsed && parsed.noCandidate) {
+      const lastSuccessful = await readLastSuccessfulCache();
+      return lastSuccessful;
+    }
+
+    const data: DailySunnahResult = parsed as DailySunnahResult;
     await writeCache(data);
     return data;
   } catch (err) {

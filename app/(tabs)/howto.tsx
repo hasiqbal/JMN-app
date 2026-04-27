@@ -15,7 +15,6 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import Reanimated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { Colors, Spacing, Radius } from '@/constants/theme';
-import { HOW_TO_GUIDES } from '@/howtoguides';
 import type { HowToGuide, HowToSection, HowToStep, HowToStepImage } from '@/howtoguides/types';
 import { useNightMode } from '@/hooks/useNightMode';
 import { fetchHowToGuides } from '@/services/contentService';
@@ -286,8 +285,17 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
     }
 
     try {
-      const rows = await fetchHowToGuides(selectedLanguageCode, { forceRefresh: asRefresh });
-      setRemoteGuides(rows);
+      if (asRefresh) {
+        const rows = await fetchHowToGuides(selectedLanguageCode, { forceRefresh: true });
+        setRemoteGuides(rows);
+      } else {
+        // Render quickly from cache, then revalidate from network so portal edits appear without manual refresh.
+        const cachedRows = await fetchHowToGuides(selectedLanguageCode, { forceRefresh: false });
+        setRemoteGuides(cachedRows);
+
+        const liveRows = await fetchHowToGuides(selectedLanguageCode, { forceRefresh: true });
+        setRemoteGuides(liveRows);
+      }
       setRemoteError(null);
     } catch {
       setRemoteGuides([]);
@@ -335,11 +343,10 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
 
   const activeGuides = useMemo(
     () => {
-      const fallback = HOW_TO_GUIDES.filter((guide) => (guide.language ?? 'en') === selectedLanguageCode);
       if (remoteGuides.length > 0) return remoteGuides;
-      return remoteError ? [] : fallback;
+      return [];
     },
-    [remoteError, remoteGuides, selectedLanguageCode]
+    [remoteGuides]
   );
 
   const guideCards = useMemo(

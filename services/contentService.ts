@@ -1225,33 +1225,58 @@ async function fetchHowToGuidesFromNetwork(language: 'en' | 'ur'): Promise<HowTo
   const guideIds = guideRows.map((row) => row.id);
   const groupIds = Array.from(new Set(guideRows.map((row) => row.group_id)));
 
-  const [groupsResult, sectionsResult] = await Promise.all([
-    supabase
-      .from('howto_groups')
-      .select('id,name,urdu_name')
-      .in('id', groupIds),
-    supabase
-      .from('howto_sections')
-      .select('id,guide_id,heading,section_order')
-      .in('guide_id', guideIds)
-      .order('section_order', { ascending: true }),
-  ]);
+  const groupsResult = await supabase
+    .from('howto_groups')
+    .select('id,name,urdu_name')
+    .in('id', groupIds);
 
   const groupRows = groupsResult.error ? [] : ((groupsResult.data ?? []) as HowToGroupRow[]);
-  const sectionRows = sectionsResult.error ? [] : ((sectionsResult.data ?? []) as HowToSectionRow[]);
+
+  const QUERY_CHUNK_SIZE = 120;
+
+  const guideIdChunks: string[][] = [];
+  for (let i = 0; i < guideIds.length; i += QUERY_CHUNK_SIZE) {
+    guideIdChunks.push(guideIds.slice(i, i + QUERY_CHUNK_SIZE));
+  }
+
+  let sectionRows: HowToSectionRow[] = [];
+  if (guideIdChunks.length > 0) {
+    const sectionChunkResults = await Promise.all(
+      guideIdChunks.map(async (chunk) => supabase
+        .from('howto_sections')
+        .select('id,guide_id,heading,section_order')
+        .in('guide_id', chunk)
+        .order('section_order', { ascending: true })),
+    );
+
+    for (const result of sectionChunkResults) {
+      if (!result.error) {
+        sectionRows.push(...((result.data ?? []) as HowToSectionRow[]));
+      }
+    }
+  }
 
   const sectionIds = sectionRows.map((section) => section.id);
 
   let stepRows: HowToStepRow[] = [];
   if (sectionIds.length > 0) {
-    const { data: steps, error: stepsError } = await supabase
-      .from('howto_steps')
-      .select('id,section_id,step_order,title,detail,note')
-      .in('section_id', sectionIds)
-      .order('step_order', { ascending: true });
+    const sectionIdChunks: string[][] = [];
+    for (let i = 0; i < sectionIds.length; i += QUERY_CHUNK_SIZE) {
+      sectionIdChunks.push(sectionIds.slice(i, i + QUERY_CHUNK_SIZE));
+    }
 
-    if (!stepsError) {
-      stepRows = (steps ?? []) as HowToStepRow[];
+    const stepChunkResults = await Promise.all(
+      sectionIdChunks.map(async (chunk) => supabase
+        .from('howto_steps')
+        .select('id,section_id,step_order,title,detail,note')
+        .in('section_id', chunk)
+        .order('step_order', { ascending: true })),
+    );
+
+    for (const result of stepChunkResults) {
+      if (!result.error) {
+        stepRows.push(...((result.data ?? []) as HowToStepRow[]));
+      }
     }
   }
 
@@ -1260,22 +1285,41 @@ async function fetchHowToGuidesFromNetwork(language: 'en' | 'ur'): Promise<HowTo
   let blockRows: HowToStepBlockRow[] = [];
   let imageRows: HowToStepImageRow[] = [];
   if (stepIds.length > 0) {
-    const [blocksResult, imagesResult] = await Promise.all([
-      supabase
-        .from('howto_step_blocks')
-        .select('step_id,block_order,kind,payload')
-        .in('step_id', stepIds)
-        .order('block_order', { ascending: true }),
-      supabase
-        .from('howto_step_images')
-        .select('step_id,display_order,image_url,caption,source')
-        .in('step_id', stepIds)
-        .order('display_order', { ascending: true }),
+    // Large `in(...)` filters can exceed transport/query limits and return empty datasets.
+    // Query step-linked rows in chunks so structured blocks keep loading for big guide trees.
+    const STEP_ID_CHUNK_SIZE = 120;
+    const stepIdChunks: string[][] = [];
+    for (let i = 0; i < stepIds.length; i += STEP_ID_CHUNK_SIZE) {
+      stepIdChunks.push(stepIds.slice(i, i + STEP_ID_CHUNK_SIZE));
+    }
+
+    const [blockChunkResults, imageChunkResults] = await Promise.all([
+      Promise.all(
+        stepIdChunks.map(async (chunk) => supabase
+          .from('howto_step_blocks')
+          .select('step_id,block_order,kind,payload')
+          .in('step_id', chunk)
+          .order('block_order', { ascending: true })),
+      ),
+      Promise.all(
+        stepIdChunks.map(async (chunk) => supabase
+          .from('howto_step_images')
+          .select('step_id,display_order,image_url,caption,source')
+          .in('step_id', chunk)
+          .order('display_order', { ascending: true })),
+      ),
     ]);
 
-    if (!blocksResult.error && !imagesResult.error) {
-      blockRows = (blocksResult.data ?? []) as HowToStepBlockRow[];
-      imageRows = (imagesResult.data ?? []) as HowToStepImageRow[];
+    for (const result of blockChunkResults) {
+      if (!result.error) {
+        blockRows.push(...((result.data ?? []) as HowToStepBlockRow[]));
+      }
+    }
+
+    for (const result of imageChunkResults) {
+      if (!result.error) {
+        imageRows.push(...((result.data ?? []) as HowToStepImageRow[]));
+      }
     }
   }
 
