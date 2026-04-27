@@ -25,6 +25,7 @@ import { usePrayerTimes } from '@/hooks/usePrayerTimes';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import {
   fetchAnnouncements,
+  translateTextToUrdu,
   type AnnouncementRow,
 } from '@/services/contentService';
 import { fetchEidUlAdha, fetchEidUlFitr } from '@/services/eidService';
@@ -2578,6 +2579,12 @@ export default function HomeScreen() {
         ? verseArabic
         : '';
 
+  const requestActiveSheetUrduText = useCallback(async () => {
+    const source = activeSheetText.trim();
+    if (!source) return '';
+    return translateTextToUrdu(source);
+  }, [activeSheetText]);
+
   const bst = (() => {
     const y = currentTime.getFullYear();
     const lsm = new Date(y, 2, 31); while (lsm.getDay() !== 0) lsm.setDate(lsm.getDate() - 1);
@@ -3232,6 +3239,8 @@ export default function HomeScreen() {
       fullText={activeSheetText}
       reference={activeSheetReference}
       secondaryText={activeSheetArabic}
+      showUrduToggle={activeSacredPanel !== null}
+      onRequestUrduText={activeSacredPanel ? requestActiveSheetUrduText : undefined}
       footerActionLabel={activeSacredPanel === 'hadith' ? 'Open full Hadith' : activeSacredPanel === 'verse' ? 'Open full Verse' : undefined}
       onFooterAction={
         activeSacredPanel

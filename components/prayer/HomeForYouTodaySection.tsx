@@ -986,7 +986,7 @@ function QuranPortionCard({
   const accentColor = nightMode ? '#4FE948' : (levelIdx !== null ? lv.color : '#4CAF82');
   const cardWidth = Math.max(300, windowWidth - (Spacing.md * 2));
   const nextMissedJuz = pendingMissedDays[0] ?? null;
-  const shouldRenderCatchupBanner = levelIdx === 3 && showCatchupBanner && pendingMissedDays.length > 0;
+  const shouldRenderCatchupBanner = levelIdx === 3 && pendingMissedDays.length > 0;
 
   // ── Pick content based on level ────────────────────────────────────────
   let badge = '';

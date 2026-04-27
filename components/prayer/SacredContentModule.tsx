@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  ActivityIndicator,
   Modal,
   Platform,
   Pressable,
@@ -40,6 +41,8 @@ export type SacredReadingSheetProps = {
   fullText: string;
   reference: string;
   secondaryText?: string;
+  showUrduToggle?: boolean;
+  onRequestUrduText?: () => Promise<string>;
   footerActionLabel?: string;
   onFooterAction?: () => void;
   onClose: () => void;
@@ -346,16 +349,54 @@ export function SacredReadingSheet({
   fullText,
   reference,
   secondaryText,
+  showUrduToggle,
+  onRequestUrduText,
   footerActionLabel,
   onFooterAction,
   onClose,
   nightMode,
 }: SacredReadingSheetProps) {
   const palette = getPalette(nightMode);
-  const sheetSegments = fullText
+  const [languageMode, setLanguageMode] = React.useState<'english' | 'urdu'>('english');
+  const [resolvedUrduText, setResolvedUrduText] = React.useState('');
+  const [translatingUrdu, setTranslatingUrdu] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!visible) return;
+    setLanguageMode('english');
+    setTranslatingUrdu(false);
+  }, [visible, title, fullText]);
+
+  const supportsUrduToggle = showUrduToggle === true && !!onRequestUrduText;
+  const displayText = languageMode === 'urdu' && resolvedUrduText ? resolvedUrduText : fullText;
+  const sheetSegments = displayText
     .split(/\n{2,}/)
     .map((segment) => segment.trim())
     .filter(Boolean);
+
+  const handleSelectEnglish = React.useCallback(() => {
+    setLanguageMode('english');
+  }, []);
+
+  const handleSelectUrdu = React.useCallback(async () => {
+    setLanguageMode('urdu');
+
+    if (!onRequestUrduText || translatingUrdu || resolvedUrduText.trim()) {
+      return;
+    }
+
+    setTranslatingUrdu(true);
+    try {
+      const translated = (await onRequestUrduText()).trim();
+      if (translated) {
+        setResolvedUrduText(translated);
+      }
+    } catch {
+      // Keep English visible when translation is unavailable.
+    } finally {
+      setTranslatingUrdu(false);
+    }
+  }, [onRequestUrduText, resolvedUrduText, translatingUrdu]);
 
   return (
     <Modal
@@ -405,8 +446,49 @@ export function SacredReadingSheet({
           >
             <Text style={[styles.sheetReference, { color: palette.sheetSubText }]}>{reference}</Text>
 
-            {!!secondaryText?.trim() && (
-              <Text style={[styles.sheetArabicText, { color: palette.sheetArabic }]}>{secondaryText.trim()}</Text>
+            {supportsUrduToggle && (
+              <View style={[styles.sheetLanguageToggle, { borderColor: palette.sheetBorder, backgroundColor: palette.segmentedBg }]}>
+                <Pressable
+                  onPress={handleSelectEnglish}
+                  style={[
+                    styles.sheetLanguageToggleOption,
+                    languageMode === 'english' && { backgroundColor: palette.segmentedActiveBg },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.sheetLanguageToggleOptionText,
+                      { color: languageMode === 'english' ? palette.segmentedTextActive : palette.segmentedText },
+                    ]}
+                  >
+                    English
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => {
+                    void handleSelectUrdu();
+                  }}
+                  style={[
+                    styles.sheetLanguageToggleOption,
+                    languageMode === 'urdu' && { backgroundColor: palette.segmentedActiveBg },
+                  ]}
+                >
+                  <View style={styles.sheetLanguageToggleUrduRow}>
+                    <Text
+                      style={[
+                        styles.sheetLanguageToggleOptionText,
+                        { color: languageMode === 'urdu' ? palette.segmentedTextActive : palette.segmentedText },
+                      ]}
+                    >
+                      اردو
+                    </Text>
+                    {translatingUrdu && languageMode === 'urdu' && !resolvedUrduText ? (
+                      <ActivityIndicator size="small" color={palette.segmentedTextActive} />
+                    ) : null}
+                  </View>
+                </Pressable>
+              </View>
             )}
 
             {sheetSegments.length > 0 ? (
@@ -426,7 +508,11 @@ export function SacredReadingSheet({
                 );
               })
             ) : (
-              <Text style={[styles.sheetBodyText, { color: palette.sheetText }]}>{fullText}</Text>
+              <Text style={[styles.sheetBodyText, { color: palette.sheetText }]}>{displayText}</Text>
+            )}
+
+            {!!secondaryText?.trim() && (
+              <Text style={[styles.sheetArabicText, { color: palette.sheetArabic }]}>{secondaryText.trim()}</Text>
             )}
           </ScrollView>
 
@@ -635,7 +721,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 18,
     lineHeight: 24,
-    fontWeight: '700',
+    fontWeight: '400',
   },
   sheetCloseButton: {
     width: 32,
@@ -655,24 +741,51 @@ const styles = StyleSheet.create({
   sheetReference: {
     fontSize: 13,
     lineHeight: 19,
-    fontWeight: '600',
+    fontWeight: '400',
     marginBottom: 12,
+  },
+  sheetLanguageToggle: {
+    borderWidth: 1,
+    borderRadius: Radius.full,
+    padding: 3,
+    marginBottom: 12,
+    flexDirection: 'row',
+    gap: 4,
+  },
+  sheetLanguageToggleOption: {
+    flex: 1,
+    minHeight: 34,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  sheetLanguageToggleOptionText: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '400',
+  },
+  sheetLanguageToggleUrduRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   sheetArabicText: {
     fontSize: 23,
     lineHeight: 38,
     fontWeight: '400',
     textAlign: 'right',
-    marginBottom: 14,
+    marginTop: 6,
+    marginBottom: 10,
   },
   sheetBodyText: {
     fontSize: 16,
     lineHeight: 27,
-    fontWeight: '500',
+    fontWeight: '400',
     marginBottom: 12,
   },
   sheetBodyTextUrdu: {
-    fontFamily: 'UrduNastaliqBold',
+    fontFamily: 'UrduNastaliq',
     writingDirection: 'rtl',
     textAlign: 'right',
     fontSize: 24,
@@ -695,6 +808,6 @@ const styles = StyleSheet.create({
   sheetFooterActionText: {
     fontSize: 13,
     lineHeight: 18,
-    fontWeight: '600',
+    fontWeight: '400',
   },
 });
