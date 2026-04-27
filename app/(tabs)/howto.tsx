@@ -423,6 +423,7 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
   const renderGuideCard = (guide: HowToGuide) => {
     const isOpen = expandedGuide === guide.id;
     const { english, arabic } = splitBilingualTitle(guide.title);
+    const arabicForCard = selectedLanguageCode === 'ur' ? arabic : null;
     return (
       <View
         key={guide.id}
@@ -443,8 +444,8 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
             {english ? <Text style={[howToStyles.guideTitle, N && { color: N.text }]}>{english}</Text> : null}
-            {arabic ? (
-              <Text style={[howToStyles.guideTitleArabic, N && { color: N.textSub }]}>{arabic}</Text>
+            {arabicForCard ? (
+              <Text style={[howToStyles.guideTitleArabic, N && { color: N.textSub }]}>{arabicForCard}</Text>
             ) : null}
             <Text style={[howToStyles.guideSub, N && { color: N.textMuted }]}>{guide.subtitle}</Text>
           </View>
