@@ -36,8 +36,9 @@ const LIVE_NOTIFICATION_CHANNEL_ID = 'jmn-live-v2';
 const LIVE_NOTIFY_KEY = 'jmn_radio_notify';
 const LIVE_NOTIFY_TS_KEY = 'jmn_last_live_notify_ts';
 const LIVE_NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
-const PRAYER_ADHAAN_CHANNEL_ID = 'jmn-prayer-adhaan-v2';
-const PRAYER_JAMAAT_CHANNEL_ID = 'jmn-prayer-jamaat-v2';
+const LIVE_PRAYER_COMBINE_WINDOW_MS = 20 * 1000;
+const PRAYER_ADHAAN_CHANNEL_ID = 'jmn-prayer-adhaan-v4';
+const PRAYER_JAMAAT_CHANNEL_ID = 'jmn-prayer-jamaat-v4';
 const PRAYER_SILENT_CHANNEL_ID = 'jmn-prayer-silent-v3';
 const PRAYER_ALERT_CHANNEL_ID = 'jmn-prayer-alerts-v1';
 const ADHAAN_BACKGROUND_SOUND_FILE = 'adhaan.mp3';
@@ -52,6 +53,7 @@ const JAMAAT_REMINDER_MINUTES = 10;
 const NOTIFICATION_MIN_LEAD_MS = 30 * 1000;
 const ANDROID_PRAYER_START_ADVANCE_MS = 60 * 1000;
 const IS_EXPO_GO = Constants.appOwnership === 'expo';
+const FARD_PRAYER_NAMES = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'] as const;
 
 const NON_PRAYABLE_NAMES = new Set(['Sunrise', 'Ishraq', 'Zawaal']);
 
@@ -79,6 +81,17 @@ function parseIqamahDate(iqamah: string | undefined, baseDate: Date): Date | nul
 
   const parsed = new Date(baseDate);
   parsed.setHours(hours, minutes, 0, 0);
+
+  // Some datasets may store iqamah in 12-hour style (e.g. 1:30) while
+  // prayer start is in 24-hour style (e.g. 13:00). If parsed time appears to
+  // be in the past for this prayer, roll forward by 12h when reasonable.
+  if (parsed.getTime() < baseDate.getTime() - 5 * 60 * 1000) {
+    const plusTwelve = new Date(parsed.getTime() + 12 * 60 * 60 * 1000);
+    if (plusTwelve.getTime() >= baseDate.getTime() - 5 * 60 * 1000) {
+      return plusTwelve;
+    }
+  }
+
   return parsed;
 }
 
@@ -491,16 +504,33 @@ export default function TabLayout() {
         return true;
       });
 
+      if (__DEV__) {
+        const hasTypeForPrayer = (type: PlannedPrayerNotification['data']['type'], prayerName: string) =>
+          planned.some((item) => item.data.type === type && item.data.prayerName === prayerName);
+
+        const missingPrayerStart = FARD_PRAYER_NAMES.filter((name) => !hasTypeForPrayer('prayer-start', name));
+        const missingJamaatReminder = FARD_PRAYER_NAMES.filter((name) => !hasTypeForPrayer('jamaat-10', name));
+
+        if (missingPrayerStart.length > 0 || missingJamaatReminder.length > 0) {
+          showBanner(
+            'Prayer schedule coverage warning',
+            `Missing prayer-start: ${missingPrayerStart.join(', ') || 'none'}; missing jamaat-10: ${missingJamaatReminder.join(', ') || 'none'}.`,
+            10000,
+            'warning',
+          );
+        }
+      }
+
       await clearScheduledPrayerNotifications();
 
       for (const item of planned) {
-        const isJamaatReminder = item.data.type === 'jamaat-10';
+        const useIqamahSound = item.data.type === 'jamaat-10';
 
-        const prayerChannelId = isJamaatReminder
+        const prayerChannelId = useIqamahSound
           ? PRAYER_JAMAAT_CHANNEL_ID
           : PRAYER_ADHAAN_CHANNEL_ID;
 
-        const scheduledSound = isJamaatReminder
+        const scheduledSound = useIqamahSound
           ? IQAMAH_BACKGROUND_SOUND_FILE
           : ADHAAN_BACKGROUND_SOUND_FILE;
 
@@ -528,7 +558,7 @@ export default function TabLayout() {
     } finally {
       schedulingPrayerNotificationsRef.current = false;
     }
-  }, [clearScheduledPrayerNotifications, ensurePrayerNotificationPermission]);
+  }, [clearScheduledPrayerNotifications, ensurePrayerNotificationPermission, showBanner]);
 
   useEffect(() => {
     if (Platform.OS === 'web') return;
@@ -568,17 +598,76 @@ export default function TabLayout() {
     const lastSentTs = lastRaw ? Number(lastRaw) : 0;
     if (Number.isFinite(lastSentTs) && now - lastSentTs < LIVE_NOTIFY_COOLDOWN_MS) return;
 
+    const getTriggerTimeMs = (trigger: unknown): number | null => {
+      if (!trigger || typeof trigger !== 'object') return null;
+      const maybeDate = (trigger as { date?: unknown }).date;
+      if (!maybeDate) return null;
+      if (maybeDate instanceof Date) return maybeDate.getTime();
+      if (typeof maybeDate === 'number') return maybeDate;
+      if (typeof maybeDate === 'string') {
+        const parsed = Date.parse(maybeDate);
+        return Number.isFinite(parsed) ? parsed : null;
+      }
+      return null;
+    };
+
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync().catch(() => []);
+    const overlappingPrayer = scheduled
+      .filter((item) => {
+        const data = item.content.data as Record<string, unknown> | undefined;
+        if (data?.scope !== PRAYER_NOTIFICATION_SCOPE) return false;
+        const triggerTs = getTriggerTimeMs(item.trigger);
+        if (!Number.isFinite(triggerTs)) return false;
+        return Math.abs((triggerTs as number) - now) <= LIVE_PRAYER_COMBINE_WINDOW_MS;
+      })
+      .sort((a, b) => {
+        const aTs = getTriggerTimeMs(a.trigger) ?? 0;
+        const bTs = getTriggerTimeMs(b.trigger) ?? 0;
+        return aTs - bTs;
+      })[0];
+
+    const combinedData = (overlappingPrayer?.content?.data ?? null) as Record<string, unknown> | null;
+    const combinedType = typeof combinedData?.type === 'string' ? combinedData.type : null;
+    const combinedPrayerName = typeof combinedData?.prayerName === 'string' ? combinedData.prayerName : 'Prayer';
+    const combiningWithPrayer = combinedType === 'jamaat-10' || combinedType === 'prayer-start';
+
+    if (combiningWithPrayer && typeof overlappingPrayer?.identifier === 'string') {
+      await Notifications.cancelScheduledNotificationAsync(overlappingPrayer.identifier).catch(() => {});
+    }
+
+    const useIqamahSound = combinedType === 'jamaat-10';
+    const liveOrCombinedChannelId = combiningWithPrayer
+      ? (useIqamahSound ? PRAYER_JAMAAT_CHANNEL_ID : PRAYER_ADHAAN_CHANNEL_ID)
+      : LIVE_NOTIFICATION_CHANNEL_ID;
+
     const liveTrigger = Platform.OS === 'android'
-      ? ({ type: 'timeInterval', seconds: 1, channelId: LIVE_NOTIFICATION_CHANNEL_ID } as unknown as import('expo-notifications').NotificationTriggerInput)
+      ? ({ type: 'timeInterval', seconds: 1, channelId: liveOrCombinedChannelId } as unknown as import('expo-notifications').NotificationTriggerInput)
       : null;
+
+    const combinedTitle = combinedType === 'jamaat-10'
+      ? `JMN Radio live • ${combinedPrayerName} jamaat in ${JAMAAT_REMINDER_MINUTES} min`
+      : `JMN Radio live • ${combinedPrayerName} prayer time`;
+
+    const combinedBody = combinedType === 'jamaat-10'
+      ? `${combinedPrayerName} jamaat starts in ${JAMAAT_REMINDER_MINUTES} minutes. Tap to open live stream.`
+      : `${combinedPrayerName} time has started. Tap to open JMN live stream.`;
 
     try {
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: 'JMN Radio is now live',
-          body: "Tap to open Jami' Masjid Noorani live stream.",
-          sound: 'default',
-          data: { route: '/stream', type: 'jmn-live' },
+          title: combiningWithPrayer ? combinedTitle : 'JMN Radio is now live',
+          body: combiningWithPrayer ? combinedBody : "Tap to open Jami' Masjid Noorani live stream.",
+          sound: combiningWithPrayer
+            ? (useIqamahSound ? IQAMAH_BACKGROUND_SOUND_FILE : ADHAAN_BACKGROUND_SOUND_FILE)
+            : 'default',
+          data: combiningWithPrayer
+            ? {
+                route: '/stream',
+                type: 'jmn-live-prayer-combined',
+                prayerType: combinedType,
+                prayerName: combinedPrayerName,
+              }
+            : { route: '/stream', type: 'jmn-live' },
         },
         trigger: liveTrigger,
       });

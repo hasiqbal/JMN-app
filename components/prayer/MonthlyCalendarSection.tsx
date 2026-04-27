@@ -4,10 +4,12 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Pressable as RNPressable,
+  Platform,
   ScrollView,
   useWindowDimensions,
 } from 'react-native';
-import { Pressable } from 'react-native-gesture-handler';
+import { Pressable as GHPressable, ScrollView as GestureScrollView } from 'react-native-gesture-handler';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
@@ -91,6 +93,9 @@ const STRIP_TEXT_DAY = '#9AA09A';
 const STRIP_TEXT_HIJRI = '#C59B2D';
 const STRIP_TEXT_HIJRI_SOFT = '#D9BC6A';
 const STRIP_FRIDAY_DOT = '#D39C2F';
+
+const CalendarPressable = Platform.OS === 'web' ? RNPressable : GHPressable;
+const CalendarStripScrollView = Platform.OS === 'web' ? ScrollView : GestureScrollView;
 
 function extractDayFromLinkedGregorianDate(value: string | null | undefined): number | null {
   const text = (value ?? '').trim();
@@ -249,16 +254,18 @@ const StripDateChip = React.memo(function StripDateChip({
   );
 
   return (
-    <Pressable
+    <CalendarPressable
       style={containerStyle}
       onPress={handleSelect}
+      cancelable={false}
       hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+      pressRetentionOffset={{ top: 20, bottom: 20, left: 20, right: 20 }}
     >
       <Text style={dayStyle}>{dow}</Text>
       <Text style={dateStyle}>{cell.date.getDate()}</Text>
       <Text style={hijriStyle}>{hijriDay || '--'}</Text>
       {cell.isFriday ? <View style={calStyles.stripFridayDot} /> : null}
-    </Pressable>
+    </CalendarPressable>
   );
 });
 
@@ -854,7 +861,7 @@ export default function MonthlyCalendarSection({
   const [pickerStep, setPickerStep] = useState<'month' | 'day'>('month');
   const [pickerYear, setPickerYear] = useState(today.getFullYear());
   const [pickerMonth, setPickerMonth] = useState(today.getMonth());
-  const stripRef = useRef<ScrollView>(null);
+  const stripRef = useRef<any>(null);
   const lastAutoCenteredMonthKeyRef = useRef<string | null>(null);
   const N = nightMode ? nightPalette : null;
 
@@ -1294,11 +1301,11 @@ export default function MonthlyCalendarSection({
               </TouchableOpacity>
             </View>
 
-            <ScrollView
+            <CalendarStripScrollView
               ref={stripRef}
               horizontal
               showsHorizontalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
+              keyboardShouldPersistTaps="always"
               contentContainerStyle={calStyles.stripScrollContent}
               style={[calStyles.stripScroll, N && { borderTopColor: N.border }]}
             >
@@ -1322,7 +1329,7 @@ export default function MonthlyCalendarSection({
                   />
                 );
               })}
-            </ScrollView>
+            </CalendarStripScrollView>
           </>
         ) : (
           <View style={[calStyles.pickerContainer, { height: pickerHeight }, N && { backgroundColor: N.surface }]}>
@@ -1363,7 +1370,7 @@ export default function MonthlyCalendarSection({
               <ScrollView
                 showsVerticalScrollIndicator={true}
                 style={{ flex: 1 }}
-                keyboardShouldPersistTaps="handled"
+                keyboardShouldPersistTaps="always"
                 contentContainerStyle={calStyles.pickerYearsWrap}
               >
                 {pickerSections.map((section) => {
@@ -1382,7 +1389,7 @@ export default function MonthlyCalendarSection({
                         const { monthIndex, shortName, hijriHint: monthHijri } = m;
                         const isSelected = year === viewYear && monthIndex === viewMonth;
                         return (
-                          <TouchableOpacity
+                          <CalendarPressable
                             key={`${year}-${monthIndex}`}
                             onPress={() => {
                               setPickerYear(year);
@@ -1404,7 +1411,8 @@ export default function MonthlyCalendarSection({
                                 borderColor: isSelected ? '#69A8FF' : N.border,
                               },
                             ]}
-                            activeOpacity={0.78}
+                            cancelable={false}
+                            hitSlop={8}
                           >
                             <Text style={[
                               calStyles.monthButtonText,
@@ -1420,7 +1428,7 @@ export default function MonthlyCalendarSection({
                             ]} numberOfLines={1}>
                               {monthHijri}
                             </Text>
-                          </TouchableOpacity>
+                          </CalendarPressable>
                         );
                       })}
                     </View>
@@ -1439,7 +1447,7 @@ export default function MonthlyCalendarSection({
 
                 <ScrollView
                   showsVerticalScrollIndicator={true}
-                  keyboardShouldPersistTaps="handled"
+                  keyboardShouldPersistTaps="always"
                   contentContainerStyle={calStyles.dayGrid}
                 >
                   {pickerMonthDays.map((d) => {
@@ -1449,7 +1457,7 @@ export default function MonthlyCalendarSection({
                       d.date.getDate() === today.getDate();
                     const isSelected = selectedDay?.key === d.key;
                     return (
-                      <TouchableOpacity
+                      <CalendarPressable
                         key={d.key}
                         onPress={() => {
                           setViewYear(pickerYear);
@@ -1479,7 +1487,8 @@ export default function MonthlyCalendarSection({
                               : (d.isHijriMonthStart ? '#C59B2D' : (isToday ? '#69A8FF' : N.border)),
                           },
                         ]}
-                        activeOpacity={0.82}
+                        cancelable={false}
+                        hitSlop={8}
                       >
                         <Text style={[
                           calStyles.dayButtonDow,
@@ -1492,7 +1501,7 @@ export default function MonthlyCalendarSection({
                           d.isHijriMonthStart && calStyles.dayButtonHijriMonthStartText,
                           N && { color: (isToday || isSelected) ? '#DCEBFF' : N.textMuted },
                         ]}>{d.hijriDay}</Text>
-                      </TouchableOpacity>
+                      </CalendarPressable>
                     );
                   })}
                 </ScrollView>

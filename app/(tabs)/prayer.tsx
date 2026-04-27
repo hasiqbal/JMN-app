@@ -65,25 +65,35 @@ function getHijriMonthName(hijri: string): string {
   return '';
 }
 
-function useCurrentTime() {
-  const [now, setNow] = useState(new Date());
+function useTodayDate() {
+  const [todayDate, setTodayDate] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  });
+
   useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000);
+    const id = setInterval(() => {
+      const now = new Date();
+      const nextDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      setTodayDate((prev) => (prev.getTime() === nextDate.getTime() ? prev : nextDate));
+    }, 60_000);
+
     return () => clearInterval(id);
   }, []);
-  return now;
+
+  return todayDate;
 }
 
 export default function PrayerScreen() {
   const insets = useSafeAreaInsets();
-  const now = useCurrentTime();
+  const todayDate = useTodayDate();
   const { nightMode } = useNightMode();
   const N = nightMode ? NIGHT : null;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }, N && { backgroundColor: N.bg }]}> 
       <MonthlyCalendarSection
-        today={now}
+        today={todayDate}
         nightMode={nightMode}
         nightPalette={NIGHT}
         transliterateHijri={transliterateHijri}
