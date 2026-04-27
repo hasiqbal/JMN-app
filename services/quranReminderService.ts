@@ -1,5 +1,5 @@
 const FETCH_TIMEOUT_MS = 10000;
-const CACHE_KEY = '@daily_quran_v3';
+const CACHE_KEY = '@daily_quran_v4';
 const CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 const BASE_URL = 'https://api.quran.com/api/v4';
 const DEFAULT_TRANSLATION_IDS = [20, 131]; // Sahih International primary, fallback to legacy id
@@ -10,6 +10,21 @@ const TOTAL_MUSHAF_PAGES = 604;
 const INCLUDED_SURAHS: number[] = [];
 const EXCLUDED_SURAHS: number[] = [];
 const EXCLUDED_AYAH_RANGES: Array<{ surah: number; from: number; to: number }> = [];
+
+// Preferred reminder themes requested by content policy.
+const THEME_KEYWORDS: string[] = [
+  // Faith and belief
+  'believe', 'belief', 'faith', 'iman', 'righteous', 'piety', 'taqwa',
+  // Character and conduct
+  'patience', 'patient', 'truthful', 'truth', 'justice', 'forgive', 'forgiveness',
+  'mercy', 'kindness', 'charity', 'humble', 'humility', 'good deeds',
+  // Warnings from Allah
+  'warning', 'warn', 'punishment', 'torment', 'hell', 'hellfire', 'fire',
+  'disbelieve', 'disbelievers', 'hypocrite', 'hypocrites',
+  // Day of Judgment / Akhirah
+  'day of judgment', 'day of resurrection', 'last day', 'the hour',
+  'account', 'reckoning', 'hereafter',
+];
 
 // Context behavior: on some days, include nearby verses in the full text.
 const INCLUDE_CONTEXT_EVERY_N_DAYS = 3;
@@ -50,6 +65,27 @@ function stripHtml(value: string): string {
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function normalizeForThemeMatch(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function matchesPreferredTheme(englishText: string): boolean {
+  const normalized = normalizeForThemeMatch(englishText);
+  if (!normalized) return false;
+
+  return THEME_KEYWORDS.some((keyword) => normalized.includes(keyword));
+}
+
+function formatContextVerseBlock(rows: ChapterVerse[]): string {
+  return rows
+    .map((row) => [row.verseKey, row.arabic, row.english].filter(Boolean).join('\n'))
+    .join('\n\n');
 }
 
 function dayOfYearUtc(): number {
@@ -231,11 +267,23 @@ export async function fetchDailyQuranReminder(): Promise<DailyQuranResult | null
     }
 
     const startIndex = (day * 7) % candidates.length;
+    const chapterVerseMapCache = new Map<number, Map<number, ChapterVerse>>();
+
+    const getChapterVerseMap = async (candidateSurah: number): Promise<Map<number, ChapterVerse>> => {
+      const cachedMap = chapterVerseMapCache.get(candidateSurah);
+      if (cachedMap) return cachedMap;
+
+      const map = await fetchChapterVerseMap(candidateSurah, controller.signal);
+      chapterVerseMapCache.set(candidateSurah, map);
+      return map;
+    };
 
     let selected: any | null = null;
     let surahNumber = 0;
     let verseNumber = 0;
     let verseKey = '';
+    let selectedEnglish = '';
+    let selectedChapterVerseMap: Map<number, ChapterVerse> | null = null;
 
     for (let offset = 0; offset < candidates.length; offset += 1) {
       const candidate = candidates[(startIndex + offset) % candidates.length];
@@ -247,10 +295,23 @@ export async function fetchDailyQuranReminder(): Promise<DailyQuranResult | null
       if (!Number.isFinite(candidateSurah) || !Number.isFinite(candidateVerse)) continue;
       if (!shouldIncludeVerse(candidateSurah, candidateVerse)) continue;
 
+      const chapterVerseMap = await getChapterVerseMap(candidateSurah);
+      const chapterRow = chapterVerseMap.get(candidateVerse);
+      const chapterEnglish = chapterRow?.english ?? '';
+      const candidateEnglish = chapterEnglish || await fetchTranslationForVerse(
+        candidateSurah,
+        candidateKey,
+        controller.signal,
+      );
+
+      if (!matchesPreferredTheme(candidateEnglish)) continue;
+
       selected = candidate;
       verseKey = candidateKey;
       surahNumber = candidateSurah;
       verseNumber = candidateVerse;
+      selectedEnglish = candidateEnglish;
+      selectedChapterVerseMap = chapterVerseMap;
       break;
     }
 
@@ -259,9 +320,10 @@ export async function fetchDailyQuranReminder(): Promise<DailyQuranResult | null
       return null;
     }
 
-    const chapterVerseMap = await fetchChapterVerseMap(surahNumber, controller.signal);
+    const chapterVerseMap = selectedChapterVerseMap
+      ?? await fetchChapterVerseMap(surahNumber, controller.signal);
     const directTranslation = chapterVerseMap.get(verseNumber)?.english ?? '';
-    const translation = directTranslation || await fetchTranslationForVerse(
+    const translation = selectedEnglish || directTranslation || await fetchTranslationForVerse(
       surahNumber,
       verseKey,
       controller.signal,
@@ -283,7 +345,11 @@ export async function fetchDailyQuranReminder(): Promise<DailyQuranResult | null
     const contextRows = contextVerseNumbers
       .filter((n) => shouldIncludeVerse(surahNumber, n))
       .map((n) => chapterVerseMap.get(n))
-      .filter((row): row is ChapterVerse => !!row && row.english.length > 0);
+      .filter((row): row is ChapterVerse => (
+        !!row
+        && row.english.length > 0
+        && matchesPreferredTheme(row.english)
+      ));
 
     clearTimeout(timeoutId);
 
@@ -297,7 +363,7 @@ export async function fetchDailyQuranReminder(): Promise<DailyQuranResult | null
       englishTranslation,
       // Keep text for compatibility with existing consumers.
       text: contextRows.length > 1
-        ? contextRows.map((row) => `${row.verseKey} — ${row.english}`).join('\n\n')
+        ? formatContextVerseBlock(contextRows)
         : englishTranslation,
       preview,
       ref: verseKey ? `Quran ${verseKey}` : 'Quran Reminder',
@@ -306,7 +372,11 @@ export async function fetchDailyQuranReminder(): Promise<DailyQuranResult | null
       juzNumber: Number(selected?.juz_number ?? 0),
       surahNumber: Number.isFinite(surahNumber) ? surahNumber : 0,
       verseNumber: Number.isFinite(verseNumber) ? verseNumber : 0,
-      contextVerseKeys: contextRows.map((row) => row.verseKey),
+      contextVerseKeys: contextRows.length > 0
+        ? contextRows.map((row) => row.verseKey)
+        : verseKey
+          ? [verseKey]
+          : [],
     };
 
     await writeCache(result);

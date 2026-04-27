@@ -9,6 +9,11 @@ import { Colors } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useJmnLiveStatus } from '@/hooks/useJmnLiveStatus';
 import {
+  isAdhaanMutedEnabled,
+  isIqamahMutedEnabled,
+  playAdhaanNowForTesting,
+  playIqamahNowForTesting,
+  setPrayerNotificationPermissionGranted,
   setAdhaanMutedEnabled,
   stopActiveAdhaan,
   useQuranPrayerPopups,
@@ -395,6 +400,14 @@ export default function TabLayout() {
 
       receivedSub = Notifications.addNotificationReceivedListener((notification) => {
         void maybeMarkPushSuccess(notification.request.content.data);
+        const data = notification.request.content.data as Record<string, unknown> | undefined;
+        if (data?.scope === 'jmn-prayer' && data?.type === 'prayer-start') {
+          void playAdhaanNowForTesting();
+          return;
+        }
+        if (data?.scope === 'jmn-prayer' && data?.type === 'jamaat-10') {
+          void playIqamahNowForTesting();
+        }
       });
     };
 
@@ -481,7 +494,11 @@ export default function TabLayout() {
     schedulingPrayerNotificationsRef.current = true;
     try {
       const allowed = await ensurePrayerNotificationPermission();
-      if (!allowed) return;
+      setPrayerNotificationPermissionGranted(allowed);
+      if (!allowed) {
+        await clearScheduledPrayerNotifications();
+        return;
+      }
 
       await ensureAndroidPrayerNotificationChannels();
 
@@ -538,16 +555,22 @@ export default function TabLayout() {
 
       await clearScheduledPrayerNotifications();
 
+      const [adhaanMuted, iqamahMuted] = await Promise.all([
+        isAdhaanMutedEnabled(),
+        isIqamahMutedEnabled(),
+      ]);
+
       for (const item of planned) {
         const useIqamahSound = item.data.type === 'jamaat-10';
+        const mutedForNotification = useIqamahSound ? iqamahMuted : adhaanMuted;
 
-        const prayerChannelId = useIqamahSound
-          ? PRAYER_JAMAAT_CHANNEL_ID
-          : PRAYER_ADHAAN_CHANNEL_ID;
+        const prayerChannelId = mutedForNotification
+          ? PRAYER_SILENT_CHANNEL_ID
+          : (useIqamahSound ? PRAYER_JAMAAT_CHANNEL_ID : PRAYER_ADHAAN_CHANNEL_ID);
 
-        const scheduledSound = useIqamahSound
-          ? IQAMAH_BACKGROUND_SOUND_FILE
-          : ADHAAN_BACKGROUND_SOUND_FILE;
+        const scheduledSound: string | false = mutedForNotification
+          ? false
+          : (useIqamahSound ? IQAMAH_BACKGROUND_SOUND_FILE : ADHAAN_BACKGROUND_SOUND_FILE);
 
         const trigger = Platform.OS === 'android'
           ? ({ type: 'date', date: item.fireAt, channelId: prayerChannelId } as unknown as import('expo-notifications').NotificationTriggerInput)

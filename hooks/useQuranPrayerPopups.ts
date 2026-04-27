@@ -38,6 +38,9 @@ let activeAdhaanPlayer: AudioPlayer | null = null;
 let iqamahAudioUri: string | null = null;
 let bundledAdhaanUri: string | null = null;
 let activePrayerAudioKind: PrayerAudioKind | null = null;
+// Start optimistic to prevent duplicate foreground adhaan playback on cold
+// start before notification permission state is resolved.
+let prayerNotificationPermissionGranted = true;
 
 const prayerAudioStateListeners = new Set<PrayerAudioStateListener>();
 
@@ -84,6 +87,14 @@ export function subscribePrayerAudioState(listener: PrayerAudioStateListener): (
   return () => {
     prayerAudioStateListeners.delete(listener);
   };
+}
+
+export function setPrayerNotificationPermissionGranted(granted: boolean): void {
+  prayerNotificationPermissionGranted = granted;
+}
+
+export function isPrayerNotificationPermissionGranted(): boolean {
+  return prayerNotificationPermissionGranted;
 }
 
 function toDayKey(date: Date): string {
@@ -230,37 +241,33 @@ async function loadBundledAdhaanUri(): Promise<string | null> {
   }
 }
 
-export async function playAdhaanNowForTesting(options?: { ignoreMute?: boolean }): Promise<boolean> {
-  if (Platform.OS === 'web') return false;
-
-  const ignoreMute = !!options?.ignoreMute;
-  const muted = ignoreMute ? false : await isAdhaanMutedEnabled();
-  if (muted) {
-    await stopActiveAdhaan();
-    return false;
-  }
-
-  let selectedUrl: string | null = null;
+async function loadBundledIqamahUri(): Promise<string | null> {
+  if (iqamahAudioUri) return iqamahAudioUri;
   try {
-    const stored = await AsyncStorage.getItem(ADHAAN_AUDIO_STORAGE_KEY);
-    selectedUrl = isValidAdhaanAudioUrl(stored) ? stored : await loadBundledAdhaanUri();
-  } catch {
-    selectedUrl = await loadBundledAdhaanUri();
-  }
-
-  if (!selectedUrl) return false;
-
-  try {
-    if (!adhaanAudioModeReady) {
-      await setAudioModeAsync({
-        allowsRecording: false,
-        shouldPlayInBackground: true,
-        playsInSilentMode: true,
-        shouldRouteThroughEarpiece: false,
-        interruptionMode: 'doNotMix',
-      });
-      adhaanAudioModeReady = true;
+    const moduleAsset = require('../assets/audio/iqamah.mp3');
+    const asset = Asset.fromModule(moduleAsset);
+    if (!asset.downloaded) {
+      await asset.downloadAsync();
     }
+    iqamahAudioUri = asset.localUri ?? asset.uri ?? null;
+    return iqamahAudioUri;
+  } catch {
+    return null;
+  }
+}
+
+async function playPrayerAudioUri(uri: string, kind: PrayerAudioKind): Promise<boolean> {
+  // Always re-request audio focus. The cached flag can become stale after
+  // background/foreground transitions.
+  try {
+    await setAudioModeAsync({
+      allowsRecording: false,
+      shouldPlayInBackground: true,
+      playsInSilentMode: true,
+      shouldRouteThroughEarpiece: false,
+      interruptionMode: 'doNotMix',
+    });
+    adhaanAudioModeReady = true;
   } catch {
     return false;
   }
@@ -268,9 +275,9 @@ export async function playAdhaanNowForTesting(options?: { ignoreMute?: boolean }
   await stopActiveAdhaan();
 
   try {
-    const player = createAudioPlayer({ uri: selectedUrl }, { updateInterval: 400 });
+    const player = createAudioPlayer({ uri }, { updateInterval: 400 });
     activeAdhaanPlayer = player;
-    setPrayerAudioKind('adhaan');
+    setPrayerAudioKind(kind);
 
     player.addListener('playbackStatusUpdate', (status) => {
       if (activeAdhaanPlayer !== player) return;
@@ -296,49 +303,47 @@ export async function playAdhaanNowForTesting(options?: { ignoreMute?: boolean }
   }
 }
 
-export async function previewAdhaanUrl(url: string): Promise<boolean> {
+export async function playAdhaanNowForTesting(options?: { ignoreMute?: boolean; url?: string }): Promise<boolean> {
   if (Platform.OS === 'web') return false;
 
-  try {
-    if (!adhaanAudioModeReady) {
-      await setAudioModeAsync({
-        allowsRecording: false,
-        shouldPlayInBackground: true,
-        playsInSilentMode: true,
-        shouldRouteThroughEarpiece: false,
-        interruptionMode: 'doNotMix',
-      });
-      adhaanAudioModeReady = true;
-    }
-  } catch {
-    return false;
-  }
-
-  await stopActiveAdhaan();
-
-  try {
-    const player = createAudioPlayer({ uri: url }, { updateInterval: 400 });
-    activeAdhaanPlayer = player;
-    setPrayerAudioKind('adhaan');
-
-    player.addListener('playbackStatusUpdate', (status) => {
-      if (activeAdhaanPlayer !== player) return;
-      if (!(status as { didJustFinish?: boolean }).didJustFinish) return;
-
-      try { player.remove(); } catch {}
-
-      if (activeAdhaanPlayer === player) {
-        activeAdhaanPlayer = null;
-        setPrayerAudioKind(null);
-      }
-    });
-
-    player.play();
-    return true;
-  } catch {
+  const ignoreMute = !!options?.ignoreMute;
+  const muted = ignoreMute ? false : await isAdhaanMutedEnabled();
+  if (muted) {
     await stopActiveAdhaan();
     return false;
   }
+
+  let selectedUrl: string | null = null;
+  if (options?.url) {
+    selectedUrl = options.url;
+  } else {
+    try {
+      const stored = await AsyncStorage.getItem(ADHAAN_AUDIO_STORAGE_KEY);
+      selectedUrl = isValidAdhaanAudioUrl(stored) ? stored : await loadBundledAdhaanUri();
+    } catch {
+      selectedUrl = await loadBundledAdhaanUri();
+    }
+  }
+
+  if (!selectedUrl) return false;
+
+  return await playPrayerAudioUri(selectedUrl, 'adhaan');
+}
+
+export async function playIqamahNowForTesting(options?: { ignoreMute?: boolean }): Promise<boolean> {
+  if (Platform.OS === 'web') return false;
+
+  const ignoreMute = !!options?.ignoreMute;
+  const muted = ignoreMute ? false : await isIqamahMutedEnabled();
+  if (muted) {
+    await stopActiveAdhaan();
+    return false;
+  }
+
+  const iqamahUrl = await loadBundledIqamahUri();
+  if (!iqamahUrl) return false;
+
+  return await playPrayerAudioUri(iqamahUrl, 'iqamah');
 }
 
 export function useQuranPrayerPopups(): void {
@@ -354,7 +359,6 @@ export function useQuranPrayerPopups(): void {
 
   const ensureAdhaanAudioMode = React.useCallback(async (): Promise<boolean> => {
     if (Platform.OS === 'web') return false;
-    if (adhaanAudioModeReady) return true;
 
     try {
       await setAudioModeAsync({
@@ -385,19 +389,7 @@ export function useQuranPrayerPopups(): void {
 
   const loadIqamahAudioUrl = React.useCallback(async (): Promise<string | null> => {
     if (Platform.OS === 'web') return null;
-    if (iqamahAudioUri) return iqamahAudioUri;
-
-    try {
-      const moduleAsset = require('../assets/audio/iqamah.mp3');
-      const asset = Asset.fromModule(moduleAsset);
-      if (!asset.downloaded) {
-        await asset.downloadAsync();
-      }
-      iqamahAudioUri = asset.localUri ?? asset.uri ?? null;
-      return iqamahAudioUri;
-    } catch {
-      return null;
-    }
+    return await loadBundledIqamahUri();
   }, []);
 
   const playPrayerAudio = React.useCallback(async (uri: string, kind: PrayerAudioKind) => {
@@ -570,7 +562,12 @@ export function useQuranPrayerPopups(): void {
 
         const key = buildReminderKey('prayer-start', prayer.name, prayer.timeDate, 'started');
         if (showReminderOnce(key, 'Azaan', `${prayer.name} prayer time has started.`)) {
-          await playSelectedAdhaan();
+          // When notification permission is granted, prayer-start sound is
+          // driven by the notification event itself. Keep in-app audio as a
+          // fallback only when notifications are unavailable.
+          if (!isPrayerNotificationPermissionGranted()) {
+            await playSelectedAdhaan();
+          }
           return;
         }
       }
@@ -597,7 +594,9 @@ export function useQuranPrayerPopups(): void {
 
         if (showReminderOnce(key, 'Jamaat Reminder', message)) {
           if (isSpecialCueThreshold) {
-            await playJamaatCue();
+            if (!isPrayerNotificationPermissionGranted()) {
+              await playJamaatCue();
+            }
           }
           return;
         }

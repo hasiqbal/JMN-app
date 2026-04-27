@@ -9,7 +9,6 @@ import {
   isAdhaanMutedEnabled,
   isIqamahMutedEnabled,
   playAdhaanNowForTesting,
-  previewAdhaanUrl,
   setAdhaanMutedEnabled,
   setIqamahMutedEnabled,
   stopActiveAdhaan,
@@ -42,6 +41,7 @@ async function getNotificationsModule(): Promise<ExpoNotificationsModule | null>
 const LIVE_NOTIFICATION_CHANNEL_ID = 'jmn-live-v2';
 const LIVE_NOTIFY_KEY = 'jmn_radio_notify';
 const PRAYER_ADHAAN_CHANNEL_ID = 'jmn-prayer-adhaan-v5';
+const PRAYER_SILENT_CHANNEL_ID = 'jmn-prayer-silent-v3';
 const PRAYER_NOTIFICATION_CATEGORY_ID = 'jmn-prayer-controls';
 const ADHAAN_BACKGROUND_SOUND_FILE = 'adhaan.mp3';
 const PRAYER_NOTIFICATION_SCOPE = 'jmn-prayer';
@@ -203,6 +203,7 @@ export default function SettingsScreen() {
 
     const current = await Notifications.getPermissionsAsync().catch(() => null);
     let status = current?.status ?? 'undetermined';
+    const adhaanMutedNow = await isAdhaanMutedEnabled();
 
     if (status !== 'granted') {
       const requested = await Notifications.requestPermissionsAsync().catch(() => null);
@@ -210,28 +211,40 @@ export default function SettingsScreen() {
     }
 
     if (status !== 'granted') {
-      const reason = 'Notifications permission is not granted.';
+      const reason = 'Notifications permission is not granted. Running in-app fallback only while app is open.';
+      const fallbackPlayed = await playAdhaanNowForTesting();
       await AsyncStorage.setItem(BG_ADHAAN_TEST_LOG_KEY, JSON.stringify({
         ts: new Date().toISOString(),
-        ok: false,
+        ok: fallbackPlayed,
         reason,
+        fallbackPlayed,
       })).catch(() => {});
-      showBanner('Adhaan test failed', reason, 9000, 'warning');
+      showBanner('Adhaan fallback test', `${reason} Fallback played: ${fallbackPlayed ? 'yes' : 'no'}.`, 9000, 'warning');
       return;
     }
 
     if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync(PRAYER_ADHAAN_CHANNEL_ID, {
-        name: 'JMN Adhaan Alerts',
-        importance: Notifications.AndroidImportance.HIGH,
-        vibrationPattern: [0, 200, 120, 200],
-        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-        sound: ADHAAN_BACKGROUND_SOUND_FILE,
-      }).catch(() => {});
+      if (adhaanMutedNow) {
+        await Notifications.setNotificationChannelAsync(PRAYER_SILENT_CHANNEL_ID, {
+          name: 'JMN Prayer Alerts (Silent)',
+          importance: Notifications.AndroidImportance.HIGH,
+          vibrationPattern: [0, 80],
+          lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+          sound: null,
+        }).catch(() => {});
+      } else {
+        await Notifications.setNotificationChannelAsync(PRAYER_ADHAAN_CHANNEL_ID, {
+          name: 'JMN Adhaan Alerts',
+          importance: Notifications.AndroidImportance.HIGH,
+          vibrationPattern: [0, 200, 120, 200],
+          lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+          sound: ADHAAN_BACKGROUND_SOUND_FILE,
+        }).catch(() => {});
+      }
     }
 
     const channelSound = Platform.OS === 'android'
-      ? await Notifications.getNotificationChannelAsync(PRAYER_ADHAAN_CHANNEL_ID)
+      ? await Notifications.getNotificationChannelAsync(adhaanMutedNow ? PRAYER_SILENT_CHANNEL_ID : PRAYER_ADHAAN_CHANNEL_ID)
         .then((channel) => {
           if (!channel) return 'missing-channel';
           return channel.sound === null ? 'null' : String(channel.sound);
@@ -241,14 +254,14 @@ export default function SettingsScreen() {
 
     const fireAt = new Date(Date.now() + 10_000);
     const trigger = Platform.OS === 'android'
-      ? ({ type: 'date', date: fireAt, channelId: PRAYER_ADHAAN_CHANNEL_ID } as unknown as import('expo-notifications').NotificationTriggerInput)
+      ? ({ type: 'date', date: fireAt, channelId: adhaanMutedNow ? PRAYER_SILENT_CHANNEL_ID : PRAYER_ADHAAN_CHANNEL_ID } as unknown as import('expo-notifications').NotificationTriggerInput)
       : (fireAt as unknown as import('expo-notifications').NotificationTriggerInput);
 
     const scheduledId = await Notifications.scheduleNotificationAsync({
       content: {
         title: 'Test Adhaan (10s)',
         body: 'Background test: this should ring even if app is not open.',
-        sound: ADHAAN_BACKGROUND_SOUND_FILE,
+        sound: adhaanMutedNow ? false : ADHAAN_BACKGROUND_SOUND_FILE,
         categoryIdentifier: PRAYER_NOTIFICATION_CATEGORY_ID,
         data: {
           scope: PRAYER_NOTIFICATION_SCOPE,
@@ -285,10 +298,11 @@ export default function SettingsScreen() {
       scheduledCount: ownPrayerCount,
       fireAtIso: fireAt.toISOString(),
       channelSound,
+      muted: adhaanMutedNow,
     })).catch(() => {});
 
-    void playAdhaanNowForTesting({ ignoreMute: true });
-    showBanner('Adhaan test scheduled', `${info} Prayer schedules: ${ownPrayerCount}. Channel sound: ${channelSound}.`, 10000);
+    const mutedInfo = adhaanMutedNow ? 'Muted is ON, so this test should be silent.' : 'Muted is OFF, so adhaan should play at fire time.';
+    showBanner('Adhaan test scheduled', `${info} ${mutedInfo} Channel sound: ${channelSound}.`, 10000);
   }, [showBanner]);
 
   const showLastAdhaanTestLog = useCallback(async () => {
@@ -397,7 +411,7 @@ export default function SettingsScreen() {
       return;
     }
     setPreviewingId(option.id);
-    const ok = await previewAdhaanUrl(option.url);
+    const ok = await playAdhaanNowForTesting({ ignoreMute: true, url: option.url });
     if (!ok) {
       setPreviewingId(null);
     }
@@ -516,11 +530,11 @@ export default function SettingsScreen() {
             })}
           </View>
 
-          <Text style={[styles.switchHint, { color: palette.sub }]}>Background notifications use bundled native sounds.</Text>
+          <Text style={[styles.switchHint, { color: palette.sub }]}>Background notifications use bundled native sounds and follow mute toggles.</Text>
 
           <SwitchRow
             label="Mute adhaan audio"
-            hint="Stops adhaan sound playback for in-app reminders."
+            hint="Stops adhaan sound for in-app reminders and prayer-start notifications."
             value={adhaanMuted}
             onValueChange={onToggleAdhaanMuted}
             accentColor={palette.accent}
@@ -531,7 +545,7 @@ export default function SettingsScreen() {
 
           <SwitchRow
             label="Mute iqamah audio"
-            hint="Stops iqamah cue playback for in-app reminders."
+            hint="Stops iqamah sound for in-app reminders and jamaat notifications."
             value={iqamahMuted}
             onValueChange={onToggleIqamahMuted}
             accentColor={palette.accent}
