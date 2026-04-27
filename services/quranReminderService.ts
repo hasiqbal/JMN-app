@@ -1,8 +1,8 @@
 const FETCH_TIMEOUT_MS = 10000;
-const CACHE_KEY = '@daily_quran_v1';
+const CACHE_KEY = '@daily_quran_v2';
 const CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 const BASE_URL = 'https://api.quran.com/api/v4';
-const DEFAULT_TRANSLATION_ID = 131; // Saheeh International
+const DEFAULT_TRANSLATION_IDS = [20, 131]; // Sahih International primary, fallback to legacy id
 const TOTAL_MUSHAF_PAGES = 604;
 
 type CachePayload = {
@@ -14,6 +14,7 @@ let memoryCache: CachePayload | null = null;
 
 export type DailyQuranResult = {
   arabic: string;
+  englishTranslation: string;
   text: string;
   preview: string;
   ref: string;
@@ -85,25 +86,28 @@ async function fetchTranslationForVerse(
   verseKey: string,
   signal: AbortSignal,
 ): Promise<string> {
-  const perPage = 50;
-  for (let page = 1; page <= 12; page += 1) {
-    const url =
-      `${BASE_URL}/verses/by_chapter/${surahNumber}` +
-      `?per_page=${perPage}` +
-      `&page=${page}` +
-      `&translations=${DEFAULT_TRANSLATION_ID}` +
-      `&fields=verse_key` +
-      `&language=en`;
+  for (const translationId of DEFAULT_TRANSLATION_IDS) {
+    const perPage = 50;
+    for (let page = 1; page <= 12; page += 1) {
+      const url =
+        `${BASE_URL}/verses/by_chapter/${surahNumber}` +
+        `?per_page=${perPage}` +
+        `&page=${page}` +
+        `&translations=${translationId}` +
+        `&fields=verse_key,verse_number` +
+        `&language=en`;
 
-    const data = await fetchJson(url, signal);
-    const verses: any[] = data?.verses ?? [];
+      const data = await fetchJson(url, signal);
+      const verses: any[] = data?.verses ?? [];
 
-    const hit = verses.find((v) => String(v?.verse_key ?? '') === verseKey);
-    if (hit) {
-      return stripHtml(String(hit?.translations?.[0]?.text ?? ''));
+      const hit = verses.find((v) => String(v?.verse_key ?? '') === verseKey);
+      if (hit) {
+        const translated = stripHtml(String(hit?.translations?.[0]?.text ?? ''));
+        if (translated) return translated;
+      }
+
+      if (verses.length < perPage) break;
     }
-
-    if (verses.length < perPage) break;
   }
 
   return '';
@@ -153,12 +157,16 @@ export async function fetchDailyQuranReminder(): Promise<DailyQuranResult | null
 
     clearTimeout(timeoutId);
 
-    const text = translation || 'Open full Verse to read the reminder.';
-    const preview = text.length > 120 ? `${text.slice(0, 120).trimEnd()}…` : text;
+    const englishTranslation = translation || 'Open full Verse to read the reminder.';
+    const preview = englishTranslation.length > 120
+      ? `${englishTranslation.slice(0, 120).trimEnd()}…`
+      : englishTranslation;
 
     const result: DailyQuranResult = {
       arabic: String(selected?.text_uthmani ?? '').trim(),
-      text,
+      englishTranslation,
+      // Keep text for compatibility with existing consumers.
+      text: englishTranslation,
       preview,
       ref: verseKey ? `Quran ${verseKey}` : 'Quran Reminder',
       verseKey,

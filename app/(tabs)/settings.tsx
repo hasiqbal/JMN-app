@@ -37,7 +37,7 @@ async function getNotificationsModule(): Promise<ExpoNotificationsModule | null>
 
 const LIVE_NOTIFICATION_CHANNEL_ID = 'jmn-live-v2';
 const LIVE_NOTIFY_KEY = 'jmn_radio_notify';
-const PRAYER_ADHAAN_CHANNEL_ID = 'jmn-prayer-adhaan-v4';
+const PRAYER_ADHAAN_CHANNEL_ID = 'jmn-prayer-adhaan-v5';
 const PRAYER_NOTIFICATION_CATEGORY_ID = 'jmn-prayer-controls';
 const ADHAAN_BACKGROUND_SOUND_FILE = 'adhaan.mp3';
 const PRAYER_NOTIFICATION_SCOPE = 'jmn-prayer';

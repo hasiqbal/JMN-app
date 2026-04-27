@@ -36,6 +36,7 @@ type PrayerAudioStateListener = (state: PrayerAudioState) => void;
 let adhaanAudioModeReady = false;
 let activeAdhaanPlayer: AudioPlayer | null = null;
 let iqamahAudioUri: string | null = null;
+let bundledAdhaanUri: string | null = null;
 let activePrayerAudioKind: PrayerAudioKind | null = null;
 
 const prayerAudioStateListeners = new Set<PrayerAudioStateListener>();
@@ -214,6 +215,21 @@ export async function setIqamahMutedEnabled(muted: boolean): Promise<void> {
   }
 }
 
+async function loadBundledAdhaanUri(): Promise<string | null> {
+  if (bundledAdhaanUri) return bundledAdhaanUri;
+  try {
+    const moduleAsset = require('../assets/audio/adhaan.mp3');
+    const asset = Asset.fromModule(moduleAsset);
+    if (!asset.downloaded) {
+      await asset.downloadAsync();
+    }
+    bundledAdhaanUri = asset.localUri ?? asset.uri ?? null;
+    return bundledAdhaanUri;
+  } catch {
+    return null;
+  }
+}
+
 export async function playAdhaanNowForTesting(options?: { ignoreMute?: boolean }): Promise<boolean> {
   if (Platform.OS === 'web') return false;
 
@@ -224,13 +240,15 @@ export async function playAdhaanNowForTesting(options?: { ignoreMute?: boolean }
     return false;
   }
 
-  let selectedUrl = DEFAULT_ADHAAN_AUDIO_URL;
+  let selectedUrl: string | null = null;
   try {
     const stored = await AsyncStorage.getItem(ADHAAN_AUDIO_STORAGE_KEY);
-    selectedUrl = isValidAdhaanAudioUrl(stored) ? stored : DEFAULT_ADHAAN_AUDIO_URL;
+    selectedUrl = isValidAdhaanAudioUrl(stored) ? stored : await loadBundledAdhaanUri();
   } catch {
-    selectedUrl = DEFAULT_ADHAAN_AUDIO_URL;
+    selectedUrl = await loadBundledAdhaanUri();
   }
+
+  if (!selectedUrl) return false;
 
   try {
     if (!adhaanAudioModeReady) {
@@ -239,7 +257,7 @@ export async function playAdhaanNowForTesting(options?: { ignoreMute?: boolean }
         shouldPlayInBackground: true,
         playsInSilentMode: true,
         shouldRouteThroughEarpiece: false,
-        interruptionModeAndroid: 'doNotMix',
+        interruptionMode: 'doNotMix',
       });
       adhaanAudioModeReady = true;
     }
@@ -299,7 +317,7 @@ export function useQuranPrayerPopups(): void {
         shouldPlayInBackground: true,
         playsInSilentMode: true,
         shouldRouteThroughEarpiece: false,
-        interruptionModeAndroid: 'doNotMix',
+        interruptionMode: 'doNotMix',
       });
       adhaanAudioModeReady = true;
       return true;
@@ -308,15 +326,15 @@ export function useQuranPrayerPopups(): void {
     }
   }, []);
 
-  const loadSelectedAdhaanUrl = React.useCallback(async (): Promise<string> => {
-    if (Platform.OS === 'web') return DEFAULT_ADHAAN_AUDIO_URL;
+  const loadSelectedAdhaanUrl = React.useCallback(async (): Promise<string | null> => {
+    if (Platform.OS === 'web') return null;
 
     try {
       const stored = await AsyncStorage.getItem(ADHAAN_AUDIO_STORAGE_KEY);
-      const selected = isValidAdhaanAudioUrl(stored) ? stored : DEFAULT_ADHAAN_AUDIO_URL;
-      return selected;
+      if (isValidAdhaanAudioUrl(stored)) return stored;
+      return await loadBundledAdhaanUri();
     } catch {
-      return DEFAULT_ADHAAN_AUDIO_URL;
+      return await loadBundledAdhaanUri();
     }
   }, []);
 
@@ -379,8 +397,9 @@ export function useQuranPrayerPopups(): void {
       return;
     }
 
-    const selectedUrl = await loadSelectedAdhaanUrl();
-    await playPrayerAudio(selectedUrl, 'adhaan');
+    const url = await loadSelectedAdhaanUrl();
+    if (!url) return;
+    await playPrayerAudio(url, 'adhaan');
   }, [loadSelectedAdhaanUrl, playPrayerAudio, stopCurrentAdhaan]);
 
   const playJamaatCue = React.useCallback(async () => {
