@@ -2307,15 +2307,14 @@ function resolveAnnouncementOccurrenceDatesForMonth(
     for (let day = 1; day <= monthDays; day += 1) {
       const occurrenceUtc = Date.UTC(year, month - 1, day);
       if (occurrenceUtc < monthStartUtc || occurrenceUtc > monthEndUtc) continue;
-      if (occurrenceUtc < baseUtc) continue;
       if (untilUtc !== null && occurrenceUtc > untilUtc) continue;
       if (new Date(occurrenceUtc).getUTCDay() !== targetWeekday) continue;
 
       const diffDays = Math.floor((occurrenceUtc - anchorUtc) / dayMs);
-      if (diffDays < 0 || diffDays % 7 !== 0) continue;
+      if (diffDays % 7 !== 0) continue;
 
       const diffWeeks = diffDays / 7;
-      if (diffWeeks % recurrenceInterval !== 0) continue;
+      if (Math.abs(diffWeeks) % recurrenceInterval !== 0) continue;
 
       occurrenceDates.push(isoFromUtcTimestamp(occurrenceUtc));
     }
@@ -2331,15 +2330,12 @@ function resolveAnnouncementOccurrenceDatesForMonth(
   if (targetDay > monthDays) return [];
 
   const occurrenceUtc = Date.UTC(year, month - 1, targetDay);
-  if (occurrenceUtc < baseUtc) return [];
   if (untilUtc !== null && occurrenceUtc > untilUtc) return [];
 
   const baseMonthIndex = (baseDate.year * 12) + (baseDate.month - 1);
   const targetMonthIndex = (year * 12) + (month - 1);
   const diffMonths = targetMonthIndex - baseMonthIndex;
-  if (diffMonths < 0 || diffMonths % recurrenceInterval !== 0) return [];
-
-  if (diffMonths === 0 && targetDay < baseDate.day) return [];
+  if (Math.abs(diffMonths) % recurrenceInterval !== 0) return [];
 
   return [isoFromUtcTimestamp(occurrenceUtc)];
 }

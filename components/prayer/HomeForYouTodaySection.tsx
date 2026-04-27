@@ -529,7 +529,7 @@ function QuranPortionCard({
   const quranBackgroundSource = AQSA_BG;
   const { showAlert } = useAlert();
 
-  const [levelIdx, setLevelIdx] = useState(3); // default: Full Juz
+  const [levelIdx, setLevelIdx] = useState<number | null>(null); // null = unselected on first open
   const [levelLoaded, setLevelLoaded] = useState(false);
   const [resolvedHijriDay, setResolvedHijriDay] = useState(() => {
     const validHijri = Number.isFinite(hijriDay) && hijriDay >= 1 && hijriDay <= 30;
@@ -605,7 +605,12 @@ function QuranPortionCard({
       storedCatchupUi,
       storedMushafLayout,
     ]) => {
-      if (storedLevel !== null) setLevelIdx(parseInt(storedLevel, 10) || 3);
+      if (storedLevel !== null) {
+        const parsedLevel = parseInt(storedLevel, 10);
+        if (Number.isFinite(parsedLevel) && parsedLevel >= 0 && parsedLevel <= 3) {
+          setLevelIdx(parsedLevel);
+        }
+      }
       if (storedMushafLayout === '15line' || storedMushafLayout === '16line') {
         setMushafLayout(storedMushafLayout);
       }
@@ -977,8 +982,8 @@ function QuranPortionCard({
     queueOneExtraReminderIfAllowed(nextProgress);
   };
 
-  const lv = QURAN_READ_LEVELS[levelIdx];
-  const accentColor = nightMode ? '#4FE948' : lv.color;
+  const lv = levelIdx !== null ? QURAN_READ_LEVELS[levelIdx] : QURAN_READ_LEVELS[0];
+  const accentColor = nightMode ? '#4FE948' : (levelIdx !== null ? lv.color : '#4CAF82');
   const cardWidth = Math.max(300, windowWidth - (Spacing.md * 2));
   const nextMissedJuz = pendingMissedDays[0] ?? null;
   const shouldRenderCatchupBanner = levelIdx === 3 && showCatchupBanner && pendingMissedDays.length > 0;
@@ -989,7 +994,10 @@ function QuranPortionCard({
   let ayahLine = '';
   let subLine = '';
 
-  if (levelIdx === 0) {
+  if (levelIdx === null) {
+    titleLine = 'Choose your reading level';
+    subLine   = 'Select how much Quran you want to read each day';
+  } else if (levelIdx === 0) {
     // Level 1: random page + explicit ayah amount target
     badge     = `${ayahSelection.ayahTarget} Ayahs`;
     titleLine = `Surah ${ayahSelection.surah} · Page ${ayahSelection.page}`;
@@ -1042,9 +1050,11 @@ function QuranPortionCard({
             <View style={fyStyles.duroodHeader}>
               <MaterialIcons name="menu-book" size={13} color={accentColor} />
               <Text style={[fyStyles.duroodTitle, { color: accentColor }]}>Daily Quran</Text>
-              <View style={[fyStyles.juzBadge, { backgroundColor: accentColor }]}>
-                <Text style={fyStyles.juzBadgeText}>{badge}</Text>
-              </View>
+              {levelIdx !== null && badge ? (
+                <View style={[fyStyles.juzBadge, { backgroundColor: accentColor }]}>
+                  <Text style={fyStyles.juzBadgeText}>{badge}</Text>
+                </View>
+              ) : null}
             </View>
 
             {/* Content */}
@@ -1145,24 +1155,26 @@ function QuranPortionCard({
               </View>
             ) : null}
 
-            {/* Action buttons — side by side */}
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <TouchableOpacity
-                onPress={openInQuran}
-                style={[fyStyles.openRow, { flex: 1, backgroundColor: accentColor, justifyContent: 'center', marginTop: 0 }]}
-              >
-                <MaterialIcons name="auto-stories" size={11} color="#fff" />
-                <Text style={[fyStyles.openText, { color: '#fff' }]}>Read in App</Text>
-              </TouchableOpacity>
+            {/* Action buttons — hidden until user picks a level */}
+            {levelIdx !== null ? (
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity
+                  onPress={openInQuran}
+                  style={[fyStyles.openRow, { flex: 1, backgroundColor: accentColor, justifyContent: 'center', marginTop: 0 }]}
+                >
+                  <MaterialIcons name="auto-stories" size={11} color="#fff" />
+                  <Text style={[fyStyles.openText, { color: '#fff' }]}>Read in App</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                onPress={handleMarkAsRead}
-                style={[fyStyles.openRow, { flex: 1, backgroundColor: accentColor, justifyContent: 'center', marginTop: 0 }]}
-              >
-                <MaterialIcons name="check-circle" size={11} color="#fff" />
-                <Text style={[fyStyles.openText, { color: '#fff' }]}>Mark as Read</Text>
-              </TouchableOpacity>
-            </View>
+                <TouchableOpacity
+                  onPress={handleMarkAsRead}
+                  style={[fyStyles.openRow, { flex: 1, backgroundColor: accentColor, justifyContent: 'center', marginTop: 0 }]}
+                >
+                  <MaterialIcons name="check-circle" size={11} color="#fff" />
+                  <Text style={[fyStyles.openText, { color: '#fff' }]}>Mark as Read</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
           </View>
         </ImageBackground>
       </Animated.View>
