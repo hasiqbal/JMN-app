@@ -434,6 +434,7 @@ export default function QaseedahGroupScreen() {
     } else if (!options?.silent) {
       setLoading(true);
     }
+    try {
       const applyRows = (rows: AdhkarRow[]) => {
         const nextChapters = extractChapterItems(rows);
         const nextSignature = buildChapterSignature(nextChapters);
@@ -445,8 +446,8 @@ export default function QaseedahGroupScreen() {
 
       // Always render from cache first for a stable, fast experience.
       const cachedOrLiveRows = await fetchQaseedahNaatEntriesForGroup(
-    try {
-      const rows = await fetchQaseedahNaatEntriesForGroup(
+        groupName,
+        type === 'naat' ? 'naat' : 'qaseedah',
       );
       applyRows(cachedOrLiveRows);
 
@@ -460,9 +461,6 @@ export default function QaseedahGroupScreen() {
         applyRows(revalidatedRows);
       }
 
-      setError(null);
-        setChapters(nextChapters);
-      }
       setError(null);
     } catch {
       setError('Could not load chapters for this group.');
