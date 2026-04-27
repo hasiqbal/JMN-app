@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated,
   View,
   Text,
   StyleSheet,
@@ -199,31 +198,12 @@ const StripDateChip = React.memo(function StripDateChip({
   nightPalette: NightPalette;
   onSelect: (cell: MonthDay) => void;
 }) {
-  const scale = useRef(new Animated.Value(1)).current;
   const N = nightMode ? nightPalette : null;
-
-  const handlePressIn = React.useCallback(() => {
-    Animated.spring(scale, {
-      toValue: 0.93,
-      useNativeDriver: true,
-      speed: 50,
-      bounciness: 0,
-    }).start();
-  }, [scale]);
-
-  const handlePressOut = React.useCallback(() => {
-    Animated.spring(scale, {
-      toValue: 1,
-      useNativeDriver: true,
-      speed: 40,
-      bounciness: 4,
-    }).start();
-  }, [scale]);
 
   const handleSelect = React.useCallback(() => onSelect(cell), [cell, onSelect]);
 
-  const containerStyle = React.useMemo(
-    () => [
+  const containerStyle = React.useCallback(
+    ({ pressed }: { pressed: boolean }) => [
       calStyles.stripItem,
       isToday && !isSelected && calStyles.stripItemToday,
       isSelected && calStyles.stripItemSelected,
@@ -235,6 +215,7 @@ const StripDateChip = React.memo(function StripDateChip({
         backgroundColor: STRIP_SELECTED_GREEN,
         borderColor: STRIP_SELECTED_GREEN,
       },
+      pressed && !isSelected && { opacity: 0.6 },
     ],
     [N, isSelected, isToday]
   );
@@ -268,20 +249,16 @@ const StripDateChip = React.memo(function StripDateChip({
   );
 
   return (
-    <Animated.View style={{ transform: [{ scale }] }}>
-      <Pressable
-        style={containerStyle}
-        onPress={handleSelect}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
-      >
-        <Text style={dayStyle}>{dow}</Text>
-        <Text style={dateStyle}>{cell.date.getDate()}</Text>
-        <Text style={hijriStyle}>{hijriDay || '--'}</Text>
-        {cell.isFriday ? <View style={calStyles.stripFridayDot} /> : null}
-      </Pressable>
-    </Animated.View>
+    <Pressable
+      style={containerStyle}
+      onPress={handleSelect}
+      hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+    >
+      <Text style={dayStyle}>{dow}</Text>
+      <Text style={dateStyle}>{cell.date.getDate()}</Text>
+      <Text style={hijriStyle}>{hijriDay || '--'}</Text>
+      {cell.isFriday ? <View style={calStyles.stripFridayDot} /> : null}
+    </Pressable>
   );
 });
 
@@ -1322,7 +1299,6 @@ export default function MonthlyCalendarSection({
               horizontal
               showsHorizontalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
-              disableScrollViewPanResponder
               contentContainerStyle={calStyles.stripScrollContent}
               style={[calStyles.stripScroll, N && { borderTopColor: N.border }]}
             >

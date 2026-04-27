@@ -24,7 +24,6 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Asset } from 'expo-asset';
 import Constants from 'expo-constants';
-import * as ExpoNotifications from 'expo-notifications';
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import type { AudioPlayer } from 'expo-audio';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -40,7 +39,7 @@ import { refreshJmnLiveStatus } from '@/services/liveService';
 type ExpoNotificationsModule = typeof import('expo-notifications');
 
 const Notifications: ExpoNotificationsModule | null =
-  Platform.OS === 'web' ? null : ExpoNotifications;
+  Platform.OS === 'web' ? null : require('expo-notifications');
 
 type StreamId = string;
 
