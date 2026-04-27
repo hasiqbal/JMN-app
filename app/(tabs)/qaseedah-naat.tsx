@@ -159,6 +159,21 @@ export default function QaseedahNaatScreen() {
   const scaleFactor = TEXT_SCALE_FACTOR[textScale];
   const sized = React.useCallback((base: number) => Math.round(base * scaleFactor), [scaleFactor]);
 
+  const rowsEqual = React.useCallback((a: AdhkarRow[], b: AdhkarRow[]) => {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i += 1) {
+      if (JSON.stringify(a[i]) !== JSON.stringify(b[i])) {
+        return false;
+      }
+    }
+    return true;
+  }, []);
+
+  const applyRows = React.useCallback((nextRows: AdhkarRow[]) => {
+    const sortedNext = sortRows(nextRows);
+    setRows((prev) => (rowsEqual(prev, sortedNext) ? prev : sortedNext));
+  }, [rowsEqual]);
+
   const loadData = React.useCallback(async (asRefresh = false, options?: { silent?: boolean }) => {
     if (asRefresh) {
       setRefreshing(true);
@@ -167,8 +182,16 @@ export default function QaseedahNaatScreen() {
     }
 
     try {
-      const data = await fetchQaseedahNaatEntries({ forceRefresh: asRefresh });
-      setRows(sortRows(data));
+      // Always serve cache first to keep the list stable and responsive.
+      const cachedOrLive = await fetchQaseedahNaatEntries();
+      applyRows(cachedOrLive);
+
+      if (asRefresh) {
+        // On explicit refresh, revalidate in foreground and only apply true diffs.
+        const revalidated = await fetchQaseedahNaatEntries({ forceRefresh: true });
+        applyRows(revalidated);
+      }
+
       setError(null);
     } catch {
       setError('Could not load qaseedahs and naats right now.');
@@ -176,7 +199,7 @@ export default function QaseedahNaatScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [applyRows]);
 
   useFocusEffect(
     React.useCallback(() => {

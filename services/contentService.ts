@@ -1436,7 +1436,16 @@ export async function fetchHowToGuides(language: 'en' | 'ur' = 'en', options?: {
 }
 
 export async function prewarmQaseedahAndHowToCaches(): Promise<void> {
-  const qaseedahTask = fetchQaseedahNaatEntries().then((rows) => seedQaseedahGroupCaches(rows));
+  const qaseedahTask = fetchQaseedahNaatEntries()
+    .then((rows) => {
+      void seedQaseedahGroupCaches(rows);
+
+      // Revalidate startup cache in background so users get updates quickly
+      // without blocking first render of qaseedah/naat screens.
+      return fetchQaseedahNaatEntries({ forceRefresh: true })
+        .then((liveRows) => seedQaseedahGroupCaches(liveRows))
+        .catch(() => {});
+    });
 
   await Promise.allSettled([
     qaseedahTask,

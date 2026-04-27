@@ -434,17 +434,33 @@ export default function QaseedahGroupScreen() {
     } else if (!options?.silent) {
       setLoading(true);
     }
+      const applyRows = (rows: AdhkarRow[]) => {
+        const nextChapters = extractChapterItems(rows);
+        const nextSignature = buildChapterSignature(nextChapters);
+        if (nextSignature !== chapterSignatureRef.current) {
+          chapterSignatureRef.current = nextSignature;
+          setChapters(nextChapters);
+        }
+      };
 
+      // Always render from cache first for a stable, fast experience.
+      const cachedOrLiveRows = await fetchQaseedahNaatEntriesForGroup(
     try {
       const rows = await fetchQaseedahNaatEntriesForGroup(
-        groupName,
-        type === 'naat' ? 'naat' : 'qaseedah',
-        { forceRefresh: asRefresh },
       );
-      const nextChapters = extractChapterItems(rows);
-      const nextSignature = buildChapterSignature(nextChapters);
-      if (nextSignature !== chapterSignatureRef.current) {
-        chapterSignatureRef.current = nextSignature;
+      applyRows(cachedOrLiveRows);
+
+      if (asRefresh) {
+        // Revalidate on pull-to-refresh and only apply if content actually changed.
+        const revalidatedRows = await fetchQaseedahNaatEntriesForGroup(
+          groupName,
+          type === 'naat' ? 'naat' : 'qaseedah',
+          { forceRefresh: true },
+        );
+        applyRows(revalidatedRows);
+      }
+
+      setError(null);
         setChapters(nextChapters);
       }
       setError(null);
