@@ -2184,8 +2184,8 @@ export default function HomeScreen() {
   const [dailySunnah, setDailySunnah] = useState<DailySunnahResult | null>(null);
   const [dailyQuran, setDailyQuran] = useState<DailyQuranResult | null>(null);
 
-  const refreshDailySunnah = useCallback(() => {
-    void fetchDailySunnah().then((result) => {
+  const refreshDailySunnah = useCallback((forceRefresh = false) => {
+    void fetchDailySunnah({ forceRefresh }).then((result) => {
       if (result) setDailySunnah(result);
     });
   }, []);
@@ -2228,7 +2228,7 @@ export default function HomeScreen() {
   }, [loadCommunityUpdates, loadDonationOptions]);
 
   useEffect(() => {
-    refreshDailySunnah();
+    refreshDailySunnah(true);
   }, [refreshDailySunnah]);
 
   useEffect(() => {

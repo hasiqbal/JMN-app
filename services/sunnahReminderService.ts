@@ -5,7 +5,7 @@
  */
 
 const FETCH_TIMEOUT_MS = 8000;
-const CACHE_KEY = '@daily_sunnah_v3';
+const CACHE_KEY = '@daily_sunnah_v4';
 const CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 
 export type DailySunnahResult = {
@@ -108,12 +108,19 @@ async function writeCache(data: DailySunnahResult): Promise<void> {
   }
 }
 
-export async function fetchDailySunnah(): Promise<DailySunnahResult | null> {
-  const cached = await readCache();
-  if (cached) return cached;
+export async function fetchDailySunnah(
+  options?: { forceRefresh?: boolean },
+): Promise<DailySunnahResult | null> {
+  const forceRefresh = options?.forceRefresh === true;
+  const fallbackCached = await readLastSuccessfulCache();
+
+  if (!forceRefresh) {
+    const cached = await readCache();
+    if (cached) return cached;
+  }
 
   const { url, anonKey } = getSupabaseEnv();
-  if (!url || !anonKey) return null;
+  if (!url || !anonKey) return fallbackCached;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -132,7 +139,7 @@ export async function fetchDailySunnah(): Promise<DailySunnahResult | null> {
 
     if (!response.ok) {
       console.warn('[sunnahReminderService] edge function error:', response.status);
-      return null;
+      return fallbackCached;
     }
 
     const parsed = await response.json() as DailySunnahResult | { noCandidate?: boolean };
@@ -147,6 +154,6 @@ export async function fetchDailySunnah(): Promise<DailySunnahResult | null> {
   } catch (err) {
     clearTimeout(timeoutId);
     console.warn('[sunnahReminderService] fetch failed:', err);
-    return null;
+    return fallbackCached;
   }
 }
