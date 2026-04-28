@@ -1,4 +1,8 @@
 import type { PrayerTime } from '@/services/prayerService';
+import {
+  type NotificationTemplateCatalog,
+  renderNotificationTemplate,
+} from '@/services/notificationTemplateService';
 
 export const PRAYER_NOTIFICATION_SCOPE = 'jmn-prayer';
 export const PRAYER_NOTIFICATION_ROUTE = '/prayer';
@@ -25,6 +29,7 @@ export type PlannedPrayerNotification = {
 
 export type PrayerNotificationSkipReason =
   | 'non-prayer-row'
+  | 'templates-unavailable'
   | 'iqamah-missing-or-invalid'
   | 'iqamah-not-after-prayer-start'
   | 'iqamah-reminder-before-prayer-start'
@@ -41,6 +46,7 @@ export type PrayerNotificationPlannerOptions = {
   notificationMinLeadMs?: number;
   androidPrayerStartAdvanceMs?: number;
   jamaatReminderMinutes?: number;
+  templates?: NotificationTemplateCatalog | null;
 };
 
 export function parseIqamahDate(iqamah: string | undefined, baseDate: Date): Date | null {
@@ -77,6 +83,11 @@ export function buildPrayerNotifications(
     return { planned: [], skipped: ['non-prayer-row'] };
   }
 
+  const templates = options?.templates;
+  if (!templates) {
+    return { planned: [], skipped: ['templates-unavailable'] };
+  }
+
   const notificationMinLeadMs = options?.notificationMinLeadMs ?? DEFAULT_NOTIFICATION_MIN_LEAD_MS;
   const androidPrayerStartAdvanceMs = options?.androidPrayerStartAdvanceMs ?? DEFAULT_ANDROID_PRAYER_START_ADVANCE_MS;
   const jamaatReminderMinutes = options?.jamaatReminderMinutes ?? JAMAAT_REMINDER_MINUTES;
@@ -90,9 +101,10 @@ export function buildPrayerNotifications(
     : prayerStart;
 
   if (prayerStartNotifyAt.getTime() - now.getTime() > notificationMinLeadMs) {
+    const vars = { prayerName: prayer.name, minutes: jamaatReminderMinutes };
     planned.push({
-      title: `${prayer.name} prayer time`,
-      body: `Azaan for ${prayer.name} has started.`,
+      title: renderNotificationTemplate(templates.prayerStart.title, vars),
+      body: renderNotificationTemplate(templates.prayerStart.body, vars),
       fireAt: prayerStartNotifyAt,
       data: {
         scope: PRAYER_NOTIFICATION_SCOPE,
@@ -131,8 +143,14 @@ export function buildPrayerNotifications(
   }
 
   planned.push({
-    title: `${prayer.name} jamaat in ${jamaatReminderMinutes} minutes`,
-    body: `As-salatu khayrun minan nawm. ${prayer.name} jamaat starts in ${jamaatReminderMinutes} minutes.`,
+    title: renderNotificationTemplate(templates.jamaatReminder.title, {
+      prayerName: prayer.name,
+      minutes: jamaatReminderMinutes,
+    }),
+    body: renderNotificationTemplate(templates.jamaatReminder.body, {
+      prayerName: prayer.name,
+      minutes: jamaatReminderMinutes,
+    }),
     fireAt: jamaatReminderDate,
     data: {
       scope: PRAYER_NOTIFICATION_SCOPE,

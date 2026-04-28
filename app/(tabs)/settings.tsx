@@ -13,15 +13,10 @@ import {
   stopActiveAdhaan,
 } from '@/hooks/useQuranPrayerPopups';
 import {
-  ADHKAR_REMINDER_SOUND_MODE_STORAGE_KEY,
-  ADHKAR_REMINDERS_ENABLED_STORAGE_KEY,
   ADHAAN_AUDIO_OPTIONS,
   ADHAAN_AUDIO_STORAGE_KEY,
-  DEFAULT_ADHKAR_REMINDER_SOUND_MODE,
-  DEFAULT_ADHKAR_REMINDERS_ENABLED,
   DEFAULT_ADHAAN_AUDIO_URL,
   PRAYER_SILENT_CHANNEL_ID,
-  type AdhkarReminderSoundMode,
   getAdhaanOptionByUrl,
   getPrayerAdhaanChannelId,
   PRAYER_REMINDER_LIVE_ALERTS_STORAGE_KEY,
@@ -97,8 +92,6 @@ export default function SettingsScreen() {
 
   const [liveNotifyEnabled, setLiveNotifyEnabled] = useState(false);
   const [prayerLiveAlertsEnabled, setPrayerLiveAlertsEnabled] = useState(true);
-  const [adhkarRemindersEnabled, setAdhkarRemindersEnabled] = useState(DEFAULT_ADHKAR_REMINDERS_ENABLED);
-  const [adhkarReminderSoundMode, setAdhkarReminderSoundMode] = useState<AdhkarReminderSoundMode>(DEFAULT_ADHKAR_REMINDER_SOUND_MODE);
   const [adhaanMuted, setAdhaanMuted] = useState(false);
   const [iqamahMuted, setIqamahMuted] = useState(false);
   const [selectedAdhaanUrl, setSelectedAdhaanUrl] = useState(DEFAULT_ADHAAN_AUDIO_URL);
@@ -134,16 +127,12 @@ export default function SettingsScreen() {
       const [
         liveRaw,
         prayerLiveRaw,
-        adhkarEnabledRaw,
-        adhkarSoundModeRaw,
         adhaanMutedValue,
         iqamahMutedValue,
         selectedAdhaanRaw,
       ] = await Promise.all([
         AsyncStorage.getItem(LIVE_NOTIFY_KEY).catch(() => null),
         AsyncStorage.getItem(PRAYER_REMINDER_LIVE_ALERTS_STORAGE_KEY).catch(() => null),
-        AsyncStorage.getItem(ADHKAR_REMINDERS_ENABLED_STORAGE_KEY).catch(() => null),
-        AsyncStorage.getItem(ADHKAR_REMINDER_SOUND_MODE_STORAGE_KEY).catch(() => null),
         isAdhaanMutedEnabled(),
         isIqamahMutedEnabled(),
         AsyncStorage.getItem(ADHAAN_AUDIO_STORAGE_KEY).catch(() => null),
@@ -153,8 +142,6 @@ export default function SettingsScreen() {
 
       setLiveNotifyEnabled(liveRaw === 'true');
       setPrayerLiveAlertsEnabled(prayerLiveRaw !== 'false');
-      setAdhkarRemindersEnabled(adhkarEnabledRaw == null ? DEFAULT_ADHKAR_REMINDERS_ENABLED : adhkarEnabledRaw === 'true');
-      setAdhkarReminderSoundMode(adhkarSoundModeRaw === 'silent' ? 'silent' : DEFAULT_ADHKAR_REMINDER_SOUND_MODE);
       setAdhaanMuted(adhaanMutedValue);
       setIqamahMuted(iqamahMutedValue);
       setSelectedAdhaanUrl(isValidAdhaanAudioUrl(selectedAdhaanRaw) ? selectedAdhaanRaw : DEFAULT_ADHAAN_AUDIO_URL);
@@ -258,6 +245,15 @@ export default function SettingsScreen() {
         })
         .catch(() => 'read-channel-failed')
       : 'ios';
+
+    if (Platform.OS === 'android' && !adhaanMutedNow && channelSound === 'default') {
+      showBanner(
+        'Android channel still default',
+        'Custom adhaan sound was not applied to the active channel. Install a fresh build and reinstall app so new channel IDs are recreated.',
+        10000,
+        'warning',
+      );
+    }
 
     const fireAt = new Date(Date.now() + 10_000);
     const trigger = Platform.OS === 'android'
@@ -374,47 +370,6 @@ export default function SettingsScreen() {
     }
   }, []);
 
-  const onToggleAdhkarReminders = useCallback(async (value: boolean) => {
-    if (value) {
-      const allowed = await ensureLiveNotificationPermission();
-      if (!allowed) {
-        setAdhkarRemindersEnabled(false);
-        await AsyncStorage.setItem(ADHKAR_REMINDERS_ENABLED_STORAGE_KEY, 'false').catch(() => {});
-        return;
-      }
-    }
-
-    setAdhkarRemindersEnabled(value);
-    const wrote = await AsyncStorage
-      .setItem(ADHKAR_REMINDERS_ENABLED_STORAGE_KEY, value ? 'true' : 'false')
-      .then(() => true)
-      .catch(() => false);
-
-    if (!wrote) {
-      setAdhkarRemindersEnabled((current) => !current);
-    }
-  }, [ensureLiveNotificationPermission]);
-
-  const onSelectAdhkarReminderSoundMode = useCallback(async (mode: AdhkarReminderSoundMode) => {
-    setAdhkarReminderSoundMode(mode);
-    const wrote = await AsyncStorage
-      .setItem(ADHKAR_REMINDER_SOUND_MODE_STORAGE_KEY, mode)
-      .then(() => true)
-      .catch(() => false);
-
-    if (!wrote) {
-      setAdhkarReminderSoundMode((current) => (current === 'sound' ? 'silent' : 'sound'));
-      showBanner('Adhkar setting failed', 'Could not save adhkar reminder sound mode.', 7000, 'warning');
-      return;
-    }
-
-    showBanner(
-      'Adhkar reminders updated',
-      mode === 'silent' ? 'Adhkar reminders will now be silent.' : 'Adhkar reminders will play default alert sound.',
-      4000,
-    );
-  }, [showBanner]);
-
   const onToggleAdhaanMuted = useCallback(async (value: boolean) => {
     setAdhaanMuted(value);
     const ok = await setAdhaanMutedEnabled(value)
@@ -462,7 +417,7 @@ export default function SettingsScreen() {
       >
         <View style={styles.header}>
           <Text style={[styles.title, { color: palette.text }]}>Settings</Text>
-          <Text style={[styles.subtitle, { color: palette.sub }]}>Manage appearance, prayer reminders, adhkar reminders, and live alerts.</Text>
+          <Text style={[styles.subtitle, { color: palette.sub }]}>Manage appearance, prayer reminders, and live alerts.</Text>
         </View>
 
         <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}> 
@@ -515,53 +470,6 @@ export default function SettingsScreen() {
             textColor={palette.text}
             hintColor={palette.sub}
           />
-
-          <SwitchRow
-            label="Post-jamaat adhkar reminders"
-            hint="Send one reminder when jamaat window ends for each fard prayer."
-            value={adhkarRemindersEnabled}
-            onValueChange={onToggleAdhkarReminders}
-            accentColor={palette.accent}
-            borderColor={palette.border}
-            textColor={palette.text}
-            hintColor={palette.sub}
-          />
-
-          <View style={styles.buttonRow}>
-            <TouchableOpacity
-              activeOpacity={0.85}
-              style={[
-                styles.actionButton,
-                {
-                  borderColor: adhkarReminderSoundMode === 'sound' ? palette.accent : palette.border,
-                  backgroundColor: adhkarReminderSoundMode === 'sound' ? `${palette.accent}20` : palette.chip,
-                },
-              ]}
-              onPress={() => {
-                void onSelectAdhkarReminderSoundMode('sound');
-              }}
-            >
-              <MaterialIcons name={adhkarReminderSoundMode === 'sound' ? 'check-circle' : 'radio-button-unchecked'} size={16} color={adhkarReminderSoundMode === 'sound' ? palette.accent : palette.text} />
-              <Text style={[styles.actionButtonText, { color: palette.text }]}>Adhkar sound</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              activeOpacity={0.85}
-              style={[
-                styles.actionButton,
-                {
-                  borderColor: adhkarReminderSoundMode === 'silent' ? palette.accent : palette.border,
-                  backgroundColor: adhkarReminderSoundMode === 'silent' ? `${palette.accent}20` : palette.chip,
-                },
-              ]}
-              onPress={() => {
-                void onSelectAdhkarReminderSoundMode('silent');
-              }}
-            >
-              <MaterialIcons name={adhkarReminderSoundMode === 'silent' ? 'check-circle' : 'radio-button-unchecked'} size={16} color={adhkarReminderSoundMode === 'silent' ? palette.accent : palette.text} />
-              <Text style={[styles.actionButtonText, { color: palette.text }]}>Adhkar silent</Text>
-            </TouchableOpacity>
-          </View>
         </View>
 
         <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}> 

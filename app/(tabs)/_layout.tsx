@@ -196,36 +196,70 @@ async function ensureAndroidPrayerNotificationChannels(args?: {
   const adhaanChannelId = args?.adhaanChannelId ?? getPrayerAdhaanChannelId(ADHAAN_AUDIO_OPTIONS[0].id);
   const adhaanSoundFile = args?.adhaanSoundFile ?? DEFAULT_ADHAAN_BACKGROUND_SOUND_FILE;
 
-  await Promise.all([
-    Notifications.setNotificationChannelAsync(PRAYER_ALERT_CHANNEL_ID, {
-      name: 'JMN Prayer Alerts',
-      importance: Notifications.AndroidImportance.HIGH,
-      vibrationPattern: [0, 250, 150, 250],
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      sound: 'default',
-    }),
-    Notifications.setNotificationChannelAsync(adhaanChannelId, {
-      name: 'JMN Adhaan Alerts',
-      importance: Notifications.AndroidImportance.HIGH,
-      vibrationPattern: [0, 200, 120, 200],
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      sound: adhaanSoundFile,
-    }),
-    Notifications.setNotificationChannelAsync(PRAYER_JAMAAT_CHANNEL_ID, {
-      name: 'JMN Jamaat Alerts',
-      importance: Notifications.AndroidImportance.HIGH,
-      vibrationPattern: [0, 200, 120, 200],
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      sound: IQAMAH_BACKGROUND_SOUND_FILE,
-    }),
-    Notifications.setNotificationChannelAsync(PRAYER_SILENT_CHANNEL_ID, {
-      name: 'JMN Prayer Alerts (Silent)',
-      importance: Notifications.AndroidImportance.HIGH,
-      vibrationPattern: [0, 80],
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      sound: null,
-    }),
-  ]).catch(() => {});
+  try {
+    await Promise.all([
+      Notifications.setNotificationChannelAsync(PRAYER_ALERT_CHANNEL_ID, {
+        name: 'JMN Prayer Alerts',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 150, 250],
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        sound: 'default',
+      }),
+      Notifications.setNotificationChannelAsync(adhaanChannelId, {
+        name: 'JMN Adhaan Alerts',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 200, 120, 200],
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        sound: adhaanSoundFile,
+      }),
+      Notifications.setNotificationChannelAsync(PRAYER_JAMAAT_CHANNEL_ID, {
+        name: 'JMN Jamaat Alerts',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 200, 120, 200],
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        sound: IQAMAH_BACKGROUND_SOUND_FILE,
+      }),
+      Notifications.setNotificationChannelAsync(PRAYER_SILENT_CHANNEL_ID, {
+        name: 'JMN Prayer Alerts (Silent)',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 80],
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        sound: null,
+      }),
+    ]);
+  } catch (error) {
+    if (__DEV__) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn('[notif] setNotificationChannelAsync failed', message);
+    }
+    return;
+  }
+
+  if (!__DEV__) return;
+
+  try {
+    const [adhaanChannel, jamaatChannel] = await Promise.all([
+      Notifications.getNotificationChannelAsync(adhaanChannelId),
+      Notifications.getNotificationChannelAsync(PRAYER_JAMAAT_CHANNEL_ID),
+    ]);
+
+    const actualAdhaanSound = adhaanChannel?.sound ?? null;
+    const actualJamaatSound = jamaatChannel?.sound ?? null;
+
+    if (actualAdhaanSound === 'default' || actualAdhaanSound == null) {
+      console.warn(
+        `[notif] adhaan channel sound mismatch: id=${adhaanChannelId}, expected-custom=${adhaanSoundFile}, actual=${String(actualAdhaanSound)}`
+      );
+    }
+
+    if (actualJamaatSound === 'default' || actualJamaatSound == null) {
+      console.warn(
+        `[notif] jamaat channel sound mismatch: id=${PRAYER_JAMAAT_CHANNEL_ID}, expected-custom=${IQAMAH_BACKGROUND_SOUND_FILE}, actual=${String(actualJamaatSound)}`
+      );
+    }
+  } catch {
+    // Ignore diagnostics failures; channel setup already succeeded.
+  }
 }
 
 async function ensureAndroidAdhkarNotificationChannels(

@@ -867,6 +867,13 @@ export default function MonthlyCalendarSection({
 
   const [selectedDay, setSelectedDay] = useState<MonthDay | null>(null);
 
+  const resetCalendarDataAndReload = React.useCallback(() => {
+    setDbRows(new Map());
+    setHijriRows(new Map());
+    setEventsByDay(new Map());
+    setCalendarRefreshToken((value) => value + 1);
+  }, []);
+
   const handleOpenMasjidAnnouncement = React.useCallback((event: IslamicCalendarEventRow) => {
     const sourceAnnouncementId = event.source_announcement_id?.trim();
     if (!sourceAnnouncementId) {
@@ -1214,9 +1221,7 @@ export default function MonthlyCalendarSection({
       setViewMonth((m) => m - 1);
     }
     setSelectedDay(null);
-    setDbRows(new Map());
-    setHijriRows(new Map());
-    setEventsByDay(new Map());
+    resetCalendarDataAndReload();
   };
 
   const goForward = () => {
@@ -1227,9 +1232,7 @@ export default function MonthlyCalendarSection({
       setViewMonth((m) => m + 1);
     }
     setSelectedDay(null);
-    setDbRows(new Map());
-    setHijriRows(new Map());
-    setEventsByDay(new Map());
+    resetCalendarDataAndReload();
   };
 
   const firstWithHijri = currentGrid.find((c) => c.isCurrentMonth && c.day?.hijri);
@@ -1347,9 +1350,7 @@ export default function MonthlyCalendarSection({
                   setPickerMonth(now.getMonth());
                   setPickerStep('month');
                   setSelectedDay(null);
-                  setDbRows(new Map());
-                  setHijriRows(new Map());
-                  setEventsByDay(new Map());
+                  resetCalendarDataAndReload();
                   setShowMonthPicker(false);
                 }}
                 activeOpacity={0.7}
@@ -1397,9 +1398,7 @@ export default function MonthlyCalendarSection({
                               setViewYear(year);
                               setViewMonth(monthIndex);
                               setSelectedDay(null);
-                              setDbRows(new Map());
-                              setHijriRows(new Map());
-                              setEventsByDay(new Map());
+                              resetCalendarDataAndReload();
                               setPickerStep('day');
                             }}
                             style={[
@@ -1471,9 +1470,7 @@ export default function MonthlyCalendarSection({
                             isFriday: d.date.getDay() === 5,
                             isCurrentMonth: true,
                           });
-                          setDbRows(new Map());
-                          setHijriRows(new Map());
-                          setEventsByDay(new Map());
+                          resetCalendarDataAndReload();
                         }}
                         style={[
                           calStyles.dayButton,

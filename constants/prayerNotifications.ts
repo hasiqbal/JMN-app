@@ -50,7 +50,7 @@ export const ADHAAN_AUDIO_OPTIONS: AdhaanAudioOption[] = [
 export const DEFAULT_ADHAAN_AUDIO_URL = ADHAAN_AUDIO_OPTIONS[0].url;
 export const DEFAULT_ADHAAN_BACKGROUND_SOUND_FILE = ADHAAN_AUDIO_OPTIONS[0].backgroundSoundFile;
 export const IQAMAH_BACKGROUND_SOUND_FILE = 'iqamah.mp3';
-export const PRAYER_JAMAAT_CHANNEL_ID = 'jmn-prayer-jamaat-v5';
+export const PRAYER_JAMAAT_CHANNEL_ID = 'jmn-prayer-jamaat-v6';
 export const PRAYER_SILENT_CHANNEL_ID = 'jmn-prayer-silent-v3';
 export const PRAYER_ALERT_CHANNEL_ID = 'jmn-prayer-alerts-v1';
 export const ADHKAR_NOTIFICATION_SCOPE = 'jmn-adhkar';
@@ -75,5 +75,5 @@ export function getAdhaanOptionByUrl(value: string | null | undefined): AdhaanAu
 }
 
 export function getPrayerAdhaanChannelId(optionId: string): string {
-  return `jmn-prayer-adhaan-${optionId}-v5`;
+  return `jmn-prayer-adhaan-${optionId}-v6`;
 }

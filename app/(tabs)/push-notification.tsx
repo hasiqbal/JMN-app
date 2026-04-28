@@ -5,6 +5,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
 import { Colors, Radius, Spacing } from '@/constants/theme';
+import {
+  DEFAULT_NOTIFICATION_LANGUAGE_PREFERENCE,
+  DEFAULT_SIMPLE_URDU_MODE,
+  NOTIFICATION_LANGUAGE_PREFERENCE_STORAGE_KEY,
+  SIMPLE_URDU_MODE_STORAGE_KEY,
+  type NotificationLanguagePreference,
+} from '@/constants/prayerNotifications';
 import { useAppTheme } from '@/hooks/useAppTheme';
 
 type PersistedPushMessage = {
@@ -21,6 +28,57 @@ type PersistedPushMessage = {
 };
 
 const PUSH_MESSAGE_STORAGE_KEY = 'jmn_last_opened_push_message_v1';
+
+type DisplayLine = {
+  text: string;
+  language: 'en' | 'ur';
+};
+
+function simplifyUrduText(text: string): string {
+  let value = text.trim();
+  if (!value) return '';
+
+  const replacements: [RegExp, string][] = [
+    [/محترم/g, 'پیارے'],
+    [/محترمہ/g, 'پیاری'],
+    [/براہِ\s*کرم/g, 'مہربانی'],
+    [/تشریف\s*لائیں/g, 'آئیں'],
+    [/یاد\s*دہانی/g, 'یاد دہانی'],
+    [/وقتِ\s*نماز/g, 'نماز کا وقت'],
+    [/کا\s*آغاز\s*ہو\s*چکا\s*ہے/g, 'شروع ہو گیا ہے'],
+  ];
+
+  for (const [pattern, next] of replacements) {
+    value = value.replace(pattern, next);
+  }
+
+  return value;
+}
+
+function buildDisplayLines(
+  english: string,
+  urdu: string,
+  preference: NotificationLanguagePreference,
+): DisplayLine[] {
+  const en = english.trim();
+  const ur = urdu.trim();
+
+  if (preference === 'urdu-only') {
+    if (ur) return [{ text: ur, language: 'ur' }];
+    return en ? [{ text: en, language: 'en' }] : [];
+  }
+
+  if (preference === 'urdu-first') {
+    if (ur && en) return [{ text: ur, language: 'ur' }, { text: en, language: 'en' }];
+    if (ur) return [{ text: ur, language: 'ur' }];
+    return en ? [{ text: en, language: 'en' }] : [];
+  }
+
+  if (en && ur) return [{ text: en, language: 'en' }, { text: ur, language: 'ur' }];
+  if (en) return [{ text: en, language: 'en' }];
+  if (ur) return [{ text: ur, language: 'ur' }];
+  return [];
+}
 
 function asText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -59,14 +117,29 @@ export default function PushNotificationScreen() {
   const { darkMode } = useAppTheme();
   const params = useLocalSearchParams<{ openedAt?: string; notificationId?: string }>();
   const [message, setMessage] = useState<PersistedPushMessage | null>(null);
+  const [languagePreference, setLanguagePreference] = useState<NotificationLanguagePreference>(
+    DEFAULT_NOTIFICATION_LANGUAGE_PREFERENCE,
+  );
+  const [simpleUrduMode, setSimpleUrduMode] = useState(DEFAULT_SIMPLE_URDU_MODE);
 
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
-      const raw = await AsyncStorage.getItem(PUSH_MESSAGE_STORAGE_KEY).catch(() => null);
+      const [raw, languageRaw, simpleModeRaw] = await Promise.all([
+        AsyncStorage.getItem(PUSH_MESSAGE_STORAGE_KEY).catch(() => null),
+        AsyncStorage.getItem(NOTIFICATION_LANGUAGE_PREFERENCE_STORAGE_KEY).catch(() => null),
+        AsyncStorage.getItem(SIMPLE_URDU_MODE_STORAGE_KEY).catch(() => null),
+      ]);
       if (cancelled) return;
+
       setMessage(parseStoredMessage(raw));
+      setLanguagePreference(
+        languageRaw === 'urdu-first' || languageRaw === 'urdu-only'
+          ? languageRaw
+          : DEFAULT_NOTIFICATION_LANGUAGE_PREFERENCE,
+      );
+      setSimpleUrduMode(simpleModeRaw == null ? DEFAULT_SIMPLE_URDU_MODE : simpleModeRaw !== 'false');
     };
 
     void load();
@@ -104,6 +177,11 @@ export default function PushNotificationScreen() {
     ? new Date(message.receivedAt).toLocaleString()
     : '';
 
+  const urduTitle = simpleUrduMode ? simplifyUrduText(message?.urduTitle ?? '') : (message?.urduTitle ?? '');
+  const urduBody = simpleUrduMode ? simplifyUrduText(message?.urduBody ?? '') : (message?.urduBody ?? '');
+  const titleLines = buildDisplayLines(message?.title ?? '', urduTitle, languagePreference);
+  const bodyLines = buildDisplayLines(message?.body ?? '', urduBody, languagePreference);
+
   return (
     <View style={[styles.container, { backgroundColor: palette.bg, paddingTop: insets.top + 8 }]}> 
       <ScrollView
@@ -130,30 +208,38 @@ export default function PushNotificationScreen() {
             <>
               <View style={styles.section}>
                 <Text style={[styles.label, { color: palette.sub }]}>Title</Text>
-                <Text style={[styles.englishText, { color: palette.text }]}>{message.title || 'No title'}</Text>
-                {message.urduTitle ? (
-                  <Text
-                    style={[styles.urduText, { color: palette.text }]}
-                    selectable
-                  >
-                    {message.urduTitle}
-                  </Text>
-                ) : null}
+                {titleLines.length === 0 ? (
+                  <Text style={[styles.englishText, { color: palette.text }]}>No title</Text>
+                ) : (
+                  titleLines.map((line, idx) => (
+                    <Text
+                      key={`title-${idx}`}
+                      style={line.language === 'ur' ? [styles.urduText, { color: palette.text }] : [styles.englishText, { color: palette.text }]}
+                      selectable
+                    >
+                      {line.text}
+                    </Text>
+                  ))
+                )}
               </View>
 
               <View style={[styles.divider, { backgroundColor: palette.border }]} />
 
               <View style={styles.section}>
                 <Text style={[styles.label, { color: palette.sub }]}>Message</Text>
-                <Text style={[styles.englishText, { color: palette.text }]}>{message.body || 'No message body'}</Text>
-                {message.urduBody ? (
-                  <Text
-                    style={[styles.urduText, { color: palette.text }]}
-                    selectable
-                  >
-                    {message.urduBody}
-                  </Text>
-                ) : null}
+                {bodyLines.length === 0 ? (
+                  <Text style={[styles.englishText, { color: palette.text }]}>No message body</Text>
+                ) : (
+                  bodyLines.map((line, idx) => (
+                    <Text
+                      key={`body-${idx}`}
+                      style={line.language === 'ur' ? [styles.urduText, { color: palette.text }] : [styles.englishText, { color: palette.text }]}
+                      selectable
+                    >
+                      {line.text}
+                    </Text>
+                  ))
+                )}
               </View>
 
               <View style={[styles.metaWrap, { backgroundColor: palette.badge, borderColor: palette.border }]}> 

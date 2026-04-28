@@ -6,6 +6,10 @@ import {
   ADHKAR_NOTIFICATION_TYPE,
 } from '@/constants/prayerNotifications';
 import { fetchAdhkarGroupsForPrayerTime } from '@/services/contentService';
+import {
+  type NotificationTemplateCatalog,
+  renderNotificationTemplate,
+} from '@/services/notificationTemplateService';
 import { parseIqamahDate } from '@/services/prayerNotificationPlanner';
 import type { PrayerTime } from '@/services/prayerService';
 import type { PrayerTimeId } from '@/types/duasTypes';
@@ -29,6 +33,7 @@ export type PlannedAdhkarNotification = {
 
 export type AdhkarNotificationSkipReason =
   | 'non-fard-prayer'
+  | 'templates-unavailable'
   | 'no-adhkar-prayer-time'
   | 'adhkar-content-unavailable'
   | 'iqamah-missing-or-invalid'
@@ -49,6 +54,7 @@ export type AdhkarNotificationPlannerOptions = {
   notificationMinLeadMs?: number;
   jamaatOngoingWindowMs?: number;
   hasAdhkarForPrayerTime?: (prayerTime: AdhkarNotificationPrayerTime) => Promise<boolean>;
+  templates?: NotificationTemplateCatalog | null;
 };
 
 function isFriday(date: Date): boolean {
@@ -78,8 +84,16 @@ export function buildAdhkarNotificationForPrayer(
   prayer: PrayerTime,
   now: Date,
   hasAdhkarContent: boolean,
-  options?: Pick<AdhkarNotificationPlannerOptions, 'notificationMinLeadMs' | 'jamaatOngoingWindowMs'>,
+  options?: Pick<AdhkarNotificationPlannerOptions, 'notificationMinLeadMs' | 'jamaatOngoingWindowMs' | 'templates'>,
 ): AdhkarNotificationBuildResult {
+  const templates = options?.templates;
+  if (!templates) {
+    return {
+      planned: [],
+      skipped: [{ prayerName: prayer.name, reason: 'templates-unavailable' }],
+    };
+  }
+
   const prayerTime = resolveAdhkarPrayerTimeForPrayer(prayer);
   if (!prayerTime) {
     return {
@@ -125,8 +139,12 @@ export function buildAdhkarNotificationForPrayer(
   return {
     planned: [
       {
-        title: `${prayer.name} adhkar is due`,
-        body: `Open Duas for ${prayer.name} adhkar after jamaat.`,
+        title: renderNotificationTemplate(templates.adhkarReminder.title, {
+          prayerName: prayer.name,
+        }),
+        body: renderNotificationTemplate(templates.adhkarReminder.body, {
+          prayerName: prayer.name,
+        }),
         fireAt,
         data: {
           scope: ADHKAR_NOTIFICATION_SCOPE,

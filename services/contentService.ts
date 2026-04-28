@@ -385,12 +385,12 @@ function normalizeHijriMonthName(value: string): string {
     .replace(/[^a-z]/g, '');
 }
 
-function parseHijriDayMonth(value: string | null | undefined): { day: number; month: number } | null {
+function parseHijriDayMonthYear(value: string | null | undefined): { day: number; month: number; year: number | null } | null {
   const text = (value ?? '').trim();
   if (!text) return null;
 
-  // Match "12 Rabīʿ al-awwal 1448 AH" — capture day then month name (stop before 4-digit year)
-  const match = text.match(/\b(\d{1,2})\s+(.+?)\s+\d{4}/);
+  // Match "12 Rabi al-awwal 1448 AH" (or 1-4 digit year labels).
+  const match = text.match(/\b(\d{1,2})\s+(.+?)\s+(\d{1,4})\b/);
   if (!match) return null;
 
   const day = Number.parseInt(match[1], 10);
@@ -399,13 +399,36 @@ function parseHijriDayMonth(value: string | null | undefined): { day: number; mo
   const month = HIJRI_MONTH_ALIASES[normalizeHijriMonthName(match[2])];
   if (!month) return null;
 
-  return { day, month };
+  const parsedYear = Number.parseInt(match[3], 10);
+  const year = Number.isFinite(parsedYear) && parsedYear > 0 ? parsedYear : null;
+
+  return { day, month, year };
+}
+
+function normalizeToIsoDate(value: string | null | undefined): string | null {
+  const text = (value ?? '').trim();
+  if (!text) return null;
+
+  const isoLikeMatch = text.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/);
+  if (isoLikeMatch) {
+    const year = Number.parseInt(isoLikeMatch[1], 10);
+    const month = Number.parseInt(isoLikeMatch[2], 10);
+    const day = Number.parseInt(isoLikeMatch[3], 10);
+    if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+
+  const parsed = new Date(text);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  return `${parsed.getUTCFullYear()}-${String(parsed.getUTCMonth() + 1).padStart(2, '0')}-${String(parsed.getUTCDate()).padStart(2, '0')}`;
 }
 
 function isIsoDateInRange(value: string | null | undefined, start: string, end: string): boolean {
-  const text = (value ?? '').trim();
-  if (!text) return false;
-  return text >= start && text <= end;
+  const normalized = normalizeToIsoDate(value);
+  if (!normalized) return false;
+  return normalized >= start && normalized <= end;
 }
 
 function mapRawIslamicEventRow(row: RawIslamicCalendarEventRow): IslamicCalendarEventRow {
@@ -457,16 +480,28 @@ export async function fetchIslamicCalendarEventsForMonth(
       .eq('gregorian_year', year)
       .order('gregorian_date', { ascending: true });
 
-    const gregorianByHijriKey = new Map<string, string>();
+    const gregorianByHijriYearMonthDay = new Map<string, string>();
+    const gregorianByHijriMonthDay = new Map<string, string[]>();
     if (Array.isArray(hijriYearData)) {
       hijriYearData.forEach((entry: { gregorian_date: string; hijri_date: string }) => {
-        const parsed = parseHijriDayMonth(entry.hijri_date);
+        const parsed = parseHijriDayMonthYear(entry.hijri_date);
         if (!parsed) return;
-        const key = `${parsed.month}:${parsed.day}`;
-        // First occurrence wins (earlier in year = current Hijri year for that month)
-        if (!gregorianByHijriKey.has(key)) {
-          gregorianByHijriKey.set(key, entry.gregorian_date);
+        const normalizedGregorian = normalizeToIsoDate(entry.gregorian_date);
+        if (!normalizedGregorian) return;
+
+        if (parsed.year) {
+          const fullKey = `${parsed.year}:${parsed.month}:${parsed.day}`;
+          if (!gregorianByHijriYearMonthDay.has(fullKey)) {
+            gregorianByHijriYearMonthDay.set(fullKey, normalizedGregorian);
+          }
         }
+
+        const partialKey = `${parsed.month}:${parsed.day}`;
+        const bucket = gregorianByHijriMonthDay.get(partialKey) ?? [];
+        if (!bucket.includes(normalizedGregorian)) {
+          bucket.push(normalizedGregorian);
+        }
+        gregorianByHijriMonthDay.set(partialKey, bucket);
       });
     }
 
@@ -474,29 +509,42 @@ export async function fetchIslamicCalendarEventsForMonth(
     const seenIds = new Set<string>();
 
     (allData as RawIslamicCalendarEventRow[]).forEach((row) => {
-      // Step 1: if the stored Gregorian date is already in the viewed month, use it as-is.
-      if (isIsoDateInRange(row.linked_gregorian_date, monthStart, monthEnd)) {
+      const linkedGregorianDate = normalizeToIsoDate(row.linked_gregorian_date);
+
+      // Prefer explicit Hijri parts from columns, then label parsing.
+      // This keeps each event attached to the correct Hijri date definition.
+      const hijriDay = typeof row.linked_hijri_day === 'number' ? row.linked_hijri_day : null;
+      const hijriMonth = typeof row.linked_hijri_month === 'number' ? row.linked_hijri_month : null;
+      const hijriYear = typeof row.linked_hijri_year === 'number' ? row.linked_hijri_year : null;
+      const parsedFromLabel = parseHijriDayMonthYear(row.linked_hijri_label);
+
+      const resolvedDay = (hijriDay && hijriDay >= 1 && hijriDay <= 30) ? hijriDay : (parsedFromLabel?.day ?? null);
+      const resolvedMonth = (hijriMonth && hijriMonth >= 1 && hijriMonth <= 12) ? hijriMonth : (parsedFromLabel?.month ?? null);
+      const resolvedHijriYear = (hijriYear && hijriYear > 0) ? hijriYear : (parsedFromLabel?.year ?? null);
+
+      // If we cannot resolve a Hijri key, fallback to stored Gregorian date in this month.
+      if (!resolvedDay || !resolvedMonth) {
+        if (!linkedGregorianDate || !isIsoDateInRange(linkedGregorianDate, monthStart, monthEnd)) return;
         if (!seenIds.has(row.id)) {
           seenIds.add(row.id);
-          results.push(row);
+          results.push({ ...row, linked_gregorian_date: linkedGregorianDate });
         }
         return;
       }
 
-      // Step 2: remap via Hijri day+month to the current year.
-      // This handles events whose linked_gregorian_date is from a prior year.
-      const hijriDay = typeof row.linked_hijri_day === 'number' ? row.linked_hijri_day : null;
-      const hijriMonth = typeof row.linked_hijri_month === 'number' ? row.linked_hijri_month : null;
-      const parsedFromLabel = parseHijriDayMonth(row.linked_hijri_label);
+      // 1) Exact Hijri year match, when available in the selected Gregorian year.
+      let mappedDate: string | null = null;
+      if (resolvedHijriYear) {
+        mappedDate = gregorianByHijriYearMonthDay.get(`${resolvedHijriYear}:${resolvedMonth}:${resolvedDay}`) ?? null;
+      }
 
-      const resolvedDay = (hijriDay && hijriDay >= 1 && hijriDay <= 30) ? hijriDay : (parsedFromLabel?.day ?? null);
-      const resolvedMonth = (hijriMonth && hijriMonth >= 1 && hijriMonth <= 12) ? hijriMonth : (parsedFromLabel?.month ?? null);
-      if (!resolvedDay || !resolvedMonth) return;
+      // 2) Recurring fallback by month/day for future years.
+      if (!mappedDate) {
+        const mappedCandidates = gregorianByHijriMonthDay.get(`${resolvedMonth}:${resolvedDay}`) ?? [];
+        mappedDate = mappedCandidates.find((candidate) => isIsoDateInRange(candidate, monthStart, monthEnd)) ?? null;
+      }
 
-      const mappedDate = gregorianByHijriKey.get(`${resolvedMonth}:${resolvedDay}`);
       if (!mappedDate) return;
-
-      // Only include if the remapped date falls inside the viewed month.
       if (!isIsoDateInRange(mappedDate, monthStart, monthEnd)) return;
 
       if (!seenIds.has(row.id)) {
