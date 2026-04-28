@@ -1,6 +1,6 @@
 import { formatCountdownHMS, type PrayerTime } from '@/services/prayerService';
 
-const JAMAAT_ONGOING_MS = 15 * 60 * 1000;
+export const JAMAAT_ONGOING_WINDOW_MS = 15 * 60 * 1000;
 
 export type ActivePrayerState = {
   activePrayer: PrayerTime | null;
@@ -55,7 +55,7 @@ export function buildActivePrayerState(prayers: PrayerTime[] | undefined, now: D
   })();
 
   const jamaatStarted = jamaatDate ? now >= jamaatDate : false;
-  const jamaatOngoing = jamaatDate ? now < new Date(jamaatDate.getTime() + JAMAAT_ONGOING_MS) : false;
+  const jamaatOngoing = jamaatDate ? now < new Date(jamaatDate.getTime() + JAMAAT_ONGOING_WINDOW_MS) : false;
   const alertMode = activePrayer !== null;
 
   const secondsToJamaat = jamaatDate && !jamaatStarted

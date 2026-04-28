@@ -7,12 +7,13 @@ import { Asset } from 'expo-asset';
 import { VolumeManager } from 'react-native-volume-manager';
 import { useInAppBanner } from '@/template';
 import { getNextPrayer, getPrayerTimesForDate, PrayerTimesData } from '@/services/prayerService';
+import { parseIqamahDate } from '@/services/prayerNotificationPlanner';
 import {
+  ADHAAN_AUDIO_OPTIONS,
   ADHAAN_AUDIO_STORAGE_KEY,
   ADHAAN_MUTED_STORAGE_KEY,
   IQAMAH_MUTED_STORAGE_KEY,
-  DEFAULT_ADHAAN_AUDIO_URL,
-  isValidAdhaanAudioUrl,
+  getAdhaanOptionByUrl,
 } from '@/constants/prayerNotifications';
 
 const JAMAAT_THRESHOLDS_MINUTES = [30, 20, 15, 10, 5];
@@ -33,10 +34,9 @@ export type PrayerAudioState = {
 };
 type PrayerAudioStateListener = (state: PrayerAudioState) => void;
 
-let adhaanAudioModeReady = false;
 let activeAdhaanPlayer: AudioPlayer | null = null;
 let iqamahAudioUri: string | null = null;
-let bundledAdhaanUri: string | null = null;
+const bundledAdhaanUrisBySoundFile = new Map<string, string | null>();
 let activePrayerAudioKind: PrayerAudioKind | null = null;
 // Start optimistic to prevent duplicate foreground adhaan playback on cold
 // start before notification permission state is resolved.
@@ -102,21 +102,6 @@ function toDayKey(date: Date): string {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
-}
-
-function parseIqamahDate(iqamah: string | undefined, baseDate: Date): Date | null {
-  const value = (iqamah ?? '').trim();
-  if (!/^\d{1,2}:\d{2}$/.test(value)) return null;
-
-  const [hoursRaw, minutesRaw] = value.split(':');
-  const hours = Number(hoursRaw);
-  const minutes = Number(minutesRaw);
-  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
-  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
-
-  const out = new Date(baseDate);
-  out.setHours(hours, minutes, 0, 0);
-  return out;
 }
 
 function buildReminderKey(
@@ -226,19 +211,48 @@ export async function setIqamahMutedEnabled(muted: boolean): Promise<void> {
   }
 }
 
-async function loadBundledAdhaanUri(): Promise<string | null> {
-  if (bundledAdhaanUri) return bundledAdhaanUri;
+function getBundledAdhaanModule(soundFile: string) {
+  switch (soundFile) {
+    case 'adhaan_1.mp3':
+      return require('../assets/audio/adhaan_1.mp3');
+    case 'adhaan_2.mp3':
+      return require('../assets/audio/adhaan_2.mp3');
+    case 'adhaan_3.mp3':
+      return require('../assets/audio/adhaan_3.mp3');
+    case 'adhaan_4.mp3':
+      return require('../assets/audio/adhaan_4.mp3');
+    case 'adhaan_5.mp3':
+      return require('../assets/audio/adhaan_5.mp3');
+    case 'adhaan.mp3':
+      return require('../assets/audio/adhaan.mp3');
+    default:
+      return require('../assets/audio/adhaan_1.mp3');
+  }
+}
+
+async function loadBundledAdhaanUriForSoundFile(soundFile: string): Promise<string | null> {
+  const cacheKey = soundFile;
+  if (bundledAdhaanUrisBySoundFile.has(cacheKey)) {
+    return bundledAdhaanUrisBySoundFile.get(cacheKey) ?? null;
+  }
+
   try {
-    const moduleAsset = require('../assets/audio/adhaan.mp3');
+    const moduleAsset = getBundledAdhaanModule(soundFile);
     const asset = Asset.fromModule(moduleAsset);
     if (!asset.downloaded) {
       await asset.downloadAsync();
     }
-    bundledAdhaanUri = asset.localUri ?? asset.uri ?? null;
-    return bundledAdhaanUri;
+    const uri = asset.localUri ?? asset.uri ?? null;
+    bundledAdhaanUrisBySoundFile.set(cacheKey, uri);
+    return uri;
   } catch {
+    bundledAdhaanUrisBySoundFile.set(cacheKey, null);
     return null;
   }
+}
+
+async function loadBundledAdhaanUri(): Promise<string | null> {
+  return await loadBundledAdhaanUriForSoundFile(ADHAAN_AUDIO_OPTIONS[0].backgroundSoundFile);
 }
 
 async function loadBundledIqamahUri(): Promise<string | null> {
@@ -267,7 +281,6 @@ async function playPrayerAudioUri(uri: string, kind: PrayerAudioKind): Promise<b
       shouldRouteThroughEarpiece: false,
       interruptionMode: 'doNotMix',
     });
-    adhaanAudioModeReady = true;
   } catch {
     return false;
   }
@@ -313,21 +326,34 @@ export async function playAdhaanNowForTesting(options?: { ignoreMute?: boolean; 
     return false;
   }
 
-  let selectedUrl: string | null = null;
+  let selectedUri: string | null = null;
   if (options?.url) {
-    selectedUrl = options.url;
+    const selectedOption = getAdhaanOptionByUrl(options.url);
+    selectedUri = selectedOption
+      ? await loadBundledAdhaanUriForSoundFile(selectedOption.backgroundSoundFile)
+      : await loadBundledAdhaanUri();
   } else {
     try {
       const stored = await AsyncStorage.getItem(ADHAAN_AUDIO_STORAGE_KEY);
-      selectedUrl = isValidAdhaanAudioUrl(stored) ? stored : await loadBundledAdhaanUri();
+      const selectedOption = getAdhaanOptionByUrl(stored);
+      selectedUri = selectedOption
+        ? await loadBundledAdhaanUriForSoundFile(selectedOption.backgroundSoundFile)
+        : await loadBundledAdhaanUri();
     } catch {
-      selectedUrl = await loadBundledAdhaanUri();
+      selectedUri = await loadBundledAdhaanUri();
     }
   }
 
-  if (!selectedUrl) return false;
+  if (!selectedUri) return false;
 
-  return await playPrayerAudioUri(selectedUrl, 'adhaan');
+  const played = await playPrayerAudioUri(selectedUri, 'adhaan');
+  if (played) return true;
+
+  // If remote selection fails (network/CDN), fall back to bundled adhaan.
+  const bundledUrl = await loadBundledAdhaanUri();
+  if (!bundledUrl || bundledUrl === selectedUri) return false;
+
+  return await playPrayerAudioUri(bundledUrl, 'adhaan');
 }
 
 export async function playIqamahNowForTesting(options?: { ignoreMute?: boolean }): Promise<boolean> {
@@ -368,7 +394,6 @@ export function useQuranPrayerPopups(): void {
         shouldRouteThroughEarpiece: false,
         interruptionMode: 'doNotMix',
       });
-      adhaanAudioModeReady = true;
       return true;
     } catch {
       return false;
@@ -380,7 +405,11 @@ export function useQuranPrayerPopups(): void {
 
     try {
       const stored = await AsyncStorage.getItem(ADHAAN_AUDIO_STORAGE_KEY);
-      if (isValidAdhaanAudioUrl(stored)) return stored;
+      const selectedOption = getAdhaanOptionByUrl(stored);
+      if (selectedOption) {
+        const uri = await loadBundledAdhaanUriForSoundFile(selectedOption.backgroundSoundFile);
+        if (uri) return uri;
+      }
       return await loadBundledAdhaanUri();
     } catch {
       return await loadBundledAdhaanUri();

@@ -5,7 +5,7 @@
  */
 
 const FETCH_TIMEOUT_MS = 8000;
-const CACHE_KEY = '@daily_sunnah_v2';
+const CACHE_KEY = '@daily_sunnah_v3';
 const CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 
 export type DailySunnahResult = {
@@ -20,6 +20,7 @@ export type DailySunnahResult = {
 
 type CachePayload = {
   updatedAt: number;
+  dayStamp: string;
   data: DailySunnahResult;
 };
 
@@ -33,8 +34,20 @@ function getSupabaseEnv() {
   return { url, anonKey };
 }
 
+function getLocalDayStamp(date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 async function readCache(): Promise<DailySunnahResult | null> {
-  if (memoryCache && Date.now() - memoryCache.updatedAt < CACHE_TTL_MS) {
+  const todayStamp = getLocalDayStamp();
+  if (
+    memoryCache
+    && memoryCache.dayStamp === todayStamp
+    && Date.now() - memoryCache.updatedAt < CACHE_TTL_MS
+  ) {
     return memoryCache.data;
   }
 
@@ -42,10 +55,20 @@ async function readCache(): Promise<DailySunnahResult | null> {
     const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
     const raw = await AsyncStorage.getItem(CACHE_KEY);
     if (!raw) return null;
-    const payload: CachePayload = JSON.parse(raw);
-    if (Date.now() - payload.updatedAt < CACHE_TTL_MS) {
-      memoryCache = payload;
-      return payload.data;
+    const payload = JSON.parse(raw) as Partial<CachePayload>;
+    if (
+      payload?.data
+      && payload.dayStamp === todayStamp
+      && typeof payload.updatedAt === 'number'
+      && Date.now() - payload.updatedAt < CACHE_TTL_MS
+    ) {
+      const normalizedPayload: CachePayload = {
+        updatedAt: payload.updatedAt,
+        dayStamp: payload.dayStamp,
+        data: payload.data,
+      };
+      memoryCache = normalizedPayload;
+      return normalizedPayload.data;
     }
   } catch {
     // ignore cache errors
@@ -70,7 +93,11 @@ async function readLastSuccessfulCache(): Promise<DailySunnahResult | null> {
 }
 
 async function writeCache(data: DailySunnahResult): Promise<void> {
-  const payload: CachePayload = { updatedAt: Date.now(), data };
+  const payload: CachePayload = {
+    updatedAt: Date.now(),
+    dayStamp: getLocalDayStamp(),
+    data,
+  };
   memoryCache = payload;
 
   try {

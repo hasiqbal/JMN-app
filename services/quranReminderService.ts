@@ -1,5 +1,5 @@
 const FETCH_TIMEOUT_MS = 10000;
-const CACHE_KEY = '@daily_quran_v4';
+const CACHE_KEY = '@daily_quran_v5';
 const CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 const BASE_URL = 'https://api.quran.com/api/v4';
 const DEFAULT_TRANSLATION_IDS = [20, 131]; // Sahih International primary, fallback to legacy id
@@ -33,6 +33,7 @@ const CONTEXT_AFTER_VERSES = 1;
 
 type CachePayload = {
   updatedAt: number;
+  dayStamp: string;
   data: DailyQuranResult;
 };
 
@@ -88,9 +89,16 @@ function formatContextVerseBlock(rows: ChapterVerse[]): string {
     .join('\n\n');
 }
 
-function dayOfYearUtc(): number {
+function getLocalDayStamp(date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function dayOfYearLocal(): number {
   const now = new Date();
-  const start = new Date(Date.UTC(now.getUTCFullYear(), 0, 0));
+  const start = new Date(now.getFullYear(), 0, 0);
   const diff = now.getTime() - start.getTime();
   return Math.floor(diff / 86_400_000);
 }
@@ -118,7 +126,12 @@ function shouldIncludeVerse(surahNumber: number, verseNumber: number): boolean {
 }
 
 async function readCache(): Promise<DailyQuranResult | null> {
-  if (memoryCache && Date.now() - memoryCache.updatedAt < CACHE_TTL_MS) {
+  const todayStamp = getLocalDayStamp();
+  if (
+    memoryCache
+    && memoryCache.dayStamp === todayStamp
+    && Date.now() - memoryCache.updatedAt < CACHE_TTL_MS
+  ) {
     return memoryCache.data;
   }
 
@@ -126,10 +139,20 @@ async function readCache(): Promise<DailyQuranResult | null> {
     const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
     const raw = await AsyncStorage.getItem(CACHE_KEY);
     if (!raw) return null;
-    const payload: CachePayload = JSON.parse(raw);
-    if (Date.now() - payload.updatedAt < CACHE_TTL_MS) {
-      memoryCache = payload;
-      return payload.data;
+    const payload = JSON.parse(raw) as Partial<CachePayload>;
+    if (
+      payload?.data
+      && payload.dayStamp === todayStamp
+      && typeof payload.updatedAt === 'number'
+      && Date.now() - payload.updatedAt < CACHE_TTL_MS
+    ) {
+      const normalizedPayload: CachePayload = {
+        updatedAt: payload.updatedAt,
+        dayStamp: payload.dayStamp,
+        data: payload.data,
+      };
+      memoryCache = normalizedPayload;
+      return normalizedPayload.data;
     }
   } catch {
     // ignore cache read issues
@@ -139,7 +162,11 @@ async function readCache(): Promise<DailyQuranResult | null> {
 }
 
 async function writeCache(data: DailyQuranResult): Promise<void> {
-  const payload: CachePayload = { updatedAt: Date.now(), data };
+  const payload: CachePayload = {
+    updatedAt: Date.now(),
+    dayStamp: getLocalDayStamp(),
+    data,
+  };
   memoryCache = payload;
 
   try {
@@ -245,7 +272,7 @@ export async function fetchDailyQuranReminder(): Promise<DailyQuranResult | null
   const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
   try {
-    const day = Math.max(1, dayOfYearUtc());
+    const day = Math.max(1, dayOfYearLocal());
     const pageNumber = ((day - 1) % TOTAL_MUSHAF_PAGES) + 1;
 
     const versesUrl =

@@ -8,17 +8,22 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import {
   isAdhaanMutedEnabled,
   isIqamahMutedEnabled,
-  playAdhaanNowForTesting,
   setAdhaanMutedEnabled,
   setIqamahMutedEnabled,
   stopActiveAdhaan,
-  subscribePrayerAudioState,
 } from '@/hooks/useQuranPrayerPopups';
 import {
-  type AdhaanAudioOption,
+  ADHKAR_REMINDER_SOUND_MODE_STORAGE_KEY,
+  ADHKAR_REMINDERS_ENABLED_STORAGE_KEY,
   ADHAAN_AUDIO_OPTIONS,
   ADHAAN_AUDIO_STORAGE_KEY,
+  DEFAULT_ADHKAR_REMINDER_SOUND_MODE,
+  DEFAULT_ADHKAR_REMINDERS_ENABLED,
   DEFAULT_ADHAAN_AUDIO_URL,
+  PRAYER_SILENT_CHANNEL_ID,
+  type AdhkarReminderSoundMode,
+  getAdhaanOptionByUrl,
+  getPrayerAdhaanChannelId,
   PRAYER_REMINDER_LIVE_ALERTS_STORAGE_KEY,
   isValidAdhaanAudioUrl,
 } from '@/constants/prayerNotifications';
@@ -40,10 +45,7 @@ async function getNotificationsModule(): Promise<ExpoNotificationsModule | null>
 
 const LIVE_NOTIFICATION_CHANNEL_ID = 'jmn-live-v2';
 const LIVE_NOTIFY_KEY = 'jmn_radio_notify';
-const PRAYER_ADHAAN_CHANNEL_ID = 'jmn-prayer-adhaan-v5';
-const PRAYER_SILENT_CHANNEL_ID = 'jmn-prayer-silent-v3';
 const PRAYER_NOTIFICATION_CATEGORY_ID = 'jmn-prayer-controls';
-const ADHAAN_BACKGROUND_SOUND_FILE = 'adhaan.mp3';
 const PRAYER_NOTIFICATION_SCOPE = 'jmn-prayer';
 const BG_ADHAAN_TEST_LOG_KEY = 'jmn_bg_adhaan_test_log_v1';
 
@@ -95,10 +97,11 @@ export default function SettingsScreen() {
 
   const [liveNotifyEnabled, setLiveNotifyEnabled] = useState(false);
   const [prayerLiveAlertsEnabled, setPrayerLiveAlertsEnabled] = useState(true);
+  const [adhkarRemindersEnabled, setAdhkarRemindersEnabled] = useState(DEFAULT_ADHKAR_REMINDERS_ENABLED);
+  const [adhkarReminderSoundMode, setAdhkarReminderSoundMode] = useState<AdhkarReminderSoundMode>(DEFAULT_ADHKAR_REMINDER_SOUND_MODE);
   const [adhaanMuted, setAdhaanMuted] = useState(false);
   const [iqamahMuted, setIqamahMuted] = useState(false);
   const [selectedAdhaanUrl, setSelectedAdhaanUrl] = useState(DEFAULT_ADHAAN_AUDIO_URL);
-  const [previewingId, setPreviewingId] = useState<string | null>(null);
 
   const palette = useMemo(
     () =>
@@ -128,9 +131,19 @@ export default function SettingsScreen() {
     let cancelled = false;
 
     const loadSettings = async () => {
-      const [liveRaw, prayerLiveRaw, adhaanMutedValue, iqamahMutedValue, selectedAdhaanRaw] = await Promise.all([
+      const [
+        liveRaw,
+        prayerLiveRaw,
+        adhkarEnabledRaw,
+        adhkarSoundModeRaw,
+        adhaanMutedValue,
+        iqamahMutedValue,
+        selectedAdhaanRaw,
+      ] = await Promise.all([
         AsyncStorage.getItem(LIVE_NOTIFY_KEY).catch(() => null),
         AsyncStorage.getItem(PRAYER_REMINDER_LIVE_ALERTS_STORAGE_KEY).catch(() => null),
+        AsyncStorage.getItem(ADHKAR_REMINDERS_ENABLED_STORAGE_KEY).catch(() => null),
+        AsyncStorage.getItem(ADHKAR_REMINDER_SOUND_MODE_STORAGE_KEY).catch(() => null),
         isAdhaanMutedEnabled(),
         isIqamahMutedEnabled(),
         AsyncStorage.getItem(ADHAAN_AUDIO_STORAGE_KEY).catch(() => null),
@@ -140,6 +153,8 @@ export default function SettingsScreen() {
 
       setLiveNotifyEnabled(liveRaw === 'true');
       setPrayerLiveAlertsEnabled(prayerLiveRaw !== 'false');
+      setAdhkarRemindersEnabled(adhkarEnabledRaw == null ? DEFAULT_ADHKAR_REMINDERS_ENABLED : adhkarEnabledRaw === 'true');
+      setAdhkarReminderSoundMode(adhkarSoundModeRaw === 'silent' ? 'silent' : DEFAULT_ADHKAR_REMINDER_SOUND_MODE);
       setAdhaanMuted(adhaanMutedValue);
       setIqamahMuted(iqamahMutedValue);
       setSelectedAdhaanUrl(isValidAdhaanAudioUrl(selectedAdhaanRaw) ? selectedAdhaanRaw : DEFAULT_ADHAAN_AUDIO_URL);
@@ -150,14 +165,6 @@ export default function SettingsScreen() {
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  useEffect(() => {
-    return subscribePrayerAudioState((state) => {
-      if (!state.active) {
-        setPreviewingId(null);
-      }
-    });
   }, []);
 
   const ensureLiveNotificationPermission = useCallback(async (): Promise<boolean> => {
@@ -204,6 +211,8 @@ export default function SettingsScreen() {
     const current = await Notifications.getPermissionsAsync().catch(() => null);
     let status = current?.status ?? 'undetermined';
     const adhaanMutedNow = await isAdhaanMutedEnabled();
+    const selectedAdhaanOption = getAdhaanOptionByUrl(selectedAdhaanUrl) ?? ADHAAN_AUDIO_OPTIONS[0];
+    const selectedAdhaanChannelId = getPrayerAdhaanChannelId(selectedAdhaanOption.id);
 
     if (status !== 'granted') {
       const requested = await Notifications.requestPermissionsAsync().catch(() => null);
@@ -211,15 +220,13 @@ export default function SettingsScreen() {
     }
 
     if (status !== 'granted') {
-      const reason = 'Notifications permission is not granted. Running in-app fallback only while app is open.';
-      const fallbackPlayed = await playAdhaanNowForTesting();
+      const reason = 'Notifications permission is not granted.';
       await AsyncStorage.setItem(BG_ADHAAN_TEST_LOG_KEY, JSON.stringify({
         ts: new Date().toISOString(),
-        ok: fallbackPlayed,
+        ok: false,
         reason,
-        fallbackPlayed,
       })).catch(() => {});
-      showBanner('Adhaan fallback test', `${reason} Fallback played: ${fallbackPlayed ? 'yes' : 'no'}.`, 9000, 'warning');
+      showBanner('Adhaan test failed', reason, 9000, 'warning');
       return;
     }
 
@@ -233,18 +240,18 @@ export default function SettingsScreen() {
           sound: null,
         }).catch(() => {});
       } else {
-        await Notifications.setNotificationChannelAsync(PRAYER_ADHAAN_CHANNEL_ID, {
+        await Notifications.setNotificationChannelAsync(selectedAdhaanChannelId, {
           name: 'JMN Adhaan Alerts',
           importance: Notifications.AndroidImportance.HIGH,
           vibrationPattern: [0, 200, 120, 200],
           lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-          sound: ADHAAN_BACKGROUND_SOUND_FILE,
+          sound: selectedAdhaanOption.backgroundSoundFile,
         }).catch(() => {});
       }
     }
 
     const channelSound = Platform.OS === 'android'
-      ? await Notifications.getNotificationChannelAsync(adhaanMutedNow ? PRAYER_SILENT_CHANNEL_ID : PRAYER_ADHAAN_CHANNEL_ID)
+      ? await Notifications.getNotificationChannelAsync(adhaanMutedNow ? PRAYER_SILENT_CHANNEL_ID : selectedAdhaanChannelId)
         .then((channel) => {
           if (!channel) return 'missing-channel';
           return channel.sound === null ? 'null' : String(channel.sound);
@@ -254,14 +261,14 @@ export default function SettingsScreen() {
 
     const fireAt = new Date(Date.now() + 10_000);
     const trigger = Platform.OS === 'android'
-      ? ({ type: 'date', date: fireAt, channelId: adhaanMutedNow ? PRAYER_SILENT_CHANNEL_ID : PRAYER_ADHAAN_CHANNEL_ID } as unknown as import('expo-notifications').NotificationTriggerInput)
+      ? ({ type: 'date', date: fireAt, channelId: adhaanMutedNow ? PRAYER_SILENT_CHANNEL_ID : selectedAdhaanChannelId } as unknown as import('expo-notifications').NotificationTriggerInput)
       : (fireAt as unknown as import('expo-notifications').NotificationTriggerInput);
 
     const scheduledId = await Notifications.scheduleNotificationAsync({
       content: {
         title: 'Test Adhaan (10s)',
         body: 'Background test: this should ring even if app is not open.',
-        sound: adhaanMutedNow ? false : ADHAAN_BACKGROUND_SOUND_FILE,
+        sound: adhaanMutedNow ? false : selectedAdhaanOption.backgroundSoundFile,
         categoryIdentifier: PRAYER_NOTIFICATION_CATEGORY_ID,
         data: {
           scope: PRAYER_NOTIFICATION_SCOPE,
@@ -298,12 +305,11 @@ export default function SettingsScreen() {
       scheduledCount: ownPrayerCount,
       fireAtIso: fireAt.toISOString(),
       channelSound,
-      muted: adhaanMutedNow,
     })).catch(() => {});
 
     const mutedInfo = adhaanMutedNow ? 'Muted is ON, so this test should be silent.' : 'Muted is OFF, so adhaan should play at fire time.';
-    showBanner('Adhaan test scheduled', `${info} ${mutedInfo} Channel sound: ${channelSound}.`, 10000);
-  }, [showBanner]);
+    showBanner('Adhaan test scheduled', `${info} Prayer schedules: ${ownPrayerCount}. ${mutedInfo} Channel sound: ${channelSound}.`, 10000);
+  }, [selectedAdhaanUrl, showBanner]);
 
   const showLastAdhaanTestLog = useCallback(async () => {
     const raw = await AsyncStorage.getItem(BG_ADHAAN_TEST_LOG_KEY).catch(() => null);
@@ -368,6 +374,47 @@ export default function SettingsScreen() {
     }
   }, []);
 
+  const onToggleAdhkarReminders = useCallback(async (value: boolean) => {
+    if (value) {
+      const allowed = await ensureLiveNotificationPermission();
+      if (!allowed) {
+        setAdhkarRemindersEnabled(false);
+        await AsyncStorage.setItem(ADHKAR_REMINDERS_ENABLED_STORAGE_KEY, 'false').catch(() => {});
+        return;
+      }
+    }
+
+    setAdhkarRemindersEnabled(value);
+    const wrote = await AsyncStorage
+      .setItem(ADHKAR_REMINDERS_ENABLED_STORAGE_KEY, value ? 'true' : 'false')
+      .then(() => true)
+      .catch(() => false);
+
+    if (!wrote) {
+      setAdhkarRemindersEnabled((current) => !current);
+    }
+  }, [ensureLiveNotificationPermission]);
+
+  const onSelectAdhkarReminderSoundMode = useCallback(async (mode: AdhkarReminderSoundMode) => {
+    setAdhkarReminderSoundMode(mode);
+    const wrote = await AsyncStorage
+      .setItem(ADHKAR_REMINDER_SOUND_MODE_STORAGE_KEY, mode)
+      .then(() => true)
+      .catch(() => false);
+
+    if (!wrote) {
+      setAdhkarReminderSoundMode((current) => (current === 'sound' ? 'silent' : 'sound'));
+      showBanner('Adhkar setting failed', 'Could not save adhkar reminder sound mode.', 7000, 'warning');
+      return;
+    }
+
+    showBanner(
+      'Adhkar reminders updated',
+      mode === 'silent' ? 'Adhkar reminders will now be silent.' : 'Adhkar reminders will play default alert sound.',
+      4000,
+    );
+  }, [showBanner]);
+
   const onToggleAdhaanMuted = useCallback(async (value: boolean) => {
     setAdhaanMuted(value);
     const ok = await setAdhaanMutedEnabled(value)
@@ -404,19 +451,6 @@ export default function SettingsScreen() {
     showBanner('Adhaan updated', 'Selected adhaan will be used for in-app prayer audio.', 4500);
   }, [showBanner]);
 
-  const onPreviewAdhaan = useCallback(async (option: AdhaanAudioOption) => {
-    if (previewingId === option.id) {
-      setPreviewingId(null);
-      await stopActiveAdhaan();
-      return;
-    }
-    setPreviewingId(option.id);
-    const ok = await playAdhaanNowForTesting({ ignoreMute: true, url: option.url });
-    if (!ok) {
-      setPreviewingId(null);
-    }
-  }, [previewingId]);
-
   return (
     <View style={[styles.container, { backgroundColor: palette.bg, paddingTop: insets.top + 8 }]}> 
       <ScrollView
@@ -428,7 +462,7 @@ export default function SettingsScreen() {
       >
         <View style={styles.header}>
           <Text style={[styles.title, { color: palette.text }]}>Settings</Text>
-          <Text style={[styles.subtitle, { color: palette.sub }]}>Manage appearance, prayer reminders, and live alerts.</Text>
+          <Text style={[styles.subtitle, { color: palette.sub }]}>Manage appearance, prayer reminders, adhkar reminders, and live alerts.</Text>
         </View>
 
         <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}> 
@@ -481,6 +515,53 @@ export default function SettingsScreen() {
             textColor={palette.text}
             hintColor={palette.sub}
           />
+
+          <SwitchRow
+            label="Post-jamaat adhkar reminders"
+            hint="Send one reminder when jamaat window ends for each fard prayer."
+            value={adhkarRemindersEnabled}
+            onValueChange={onToggleAdhkarReminders}
+            accentColor={palette.accent}
+            borderColor={palette.border}
+            textColor={palette.text}
+            hintColor={palette.sub}
+          />
+
+          <View style={styles.buttonRow}>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={[
+                styles.actionButton,
+                {
+                  borderColor: adhkarReminderSoundMode === 'sound' ? palette.accent : palette.border,
+                  backgroundColor: adhkarReminderSoundMode === 'sound' ? `${palette.accent}20` : palette.chip,
+                },
+              ]}
+              onPress={() => {
+                void onSelectAdhkarReminderSoundMode('sound');
+              }}
+            >
+              <MaterialIcons name={adhkarReminderSoundMode === 'sound' ? 'check-circle' : 'radio-button-unchecked'} size={16} color={adhkarReminderSoundMode === 'sound' ? palette.accent : palette.text} />
+              <Text style={[styles.actionButtonText, { color: palette.text }]}>Adhkar sound</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={[
+                styles.actionButton,
+                {
+                  borderColor: adhkarReminderSoundMode === 'silent' ? palette.accent : palette.border,
+                  backgroundColor: adhkarReminderSoundMode === 'silent' ? `${palette.accent}20` : palette.chip,
+                },
+              ]}
+              onPress={() => {
+                void onSelectAdhkarReminderSoundMode('silent');
+              }}
+            >
+              <MaterialIcons name={adhkarReminderSoundMode === 'silent' ? 'check-circle' : 'radio-button-unchecked'} size={16} color={adhkarReminderSoundMode === 'silent' ? palette.accent : palette.text} />
+              <Text style={[styles.actionButtonText, { color: palette.text }]}>Adhkar silent</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}> 
@@ -494,47 +575,33 @@ export default function SettingsScreen() {
           <View style={styles.buttonRow}>
             {ADHAAN_AUDIO_OPTIONS.map((option) => {
               const selected = option.url === selectedAdhaanUrl;
-              const previewing = previewingId === option.id;
               return (
-                <View
+                <TouchableOpacity
                   key={option.id}
+                  activeOpacity={0.85}
                   style={[
-                    styles.adhaanOptionRow,
+                    styles.actionButton,
                     {
                       borderColor: selected ? palette.accent : palette.border,
                       backgroundColor: selected ? `${palette.accent}20` : palette.chip,
                     },
                   ]}
+                  onPress={() => {
+                    void onSelectAdhaan(option.url);
+                  }}
                 >
-                  <TouchableOpacity
-                    style={styles.adhaanOptionSelect}
-                    activeOpacity={0.85}
-                    onPress={() => void onSelectAdhaan(option.url)}
-                  >
-                    <MaterialIcons name={selected ? 'check-circle' : 'radio-button-unchecked'} size={16} color={selected ? palette.accent : palette.text} />
-                    <Text style={[styles.actionButtonText, { color: palette.text }]}>{option.label}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    activeOpacity={0.7}
-                    onPress={() => void onPreviewAdhaan(option)}
-                    style={styles.adhaanPreviewBtn}
-                  >
-                    <MaterialIcons
-                      name={previewing ? 'stop-circle' : 'play-circle-outline'}
-                      size={24}
-                      color={previewing ? palette.accent : palette.sub}
-                    />
-                  </TouchableOpacity>
-                </View>
+                  <MaterialIcons name={selected ? 'check-circle' : 'radio-button-unchecked'} size={16} color={selected ? palette.accent : palette.text} />
+                  <Text style={[styles.actionButtonText, { color: palette.text }]}>{option.label}</Text>
+                </TouchableOpacity>
               );
             })}
           </View>
 
-          <Text style={[styles.switchHint, { color: palette.sub }]}>Background notifications use bundled native sounds and follow mute toggles.</Text>
+          <Text style={[styles.switchHint, { color: palette.sub }]}>Background notifications use bundled native sounds.</Text>
 
           <SwitchRow
             label="Mute adhaan audio"
-            hint="Stops adhaan sound for in-app reminders and prayer-start notifications."
+            hint="Stops adhaan sound playback for in-app reminders."
             value={adhaanMuted}
             onValueChange={onToggleAdhaanMuted}
             accentColor={palette.accent}
@@ -545,7 +612,7 @@ export default function SettingsScreen() {
 
           <SwitchRow
             label="Mute iqamah audio"
-            hint="Stops iqamah sound for in-app reminders and jamaat notifications."
+            hint="Stops iqamah cue playback for in-app reminders."
             value={iqamahMuted}
             onValueChange={onToggleIqamahMuted}
             accentColor={palette.accent}
@@ -700,24 +767,5 @@ const styles = StyleSheet.create({
   actionButtonText: {
     fontSize: 13,
     fontWeight: '700',
-  },
-  adhaanOptionRow: {
-    borderWidth: 1,
-    borderRadius: Radius.md,
-    minHeight: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  adhaanOptionSelect: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-  },
-  adhaanPreviewBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 10,
   },
 });

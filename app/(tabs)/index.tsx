@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'expo-router';
 import {
+  AppState,
   View,
   Text,
   ScrollView,
@@ -2183,6 +2184,18 @@ export default function HomeScreen() {
   const [dailySunnah, setDailySunnah] = useState<DailySunnahResult | null>(null);
   const [dailyQuran, setDailyQuran] = useState<DailyQuranResult | null>(null);
 
+  const refreshDailySunnah = useCallback(() => {
+    void fetchDailySunnah().then((result) => {
+      if (result) setDailySunnah(result);
+    });
+  }, []);
+
+  const refreshDailyQuran = useCallback(() => {
+    void fetchDailyQuranReminder().then((result) => {
+      if (result) setDailyQuran(result);
+    });
+  }, []);
+
   const loadCommunityUpdates = useCallback(async () => {
     setCommunityLoading(true);
     try {
@@ -2215,16 +2228,48 @@ export default function HomeScreen() {
   }, [loadCommunityUpdates, loadDonationOptions]);
 
   useEffect(() => {
-    fetchDailySunnah().then((result) => {
-      if (result) setDailySunnah(result);
-    });
-  }, []);
+    refreshDailySunnah();
+  }, [refreshDailySunnah]);
 
   useEffect(() => {
-    fetchDailyQuranReminder().then((result) => {
-      if (result) setDailyQuran(result);
+    let midnightTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleMidnightRefresh = () => {
+      const now = new Date();
+      const nextMidnight = new Date(now);
+      nextMidnight.setHours(24, 0, 5, 0);
+      const delay = Math.max(1000, nextMidnight.getTime() - now.getTime());
+
+      midnightTimer = setTimeout(() => {
+        refreshDailySunnah();
+        refreshDailyQuran();
+        scheduleMidnightRefresh();
+      }, delay);
+    };
+
+    scheduleMidnightRefresh();
+
+    return () => {
+      if (midnightTimer) clearTimeout(midnightTimer);
+    };
+  }, [refreshDailyQuran, refreshDailySunnah]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        refreshDailySunnah();
+        refreshDailyQuran();
+      }
     });
-  }, []);
+
+    return () => {
+      subscription.remove();
+    };
+  }, [refreshDailyQuran, refreshDailySunnah]);
+
+  useEffect(() => {
+    refreshDailyQuran();
+  }, [refreshDailyQuran]);
 
   useEffect(() => {
     let mounted = true;
