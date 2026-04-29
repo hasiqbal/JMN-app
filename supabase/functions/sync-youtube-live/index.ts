@@ -2,7 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
-const LIVE_NOTIFICATION_CHANNEL_ID = 'jmn-live-v2';
+const LIVE_NOTIFICATION_CHANNEL_ID = 'jmn-live-v3';
 
 const DEFAULT_CHANNEL_ID = 'UCb41kAjATcW5rzOK0Z5QGwA';
 const DEFAULT_NOTIFY_COOLDOWN_MINUTES = 15;

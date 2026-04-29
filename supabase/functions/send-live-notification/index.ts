@@ -2,7 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
-const LIVE_NOTIFICATION_CHANNEL_ID = 'jmn-live-v2';
+const LIVE_NOTIFICATION_CHANNEL_ID = 'jmn-live-v3';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {

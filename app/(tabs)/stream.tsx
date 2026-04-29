@@ -326,7 +326,7 @@ const HADR_JUZ_TRACKS: Partial<Record<number, number>> = {
 };
 
 const NOTIF_KEY = 'jmn_radio_notify';
-const LIVE_NOTIFICATION_CHANNEL_ID = 'jmn-live-v2';
+const LIVE_NOTIFICATION_CHANNEL_ID = 'jmn-live-v3';
 const REWIND_STEP_SEC = 10;
 const MAX_TIMESHIFT_SEC = 120;
 const REWIND_SEEK_SETTLE_MS = 90;

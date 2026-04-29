@@ -6,10 +6,14 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import {
+  ADHAAN_OPTIONS,
+  ADHAAN_SELECTION_STORAGE_KEY,
+  DEFAULT_ADHAAN_OPTION_ID,
   PRAYER_NOTIFICATION_SCOPE,
-  PRAYER_START_NOTIFICATION_CHANNEL_ID,
-  PRAYER_START_NOTIFICATION_SOUND_FILE,
+  getAdhaanOptionById,
+  getPrayerStartChannelId,
 } from '@/constants/prayerNotifications';
+import { previewAdhaanOption } from '@/hooks/usePrayerAdhaanPlayer';
 import { syncPushTokenWithBackend, YOUTUBE_LIVE_NOTIFY_KEY } from '@/services/pushRegistrationService';
 import { useInAppBanner } from '@/template';
 
@@ -27,7 +31,7 @@ async function getNotificationsModule(): Promise<ExpoNotificationsModule | null>
   return notificationsModulePromise;
 }
 
-const LIVE_NOTIFICATION_CHANNEL_ID = 'jmn-live-v2';
+const LIVE_NOTIFICATION_CHANNEL_ID = 'jmn-live-v3';
 const LIVE_NOTIFY_KEY = 'jmn_radio_notify';
 const PRAYER_TEST_LEAD_MS = 10 * 1000;
 
@@ -79,6 +83,7 @@ export default function SettingsScreen() {
 
   const [liveNotifyEnabled, setLiveNotifyEnabled] = useState(false);
   const [youtubeLiveNotifyEnabled, setYoutubeLiveNotifyEnabled] = useState(false);
+  const [selectedAdhaanOptionId, setSelectedAdhaanOptionId] = useState<typeof DEFAULT_ADHAAN_OPTION_ID>(DEFAULT_ADHAAN_OPTION_ID);
 
   const palette = useMemo(
     () =>
@@ -111,15 +116,18 @@ export default function SettingsScreen() {
       const [
         liveRaw,
         youtubeLiveRaw,
+        adhaanOptionRaw,
       ] = await Promise.all([
         AsyncStorage.getItem(LIVE_NOTIFY_KEY).catch(() => null),
         AsyncStorage.getItem(YOUTUBE_LIVE_NOTIFY_KEY).catch(() => null),
+        AsyncStorage.getItem(ADHAAN_SELECTION_STORAGE_KEY).catch(() => null),
       ]);
 
       if (cancelled) return;
 
       setLiveNotifyEnabled(liveRaw === 'true');
       setYoutubeLiveNotifyEnabled(youtubeLiveRaw === 'true');
+      setSelectedAdhaanOptionId(getAdhaanOptionById(adhaanOptionRaw).id);
     };
 
     void loadSettings();
@@ -239,6 +247,20 @@ export default function SettingsScreen() {
     [ensureLiveNotificationPermission, showBanner],
   );
 
+  const onSelectAdhaanOption = useCallback(async (optionId: typeof DEFAULT_ADHAAN_OPTION_ID) => {
+    const next = getAdhaanOptionById(optionId);
+    setSelectedAdhaanOptionId(next.id);
+    await AsyncStorage.setItem(ADHAAN_SELECTION_STORAGE_KEY, next.id).catch(() => {});
+    showBanner('Adhaan selected', `${next.label} selected for prayer-start notifications.`, 4500);
+  }, [showBanner]);
+
+  const onPreviewAdhaanOption = useCallback(async (optionId: typeof DEFAULT_ADHAAN_OPTION_ID) => {
+    const ok = await previewAdhaanOption(optionId);
+    if (!ok) {
+      showBanner('Preview unavailable', 'Could not play adhaan preview on this device right now.', 7000, 'warning');
+    }
+  }, [showBanner]);
+
   const runBackgroundAdhaanTest = useCallback(async () => {
     const Notifications = await getNotificationsModule();
     if (!Notifications) {
@@ -252,27 +274,30 @@ export default function SettingsScreen() {
       return;
     }
 
+    const selectedAdhaanOption = getAdhaanOptionById(selectedAdhaanOptionId);
+    const prayerStartChannelId = getPrayerStartChannelId(selectedAdhaanOption.id);
+
     if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync(PRAYER_START_NOTIFICATION_CHANNEL_ID, {
-        name: 'Prayer Start Adhaan',
+      await Notifications.setNotificationChannelAsync(prayerStartChannelId, {
+        name: `Prayer Start Adhaan ${selectedAdhaanOption.id}`,
         importance: Notifications.AndroidImportance.HIGH,
         enableVibrate: true,
         vibrationPattern: [0, 220, 140, 220],
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-        sound: PRAYER_START_NOTIFICATION_SOUND_FILE,
+        sound: selectedAdhaanOption.soundFile,
       }).catch(() => {});
     }
 
     const fireAt = new Date(Date.now() + PRAYER_TEST_LEAD_MS);
     const trigger = Platform.OS === 'android'
-      ? ({ type: 'date', date: fireAt, channelId: PRAYER_START_NOTIFICATION_CHANNEL_ID } as unknown as import('expo-notifications').NotificationTriggerInput)
+      ? ({ type: 'date', date: fireAt, channelId: prayerStartChannelId } as unknown as import('expo-notifications').NotificationTriggerInput)
       : (fireAt as unknown as import('expo-notifications').NotificationTriggerInput);
 
     const scheduled = await Notifications.scheduleNotificationAsync({
       content: {
         title: 'Adhaan test (10s)',
         body: 'Background test for prayer-start adhaan sound.',
-        sound: PRAYER_START_NOTIFICATION_SOUND_FILE,
+        sound: selectedAdhaanOption.soundFile,
         data: {
           scope: PRAYER_NOTIFICATION_SCOPE,
           type: 'prayer-start',
@@ -289,7 +314,7 @@ export default function SettingsScreen() {
     }
 
     showBanner('Adhaan test scheduled', 'Notification will fire in ~10 seconds. Lock the phone now to test background adhaan.', 9000);
-  }, [ensureLiveNotificationPermission, showBanner]);
+  }, [ensureLiveNotificationPermission, selectedAdhaanOptionId, showBanner]);
 
   return (
     <View style={[styles.container, { backgroundColor: palette.bg, paddingTop: insets.top + 8 }]}> 
@@ -327,6 +352,47 @@ export default function SettingsScreen() {
           <View style={styles.cardHeader}>
             <MaterialIcons name="notifications-active" size={18} color={palette.accent} />
             <Text style={[styles.cardTitle, { color: palette.text }]}>Notifications</Text>
+          </View>
+
+          <Text style={[styles.switchHint, { color: palette.sub }]}>Choose one of 3 adhaan options and preview before selecting.</Text>
+
+          <View style={styles.optionList}>
+            {ADHAAN_OPTIONS.map((option) => {
+              const selected = option.id === selectedAdhaanOptionId;
+              return (
+                <View key={option.id} style={[styles.optionRow, { borderColor: palette.border }]}> 
+                  <Text style={[styles.optionLabel, { color: palette.text }]}>{option.label}</Text>
+                  <View style={styles.optionActions}>
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      style={[styles.smallButton, { borderColor: palette.border, backgroundColor: palette.chip }]}
+                      onPress={() => {
+                        void onPreviewAdhaanOption(option.id);
+                      }}
+                    >
+                      <MaterialIcons name="play-arrow" size={16} color={palette.text} />
+                      <Text style={[styles.smallButtonText, { color: palette.text }]}>Preview</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      style={[
+                        styles.smallButton,
+                        {
+                          borderColor: selected ? palette.accent : palette.border,
+                          backgroundColor: selected ? `${palette.accent}20` : palette.chip,
+                        },
+                      ]}
+                      onPress={() => {
+                        void onSelectAdhaanOption(option.id);
+                      }}
+                    >
+                      <MaterialIcons name={selected ? 'check-circle' : 'radio-button-unchecked'} size={16} color={selected ? palette.accent : palette.text} />
+                      <Text style={[styles.smallButtonText, { color: palette.text }]}>{selected ? 'Selected' : 'Use'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            })}
           </View>
 
           <SwitchRow
@@ -442,6 +508,39 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     fontSize: 13,
+    fontWeight: '700',
+  },
+  optionList: {
+    gap: 8,
+    marginTop: 8,
+  },
+  optionRow: {
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  optionLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  optionActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  smallButton: {
+    borderWidth: 1,
+    borderRadius: Radius.sm,
+    minHeight: 34,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  smallButtonText: {
+    fontSize: 12,
     fontWeight: '700',
   },
 });

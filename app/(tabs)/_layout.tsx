@@ -11,16 +11,18 @@ import { useJmnLiveStatus } from '@/hooks/useJmnLiveStatus';
 import { playPrayerStartAdhaan } from '@/hooks/usePrayerAdhaanPlayer';
 import { getPrayerTimesForDate } from '@/services/prayerService';
 import {
+  ADHAAN_SELECTION_STORAGE_KEY,
   ADHKAR_NOTIFICATION_CHANNEL_ID,
   ADHKAR_NOTIFICATION_SCOPE,
   ADHKAR_NOTIFICATION_SILENT_CHANNEL_ID,
   ADHKAR_REMINDER_SOUND_MODE_STORAGE_KEY,
   ADHKAR_REMINDERS_ENABLED_STORAGE_KEY,
+  DEFAULT_ADHAAN_OPTION_ID,
   DEFAULT_ADHKAR_REMINDER_SOUND_MODE,
   DEFAULT_ADHKAR_REMINDERS_ENABLED,
+  getAdhaanOptionById,
+  getPrayerStartChannelId,
   PRAYER_NOTIFICATION_CHANNEL_ID,
-  PRAYER_START_NOTIFICATION_CHANNEL_ID,
-  PRAYER_START_NOTIFICATION_SOUND_FILE,
   PRAYER_NOTIFICATION_SCOPE,
   type AdhkarReminderSoundMode,
 } from '@/constants/prayerNotifications';
@@ -48,7 +50,7 @@ async function getNotificationsModule(): Promise<ExpoNotificationsModule | null>
 }
 
 const HIDDEN_TAB_OPTIONS = { href: null };
-const LIVE_NOTIFICATION_CHANNEL_ID = 'jmn-live-v2';
+const LIVE_NOTIFICATION_CHANNEL_ID = 'jmn-live-v3';
 const LIVE_NOTIFY_KEY = 'jmn_radio_notify';
 const LIVE_NOTIFY_TS_KEY = 'jmn_last_live_notify_ts';
 const LIVE_NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
@@ -91,9 +93,12 @@ async function ensureAndroidLiveNotificationChannel(): Promise<void> {
   }
 }
 
-async function ensureAndroidPrayerNotificationChannel(): Promise<void> {
+async function ensureAndroidPrayerNotificationChannel(selectedAdhaanOptionId: '1' | '2' | '3'): Promise<void> {
   const Notifications = await getNotificationsModule();
   if (!Notifications || Platform.OS !== 'android') return;
+
+  const selectedOption = getAdhaanOptionById(selectedAdhaanOptionId);
+  const prayerStartChannelId = getPrayerStartChannelId(selectedOption.id);
 
   try {
     await Notifications.setNotificationChannelAsync(PRAYER_NOTIFICATION_CHANNEL_ID, {
@@ -105,13 +110,13 @@ async function ensureAndroidPrayerNotificationChannel(): Promise<void> {
       sound: 'default',
     });
 
-    await Notifications.setNotificationChannelAsync(PRAYER_START_NOTIFICATION_CHANNEL_ID, {
-      name: 'Prayer Start Adhaan',
+    await Notifications.setNotificationChannelAsync(prayerStartChannelId, {
+      name: `Prayer Start Adhaan ${selectedOption.id}`,
       importance: Notifications.AndroidImportance.HIGH,
       enableVibrate: true,
       vibrationPattern: [0, 220, 140, 220],
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      sound: PRAYER_START_NOTIFICATION_SOUND_FILE,
+      sound: selectedOption.soundFile,
     });
   } catch (error) {
     if (__DEV__) {
@@ -380,7 +385,13 @@ export default function TabLayout() {
         const type = typeof data?.type === 'string' ? data.type : '';
 
         if (scope === PRAYER_NOTIFICATION_SCOPE && type === 'prayer-start') {
-          void playPrayerStartAdhaan();
+          void (async () => {
+            const selectedAdhaanOptionRaw = await AsyncStorage
+              .getItem(ADHAAN_SELECTION_STORAGE_KEY)
+              .catch(() => null);
+            const selectedAdhaanOption = getAdhaanOptionById(selectedAdhaanOptionRaw ?? DEFAULT_ADHAAN_OPTION_ID);
+            await playPrayerStartAdhaan(selectedAdhaanOption.id);
+          })();
         }
       });
     };
@@ -399,8 +410,13 @@ export default function TabLayout() {
       const Notifications = await getNotificationsModule();
       if (!Notifications) return;
 
+      const selectedAdhaanOptionRaw = await AsyncStorage
+        .getItem(ADHAAN_SELECTION_STORAGE_KEY)
+        .catch(() => null);
+      const selectedAdhaanOption = getAdhaanOptionById(selectedAdhaanOptionRaw ?? DEFAULT_ADHAAN_OPTION_ID);
+
       await ensureAndroidLiveNotificationChannel();
-      await ensureAndroidPrayerNotificationChannel();
+      await ensureAndroidPrayerNotificationChannel(selectedAdhaanOption.id);
       await ensureAndroidAdhkarNotificationChannels(DEFAULT_ADHKAR_REMINDER_SOUND_MODE);
     };
 
@@ -500,7 +516,12 @@ export default function TabLayout() {
       const allowed = await ensurePrayerNotificationPermission();
       if (!allowed) return;
 
-      await ensureAndroidPrayerNotificationChannel();
+      const selectedAdhaanOptionRaw = await AsyncStorage
+        .getItem(ADHAAN_SELECTION_STORAGE_KEY)
+        .catch(() => null);
+      const selectedAdhaanOption = getAdhaanOptionById(selectedAdhaanOptionRaw ?? DEFAULT_ADHAAN_OPTION_ID);
+
+      await ensureAndroidPrayerNotificationChannel(selectedAdhaanOption.id);
 
       const now = new Date();
       const scheduleDates = Array.from({ length: PRAYER_SCHEDULE_DAY_WINDOW }, (_, index) => {
@@ -527,11 +548,12 @@ export default function TabLayout() {
 
       for (const item of planned) {
         const isPrayerStart = item.data.type === 'prayer-start';
+        const prayerStartChannelId = getPrayerStartChannelId(selectedAdhaanOption.id);
         const prayerChannelId = isPrayerStart
-          ? PRAYER_START_NOTIFICATION_CHANNEL_ID
+          ? prayerStartChannelId
           : PRAYER_NOTIFICATION_CHANNEL_ID;
         const prayerSound = isPrayerStart
-          ? PRAYER_START_NOTIFICATION_SOUND_FILE
+          ? selectedAdhaanOption.soundFile
           : 'default';
 
         const trigger = Platform.OS === 'android'
