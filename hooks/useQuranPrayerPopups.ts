@@ -223,8 +223,6 @@ function getBundledAdhaanModule(soundFile: string) {
       return require('../assets/audio/adhaan_4.mp3');
     case 'adhaan_5.mp3':
       return require('../assets/audio/adhaan_5.mp3');
-    case 'adhaan.mp3':
-      return require('../assets/audio/adhaan.mp3');
     default:
       return require('../assets/audio/adhaan_1.mp3');
   }

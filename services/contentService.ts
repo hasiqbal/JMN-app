@@ -347,6 +347,21 @@ type RawIslamicCalendarEventRow = IslamicCalendarEventRow & {
   linked_hijri_year?: number | null;
 };
 
+type CalendarEventsForMonthRpcRow = {
+  id: string;
+  title: string;
+  event_type: 'important_date' | 'masjid_event';
+  field_label: string | null;
+  region: string | null;
+  notes: string | null;
+  source_name: string | null;
+  linked_hijri_label: string | null;
+  linked_gregorian_date: string;
+  auto_delete_grace_days: number | null;
+  source_announcement_id?: string | null;
+  source_link_url?: string | null;
+};
+
 const HIJRI_MONTH_ALIASES: Record<string, number> = {
   muharram: 1,
   safar: 2,
@@ -448,7 +463,9 @@ function mapRawIslamicEventRow(row: RawIslamicCalendarEventRow): IslamicCalendar
   };
 }
 
-export async function fetchIslamicCalendarEventsForMonth(
+// Legacy mapper kept temporarily for rollback reference during server-feed cutover.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function fetchIslamicCalendarImportantDatesLegacyForMonth(
   year: number,
   month: number
 ): Promise<IslamicCalendarEventRow[]> {
@@ -559,6 +576,56 @@ export async function fetchIslamicCalendarEventsForMonth(
   } catch {
     return [];
   }
+}
+
+function mapCalendarEventsForMonthRpcRow(row: CalendarEventsForMonthRpcRow): IslamicCalendarEventRow | null {
+  const id = String(row.id ?? '').trim();
+  if (!id) return null;
+
+  const title = String(row.title ?? '').trim();
+  if (!title) return null;
+
+  const linkedGregorianDate = normalizeToIsoDate(row.linked_gregorian_date);
+  if (!linkedGregorianDate) return null;
+
+  return {
+    id,
+    title,
+    event_type: row.event_type === 'masjid_event' ? 'masjid_event' : 'important_date',
+    field_label: row.field_label ?? null,
+    region: row.region ?? null,
+    notes: row.notes ?? null,
+    source_name: row.source_name ?? null,
+    linked_hijri_label: (row.linked_hijri_label ?? '').trim(),
+    linked_gregorian_date: linkedGregorianDate,
+    auto_delete_grace_days: Number.isFinite(Number(row.auto_delete_grace_days))
+      ? Number(row.auto_delete_grace_days)
+      : 0,
+    source_announcement_id: row.source_announcement_id ?? null,
+    source_link_url: row.source_link_url ?? null,
+  };
+}
+
+export async function fetchIslamicCalendarEventsForMonth(
+  year: number,
+  month: number
+): Promise<IslamicCalendarEventRow[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc('get_calendar_events_for_month', {
+    p_gregorian_year: year,
+    p_gregorian_month: month,
+  });
+
+  if (error) {
+    throw new Error(`Calendar feed unavailable: ${error.message}`);
+  }
+
+  if (!Array.isArray(data)) return [];
+
+  return data
+    .map((row) => mapCalendarEventsForMonthRpcRow(row as CalendarEventsForMonthRpcRow))
+    .filter((row): row is IslamicCalendarEventRow => Boolean(row))
+    .sort((a, b) => a.linked_gregorian_date.localeCompare(b.linked_gregorian_date) || a.title.localeCompare(b.title));
 }
 
 export interface PrayerTimeRow {

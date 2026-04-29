@@ -34,6 +34,8 @@ import {
   type AdhkarReminderSoundMode,
   getAdhaanOptionByUrl,
   getPrayerAdhaanChannelId,
+  getPrayerAdhaanRecoveryChannelId,
+  getPrayerAdhaanRecoveryNoExtChannelId,
 } from '@/constants/prayerNotifications';
 import {
   buildAdhkarNotificationsForPrayers,
@@ -196,11 +198,34 @@ async function ensureAndroidPrayerNotificationChannels(args?: {
   const adhaanChannelId = args?.adhaanChannelId ?? getPrayerAdhaanChannelId(ADHAAN_AUDIO_OPTIONS[0].id);
   const adhaanSoundFile = args?.adhaanSoundFile ?? DEFAULT_ADHAAN_BACKGROUND_SOUND_FILE;
 
+  const resetPrayerChannelIfStale = async (channelId: string, requiresCustomSound: boolean) => {
+    try {
+      const existing = await Notifications.getNotificationChannelAsync(channelId);
+      if (!existing) return;
+
+      const existingSound = existing.sound ?? null;
+      const missingVibrationPattern = !Array.isArray(existing.vibrationPattern) || existing.vibrationPattern.length === 0;
+      const shouldResetForSound = requiresCustomSound && (existingSound === 'default' || existingSound == null);
+
+      if (!shouldResetForSound && !missingVibrationPattern) return;
+
+      await Notifications.deleteNotificationChannelAsync(channelId).catch(() => {});
+    } catch {
+      // Keep setup resilient; failed reset will fall back to normal create/update flow.
+    }
+  };
+
+  await Promise.all([
+    resetPrayerChannelIfStale(adhaanChannelId, true),
+    resetPrayerChannelIfStale(PRAYER_JAMAAT_CHANNEL_ID, true),
+  ]);
+
   try {
     await Promise.all([
       Notifications.setNotificationChannelAsync(PRAYER_ALERT_CHANNEL_ID, {
         name: 'JMN Prayer Alerts',
         importance: Notifications.AndroidImportance.HIGH,
+        enableVibrate: true,
         vibrationPattern: [0, 250, 150, 250],
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
         sound: 'default',
@@ -208,6 +233,7 @@ async function ensureAndroidPrayerNotificationChannels(args?: {
       Notifications.setNotificationChannelAsync(adhaanChannelId, {
         name: 'JMN Adhaan Alerts',
         importance: Notifications.AndroidImportance.HIGH,
+        enableVibrate: true,
         vibrationPattern: [0, 200, 120, 200],
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
         sound: adhaanSoundFile,
@@ -215,6 +241,7 @@ async function ensureAndroidPrayerNotificationChannels(args?: {
       Notifications.setNotificationChannelAsync(PRAYER_JAMAAT_CHANNEL_ID, {
         name: 'JMN Jamaat Alerts',
         importance: Notifications.AndroidImportance.HIGH,
+        enableVibrate: true,
         vibrationPattern: [0, 200, 120, 200],
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
         sound: IQAMAH_BACKGROUND_SOUND_FILE,
@@ -260,6 +287,82 @@ async function ensureAndroidPrayerNotificationChannels(args?: {
   } catch {
     // Ignore diagnostics failures; channel setup already succeeded.
   }
+}
+
+async function resolveAndroidPrayerAdhaanChannel(args: {
+  Notifications: ExpoNotificationsModule;
+  selectedOptionId: string;
+  selectedSoundFile: string;
+}): Promise<{
+  channelId: string;
+  soundFile: string;
+}> {
+  const selectedChannelId = getPrayerAdhaanChannelId(args.selectedOptionId);
+
+  if (Platform.OS !== 'android') {
+    return {
+      channelId: selectedChannelId,
+      soundFile: args.selectedSoundFile,
+    };
+  }
+
+  await ensureAndroidPrayerNotificationChannels({
+    adhaanChannelId: selectedChannelId,
+    adhaanSoundFile: args.selectedSoundFile,
+  });
+
+  const selectedChannel = await args.Notifications
+    .getNotificationChannelAsync(selectedChannelId)
+    .catch(() => null);
+
+  if (selectedChannel?.sound === 'custom') {
+    return {
+      channelId: selectedChannelId,
+      soundFile: args.selectedSoundFile,
+    };
+  }
+
+  const recoveryChannelId = getPrayerAdhaanRecoveryChannelId(args.selectedOptionId);
+
+  await ensureAndroidPrayerNotificationChannels({
+    adhaanChannelId: recoveryChannelId,
+    adhaanSoundFile: args.selectedSoundFile,
+  });
+
+  const recoveryChannel = await args.Notifications
+    .getNotificationChannelAsync(recoveryChannelId)
+    .catch(() => null);
+
+  if (recoveryChannel?.sound === 'custom') {
+    return {
+      channelId: recoveryChannelId,
+      soundFile: args.selectedSoundFile,
+    };
+  }
+
+  const selectedSoundNoExt = args.selectedSoundFile.replace(/\.[^/.]+$/, '');
+  const recoveryNoExtChannelId = getPrayerAdhaanRecoveryNoExtChannelId(args.selectedOptionId);
+
+  await ensureAndroidPrayerNotificationChannels({
+    adhaanChannelId: recoveryNoExtChannelId,
+    adhaanSoundFile: selectedSoundNoExt,
+  });
+
+  const recoveryNoExtChannel = await args.Notifications
+    .getNotificationChannelAsync(recoveryNoExtChannelId)
+    .catch(() => null);
+
+  if (recoveryNoExtChannel?.sound === 'custom') {
+    return {
+      channelId: recoveryNoExtChannelId,
+      soundFile: args.selectedSoundFile,
+    };
+  }
+
+  return {
+    channelId: selectedChannelId,
+    soundFile: args.selectedSoundFile,
+  };
 }
 
 async function ensureAndroidAdhkarNotificationChannels(
@@ -662,11 +765,10 @@ export default function TabLayout() {
 
       const storedAdhaanUrl = await AsyncStorage.getItem(ADHAAN_AUDIO_STORAGE_KEY).catch(() => null);
       const selectedAdhaanOption = getAdhaanOptionByUrl(storedAdhaanUrl) ?? ADHAAN_AUDIO_OPTIONS[0];
-      const selectedAdhaanChannelId = getPrayerAdhaanChannelId(selectedAdhaanOption.id);
-
-      await ensureAndroidPrayerNotificationChannels({
-        adhaanChannelId: selectedAdhaanChannelId,
-        adhaanSoundFile: selectedAdhaanOption.backgroundSoundFile,
+      const resolvedAdhaan = await resolveAndroidPrayerAdhaanChannel({
+        Notifications,
+        selectedOptionId: selectedAdhaanOption.id,
+        selectedSoundFile: selectedAdhaanOption.backgroundSoundFile,
       });
 
       // Local prayer scheduling does not depend on push token sync; skip this in Expo Go.
@@ -727,11 +829,11 @@ export default function TabLayout() {
 
         const prayerChannelId = useIqamahSound
           ? PRAYER_JAMAAT_CHANNEL_ID
-          : selectedAdhaanChannelId;
+          : resolvedAdhaan.channelId;
 
         const scheduledSound = useIqamahSound
           ? IQAMAH_BACKGROUND_SOUND_FILE
-          : selectedAdhaanOption.backgroundSoundFile;
+          : resolvedAdhaan.soundFile;
 
         const trigger = Platform.OS === 'android'
           ? ({ type: 'date', date: item.fireAt, channelId: prayerChannelId } as unknown as import('expo-notifications').NotificationTriggerInput)
@@ -937,11 +1039,10 @@ export default function TabLayout() {
 
     const storedAdhaanUrl = await AsyncStorage.getItem(ADHAAN_AUDIO_STORAGE_KEY).catch(() => null);
     const selectedAdhaanOption = getAdhaanOptionByUrl(storedAdhaanUrl) ?? ADHAAN_AUDIO_OPTIONS[0];
-    const selectedAdhaanChannelId = getPrayerAdhaanChannelId(selectedAdhaanOption.id);
-
-    await ensureAndroidPrayerNotificationChannels({
-      adhaanChannelId: selectedAdhaanChannelId,
-      adhaanSoundFile: selectedAdhaanOption.backgroundSoundFile,
+    const resolvedAdhaan = await resolveAndroidPrayerAdhaanChannel({
+      Notifications,
+      selectedOptionId: selectedAdhaanOption.id,
+      selectedSoundFile: selectedAdhaanOption.backgroundSoundFile,
     });
 
     if (combiningWithPrayer && typeof overlappingPrayer?.identifier === 'string') {
@@ -950,7 +1051,7 @@ export default function TabLayout() {
 
     const useIqamahSound = combinedType === 'jamaat-10';
     const liveOrCombinedChannelId = combiningWithPrayer
-      ? (useIqamahSound ? PRAYER_JAMAAT_CHANNEL_ID : selectedAdhaanChannelId)
+      ? (useIqamahSound ? PRAYER_JAMAAT_CHANNEL_ID : resolvedAdhaan.channelId)
       : LIVE_NOTIFICATION_CHANNEL_ID;
 
     const liveTrigger = Platform.OS === 'android'
@@ -971,7 +1072,7 @@ export default function TabLayout() {
           title: combiningWithPrayer ? combinedTitle : 'JMN Radio is now live',
           body: combiningWithPrayer ? combinedBody : "Tap to open Jami' Masjid Noorani live stream.",
           sound: combiningWithPrayer
-            ? (useIqamahSound ? IQAMAH_BACKGROUND_SOUND_FILE : selectedAdhaanOption.backgroundSoundFile)
+            ? (useIqamahSound ? IQAMAH_BACKGROUND_SOUND_FILE : resolvedAdhaan.soundFile)
             : 'default',
           data: combiningWithPrayer
             ? {

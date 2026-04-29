@@ -2,10 +2,13 @@ export const ADHAAN_AUDIO_STORAGE_KEY = 'jmn_selected_adhaan_url';
 export const ADHAAN_MUTED_STORAGE_KEY = 'jmn_adhaan_muted';
 export const IQAMAH_MUTED_STORAGE_KEY = 'jmn_iqamah_muted';
 export const PRAYER_REMINDER_LIVE_ALERTS_STORAGE_KEY = 'jmn_prayer_live_alerts_mode';
+export const NOTIFICATION_LANGUAGE_PREFERENCE_STORAGE_KEY = 'jmn_notification_language_preference_v1';
+export const SIMPLE_URDU_MODE_STORAGE_KEY = 'jmn_simple_urdu_mode_v1';
 export const ADHKAR_REMINDERS_ENABLED_STORAGE_KEY = 'jmn_adhkar_reminders_enabled';
 export const ADHKAR_REMINDER_SOUND_MODE_STORAGE_KEY = 'jmn_adhkar_reminder_sound_mode';
 
 export type AdhkarReminderSoundMode = 'sound' | 'silent';
+export type NotificationLanguagePreference = 'english-first' | 'urdu-first' | 'urdu-only';
 
 export type AdhaanAudioOption = {
   id: string;
@@ -50,7 +53,7 @@ export const ADHAAN_AUDIO_OPTIONS: AdhaanAudioOption[] = [
 export const DEFAULT_ADHAAN_AUDIO_URL = ADHAAN_AUDIO_OPTIONS[0].url;
 export const DEFAULT_ADHAAN_BACKGROUND_SOUND_FILE = ADHAAN_AUDIO_OPTIONS[0].backgroundSoundFile;
 export const IQAMAH_BACKGROUND_SOUND_FILE = 'iqamah.mp3';
-export const PRAYER_JAMAAT_CHANNEL_ID = 'jmn-prayer-jamaat-v6';
+export const PRAYER_JAMAAT_CHANNEL_ID = 'jmn-prayer-jamaat-v7';
 export const PRAYER_SILENT_CHANNEL_ID = 'jmn-prayer-silent-v3';
 export const PRAYER_ALERT_CHANNEL_ID = 'jmn-prayer-alerts-v1';
 export const ADHKAR_NOTIFICATION_SCOPE = 'jmn-adhkar';
@@ -61,6 +64,8 @@ export const ADHKAR_NOTIFICATION_TYPE = 'adhkar-due-summary';
 export const ADHKAR_NOTIFICATION_MIN_LEAD_MS = 30 * 1000;
 export const DEFAULT_ADHKAR_REMINDERS_ENABLED = true;
 export const DEFAULT_ADHKAR_REMINDER_SOUND_MODE: AdhkarReminderSoundMode = 'sound';
+export const DEFAULT_NOTIFICATION_LANGUAGE_PREFERENCE: NotificationLanguagePreference = 'english-first';
+export const DEFAULT_SIMPLE_URDU_MODE = false;
 
 const ADHAAN_AUDIO_URL_SET = new Set(ADHAAN_AUDIO_OPTIONS.map((item) => item.url));
 
@@ -75,5 +80,13 @@ export function getAdhaanOptionByUrl(value: string | null | undefined): AdhaanAu
 }
 
 export function getPrayerAdhaanChannelId(optionId: string): string {
-  return `jmn-prayer-adhaan-${optionId}-v6`;
+  return `jmn-prayer-adhaan-${optionId}-v7`;
+}
+
+export function getPrayerAdhaanRecoveryChannelId(optionId: string): string {
+  return `jmn-prayer-adhaan-${optionId}-recover-v1`;
+}
+
+export function getPrayerAdhaanRecoveryNoExtChannelId(optionId: string): string {
+  return `jmn-prayer-adhaan-${optionId}-recover-noext-v1`;
 }

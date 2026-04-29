@@ -19,7 +19,6 @@ import { lookupTimetable, type DayTimetable } from '@/services/timetableData';
 import {
   fetchHijriCalendarForMonth,
   fetchIslamicCalendarEventsForMonth,
-  fetchMasjidAnnouncementEventsForMonth,
   fetchPrayerTimesForMonth,
   type IslamicCalendarEventRow,
   type PrayerTimeRow,
@@ -97,15 +96,25 @@ const STRIP_FRIDAY_DOT = '#D39C2F';
 const CalendarPressable = Platform.OS === 'web' ? RNPressable : GHPressable;
 const CalendarStripScrollView = Platform.OS === 'web' ? ScrollView : GestureScrollView;
 
-function extractDayFromLinkedGregorianDate(value: string | null | undefined): number | null {
+function extractIsoDateFromLinkedGregorianDate(value: string | null | undefined): string | null {
   const text = (value ?? '').trim();
   if (!text) return null;
 
   const isoLikeMatch = text.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/);
   if (isoLikeMatch) {
+    const year = Number.parseInt(isoLikeMatch[1], 10);
+    const month = Number.parseInt(isoLikeMatch[2], 10);
     const day = Number.parseInt(isoLikeMatch[3], 10);
-    if (Number.isFinite(day) && day >= 1 && day <= 31) {
-      return day;
+    if (
+      Number.isFinite(year)
+      && Number.isFinite(month)
+      && Number.isFinite(day)
+      && month >= 1
+      && month <= 12
+      && day >= 1
+      && day <= 31
+    ) {
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     }
     return null;
   }
@@ -113,8 +122,11 @@ function extractDayFromLinkedGregorianDate(value: string | null | undefined): nu
   const parsed = new Date(text);
   if (Number.isNaN(parsed.getTime())) return null;
 
+  const year = parsed.getUTCFullYear();
+  const month = parsed.getUTCMonth() + 1;
   const day = parsed.getUTCDate();
-  return Number.isFinite(day) && day >= 1 && day <= 31 ? day : null;
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
 type HijriParts = {
@@ -122,6 +134,47 @@ type HijriParts = {
   monthIndex: number;
   year: number;
 };
+
+type ParsedHijriLabel = {
+  day: number;
+  monthLabel: string;
+  year: number;
+};
+
+function parseHijriLabel(value: string | null | undefined): ParsedHijriLabel | null {
+  const text = (value ?? '').trim();
+  if (!text) return null;
+
+  const match = text.match(/^\s*(\d{1,2})\s+(.+?)\s+(\d{1,4})\b/i);
+  if (!match) return null;
+
+  const day = Number.parseInt(match[1], 10);
+  const year = Number.parseInt(match[3], 10);
+  const monthLabel = match[2].replace(/\s+/g, ' ').trim();
+
+  if (!Number.isFinite(day) || day < 1 || day > 30) return null;
+  if (!Number.isFinite(year) || year <= 0) return null;
+  if (!monthLabel) return null;
+
+  return { day, monthLabel, year };
+}
+
+function formatPortalMonthHint(start: ParsedHijriLabel, end: ParsedHijriLabel): string {
+  if (start.monthLabel === end.monthLabel && start.year === end.year) {
+    return `${start.monthLabel} ${start.year}`;
+  }
+  if (start.year === end.year) {
+    return `${start.monthLabel}/${end.monthLabel} ${start.year}`;
+  }
+  return `${start.monthLabel} ${start.year}/${end.monthLabel} ${end.year}`;
+}
+
+function formatPortalMonthRangeHint(start: ParsedHijriLabel, end: ParsedHijriLabel): string {
+  if (start.monthLabel === end.monthLabel && start.year === end.year) {
+    return `${start.monthLabel} ${start.year} AH`;
+  }
+  return `${start.monthLabel} ${start.year} AH → ${end.monthLabel} ${end.year} AH`;
+}
 
 function normMonthName(value: string): string {
   return value.toLowerCase().replace(/[^a-z]/g, '');
@@ -178,10 +231,6 @@ function shiftHijri(parts: HijriParts, deltaDays: number): HijriParts {
   }
 
   return { day, monthIndex, year };
-}
-
-function formatHijriParts(parts: HijriParts): string {
-  return `${parts.day} ${HIJRI_MONTHS[parts.monthIndex]} ${parts.year}`;
 }
 
 const StripDateChip = React.memo(function StripDateChip({
@@ -285,7 +334,6 @@ function buildMonthGrid(
   today: Date,
   dbRows: Map<number, PrayerTimeRow>,
   hijriRows: Map<number, string>,
-  predictHijriDate?: (date: Date) => string | null,
 ): MonthDay[] {
   const firstDay = new Date(year, month, 1);
   const startOffset = (firstDay.getDay() + 6) % 7;
@@ -301,8 +349,8 @@ function buildMonthGrid(
     const isToday = d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
     const dbRow = isCurrentMonth ? (dbRows.get(d.getDate()) ?? null) : null;
     const hijriDate = isCurrentMonth ? (hijriRows.get(d.getDate()) ?? null) : null;
-    const predictedHijri = isCurrentMonth ? (predictHijriDate?.(d) ?? null) : null;
     const local = lookupTimetable(d);
+    const portalHijri = isCurrentMonth ? (hijriDate ?? '') : '';
 
     let day: DayTimetable | null = local;
     if (dbRow && local) {
@@ -321,7 +369,8 @@ function buildMonthGrid(
         iqAsr: dbRow.asr_jamat ?? local.iqAsr,
         iqMaghrib: dbRow.maghrib_jamat ?? local.iqMaghrib,
         iqIsha: dbRow.isha_jamat ?? local.iqIsha,
-        hijri: hijriDate ?? local.hijri ?? predictedHijri ?? '',
+        // Calendar chip Hijri must follow portal hijri_calendar rows for this month.
+        hijri: portalHijri,
       };
     } else if (dbRow && !local) {
       day = {
@@ -334,22 +383,22 @@ function buildMonthGrid(
         maghrib: dbRow.maghrib,
         isha: dbRow.isha,
         jumuah: dbRow.jumu_ah_1,
-        hijri: hijriDate ?? predictedHijri ?? '',
+        hijri: portalHijri,
         iqFajr: dbRow.fajr_jamat ?? '07:30',
         iqDhuhr: dbRow.zuhr_jamat ?? '13:00',
         iqAsr: dbRow.asr_jamat ?? '15:30',
         iqMaghrib: dbRow.maghrib_jamat ?? dbRow.maghrib,
         iqIsha: dbRow.isha_jamat ?? '20:00',
       };
-    } else if (local && hijriDate) {
+    } else if (local && portalHijri) {
       day = {
         ...local,
-        hijri: hijriDate,
+        hijri: portalHijri,
       };
-    } else if (local && predictedHijri) {
+    } else if (local) {
       day = {
         ...local,
-        hijri: predictedHijri,
+        hijri: portalHijri,
       };
     }
 
@@ -681,13 +730,13 @@ function CalendarPrayerPanel({
 
 function CalendarEventPlaceholders({
   selectedDay,
-  eventsByDay,
+  eventsByDate,
   nightMode,
   nightPalette,
   onOpenMasjidAnnouncement,
 }: {
   selectedDay: MonthDay | null;
-  eventsByDay: Map<number, IslamicCalendarEventRow[]>;
+  eventsByDate: Map<string, IslamicCalendarEventRow[]>;
   nightMode: boolean;
   nightPalette: NightPalette;
   onOpenMasjidAnnouncement: (event: IslamicCalendarEventRow) => void;
@@ -699,8 +748,12 @@ function CalendarEventPlaceholders({
   const [importantDatesExpanded, setImportantDatesExpanded] = React.useState(true);
   const [masjidEventsExpanded, setMasjidEventsExpanded] = React.useState(true);
 
-  const selectedEvents = selectedDay?.isCurrentMonth
-    ? (eventsByDay.get(selectedDay.date.getDate()) ?? [])
+  const selectedIsoDate = selectedDay
+    ? `${selectedDay.date.getFullYear()}-${String(selectedDay.date.getMonth() + 1).padStart(2, '0')}-${String(selectedDay.date.getDate()).padStart(2, '0')}`
+    : null;
+
+  const selectedEvents = selectedDay?.isCurrentMonth && selectedIsoDate
+    ? (eventsByDate.get(selectedIsoDate) ?? [])
     : [];
 
   const importantDateEvents = selectedEvents.filter((event) => event.event_type === 'important_date');
@@ -843,7 +896,10 @@ export default function MonthlyCalendarSection({
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [dbRows, setDbRows] = useState<Map<number, PrayerTimeRow>>(new Map());
   const [hijriRows, setHijriRows] = useState<Map<number, string>>(new Map());
-  const [eventsByDay, setEventsByDay] = useState<Map<number, IslamicCalendarEventRow[]>>(new Map());
+  const [loadedHijriMonthKey, setLoadedHijriMonthKey] = useState<string | null>(null);
+  const [portalMonthHints, setPortalMonthHints] = useState<Map<string, { monthHint: string; rangeHint: string }>>(new Map());
+  const [portalYearHints, setPortalYearHints] = useState<Map<number, string>>(new Map());
+  const [eventsByDate, setEventsByDate] = useState<Map<string, IslamicCalendarEventRow[]>>(new Map());
   const [calendarRefreshToken, setCalendarRefreshToken] = useState(0);
 
   const pickerHeight = React.useMemo(() => {
@@ -869,8 +925,8 @@ export default function MonthlyCalendarSection({
 
   const resetCalendarDataAndReload = React.useCallback(() => {
     setDbRows(new Map());
-    setHijriRows(new Map());
-    setEventsByDay(new Map());
+    setLoadedHijriMonthKey(null);
+    setEventsByDate(new Map());
     setCalendarRefreshToken((value) => value + 1);
   }, []);
 
@@ -913,17 +969,13 @@ export default function MonthlyCalendarSection({
     };
   }, [today, getHijriDayNum, getHijriMonthName]);
 
-  const predictHijriStringForDate = React.useCallback(
-    (date: Date) => {
-      if (!predictedHijriFromToday) return null;
-      return formatHijriParts(predictedHijriFromToday(date));
-    },
-    [predictedHijriFromToday]
-  );
-
   const currentGrid = React.useMemo(
-    () => buildMonthGrid(viewYear, viewMonth, today, dbRows, hijriRows, predictHijriStringForDate),
-    [viewYear, viewMonth, today, dbRows, hijriRows, predictHijriStringForDate]
+    () => {
+      const viewMonthKey = `${viewYear}-${viewMonth}`;
+      const effectiveHijriRows = loadedHijriMonthKey === viewMonthKey ? hijriRows : new Map<number, string>();
+      return buildMonthGrid(viewYear, viewMonth, today, dbRows, effectiveHijriRows);
+    },
+    [viewYear, viewMonth, today, dbRows, hijriRows, loadedHijriMonthKey]
   );
 
   const stripDays = currentGrid.filter((c) => c.isCurrentMonth);
@@ -937,6 +989,9 @@ export default function MonthlyCalendarSection({
   }, [today]);
 
   const getHijriYearHint = React.useCallback((year: number) => {
+    const portalYearHint = portalYearHints.get(year);
+    if (portalYearHint) return portalYearHint;
+
     if (predictedHijriFromToday) {
       const jan = predictedHijriFromToday(new Date(year, 0, 1));
       const dec = predictedHijriFromToday(new Date(year, 11, 1));
@@ -953,9 +1008,12 @@ export default function MonthlyCalendarSection({
     if (!janYear && !decYear) return '';
     if (janYear && decYear && janYear !== decYear) return `${janYear}/${decYear} AH`;
     return `${janYear || decYear} AH`;
-  }, [predictedHijriFromToday]);
+  }, [predictedHijriFromToday, portalYearHints]);
 
   const getHijriMonthHint = React.useCallback((year: number, month: number) => {
+    const portalMonthHint = portalMonthHints.get(`${year}-${month}`)?.monthHint;
+    if (portalMonthHint) return portalMonthHint;
+
     const daysInMonth = new Date(year, month + 1, 0).getDate();
 
     if (predictedHijriFromToday) {
@@ -998,9 +1056,12 @@ export default function MonthlyCalendarSection({
       return `${leftMonth}/${rightMonth} ${leftYear}`;
     }
     return `${leftMonth}${leftYear ? ` ${leftYear}` : ''}/${rightMonth}${rightYear ? ` ${rightYear}` : ''}`;
-  }, [getHijriMonthName, predictedHijriFromToday]);
+  }, [getHijriMonthName, predictedHijriFromToday, portalMonthHints]);
 
   const getHijriMonthRangeHint = React.useCallback((year: number, month: number) => {
+    const portalRangeHint = portalMonthHints.get(`${year}-${month}`)?.rangeHint;
+    if (portalRangeHint) return portalRangeHint;
+
     const daysInMonth = new Date(year, month + 1, 0).getDate();
 
     if (predictedHijriFromToday) {
@@ -1035,7 +1096,71 @@ export default function MonthlyCalendarSection({
       return `${startLabel} AH`;
     }
     return `${startLabel} AH → ${endLabel} AH`;
-  }, [getHijriMonthName, predictedHijriFromToday]);
+  }, [getHijriMonthName, predictedHijriFromToday, portalMonthHints]);
+
+  useEffect(() => {
+    if (!showMonthPicker) return;
+
+    const year = pickerYear;
+    if (portalYearHints.has(year)) return;
+
+    let cancelled = false;
+
+    Promise.all(
+      Array.from({ length: 12 }, (_, idx) => fetchHijriCalendarForMonth(year, idx + 1))
+    )
+      .then((allMonths) => {
+        if (cancelled) return;
+
+        const nextMonthHints = new Map(portalMonthHints);
+        let firstSeen: ParsedHijriLabel | null = null;
+        let lastSeen: ParsedHijriLabel | null = null;
+
+        allMonths.forEach((rows, monthIndex) => {
+          if (!Array.isArray(rows) || rows.length === 0) return;
+
+          const sorted = [...rows].sort((a, b) => a.gregorian_day - b.gregorian_day);
+          const parsedRows = sorted
+            .map((row) => parseHijriLabel(row.hijri_date))
+            .filter((row): row is ParsedHijriLabel => Boolean(row));
+
+          if (parsedRows.length === 0) return;
+
+          const first = parsedRows[0];
+          const last = parsedRows[parsedRows.length - 1];
+
+          if (!firstSeen) firstSeen = first;
+          lastSeen = last;
+
+          const key = `${year}-${monthIndex}`;
+          nextMonthHints.set(key, {
+            monthHint: formatPortalMonthHint(first, last),
+            rangeHint: formatPortalMonthRangeHint(first, last),
+          });
+        });
+
+        if (nextMonthHints.size !== portalMonthHints.size) {
+          setPortalMonthHints(nextMonthHints);
+        }
+
+        if (firstSeen && lastSeen) {
+          const nextYearHints = new Map(portalYearHints);
+          if (firstSeen.year === lastSeen.year) {
+            nextYearHints.set(year, `${firstSeen.year} AH`);
+          } else {
+            nextYearHints.set(year, `${firstSeen.year}/${lastSeen.year} AH`);
+          }
+          setPortalYearHints(nextYearHints);
+        }
+      })
+      .catch(() => {
+        // Keep local fallback hints when portal month-hint prefetch fails.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showMonthPicker, pickerYear, portalMonthHints, portalYearHints]);
 
   const pickerSections = React.useMemo(
     () =>
@@ -1053,29 +1178,29 @@ export default function MonthlyCalendarSection({
 
   const pickerMonthDays = React.useMemo(() => {
     const daysInMonth = new Date(pickerYear, pickerMonth + 1, 0).getDate();
+    const isViewingLoadedMonth = pickerYear === viewYear && pickerMonth === viewMonth;
+    const pickerMonthKey = `${pickerYear}-${pickerMonth}`;
+    const viewMonthKey = `${viewYear}-${viewMonth}`;
+    const canRenderPortalHijri = isViewingLoadedMonth
+      && pickerMonthKey === viewMonthKey
+      && loadedHijriMonthKey === viewMonthKey
+      && hijriRows.size > 0;
     const entries = Array.from({ length: daysInMonth }, (_, i) => {
       const day = i + 1;
       const date = new Date(pickerYear, pickerMonth, day);
-      const localHijri = lookupTimetable(date)?.hijri ?? '';
-      const predicted = predictedHijriFromToday ? predictedHijriFromToday(date) : null;
+      const displayHijri = canRenderPortalHijri ? (hijriRows.get(day) ?? '') : '';
 
-      const localMonthName = localHijri ? getHijriMonthName(localHijri) : '';
+      const localMonthName = displayHijri ? getHijriMonthName(displayHijri) : '';
       const localMonthIndex = localMonthName ? (HIJRI_MONTH_ALIASES[normMonthName(localMonthName)] ?? -1) : -1;
-      const localYearMatch = localHijri.match(/\b(\d{4})\b/);
+      const localYearMatch = displayHijri.match(/\b(\d{4})\b/);
       const localYear = localYearMatch ? Number.parseInt(localYearMatch[1], 10) : NaN;
 
-      const resolvedMonthIndex = localMonthIndex >= 0
-        ? localMonthIndex
-        : (predicted ? predicted.monthIndex : -1);
-      const resolvedYear = Number.isFinite(localYear)
-        ? localYear
-        : (predicted ? predicted.year : NaN);
+      const resolvedMonthIndex = localMonthIndex;
+      const resolvedYear = localYear;
 
-      const hijriDay = localHijri
-        ? getHijriDayNum(localHijri)
-        : predicted
-          ? String(predicted.day)
-          : '--';
+      const hijriDay = displayHijri
+        ? getHijriDayNum(displayHijri)
+        : '--';
       const dow = DAY_LABELS[(date.getDay() + 6) % 7];
       const dd = String(day).padStart(2, '0');
       const mm = String(pickerMonth + 1).padStart(2, '0');
@@ -1102,7 +1227,16 @@ export default function MonthlyCalendarSection({
         isHijriMonthStart: isHijriDayOne || rolloverByMonthKey,
       };
     });
-  }, [pickerYear, pickerMonth, predictedHijriFromToday, getHijriDayNum]);
+  }, [
+    pickerYear,
+    pickerMonth,
+    viewYear,
+    viewMonth,
+    loadedHijriMonthKey,
+    hijriRows,
+    getHijriDayNum,
+    getHijriMonthName,
+  ]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -1127,27 +1261,61 @@ export default function MonthlyCalendarSection({
       fetchPrayerTimesForMonth(viewMonth + 1),
       fetchHijriCalendarForMonth(viewYear, viewMonth + 1),
       fetchIslamicCalendarEventsForMonth(viewYear, viewMonth + 1),
-      fetchMasjidAnnouncementEventsForMonth(viewYear, viewMonth + 1),
     ])
-      .then(([rows, hijri, importantDateEvents, masjidAnnouncementEvents]) => {
+      .then(([rows, hijri, monthEvents]) => {
         const prayerMap = new Map<number, PrayerTimeRow>();
         rows.forEach((r) => prayerMap.set(r.day, r));
 
         const hijriMap = new Map<number, string>();
         hijri.forEach((r) => hijriMap.set(r.gregorian_day, r.hijri_date));
 
-        const eventMap = new Map<number, IslamicCalendarEventRow[]>();
-        [...importantDateEvents, ...masjidAnnouncementEvents].forEach((event) => {
-          const day = extractDayFromLinkedGregorianDate(event.linked_gregorian_date);
-          if (typeof day !== 'number' || !Number.isFinite(day)) return;
-          const dayEvents = eventMap.get(day) ?? [];
-          dayEvents.push(event);
-          eventMap.set(day, dayEvents);
+        const expectedDaysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+        if (hijriMap.size !== expectedDaysInMonth) {
+          setSyncError(`Hijri sync incomplete for ${MONTH_NAMES[viewMonth]} ${viewYear} (${hijriMap.size}/${expectedDaysInMonth} days).`);
+        }
+
+        const eventMap = new Map<string, IslamicCalendarEventRow[]>();
+        monthEvents.forEach((event) => {
+          const isoDate = extractIsoDateFromLinkedGregorianDate(event.linked_gregorian_date);
+          if (!isoDate) return;
+
+          const dateEvents = eventMap.get(isoDate) ?? [];
+
+          const duplicateIndex = dateEvents.findIndex((existing) => {
+            if (existing.event_type !== event.event_type) return false;
+
+            if (event.event_type === 'masjid_event') {
+              const existingAnnouncementId = (existing.source_announcement_id ?? '').trim();
+              const nextAnnouncementId = (event.source_announcement_id ?? '').trim();
+              if (existingAnnouncementId && nextAnnouncementId) {
+                return existingAnnouncementId === nextAnnouncementId;
+              }
+              return existing.title.trim().toLowerCase() === event.title.trim().toLowerCase();
+            }
+
+            return existing.id === event.id;
+          });
+
+          if (duplicateIndex >= 0) {
+            const existing = dateEvents[duplicateIndex];
+            const existingNotes = (existing.notes ?? '').trim();
+            const incomingNotes = (event.notes ?? '').trim();
+            const incomingLooksCleaner = incomingNotes.length > existingNotes.length
+              && !(incomingNotes.startsWith('[') && incomingNotes.endsWith(']'));
+            if (incomingLooksCleaner) {
+              dateEvents[duplicateIndex] = event;
+            }
+          } else {
+            dateEvents.push(event);
+          }
+
+          eventMap.set(isoDate, dateEvents);
         });
 
         setDbRows(prayerMap);
         setHijriRows(hijriMap);
-        setEventsByDay(eventMap);
+        setLoadedHijriMonthKey(`${viewYear}-${viewMonth}`);
+        setEventsByDate(eventMap);
         setDbLoading(false);
       })
       .catch((error) => {
@@ -1315,7 +1483,8 @@ export default function MonthlyCalendarSection({
               {stripDays.map((cell) => {
                 const isSelected = selectedDay?.key === cell.key;
                 const isToday = cell.isToday;
-                const hijriDay = cell.day ? getHijriDayNum(cell.day.hijri) : '';
+                const portalHijri = hijriRows.get(cell.date.getDate()) ?? '';
+                const hijriDay = portalHijri ? getHijriDayNum(portalHijri) : '';
                 const dow = DAY_LABELS[(cell.date.getDay() + 6) % 7];
 
                 return (
@@ -1424,7 +1593,7 @@ export default function MonthlyCalendarSection({
                               calStyles.monthButtonHijri,
                               isSelected && calStyles.monthButtonHijriSelected,
                               N && { color: isSelected ? '#DCEBFF' : N.textMuted },
-                            ]} numberOfLines={1}>
+                            ]} numberOfLines={3}>
                               {monthHijri}
                             </Text>
                           </CalendarPressable>
@@ -1461,16 +1630,18 @@ export default function MonthlyCalendarSection({
                         onPress={() => {
                           setViewYear(pickerYear);
                           setViewMonth(pickerMonth);
-                          setSelectedDay({
-                            date: d.date,
-                            key: d.key,
-                            day: null,
-                            dbRow: null,
-                            isToday,
-                            isFriday: d.date.getDay() === 5,
-                            isCurrentMonth: true,
-                          });
-                          resetCalendarDataAndReload();
+                          const matched = currentGrid.find((cell) => cell.key === d.key && cell.isCurrentMonth);
+                          setSelectedDay(
+                            matched ?? {
+                              date: d.date,
+                              key: d.key,
+                              day: null,
+                              dbRow: null,
+                              isToday,
+                              isFriday: d.date.getDay() === 5,
+                              isCurrentMonth: true,
+                            }
+                          );
                         }}
                         style={[
                           calStyles.dayButton,
@@ -1519,7 +1690,7 @@ export default function MonthlyCalendarSection({
         <CalendarPrayerPanel selectedDay={selectedDay} nightMode={nightMode} nightPalette={nightPalette} />
         <CalendarEventPlaceholders
           selectedDay={selectedDay}
-          eventsByDay={eventsByDay}
+            eventsByDate={eventsByDate}
           nightMode={nightMode}
           nightPalette={nightPalette}
           onOpenMasjidAnnouncement={handleOpenMasjidAnnouncement}
@@ -1658,9 +1829,9 @@ const calStyles = StyleSheet.create({
     marginBottom: 8,
   },
   monthButton: {
-    minHeight: 52,
+    minHeight: 74,
     paddingVertical: 6,
-    paddingHorizontal: 4,
+    paddingHorizontal: 6,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -1685,11 +1856,13 @@ const calStyles = StyleSheet.create({
     fontWeight: '700',
   },
   monthButtonHijri: {
-    marginTop: 1,
-    fontSize: 8,
+    marginTop: 3,
+    fontSize: 10,
     fontWeight: '600',
     color: Colors.textSubtle,
-    letterSpacing: 0.1,
+    letterSpacing: 0,
+    lineHeight: 12,
+    textAlign: 'center',
   },
   monthButtonHijriSelected: {
     color: '#DCEBFF',

@@ -64,7 +64,7 @@ export const APP_CONFIG = {
       id: 'tablawy-mujawwad',
       label: 'Qari Muhammad Mahmoud Al-Tablawy',
       sublabel: "Hafs 'an Asim • Mujawwad",
-      url: 'https://media.way2quran.com/muhammad-mahmoud-al-tablawy-(mujawad)/hafs-an-asim/{}',
+      url: 'https://media.way2quran.com/muhammad-mahmoud-al-tablawy-(mujawad)/hafs-an-asim/{}.mp3',
       icon: 'menu-book',
       isRandom: false,
     },

@@ -16,9 +16,13 @@ import {
   ADHAAN_AUDIO_OPTIONS,
   ADHAAN_AUDIO_STORAGE_KEY,
   DEFAULT_ADHAAN_AUDIO_URL,
+  IQAMAH_BACKGROUND_SOUND_FILE,
+  PRAYER_JAMAAT_CHANNEL_ID,
   PRAYER_SILENT_CHANNEL_ID,
   getAdhaanOptionByUrl,
   getPrayerAdhaanChannelId,
+  getPrayerAdhaanRecoveryChannelId,
+  getPrayerAdhaanRecoveryNoExtChannelId,
   PRAYER_REMINDER_LIVE_ALERTS_STORAGE_KEY,
   isValidAdhaanAudioUrl,
 } from '@/constants/prayerNotifications';
@@ -43,6 +47,7 @@ const LIVE_NOTIFY_KEY = 'jmn_radio_notify';
 const PRAYER_NOTIFICATION_CATEGORY_ID = 'jmn-prayer-controls';
 const PRAYER_NOTIFICATION_SCOPE = 'jmn-prayer';
 const BG_ADHAAN_TEST_LOG_KEY = 'jmn_bg_adhaan_test_log_v1';
+const BG_IQAMAH_TEST_LOG_KEY = 'jmn_bg_iqamah_test_log_v1';
 
 type SwitchRowProps = {
   label: string;
@@ -199,7 +204,8 @@ export default function SettingsScreen() {
     let status = current?.status ?? 'undetermined';
     const adhaanMutedNow = await isAdhaanMutedEnabled();
     const selectedAdhaanOption = getAdhaanOptionByUrl(selectedAdhaanUrl) ?? ADHAAN_AUDIO_OPTIONS[0];
-    const selectedAdhaanChannelId = getPrayerAdhaanChannelId(selectedAdhaanOption.id);
+    let activeAdhaanChannelId = getPrayerAdhaanChannelId(selectedAdhaanOption.id);
+    const activeAdhaanSoundFile = selectedAdhaanOption.backgroundSoundFile;
 
     if (status !== 'granted') {
       const requested = await Notifications.requestPermissionsAsync().catch(() => null);
@@ -222,34 +228,132 @@ export default function SettingsScreen() {
         await Notifications.setNotificationChannelAsync(PRAYER_SILENT_CHANNEL_ID, {
           name: 'JMN Prayer Alerts (Silent)',
           importance: Notifications.AndroidImportance.HIGH,
+          enableVibrate: true,
           vibrationPattern: [0, 80],
           lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
           sound: null,
         }).catch(() => {});
       } else {
-        await Notifications.setNotificationChannelAsync(selectedAdhaanChannelId, {
+        const existingAdhaanChannel = await Notifications
+          .getNotificationChannelAsync(activeAdhaanChannelId)
+          .catch(() => null);
+
+        const shouldResetAdhaanChannel = !!existingAdhaanChannel && (
+          existingAdhaanChannel.sound === 'default'
+          || existingAdhaanChannel.sound == null
+          || !Array.isArray(existingAdhaanChannel.vibrationPattern)
+          || existingAdhaanChannel.vibrationPattern.length === 0
+        );
+
+        if (shouldResetAdhaanChannel) {
+          await Notifications.deleteNotificationChannelAsync(activeAdhaanChannelId).catch(() => {});
+        }
+
+        await Notifications.setNotificationChannelAsync(activeAdhaanChannelId, {
           name: 'JMN Adhaan Alerts',
           importance: Notifications.AndroidImportance.HIGH,
+          enableVibrate: true,
           vibrationPattern: [0, 200, 120, 200],
           lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-          sound: selectedAdhaanOption.backgroundSoundFile,
+          sound: activeAdhaanSoundFile,
         }).catch(() => {});
+
+        const selectedAfterCreate = await Notifications
+          .getNotificationChannelAsync(activeAdhaanChannelId)
+          .catch(() => null);
+
+        if (selectedAfterCreate?.sound !== 'custom') {
+          const recoveryChannelId = getPrayerAdhaanRecoveryChannelId(selectedAdhaanOption.id);
+
+          const existingRecoveryChannel = await Notifications
+            .getNotificationChannelAsync(recoveryChannelId)
+            .catch(() => null);
+
+          const shouldResetRecoveryChannel = !!existingRecoveryChannel && (
+            existingRecoveryChannel.sound === 'default'
+            || existingRecoveryChannel.sound == null
+            || !Array.isArray(existingRecoveryChannel.vibrationPattern)
+            || existingRecoveryChannel.vibrationPattern.length === 0
+          );
+
+          if (shouldResetRecoveryChannel) {
+            await Notifications.deleteNotificationChannelAsync(recoveryChannelId).catch(() => {});
+          }
+
+          await Notifications.setNotificationChannelAsync(recoveryChannelId, {
+            name: 'JMN Adhaan Alerts (Recovery)',
+            importance: Notifications.AndroidImportance.HIGH,
+            enableVibrate: true,
+            vibrationPattern: [0, 200, 120, 200],
+            lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+            sound: activeAdhaanSoundFile,
+          }).catch(() => {});
+
+          const recoveryAfterCreate = await Notifications
+            .getNotificationChannelAsync(recoveryChannelId)
+            .catch(() => null);
+
+          if (recoveryAfterCreate?.sound === 'custom') {
+            activeAdhaanChannelId = recoveryChannelId;
+          } else {
+            const selectedSoundNoExt = activeAdhaanSoundFile.replace(/\.[^/.]+$/, '');
+            const recoveryNoExtChannelId = getPrayerAdhaanRecoveryNoExtChannelId(selectedAdhaanOption.id);
+
+            const existingRecoveryNoExtChannel = await Notifications
+              .getNotificationChannelAsync(recoveryNoExtChannelId)
+              .catch(() => null);
+
+            const shouldResetRecoveryNoExtChannel = !!existingRecoveryNoExtChannel && (
+              existingRecoveryNoExtChannel.sound === 'default'
+              || existingRecoveryNoExtChannel.sound == null
+              || !Array.isArray(existingRecoveryNoExtChannel.vibrationPattern)
+              || existingRecoveryNoExtChannel.vibrationPattern.length === 0
+            );
+
+            if (shouldResetRecoveryNoExtChannel) {
+              await Notifications.deleteNotificationChannelAsync(recoveryNoExtChannelId).catch(() => {});
+            }
+
+            await Notifications.setNotificationChannelAsync(recoveryNoExtChannelId, {
+              name: 'JMN Adhaan Alerts (Recovery NoExt)',
+              importance: Notifications.AndroidImportance.HIGH,
+              enableVibrate: true,
+              vibrationPattern: [0, 200, 120, 200],
+              lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+              sound: selectedSoundNoExt,
+            }).catch(() => {});
+
+            const recoveryNoExtAfterCreate = await Notifications
+              .getNotificationChannelAsync(recoveryNoExtChannelId)
+              .catch(() => null);
+
+            if (recoveryNoExtAfterCreate?.sound === 'custom') {
+              activeAdhaanChannelId = recoveryNoExtChannelId;
+            }
+          }
+        }
       }
     }
 
+    const resolvedChannel = Platform.OS === 'android'
+      ? await Notifications.getNotificationChannelAsync(adhaanMutedNow ? PRAYER_SILENT_CHANNEL_ID : activeAdhaanChannelId)
+        .catch(() => null)
+      : null;
+
     const channelSound = Platform.OS === 'android'
-      ? await Notifications.getNotificationChannelAsync(adhaanMutedNow ? PRAYER_SILENT_CHANNEL_ID : selectedAdhaanChannelId)
-        .then((channel) => {
-          if (!channel) return 'missing-channel';
-          return channel.sound === null ? 'null' : String(channel.sound);
-        })
-        .catch(() => 'read-channel-failed')
+      ? (resolvedChannel ? (resolvedChannel.sound === null ? 'null' : String(resolvedChannel.sound)) : 'missing-channel')
+      : 'ios';
+
+    const channelVibration = Platform.OS === 'android'
+      ? (resolvedChannel
+        ? (Array.isArray(resolvedChannel.vibrationPattern) && resolvedChannel.vibrationPattern.length > 0 ? 'configured' : 'missing')
+        : 'missing-channel')
       : 'ios';
 
     if (Platform.OS === 'android' && !adhaanMutedNow && channelSound === 'default') {
       showBanner(
         'Android channel still default',
-        'Custom adhaan sound was not applied to the active channel. Install a fresh build and reinstall app so new channel IDs are recreated.',
+        'Selected adhaan sound was not applied to the active channel. Install a fresh build and reinstall app so selected adhaan channels are recreated.',
         10000,
         'warning',
       );
@@ -257,14 +361,14 @@ export default function SettingsScreen() {
 
     const fireAt = new Date(Date.now() + 10_000);
     const trigger = Platform.OS === 'android'
-      ? ({ type: 'date', date: fireAt, channelId: adhaanMutedNow ? PRAYER_SILENT_CHANNEL_ID : selectedAdhaanChannelId } as unknown as import('expo-notifications').NotificationTriggerInput)
+      ? ({ type: 'date', date: fireAt, channelId: adhaanMutedNow ? PRAYER_SILENT_CHANNEL_ID : activeAdhaanChannelId } as unknown as import('expo-notifications').NotificationTriggerInput)
       : (fireAt as unknown as import('expo-notifications').NotificationTriggerInput);
 
     const scheduledId = await Notifications.scheduleNotificationAsync({
       content: {
         title: 'Test Adhaan (10s)',
-        body: 'Background test: this should ring even if app is not open.',
-        sound: adhaanMutedNow ? false : selectedAdhaanOption.backgroundSoundFile,
+        body: `Background test: ${activeAdhaanSoundFile} should ring even if app is not open.`,
+        sound: adhaanMutedNow ? false : activeAdhaanSoundFile,
         categoryIdentifier: PRAYER_NOTIFICATION_CATEGORY_ID,
         data: {
           scope: PRAYER_NOTIFICATION_SCOPE,
@@ -301,11 +405,151 @@ export default function SettingsScreen() {
       scheduledCount: ownPrayerCount,
       fireAtIso: fireAt.toISOString(),
       channelSound,
+      channelVibration,
+      channelId: adhaanMutedNow ? PRAYER_SILENT_CHANNEL_ID : activeAdhaanChannelId,
     })).catch(() => {});
 
     const mutedInfo = adhaanMutedNow ? 'Muted is ON, so this test should be silent.' : 'Muted is OFF, so adhaan should play at fire time.';
-    showBanner('Adhaan test scheduled', `${info} Prayer schedules: ${ownPrayerCount}. ${mutedInfo} Channel sound: ${channelSound}.`, 10000);
+    showBanner('Adhaan test scheduled', `${info} Prayer schedules: ${ownPrayerCount}. ${mutedInfo} Selected asset: ${activeAdhaanSoundFile}. Channel sound: ${channelSound}. Vibration: ${channelVibration}. Channel ID: ${adhaanMutedNow ? PRAYER_SILENT_CHANNEL_ID : activeAdhaanChannelId}.`, 10000);
   }, [selectedAdhaanUrl, showBanner]);
+
+  const runIqamahBackgroundTest = useCallback(async () => {
+    if (Platform.OS === 'web') {
+      showBanner('Iqamah test unavailable', 'Background notification tests are not supported on web.', 7000, 'warning');
+      return;
+    }
+
+    const Notifications = await getNotificationsModule();
+    if (!Notifications) {
+      showBanner('Iqamah test failed', 'Notifications module is unavailable on this runtime.', 8000, 'warning');
+      return;
+    }
+
+    const current = await Notifications.getPermissionsAsync().catch(() => null);
+    let status = current?.status ?? 'undetermined';
+    const iqamahMutedNow = await isIqamahMutedEnabled();
+
+    if (status !== 'granted') {
+      const requested = await Notifications.requestPermissionsAsync().catch(() => null);
+      status = requested?.status ?? status;
+    }
+
+    if (status !== 'granted') {
+      const reason = 'Notifications permission is not granted.';
+      await AsyncStorage.setItem(BG_IQAMAH_TEST_LOG_KEY, JSON.stringify({
+        ts: new Date().toISOString(),
+        ok: false,
+        reason,
+      })).catch(() => {});
+      showBanner('Iqamah test failed', reason, 9000, 'warning');
+      return;
+    }
+
+    if (Platform.OS === 'android') {
+      if (iqamahMutedNow) {
+        await Notifications.setNotificationChannelAsync(PRAYER_SILENT_CHANNEL_ID, {
+          name: 'JMN Prayer Alerts (Silent)',
+          importance: Notifications.AndroidImportance.HIGH,
+          enableVibrate: true,
+          vibrationPattern: [0, 80],
+          lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+          sound: null,
+        }).catch(() => {});
+      } else {
+        const existingIqamahChannel = await Notifications
+          .getNotificationChannelAsync(PRAYER_JAMAAT_CHANNEL_ID)
+          .catch(() => null);
+
+        const shouldResetIqamahChannel = !!existingIqamahChannel && (
+          existingIqamahChannel.sound === 'default'
+          || existingIqamahChannel.sound == null
+          || !Array.isArray(existingIqamahChannel.vibrationPattern)
+          || existingIqamahChannel.vibrationPattern.length === 0
+        );
+
+        if (shouldResetIqamahChannel) {
+          await Notifications.deleteNotificationChannelAsync(PRAYER_JAMAAT_CHANNEL_ID).catch(() => {});
+        }
+
+        await Notifications.setNotificationChannelAsync(PRAYER_JAMAAT_CHANNEL_ID, {
+          name: 'JMN Jamaat Alerts',
+          importance: Notifications.AndroidImportance.HIGH,
+          enableVibrate: true,
+          vibrationPattern: [0, 200, 120, 200],
+          lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+          sound: IQAMAH_BACKGROUND_SOUND_FILE,
+        }).catch(() => {});
+      }
+    }
+
+    const resolvedChannel = Platform.OS === 'android'
+      ? await Notifications.getNotificationChannelAsync(iqamahMutedNow ? PRAYER_SILENT_CHANNEL_ID : PRAYER_JAMAAT_CHANNEL_ID)
+        .catch(() => null)
+      : null;
+
+    const channelSound = Platform.OS === 'android'
+      ? (resolvedChannel ? (resolvedChannel.sound === null ? 'null' : String(resolvedChannel.sound)) : 'missing-channel')
+      : 'ios';
+
+    const channelVibration = Platform.OS === 'android'
+      ? (resolvedChannel
+        ? (Array.isArray(resolvedChannel.vibrationPattern) && resolvedChannel.vibrationPattern.length > 0 ? 'configured' : 'missing')
+        : 'missing-channel')
+      : 'ios';
+
+    const fireAt = new Date(Date.now() + 10_000);
+    const trigger = Platform.OS === 'android'
+      ? ({ type: 'date', date: fireAt, channelId: iqamahMutedNow ? PRAYER_SILENT_CHANNEL_ID : PRAYER_JAMAAT_CHANNEL_ID } as unknown as import('expo-notifications').NotificationTriggerInput)
+      : (fireAt as unknown as import('expo-notifications').NotificationTriggerInput);
+
+    const scheduledId = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'Test Iqamah (10s)',
+        body: 'Background test: this should ring even if app is not open.',
+        sound: iqamahMutedNow ? false : IQAMAH_BACKGROUND_SOUND_FILE,
+        categoryIdentifier: PRAYER_NOTIFICATION_CATEGORY_ID,
+        data: {
+          scope: PRAYER_NOTIFICATION_SCOPE,
+          type: 'jamaat-10',
+          prayerName: 'Test Iqamah',
+          route: '/prayer',
+        },
+      },
+      trigger,
+    }).catch(async (error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      await AsyncStorage.setItem(BG_IQAMAH_TEST_LOG_KEY, JSON.stringify({
+        ts: new Date().toISOString(),
+        ok: false,
+        reason: message,
+      })).catch(() => {});
+      showBanner('Iqamah test schedule error', message.slice(0, 200), 10000, 'warning');
+      return null;
+    });
+
+    if (!scheduledId) return;
+
+    const allScheduled = await Notifications.getAllScheduledNotificationsAsync().catch(() => []);
+    const ownPrayerCount = allScheduled.filter((item) => {
+      const data = item.content.data as Record<string, unknown> | undefined;
+      return data?.scope === PRAYER_NOTIFICATION_SCOPE;
+    }).length;
+
+    const info = `ID ${scheduledId.slice(0, 8)}..., fires in 10s. Close app now.`;
+    await AsyncStorage.setItem(BG_IQAMAH_TEST_LOG_KEY, JSON.stringify({
+      ts: new Date().toISOString(),
+      ok: true,
+      scheduledId,
+      scheduledCount: ownPrayerCount,
+      fireAtIso: fireAt.toISOString(),
+      channelSound,
+      channelVibration,
+      channelId: iqamahMutedNow ? PRAYER_SILENT_CHANNEL_ID : PRAYER_JAMAAT_CHANNEL_ID,
+    })).catch(() => {});
+
+    const mutedInfo = iqamahMutedNow ? 'Muted is ON, so this test should be silent.' : 'Muted is OFF, so iqamah should play at fire time.';
+    showBanner('Iqamah test scheduled', `${info} Prayer schedules: ${ownPrayerCount}. ${mutedInfo} Channel sound: ${channelSound}. Vibration: ${channelVibration}. Channel ID: ${iqamahMutedNow ? PRAYER_SILENT_CHANNEL_ID : PRAYER_JAMAAT_CHANNEL_ID}.`, 10000);
+  }, [showBanner]);
 
   const showLastAdhaanTestLog = useCallback(async () => {
     const raw = await AsyncStorage.getItem(BG_ADHAAN_TEST_LOG_KEY).catch(() => null);
@@ -322,12 +566,14 @@ export default function SettingsScreen() {
         scheduledCount?: number;
         fireAtIso?: string;
         channelSound?: string;
+        channelVibration?: string;
+        channelId?: string;
       };
 
       if (parsed.ok) {
         showBanner(
           'Last test log',
-          `Scheduled at ${parsed.ts ?? 'unknown'}. fireAt=${parsed.fireAtIso ?? 'n/a'}, count=${parsed.scheduledCount ?? 0}, channelSound=${parsed.channelSound ?? 'n/a'}.`,
+          `Scheduled at ${parsed.ts ?? 'unknown'}. fireAt=${parsed.fireAtIso ?? 'n/a'}, count=${parsed.scheduledCount ?? 0}, channelSound=${parsed.channelSound ?? 'n/a'}, vibration=${parsed.channelVibration ?? 'n/a'}, channelId=${parsed.channelId ?? 'n/a'}.`,
           10000,
         );
       } else {
@@ -340,6 +586,44 @@ export default function SettingsScreen() {
       }
     } catch {
       showBanner('Last test log', raw.slice(0, 200), 10000, 'warning');
+    }
+  }, [showBanner]);
+
+  const showLastIqamahTestLog = useCallback(async () => {
+    const raw = await AsyncStorage.getItem(BG_IQAMAH_TEST_LOG_KEY).catch(() => null);
+    if (!raw) {
+      showBanner('No iqamah test log found', 'Run the 10-second iqamah background test first.', 7000, 'warning');
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as {
+        ts?: string;
+        ok?: boolean;
+        reason?: string;
+        scheduledCount?: number;
+        fireAtIso?: string;
+        channelSound?: string;
+        channelVibration?: string;
+        channelId?: string;
+      };
+
+      if (parsed.ok) {
+        showBanner(
+          'Last iqamah test log',
+          `Scheduled at ${parsed.ts ?? 'unknown'}. fireAt=${parsed.fireAtIso ?? 'n/a'}, count=${parsed.scheduledCount ?? 0}, channelSound=${parsed.channelSound ?? 'n/a'}, vibration=${parsed.channelVibration ?? 'n/a'}, channelId=${parsed.channelId ?? 'n/a'}.`,
+          10000,
+        );
+      } else {
+        showBanner(
+          'Last iqamah test error',
+          `${parsed.reason ?? 'Unknown error'} (at ${parsed.ts ?? 'unknown'}).`,
+          10000,
+          'warning',
+        );
+      }
+    } catch {
+      showBanner('Last iqamah test log', raw.slice(0, 200), 10000, 'warning');
     }
   }, [showBanner]);
 
@@ -560,7 +844,7 @@ export default function SettingsScreen() {
               }}
             >
               <MaterialIcons name="alarm" size={16} color={palette.text} />
-              <Text style={[styles.actionButtonText, { color: palette.text }]}>Run 10s adhaan background test</Text>
+              <Text style={[styles.actionButtonText, { color: palette.text }]}>Run 10s adhaan-only background test</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -571,7 +855,40 @@ export default function SettingsScreen() {
               }}
             >
               <MaterialIcons name="receipt-long" size={16} color={palette.text} />
-              <Text style={[styles.actionButtonText, { color: palette.text }]}>Show last test error/log</Text>
+              <Text style={[styles.actionButtonText, { color: palette.text }]}>Show last adhaan test error/log</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}> 
+          <View style={styles.cardHeader}>
+            <MaterialIcons name="bug-report" size={18} color={palette.accent} />
+            <Text style={[styles.cardTitle, { color: palette.text }]}>Iqamah Background Test</Text>
+          </View>
+
+          <Text style={[styles.switchHint, { color: palette.sub }]}>Press test, then close app immediately. It should ring in 10 seconds.</Text>
+
+          <View style={styles.buttonRow}>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={[styles.actionButton, { borderColor: palette.border, backgroundColor: palette.chip }]}
+              onPress={() => {
+                void runIqamahBackgroundTest();
+              }}
+            >
+              <MaterialIcons name="alarm" size={16} color={palette.text} />
+              <Text style={[styles.actionButtonText, { color: palette.text }]}>Run 10s iqamah background test</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={[styles.actionButton, { borderColor: palette.border, backgroundColor: palette.chip }]}
+              onPress={() => {
+                void showLastIqamahTestLog();
+              }}
+            >
+              <MaterialIcons name="receipt-long" size={16} color={palette.text} />
+              <Text style={[styles.actionButtonText, { color: palette.text }]}>Show last iqamah test error/log</Text>
             </TouchableOpacity>
           </View>
         </View>

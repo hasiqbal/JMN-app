@@ -333,7 +333,7 @@ const REWIND_STEP_SEC = 10;
 const MAX_TIMESHIFT_SEC = 120;
 const REWIND_SEEK_SETTLE_MS = 90;
 const SEEK_EPSILON_SEC = 0.35;
-const BOTTOM_PLAYER_COLLAPSED_HEIGHT = 200;
+const BOTTOM_PLAYER_COLLAPSED_HEIGHT = 236;
 const ANDROID_PLAYER_BOOTSTRAP_DELAY_MS = 40;
 const PRAYER_AUDIO_LOCK_NOTICE = 'Adhaan or iqamah is playing. Other app audio stays paused until prayer audio is muted or ends.';
 const EXPO_GO_NOTIFICATIONS_FALLBACK =
@@ -397,11 +397,22 @@ function getNextSurahNumber(current: number): number {
   return current >= 114 ? 1 : current + 1;
 }
 
+function getPreviousSurahNumber(current: number): number {
+  if (!Number.isFinite(current) || current < 1 || current > 114) return 114;
+  return current <= 1 ? 114 : current - 1;
+}
+
 function buildSurahTrackUrl(template: string, surah: number): string {
   const normalizedSurah = Math.max(1, Math.min(114, Math.round(surah)));
   const padded = String(normalizedSurah).padStart(3, '0');
+
+  // Support both template styles:
+  // - .../{}.mp3  -> replace {} with 001
+  // - .../{}      -> replace {} with 001.mp3
+  const braceReplacement = template.includes('{}.mp3') ? padded : `${padded}.mp3`;
+
   return template
-    .replace('{}', `${padded}.mp3`)
+    .replace('{}', braceReplacement)
     .replace('{SURAH_PADDED}', padded)
     .replace('{SURAH}', String(normalizedSurah));
 }
@@ -413,6 +424,11 @@ function isSurahTemplateStation(stream: Station): boolean {
 function getNextJuzNumber(current: number): number {
   if (!Number.isFinite(current) || current < 1 || current > 30) return 1;
   return current >= 30 ? 1 : current + 1;
+}
+
+function getPreviousJuzNumber(current: number): number {
+  if (!Number.isFinite(current) || current < 1 || current > 30) return 30;
+  return current <= 1 ? 30 : current - 1;
 }
 
 async function resolveAudioSourceUri(source: AudioSource): Promise<string> {
@@ -559,6 +575,7 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
   const [timeshiftDraftSec, setTimeshiftDraftSec] = useState<number | null>(null);
   const [timeshiftSec, setTimeshiftSec] = useState(0);
   const [bottomPlayerExpanded, setBottomPlayerExpanded] = useState(false);
+  const [repeatEnabled, setRepeatEnabled] = useState(false);
 
   const soundRef = useRef<AudioPlayer | null>(null);
   const webAudioRef = useRef<any>(null);
@@ -571,6 +588,7 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
   const playingHadrJuzRef = useRef<number | null>(null);
   const playingSurahRef = useRef<number | null>(null);
   const surahTemplateStationIdsRef = useRef<Set<string>>(new Set());
+  const repeatEnabledRef = useRef(false);
   const autoAdvanceLockRef = useRef(false);
   const playbackStartedAtRef = useRef<number | null>(null);
   const playbackPositionSecRef = useRef(0);
@@ -686,6 +704,10 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
   useEffect(() => {
     surahTemplateStationIdsRef.current = surahTemplateStationIds;
   }, [surahTemplateStationIds]);
+
+  useEffect(() => {
+    repeatEnabledRef.current = repeatEnabled;
+  }, [repeatEnabled]);
 
   useEffect(() => {
     AsyncStorage.getItem(NOTIF_KEY).then((value) => {
@@ -1113,6 +1135,48 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
             if (webAudioRef.current !== audio) return;
 
             const activeStation = activeStationIdRef.current;
+            if (repeatEnabledRef.current) {
+              if (
+                activeStation === 'hadr'
+                && !autoAdvanceLockRef.current
+                && typeof playingHadrJuzRef.current === 'number'
+              ) {
+                const replayJuz = playHadrJuzRef.current;
+                const sameJuz = playingHadrJuzRef.current;
+                if (replayJuz) {
+                  autoAdvanceLockRef.current = true;
+                  setTimeout(() => {
+                    replayJuz(sameJuz)
+                      .catch(() => {})
+                      .finally(() => {
+                        autoAdvanceLockRef.current = false;
+                      });
+                  }, 140);
+                  return;
+                }
+              }
+
+              if (
+                surahTemplateStationIdsRef.current.has(activeStation)
+                && !autoAdvanceLockRef.current
+                && typeof playingSurahRef.current === 'number'
+              ) {
+                const replaySurah = playSurahTrackRef.current;
+                const sameSurah = playingSurahRef.current;
+                if (replaySurah) {
+                  autoAdvanceLockRef.current = true;
+                  setTimeout(() => {
+                    replaySurah(activeStation, sameSurah)
+                      .catch(() => {})
+                      .finally(() => {
+                        autoAdvanceLockRef.current = false;
+                      });
+                  }, 140);
+                  return;
+                }
+              }
+            }
+
             if (
               activeStation === 'hadr'
               && !autoAdvanceLockRef.current
@@ -1246,6 +1310,48 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
           if (status.didJustFinish) {
             allPlayersRef.current.delete(player);
             const activeStation = activeStationIdRef.current;
+            if (repeatEnabledRef.current) {
+              if (
+                activeStation === 'hadr'
+                && !autoAdvanceLockRef.current
+                && typeof playingHadrJuzRef.current === 'number'
+              ) {
+                const replayJuz = playHadrJuzRef.current;
+                const sameJuz = playingHadrJuzRef.current;
+                if (replayJuz) {
+                  autoAdvanceLockRef.current = true;
+                  setTimeout(() => {
+                    replayJuz(sameJuz)
+                      .catch(() => {})
+                      .finally(() => {
+                        autoAdvanceLockRef.current = false;
+                      });
+                  }, 140);
+                  return;
+                }
+              }
+
+              if (
+                surahTemplateStationIdsRef.current.has(activeStation)
+                && !autoAdvanceLockRef.current
+                && typeof playingSurahRef.current === 'number'
+              ) {
+                const replaySurah = playSurahTrackRef.current;
+                const sameSurah = playingSurahRef.current;
+                if (replaySurah) {
+                  autoAdvanceLockRef.current = true;
+                  setTimeout(() => {
+                    replaySurah(activeStation, sameSurah)
+                      .catch(() => {})
+                      .finally(() => {
+                        autoAdvanceLockRef.current = false;
+                      });
+                  }, 140);
+                  return;
+                }
+              }
+            }
+
             if (
               activeStation === 'hadr'
               && !autoAdvanceLockRef.current
@@ -1467,6 +1573,64 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
   useEffect(() => {
     playHadrJuzRef.current = (juz: number) => playHadrJuz(juz);
   }, [playHadrJuz]);
+
+  const playPreviousFromPlayer = useCallback(async () => {
+    if (audioLoading) return;
+
+    const currentStationId = activeStationIdRef.current;
+
+    if (currentStationId === 'hadr') {
+      const currentJuz = playingHadrJuzRef.current ?? selectedHadrJuz;
+      const previousJuz = getPreviousJuzNumber(currentJuz);
+      await playHadrJuz(previousJuz, { closeSheet: true });
+      return;
+    }
+
+    if (surahTemplateStationIdsRef.current.has(currentStationId)) {
+      const currentSurah = playingSurahRef.current ?? selectedSurahByStation[currentStationId] ?? 1;
+      const previousSurah = getPreviousSurahNumber(currentSurah);
+      const playSurah = playSurahTrackRef.current;
+      if (playSurah) {
+        await playSurah(currentStationId, previousSurah);
+      }
+      return;
+    }
+
+    const currentIndex = radioStreams.findIndex((item) => item.id === currentStationId);
+    if (currentIndex < 0 || radioStreams.length === 0) return;
+
+    const previousStation = radioStreams[(currentIndex - 1 + radioStreams.length) % radioStreams.length];
+    await playStation(previousStation.id as StreamId);
+  }, [audioLoading, playHadrJuz, playStation, radioStreams, selectedHadrJuz, selectedSurahByStation]);
+
+  const playNextFromPlayer = useCallback(async () => {
+    if (audioLoading) return;
+
+    const currentStationId = activeStationIdRef.current;
+
+    if (currentStationId === 'hadr') {
+      const currentJuz = playingHadrJuzRef.current ?? selectedHadrJuz;
+      const nextJuz = getNextJuzNumber(currentJuz);
+      await playHadrJuz(nextJuz, { closeSheet: true });
+      return;
+    }
+
+    if (surahTemplateStationIdsRef.current.has(currentStationId)) {
+      const currentSurah = playingSurahRef.current ?? selectedSurahByStation[currentStationId] ?? 1;
+      const nextSurah = getNextSurahNumber(currentSurah);
+      const playSurah = playSurahTrackRef.current;
+      if (playSurah) {
+        await playSurah(currentStationId, nextSurah);
+      }
+      return;
+    }
+
+    const currentIndex = radioStreams.findIndex((item) => item.id === currentStationId);
+    if (currentIndex < 0 || radioStreams.length === 0) return;
+
+    const nextStation = radioStreams[(currentIndex + 1) % radioStreams.length];
+    await playStation(nextStation.id as StreamId);
+  }, [audioLoading, playHadrJuz, playStation, radioStreams, selectedHadrJuz, selectedSurahByStation]);
 
   useEffect(() => {
     if (!autoPlayOnMount || autoplayAttempted.current) return;
@@ -2226,70 +2390,116 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
                   </Text>
                 </View>
 
-                <View style={styles.bottomPlayerCollapsedTransportRow}>
-                  <TouchableOpacity
-                    style={[
-                      styles.bottomPlayerCollapsedStepBtn,
-                      !controlsCanSeek && styles.bottomPlayerCollapsedStepBtnDisabled,
-                    ]}
-                    onPress={() => rewindActiveStreamByTen().catch(() => {})}
-                    disabled={!controlsCanSeek}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <MaterialIcons name="replay-10" size={19} color={bottomPlayerIcon} />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.bottomPlayerCollapsedMainBtn, { backgroundColor: bottomPlayerMainActionBg }]}
-                    onPress={() => {
-                      if (activeStationIsRunning) {
-                        if (audioLoading) {
-                          stopAudio().catch(() => {});
-                          return;
-                        }
-                        (audioPaused ? resumeActiveAudio() : pauseActiveAudio()).catch(() => {});
-                        return;
-                      }
-
-                      if (activeStationIsHadr) {
-                        setActiveStationId('hadr');
-                        setHadrOpen(true);
-                        return;
-                      }
-
-                      playStation(activeStation.id as StreamId).catch(() => {});
-                    }}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <MaterialIcons
-                      name={audioLoading ? 'hourglass-empty' : activeStationIsRunning ? (audioPaused ? 'play-arrow' : 'pause') : 'play-arrow'}
-                      size={24}
-                      color="#FFFFFF"
-                    />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.bottomPlayerCollapsedStepBtn,
-                      !controlsCanSeek && styles.bottomPlayerCollapsedStepBtnDisabled,
-                    ]}
-                    onPress={() => forwardActiveStreamByTen().catch(() => {})}
-                    disabled={!controlsCanSeek}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <MaterialIcons name="forward-10" size={19} color={bottomPlayerIcon} />
-                  </TouchableOpacity>
-
-                  {activeStationIsRunning ? (
+                <View style={styles.bottomPlayerCollapsedTransportStack}>
+                  <View style={styles.bottomPlayerCollapsedPrimaryRow}>
                     <TouchableOpacity
-                      style={[styles.bottomPlayerCollapsedStopBtn]}
-                      onPress={() => stopAudio().catch(() => {})}
+                      style={[
+                        styles.bottomPlayerCollapsedStepBtn,
+                        isNarrowViewport && styles.bottomPlayerCollapsedStepBtnCompact,
+                      ]}
+                      onPress={() => playPreviousFromPlayer().catch(() => {})}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
-                      <MaterialIcons name="stop" size={18} color="#BC2F2F" />
-                      <Text style={styles.bottomPlayerCollapsedStopBtnText}>Stop</Text>
+                      <MaterialIcons name="skip-previous" size={19} color={bottomPlayerIcon} />
                     </TouchableOpacity>
-                  ) : null}
+
+                    <TouchableOpacity
+                      style={[
+                        styles.bottomPlayerCollapsedMainBtn,
+                        isNarrowViewport && styles.bottomPlayerCollapsedMainBtnCompact,
+                        { backgroundColor: bottomPlayerMainActionBg },
+                      ]}
+                      onPress={() => {
+                        if (activeStationIsRunning) {
+                          if (audioLoading) {
+                            stopAudio().catch(() => {});
+                            return;
+                          }
+                          (audioPaused ? resumeActiveAudio() : pauseActiveAudio()).catch(() => {});
+                          return;
+                        }
+
+                        if (activeStationIsHadr) {
+                          setActiveStationId('hadr');
+                          setHadrOpen(true);
+                          return;
+                        }
+
+                        playStation(activeStation.id as StreamId).catch(() => {});
+                      }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <MaterialIcons
+                        name={audioLoading ? 'hourglass-empty' : activeStationIsRunning ? (audioPaused ? 'play-arrow' : 'pause') : 'play-arrow'}
+                        size={24}
+                        color="#FFFFFF"
+                      />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.bottomPlayerCollapsedStepBtn,
+                        isNarrowViewport && styles.bottomPlayerCollapsedStepBtnCompact,
+                      ]}
+                      onPress={() => playNextFromPlayer().catch(() => {})}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <MaterialIcons name="skip-next" size={19} color={bottomPlayerIcon} />
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.bottomPlayerCollapsedSecondaryRow}>
+                    <TouchableOpacity
+                      style={[
+                        styles.bottomPlayerCollapsedStepBtn,
+                        styles.bottomPlayerCollapsedSecondaryBtn,
+                        !controlsCanSeek && styles.bottomPlayerCollapsedStepBtnDisabled,
+                      ]}
+                      onPress={() => rewindActiveStreamByTen().catch(() => {})}
+                      disabled={!controlsCanSeek}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <MaterialIcons name="replay-10" size={17} color={bottomPlayerIcon} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.bottomPlayerCollapsedStepBtn,
+                        styles.bottomPlayerCollapsedSecondaryBtn,
+                        !controlsCanSeek && styles.bottomPlayerCollapsedStepBtnDisabled,
+                      ]}
+                      onPress={() => forwardActiveStreamByTen().catch(() => {})}
+                      disabled={!controlsCanSeek}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <MaterialIcons name="forward-10" size={17} color={bottomPlayerIcon} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.bottomPlayerCollapsedStepBtn,
+                        styles.bottomPlayerCollapsedSecondaryBtn,
+                        repeatEnabled && { backgroundColor: `${bottomPlayerMainActionBg}22`, borderColor: bottomPlayerMainActionBg },
+                      ]}
+                      onPress={() => setRepeatEnabled((prev) => !prev)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <MaterialIcons name="repeat" size={17} color={repeatEnabled ? bottomPlayerMainActionBg : bottomPlayerIcon} />
+                    </TouchableOpacity>
+
+                    {activeStationIsRunning ? (
+                      <TouchableOpacity
+                        style={[
+                          styles.bottomPlayerCollapsedStopBtn,
+                          styles.bottomPlayerCollapsedSecondaryBtn,
+                        ]}
+                        onPress={() => stopAudio().catch(() => {})}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <MaterialIcons name="stop" size={16} color="#BC2F2F" />
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
                 </View>
               </View>
 
@@ -2378,6 +2588,13 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
 
               <View style={styles.bottomPlayerMainControlsRow}>
                 <TouchableOpacity
+                  style={styles.bottomPlayerCircleAction}
+                  onPress={() => playPreviousFromPlayer().catch(() => {})}
+                >
+                  <MaterialIcons name="skip-previous" size={24} color="#AEB5C2" />
+                </TouchableOpacity>
+
+                <TouchableOpacity
                   style={[styles.bottomPlayerCircleAction, !controlsCanSeek && styles.bottomPlayerCircleActionDisabled]}
                   onPress={() => rewindActiveStreamByTen().catch(() => {})}
                   disabled={!controlsCanSeek}
@@ -2420,9 +2637,27 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
                 >
                   <MaterialIcons name="forward-10" size={24} color="#AEB5C2" />
                 </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.bottomPlayerCircleAction}
+                  onPress={() => playNextFromPlayer().catch(() => {})}
+                >
+                  <MaterialIcons name="skip-next" size={24} color="#AEB5C2" />
+                </TouchableOpacity>
               </View>
 
               <View style={styles.bottomPlayerUtilityRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.bottomPlayerUtilityBtn,
+                    repeatEnabled && { borderColor: accentColor, backgroundColor: 'rgba(107, 199, 150, 0.14)' },
+                  ]}
+                  onPress={() => setRepeatEnabled((prev) => !prev)}
+                >
+                  <MaterialIcons name="repeat" size={18} color={repeatEnabled ? accentColor : '#AEB5C2'} />
+                  <Text style={[styles.bottomPlayerUtilityText, repeatEnabled && { color: accentColor }]}>Repeat</Text>
+                </TouchableOpacity>
+
                 {controlsCanSeek ? (
                   <TouchableOpacity style={styles.bottomPlayerUtilityBtn} onPress={() => resyncActiveStreamToLive().catch(() => {})}>
                     <MaterialIcons name="sync" size={18} color="#AEB5C2" />
@@ -3094,54 +3329,83 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     overflow: 'hidden',
     shadowColor: '#000000',
-    shadowOpacity: 0.12,
-    shadowOffset: { width: 0, height: -4 },
-    shadowRadius: 10,
-    elevation: 12,
+    shadowOpacity: 0.16,
+    shadowOffset: { width: 0, height: -8 },
+    shadowRadius: 16,
+    elevation: 16,
     zIndex: 24,
   },
   bottomPlayerCollapsedRow: {
     flex: 1,
     justifyContent: 'flex-start',
-    paddingHorizontal: 14,
-    paddingTop: 8,
+    paddingHorizontal: 12,
+    paddingTop: 7,
   },
   bottomPlayerCollapsedControlsWrap: {
     flex: 1,
-    gap: 6,
+    gap: 7,
   },
-  bottomPlayerCollapsedTransportRow: {
+  bottomPlayerCollapsedTransportStack: {
+    marginTop: 1,
+    borderWidth: 1,
+    borderColor: 'rgba(15, 23, 42, 0.1)',
+    borderRadius: Radius.lg,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    paddingHorizontal: 9,
+    paddingVertical: 8,
+    gap: 8,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  bottomPlayerCollapsedPrimaryRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 16,
-    minHeight: 46,
-    marginTop: 1,
+    gap: 12,
+    minHeight: 48,
+  },
+  bottomPlayerCollapsedSecondaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 36,
+    paddingTop: 2,
   },
   bottomPlayerCollapsedStepBtn: {
-    width: 46,
-    height: 46,
+    width: 40,
+    height: 40,
     borderRadius: Radius.full,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(20,149,94,0.3)',
-    backgroundColor: 'rgba(255,255,255,0.45)',
+    borderColor: 'rgba(15, 23, 42, 0.14)',
+    backgroundColor: 'rgba(255,255,255,0.98)',
+  },
+  bottomPlayerCollapsedStepBtnCompact: {
+    width: 38,
+    height: 38,
+  },
+  bottomPlayerCollapsedSecondaryBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
   },
   bottomPlayerCollapsedStepBtnDisabled: {
     opacity: 0.34,
   },
   bottomPlayerCollapsedStopBtn: {
-    flexDirection: 'row',
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
     borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: '#BC2F2F',
-    backgroundColor: 'rgba(188,47,47,0.10)',
+    borderColor: 'rgba(188,47,47,0.34)',
+    backgroundColor: 'rgba(188,47,47,0.12)',
   },
   bottomPlayerCollapsedStopBtnText: {
     fontSize: 12,
@@ -3149,16 +3413,22 @@ const styles = StyleSheet.create({
     color: '#BC2F2F',
   },
   bottomPlayerCollapsedMainBtn: {
-    width: 60,
-    height: 60,
+    width: 56,
+    height: 56,
     borderRadius: Radius.full,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.72)',
     shadowColor: '#000000',
-    shadowOpacity: 0.2,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.24,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  bottomPlayerCollapsedMainBtnCompact: {
+    width: 50,
+    height: 50,
   },
   bottomPlayerCollapsedNowPlayingText: {
     fontSize: 12,
@@ -3195,13 +3465,13 @@ const styles = StyleSheet.create({
     marginTop: 0,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: 'rgba(20,149,94,0.42)',
-    backgroundColor: 'rgba(255,255,255,0.72)',
+    borderColor: 'rgba(15, 23, 42, 0.1)',
+    backgroundColor: 'rgba(255,255,255,0.95)',
     paddingHorizontal: 12,
     paddingTop: 8,
     paddingBottom: 6,
-    shadowColor: '#0E7F53',
-    shadowOpacity: 0.1,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.06,
     shadowOffset: { width: 0, height: 3 },
     shadowRadius: 6,
     elevation: 2,
@@ -3274,6 +3544,9 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
   bottomPlayerExpandedSeekBlock: {
     gap: 6,
@@ -3301,8 +3574,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 20,
-    paddingVertical: 2,
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: Radius.full,
+    backgroundColor: 'rgba(255,255,255,0.04)',
   },
   bottomPlayerCircleAction: {
     width: 44,
@@ -3310,6 +3588,9 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+    backgroundColor: 'rgba(255,255,255,0.07)',
   },
   bottomPlayerCircleActionDisabled: {
     opacity: 0.35,
@@ -3337,6 +3618,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+    borderRadius: Radius.full,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
   bottomPlayerUtilityText: {
     color: '#AEB5C2',
