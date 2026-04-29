@@ -756,8 +756,87 @@ function CalendarEventPlaceholders({
     ? (eventsByDate.get(selectedIsoDate) ?? [])
     : [];
 
-  const importantDateEvents = selectedEvents.filter((event) => event.event_type === 'important_date');
-  const masjidEvents = selectedEvents.filter((event) => event.event_type === 'masjid_event');
+  const containsAny = (haystack: string, needles: string[]) => needles.some((needle) => haystack.includes(needle));
+
+  const normalizeForSort = (value: string | null | undefined): string =>
+    (value ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+
+  const importantDatePriority = (event: IslamicCalendarEventRow): number => {
+    const text = normalizeForSort([event.title, event.field_label, event.notes, event.region].filter(Boolean).join(' '));
+
+    const prophetKeywords = [
+      'prophet muhammad',
+      'muhammad',
+      'messenger of allah',
+      'rasulullah',
+      'mawlid',
+      'milad',
+      'birth of the messenger',
+      'nabi',
+    ];
+
+    const sahabaOrAhlulBaytKeywords = [
+      'sahaba',
+      'sahabi',
+      'ahlul bayt',
+      'ahl al-bayt',
+      'ahlulbait',
+      'sayyiduna',
+      'abu bakr',
+      'umar ibn',
+      'uthman ibn',
+      'ali ibn',
+      'hasan ibn',
+      'hussain ibn',
+      'fatima',
+      'aisha',
+      'khadija',
+    ];
+
+    if (containsAny(text, prophetKeywords)) return 0;
+    if (containsAny(text, sahabaOrAhlulBaytKeywords)) return 1;
+    return 2;
+  };
+
+  const masjidEventOccurrenceBySource = React.useMemo(() => {
+    const counts = new Map<string, number>();
+
+    eventsByDate.forEach((dateEvents) => {
+      dateEvents.forEach((event) => {
+        if (event.event_type !== 'masjid_event') return;
+        const sourceKey = (event.source_announcement_id ?? '').trim();
+        if (!sourceKey) return;
+        counts.set(sourceKey, (counts.get(sourceKey) ?? 0) + 1);
+      });
+    });
+
+    return counts;
+  }, [eventsByDate]);
+
+  const isRecurringMasjidEvent = (event: IslamicCalendarEventRow): boolean => {
+    const sourceKey = (event.source_announcement_id ?? '').trim();
+    if (!sourceKey) return false;
+    return (masjidEventOccurrenceBySource.get(sourceKey) ?? 0) > 1;
+  };
+
+  const importantDateEvents = selectedEvents
+    .filter((event) => event.event_type === 'important_date')
+    .sort((a, b) => {
+      const priorityDiff = importantDatePriority(a) - importantDatePriority(b);
+      if (priorityDiff !== 0) return priorityDiff;
+      return a.title.localeCompare(b.title);
+    });
+
+  const masjidEvents = selectedEvents
+    .filter((event) => event.event_type === 'masjid_event')
+    .sort((a, b) => {
+      const recurringDiff = Number(isRecurringMasjidEvent(a)) - Number(isRecurringMasjidEvent(b));
+      if (recurringDiff !== 0) return recurringDiff;
+      return a.title.localeCompare(b.title);
+    });
 
   const renderEventEntries = (
     events: IslamicCalendarEventRow[],
