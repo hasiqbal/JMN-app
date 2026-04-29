@@ -8,8 +8,10 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import {
   ADHAAN_OPTIONS,
   ADHAAN_SELECTION_STORAGE_KEY,
+  DEFAULT_IQAMAH_EXACT_SOUND_ENABLED,
   DEFAULT_PRAYER_AUDIO_MUTED,
   DEFAULT_ADHAAN_OPTION_ID,
+  IQAMAH_EXACT_SOUND_ENABLED_STORAGE_KEY,
   PRAYER_AUDIO_MUTED_STORAGE_KEY,
   PRAYER_AUDIO_NOTIFICATION_CATEGORY_ID,
   PRAYER_NOTIFICATION_SCOPE,
@@ -88,6 +90,7 @@ export default function SettingsScreen() {
   const [youtubeLiveNotifyEnabled, setYoutubeLiveNotifyEnabled] = useState(false);
   const [selectedAdhaanOptionId, setSelectedAdhaanOptionId] = useState<typeof DEFAULT_ADHAAN_OPTION_ID>(DEFAULT_ADHAAN_OPTION_ID);
   const [prayerAudioMuted, setPrayerAudioMuted] = useState(DEFAULT_PRAYER_AUDIO_MUTED);
+  const [iqamahExactSoundEnabled, setIqamahExactSoundEnabled] = useState(DEFAULT_IQAMAH_EXACT_SOUND_ENABLED);
 
   const palette = useMemo(
     () =>
@@ -122,11 +125,13 @@ export default function SettingsScreen() {
         youtubeLiveRaw,
         adhaanOptionRaw,
         prayerAudioMutedRaw,
+        iqamahExactSoundRaw,
       ] = await Promise.all([
         AsyncStorage.getItem(LIVE_NOTIFY_KEY).catch(() => null),
         AsyncStorage.getItem(YOUTUBE_LIVE_NOTIFY_KEY).catch(() => null),
         AsyncStorage.getItem(ADHAAN_SELECTION_STORAGE_KEY).catch(() => null),
         AsyncStorage.getItem(PRAYER_AUDIO_MUTED_STORAGE_KEY).catch(() => null),
+        AsyncStorage.getItem(IQAMAH_EXACT_SOUND_ENABLED_STORAGE_KEY).catch(() => null),
       ]);
 
       if (cancelled) return;
@@ -135,6 +140,7 @@ export default function SettingsScreen() {
       setYoutubeLiveNotifyEnabled(youtubeLiveRaw === 'true');
       setSelectedAdhaanOptionId(getAdhaanOptionById(adhaanOptionRaw).id);
       setPrayerAudioMuted(prayerAudioMutedRaw == null ? DEFAULT_PRAYER_AUDIO_MUTED : prayerAudioMutedRaw === 'true');
+      setIqamahExactSoundEnabled(iqamahExactSoundRaw == null ? DEFAULT_IQAMAH_EXACT_SOUND_ENABLED : iqamahExactSoundRaw === 'true');
     };
 
     void loadSettings();
@@ -282,6 +288,16 @@ export default function SettingsScreen() {
     showBanner('Prayer audio unmuted', 'Adhaan and iqamah sounds are enabled again.', 5000);
   }, [showBanner]);
 
+  const onToggleIqamahExactSoundEnabled = useCallback(async (value: boolean) => {
+    setIqamahExactSoundEnabled(value);
+    await AsyncStorage.setItem(IQAMAH_EXACT_SOUND_ENABLED_STORAGE_KEY, String(value)).catch(() => {});
+    if (value) {
+      showBanner('Exact iqamah sound enabled', 'Iqamah sound will play at exact iqamah time.', 5000);
+      return;
+    }
+    showBanner('Exact iqamah set to vibration', 'At exact iqamah time, notification will vibrate only.', 6000);
+  }, [showBanner]);
+
   const runBackgroundAdhaanTest = useCallback(async () => {
     const Notifications = await getNotificationsModule();
     if (!Notifications) {
@@ -426,6 +442,18 @@ export default function SettingsScreen() {
             hint="Vibration-only mode for prayer-start and iqamah notifications."
             value={prayerAudioMuted}
             onValueChange={onTogglePrayerAudioMuted}
+            accentColor={palette.accent}
+            borderColor={palette.border}
+            textColor={palette.text}
+            hintColor={palette.sub}
+          />
+
+          <SwitchRow
+            label="Exact iqamah: play sound"
+            hint="If off, exact iqamah notification uses vibration only."
+            value={iqamahExactSoundEnabled}
+            onValueChange={onToggleIqamahExactSoundEnabled}
+            disabled={prayerAudioMuted}
             accentColor={palette.accent}
             borderColor={palette.border}
             textColor={palette.text}

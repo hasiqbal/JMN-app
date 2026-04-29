@@ -67,12 +67,15 @@ async function upsertDeviceToken(token: string): Promise<void> {
   // the same phone from accumulating multiple active rows when the
   // Expo push token rotates (e.g. after app reload or channel change).
   if (deviceId) {
-    await client
-      .from('device_tokens')
-      .update({ is_active: false })
-      .eq('device_id', deviceId)
-      .neq('token', token)
-      .catch(() => {});
+    try {
+      await client
+        .from('device_tokens')
+        .update({ is_active: false })
+        .eq('device_id', deviceId)
+        .neq('token', token);
+    } catch {
+      // Best-effort cleanup; continue with upsert even if this fails.
+    }
   }
 
   const { error } = await client

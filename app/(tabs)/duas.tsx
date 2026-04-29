@@ -421,7 +421,6 @@ export default function DuasScreen() {
   });
   const [refreshing, setRefreshing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [lastUpdated, setLastUpdated] = useState(() => new Date());
 
   const debugLog = (...parts: any[]) => {
     if (__DEV__) {
@@ -458,7 +457,6 @@ export default function DuasScreen() {
     try {
       resetToMain();
       setRefreshKey((k) => k + 1);
-      setLastUpdated(new Date());
     } finally {
       setRefreshing(false);
     }
@@ -660,18 +658,31 @@ export default function DuasScreen() {
   };
 
   const pageBg = N ? N.bg : Colors.background;
+  const heroGradientColors: [string, string, string] = N
+    ? ['rgba(5,10,16,0.72)', 'rgba(8,14,22,0.78)', 'rgba(10,16,26,0.90)']
+    : ADHKAR_HERO_GRADIENT;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }, { backgroundColor: pageBg }]}>
       {!N ? <View style={[styles.contextOverlay, { pointerEvents: 'none' }]} /> : null}
       <ImageBackground
         source={require('@/assets/images/masjid-building.jpg')}
-        style={[styles.heroHeader, { paddingTop: insets.top }]}
+        style={[
+          styles.heroHeader,
+          { paddingTop: 0 },
+          N && { borderBottomColor: N.border },
+        ]}
         imageStyle={{ opacity: N ? 0.14 : 0.18 }}
       >
-        <View style={[styles.heroSoftenOverlay, { pointerEvents: 'none' }]} />
+        <View
+          style={[
+            styles.heroSoftenOverlay,
+            { pointerEvents: 'none' },
+            N && { backgroundColor: 'rgba(6,10,16,0.35)' },
+          ]}
+        />
         <LinearGradient
-          colors={ADHKAR_HERO_GRADIENT}
+          colors={heroGradientColors}
           style={StyleSheet.absoluteFillObject}
         />
         {/* Nav row */}
@@ -680,18 +691,12 @@ export default function DuasScreen() {
             <TouchableOpacity onPress={resetToMain} activeOpacity={0.8}>
               <Image
                 source={require('@/assets/images/masjid-logo.png')}
-                style={styles.headerLogo}
+                style={[styles.headerLogo, N && { borderColor: N.border }]}
                 contentFit="contain"
                 tintColor={undefined}
               />
             </TouchableOpacity>
-            <View>
-              <Text style={styles.heroMasjidName}>JMN</Text>
-              <Text style={styles.heroTitle}>Adhkaar & Duas</Text>
-              <Text style={{ fontSize: 10, color: '#5E6D63', marginTop: 1 }}>
-                Updated {lastUpdated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-              </Text>
-            </View>
+            <Text style={[styles.heroTitle, N && { color: N.text }]}>Adhkaar &amp; Duas</Text>
           </View>
         </View>
 
@@ -776,14 +781,6 @@ function DhuhrSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMod
   }, []);
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[fajrSelStyles.container, N && { backgroundColor: N.bg }]}>
-      <View style={fajrSelStyles.headerBand}>
-        <MaterialIcons name="wb-sunny" size={22} color={N ? N.textSub : DUAS_ACCENT_GREEN} />
-        <View style={{ flex: 1 }}>
-          <Text style={[fajrSelStyles.headerTitle, N && { color: N.text }]}>After Dhuhr Adhkar</Text>
-          <Text style={[fajrSelStyles.headerSub, N && { color: N.textSub }]}>Choose what to recite after Dhuhr prayer</Text>
-        </View>
-      </View>
-
       {/* Dynamic DB groups — purely from portal */}
       {loading ? (
         <View style={{ alignItems: 'center', paddingVertical: 20 }}>
@@ -844,14 +841,6 @@ function JumuahSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMo
   }, []);
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[fajrSelStyles.container, N && { backgroundColor: N.bg }]}>
-      <View style={fajrSelStyles.headerBand}>
-        <MaterialIcons name="star" size={22} color={N ? N.textSub : DUAS_ACCENT_GREEN} />
-        <View style={{ flex: 1 }}>
-          <Text style={[fajrSelStyles.headerTitle, N && { color: N.text }]}>After Jumu&apos;ah Adhkar</Text>
-          <Text style={[fajrSelStyles.headerSub, N && { color: N.textSub }]}>{"Choose what to recite after Jumu'ah"}</Text>
-        </View>
-      </View>
-
       {loading ? (
         <View style={{ alignItems: 'center', paddingVertical: 20 }}>
           <Text style={{ fontSize: 12, color: N ? N.textMuted : Colors.textSubtle }}>Loading adhkar…</Text>
@@ -959,14 +948,6 @@ function AsrSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMode:
   }, []);
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[fajrSelStyles.container, N && { backgroundColor: N.bg }]}>
-      <View style={fajrSelStyles.headerBand}>
-        <MaterialIcons name="wb-cloudy" size={22} color={N ? N.textSub : DUAS_ACCENT_GREEN} />
-        <View style={{ flex: 1 }}>
-          <Text style={[fajrSelStyles.headerTitle, N && { color: N.text }]}>After Asr Adhkar</Text>
-          <Text style={[fajrSelStyles.headerSub, N && { color: N.textSub }]}>Choose what to recite after Asr prayer</Text>
-        </View>
-      </View>
-
       {loading ? (
         <View style={{ alignItems: 'center', paddingVertical: 20 }}>
           <Text style={{ fontSize: 12, color: N ? N.textMuted : Colors.textSubtle }}>Loading adhkar…</Text>
@@ -1167,25 +1148,32 @@ function PrayerTimeSelectionScreen({
   const N = nightMode ? NIGHT : null;
   const [groups, setGroups] = React.useState<AdhkarGroupMeta[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const visibleGroups = React.useMemo(() => {
+    if (prayerTime !== 'after-isha') return groups;
+
+    return groups.filter((grp) => {
+      const normalized = (grp.group_name ?? '')
+        .toLowerCase()
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9\u0600-\u06ff]+/g, ' ')
+        .trim();
+
+      return !/^(before\s*sleep|before\s*sleep\s*adhkar)$/.test(normalized);
+    });
+  }, [groups, prayerTime]);
   React.useEffect(() => {
     fetchAdhkarGroupsForPrayerTime(prayerTime).then(g => { setGroups(g); setLoading(false); });
   }, [prayerTime]);
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[fajrSelStyles.container, N && { backgroundColor: N.bg }]}>
-      <View style={fajrSelStyles.headerBand}>
-        <MaterialIcons name={icon as any} size={22} color={N ? N.textSub : DUAS_ACCENT_GREEN} />
-        <View style={{ flex: 1 }}>
-          <Text style={[fajrSelStyles.headerTitle, N && { color: N.text }]}>{title}</Text>
-          <Text style={[fajrSelStyles.headerSub, N && { color: N.textSub }]}>{subtitle}</Text>
-        </View>
-      </View>
       {loading ? (
         <View style={{ alignItems: 'center', paddingVertical: 20 }}>
           <Text style={{ fontSize: 12, color: N ? N.textMuted : Colors.textSubtle }}>Loading adhkar…</Text>
         </View>
-      ) : groups.length === 0 ? (
+      ) : visibleGroups.length === 0 ? (
         <View style={{ height: 32 }} />
-      ) : groups.map((grp, idx) => {
+      ) : visibleGroups.map((grp, idx) => {
         const color = grp.card_color ?? colors[idx % colors.length];
         const badge = (grp.card_badge ?? '').trim() || undefined;
         const subtitleText = grp.card_subtitle ?? null;
@@ -1241,14 +1229,6 @@ function FajrSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMode
 
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[fajrSelStyles.container, N && { backgroundColor: N.bg }]}>
-      <View style={fajrSelStyles.headerBand}>
-        <MaterialIcons name="wb-twilight" size={22} color={N ? N.textSub : DUAS_ACCENT_GREEN} />
-        <View style={{ flex: 1 }}>
-          <Text style={[fajrSelStyles.headerTitle, N && { color: N.text }]}>After Fajr Adhkar</Text>
-          <Text style={[fajrSelStyles.headerSub, N && { color: N.textSub }]}>Choose what to recite after Fajr prayer</Text>
-        </View>
-      </View>
-
       {/* ── Dynamic: one card per DB group (includes Surah Yaseen from DB) ── */}
       {loading ? (
         <View style={{ alignItems: 'center', paddingVertical: 20 }}>
@@ -1307,18 +1287,6 @@ function FajrSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMode
 
 const fajrSelStyles = StyleSheet.create({
   container: { paddingHorizontal: Spacing.md, paddingTop: 14, paddingBottom: Spacing.md, gap: Spacing.sm },
-  headerBand: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: 'transparent',
-    paddingVertical: 8,
-    paddingLeft: 12,
-    paddingRight: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: DUAS_ACCENT_GREEN,
-    marginBottom: 6,
-  },
-  headerTitle: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary },
-  headerSub: { fontSize: 11, fontWeight: '500', color: Colors.textSubtle, marginTop: 2 },
   card: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 12,
     backgroundColor: '#FFFFFF', borderRadius: 15,
@@ -2548,7 +2516,7 @@ const styles = StyleSheet.create({
   },
   heroHeader: {
     overflow: 'hidden',
-    paddingBottom: 6,
+    paddingBottom: 0,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
@@ -2563,7 +2531,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingVertical: 6,
   },
   headerTitleRow: {
     flexDirection: 'row',

@@ -11,8 +11,8 @@ type Props = {
 };
 
 export function ArabicTextBlock({ text, scale, night }: Props) {
-  const fontSize = Math.round(26 * scale);
-  const lineHeight = Math.round(52 * scale);
+  const fontSize = Math.round(23 * scale);
+  const lineHeight = Math.round(43 * scale);
   return (
     <Text
       style={[

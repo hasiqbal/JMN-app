@@ -8,6 +8,7 @@ import {
 import type { PrayerTime } from '@/services/prayerService';
 
 const IQAMAH_ROLLOVER_TOLERANCE_MS = 5 * 60 * 1000;
+const IQAMAH_FALLBACK_OFFSET_MS = 5 * 1000;
 const FARD_PRAYER_NAMES = new Set(['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha']);
 
 export type PrayerNotificationType = 'prayer-start' | 'prayer-near-end' | 'jamaat-10' | 'iqamah-start';
@@ -79,7 +80,7 @@ export function buildPrayerNotificationsForPrayers(
     }
 
     const iqamahDate = parseIqamahDate(prayer.iqamah, prayerStartAt);
-    const effectiveIqamahDate = iqamahDate ?? prayerStartAt;
+    const effectiveIqamahDate = iqamahDate ?? new Date(prayerStartAt.getTime() + IQAMAH_FALLBACK_OFFSET_MS);
 
     if (effectiveIqamahDate.getTime() - now.getTime() > minLeadMs) {
       planned.push({
@@ -96,11 +97,19 @@ export function buildPrayerNotificationsForPrayers(
     }
 
     if (iqamahDate) {
-      const jamaatReminderAt = new Date(iqamahDate.getTime() - PRAYER_NOTIFICATION_JAMAAT_LEAD_MINUTES * 60 * 1000);
-      if (jamaatReminderAt.getTime() >= prayerStartAt.getTime() && jamaatReminderAt.getTime() - now.getTime() > minLeadMs) {
+      const jamaatReminderAtRaw = new Date(iqamahDate.getTime() - PRAYER_NOTIFICATION_JAMAAT_LEAD_MINUTES * 60 * 1000);
+      const jamaatReminderAt = jamaatReminderAtRaw.getTime() < prayerStartAt.getTime()
+        ? prayerStartAt
+        : jamaatReminderAtRaw;
+      if (jamaatReminderAt.getTime() - now.getTime() > minLeadMs) {
+        const isExactTenMinuteLead = jamaatReminderAt.getTime() === jamaatReminderAtRaw.getTime();
         planned.push({
-          title: `${prayer.name} jamaat in ${PRAYER_NOTIFICATION_JAMAAT_LEAD_MINUTES} minutes`,
-          body: `${prayer.name} jamaat starts in ${PRAYER_NOTIFICATION_JAMAAT_LEAD_MINUTES} minutes.`,
+          title: isExactTenMinuteLead
+            ? `${prayer.name} jamaat in ${PRAYER_NOTIFICATION_JAMAAT_LEAD_MINUTES} minutes`
+            : `${prayer.name} jamaat soon`,
+          body: isExactTenMinuteLead
+            ? `${prayer.name} jamaat starts in ${PRAYER_NOTIFICATION_JAMAAT_LEAD_MINUTES} minutes.`
+            : `${prayer.name} jamaat starts soon.`,
           fireAt: jamaatReminderAt,
           data: {
             scope: PRAYER_NOTIFICATION_SCOPE,

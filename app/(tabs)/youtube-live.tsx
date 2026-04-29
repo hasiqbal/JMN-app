@@ -6,11 +6,24 @@ import { useRouter } from 'expo-router';
 import { APP_CONFIG } from '@/constants/config';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useJmnLiveStatus } from '@/hooks/useJmnLiveStatus';
+import { useAppTheme } from '@/hooks/useAppTheme';
+
+const NIGHT = {
+  bg: '#06090F',
+  surface: '#10182C',
+  border: '#1B2E4A',
+  text: '#EEF3FC',
+  textSub: '#93B4D8',
+  accent: '#6AAEFF',
+  danger: '#D04646',
+};
 
 export default function YouTubeLiveScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { isLive } = useJmnLiveStatus();
+  const { darkMode } = useAppTheme();
+  const N = darkMode ? NIGHT : null;
 
   const openYouTube = useCallback(() => {
     Linking.openURL(APP_CONFIG.youtubeStreamUrl).catch(() => {
@@ -23,13 +36,23 @@ export default function YouTubeLiveScreen() {
   }, [router]);
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top + 8, paddingBottom: Math.max(insets.bottom, 16) }]}>
+    <View
+      style={[
+        styles.screen,
+        { paddingTop: insets.top + 8, paddingBottom: Math.max(insets.bottom, 16) },
+        N && { backgroundColor: N.bg },
+      ]}
+    >
       <View style={styles.topBar}>
-        <TouchableOpacity style={styles.iconButton} onPress={closeScreen} activeOpacity={0.85}>
+        <TouchableOpacity
+          style={[styles.iconButton, N && { backgroundColor: N.surface, borderColor: N.border }]}
+          onPress={closeScreen}
+          activeOpacity={0.85}
+        >
           <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
         </TouchableOpacity>
 
-        <View style={[styles.livePill, { backgroundColor: isLive ? '#BC2F2F' : '#637084' }]}>
+        <View style={[styles.livePill, { backgroundColor: isLive ? (N ? N.danger : '#BC2F2F') : (N ? '#3D4F67' : '#637084') }]}>
           <Text style={styles.livePillText}>{isLive ? 'LIVE' : 'OFFLINE'}</Text>
         </View>
 
@@ -37,19 +60,19 @@ export default function YouTubeLiveScreen() {
       </View>
 
       <View style={styles.content}>
-        <View style={styles.heroIconWrap}>
+        <View style={[styles.heroIconWrap, N && { borderColor: N.border }]}>
           <MaterialIcons name="live-tv" size={44} color="#FFFFFF" />
         </View>
 
-        <Text style={styles.title}>JMN YouTube Live</Text>
-        <Text style={styles.subtitle}>Watch Jami' Masjid Noorani live streams directly on YouTube.</Text>
+        <Text style={[styles.title, N && { color: N.text }]}>JMN YouTube Live</Text>
+        <Text style={[styles.subtitle, N && { color: N.textSub }]}>Watch Jami' Masjid Noorani live streams directly on YouTube.</Text>
 
-        <View style={styles.noticeCard}>
-          <MaterialIcons name="verified-user" size={16} color={Colors.primary} />
-          <Text style={styles.noticeText}>In-app YouTube browsing is disabled for channel safety. Use the button below to open the official JMN YouTube live page.</Text>
+        <View style={[styles.noticeCard, N && { backgroundColor: N.surface, borderColor: N.border }]}>
+          <MaterialIcons name="verified-user" size={16} color={N ? N.accent : Colors.primary} />
+          <Text style={[styles.noticeText, N && { color: N.text }]}>In-app YouTube browsing is disabled for channel safety. Use the button below to open the official JMN YouTube live page.</Text>
         </View>
 
-        <TouchableOpacity style={styles.ctaButton} onPress={openYouTube} activeOpacity={0.88}>
+        <TouchableOpacity style={[styles.ctaButton, N && { borderColor: N.border, backgroundColor: N.danger }]} onPress={openYouTube} activeOpacity={0.88}>
           <MaterialIcons name="open-in-new" size={18} color="#FFFFFF" />
           <Text style={styles.ctaButtonText}>Open in YouTube</Text>
         </TouchableOpacity>

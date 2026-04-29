@@ -18,16 +18,16 @@ const PREVIEW_PLAYBACK_MS = 10_000;
 
 function resolveAudioModule(soundFile: string) {
   switch (soundFile) {
-    case '1.mp3':
-      return require('../assets/audio/1.mp3');
-    case '2.mp3':
-      return require('../assets/audio/2.mp3');
-    case '3.mp3':
-      return require('../assets/audio/3.mp3');
+    case 'adhaan_1.mp3':
+      return require('../assets/audio/adhaan_1.mp3');
+    case 'adhaan_2.mp3':
+      return require('../assets/audio/adhaan_2.mp3');
+    case 'adhaan_3.mp3':
+      return require('../assets/audio/adhaan_3.mp3');
     case 'iqamah.mp3':
       return require('../assets/audio/iqamah.mp3');
     default:
-      return require('../assets/audio/1.mp3');
+      return require('../assets/audio/adhaan_1.mp3');
   }
 }
 

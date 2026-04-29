@@ -1,11 +1,13 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, ImageBackground } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '@/constants/theme';
 import { useNightMode } from '@/hooks/useNightMode';
 import { getJuzEndPage, getJuzStartPage, getMushafTotalPages, getQuarterStartsInJuz } from '@/constants/mushafJuzPages';
+import { StarField } from '@/components/adhkar/StarField';
 
 const NIGHT = {
   bg: '#0A0F1E',
@@ -19,6 +21,18 @@ const PENDING_OPEN_KEY = 'quran_pending_open_v1';
 type MushafLayout = '15line' | '16line';
 
 const ADHKAR_QURAN_SOURCE = 'adhkar-duas';
+const QURAN_BG_IMAGE = require('../../assets/images/sky/tahjjud.jpg');
+
+function toOrdinal(value: number): string {
+  const abs = Math.abs(Math.trunc(value));
+  const mod100 = abs % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${abs}th`;
+  const mod10 = abs % 10;
+  if (mod10 === 1) return `${abs}st`;
+  if (mod10 === 2) return `${abs}nd`;
+  if (mod10 === 3) return `${abs}rd`;
+  return `${abs}th`;
+}
 
 const SURAH_NAMES: Record<number, string> = {
   1: 'Al-Fatihah', 2: 'Al-Baqarah', 3: 'Ali Imran', 4: 'An-Nisa', 5: 'Al-Maidah',
@@ -201,10 +215,10 @@ export default function QuranScreen() {
   const [mushafLayout, setMushafLayout] = useState<MushafLayout>('15line');
   const [selectedMushaf, setSelectedMushaf] = useState<MushafLayout | null>(null);
   const [selectedJuz, setSelectedJuz] = useState<number | null>(null);
-  const [expandedJuz, setExpandedJuz] = useState<number | null>(1);
+  const [, setExpandedJuz] = useState<number | null>(1);
   const [selectedQuarter, setSelectedQuarter] = useState<{ juz: number; quarter: number } | null>(null);
   const [selectedSurah, setSelectedSurah] = useState<number | null>(null);
-  const [pendingOpenLabel, setPendingOpenLabel] = useState('None');
+  const [, setPendingOpenLabel] = useState('None');
   const [isStateHydrated, setIsStateHydrated] = useState(false);
   const processedAdhkarAutoOpenRef = React.useRef<string | null>(null);
   const N = nightMode ? NIGHT : null;
@@ -373,149 +387,212 @@ export default function QuranScreen() {
   }, [loadQuranState]);
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: N ? N.bg : Colors.background }]}
-      contentContainerStyle={[styles.contentContainer, { paddingTop: insets.top }]}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onPullRefresh}
-          tintColor={N ? N.text : Colors.primary}
+    <View style={styles.screen}>
+      <ImageBackground source={QURAN_BG_IMAGE} resizeMode="cover" style={styles.backgroundImage}>
+        {/* Base veil — lighter so the tahjjud sky is visible */}
+        <LinearGradient
+          colors={['rgba(4,8,20,0.36)', 'rgba(6,12,28,0.58)']}
+          locations={[0, 1]}
+          style={styles.backgroundVeil}
         />
-      }
-    >
-      <View style={styles.inner}>
-        <Text style={[styles.title, N && { color: N.text }]}>Quran</Text>
-        {!selectedMushaf ? (
-          <>
-            <Text style={[styles.sub, styles.sectionTitle, N && { color: N.textSub }]}>Choose Quran First</Text>
-            <View style={styles.layoutChoiceWrap}>
-              {(['15line', '16line'] as MushafLayout[]).map((layout) => {
-                const label = layout === '16line' ? '16-Line Quran' : '15-Line Quran';
-                return (
-                  <TouchableOpacity
-                    key={layout}
-                    onPress={() => chooseMushaf(layout)}
-                    style={[
-                      styles.layoutChoice,
-                      N && { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.12)' },
-                    ]}
-                    activeOpacity={0.9}
-                  >
-                    <Text style={[styles.layoutChoiceTitle, N && { color: N.text }]}>{label}</Text>
-                    <Text style={[styles.layoutChoiceSub, N && { color: N.textSub }]}>Tap to open and choose Juz</Text>
-                  </TouchableOpacity>
-                );
-              })}
+        {/* Sacred gold bloom at top, cool indigo at bottom */}
+        <LinearGradient
+          colors={['rgba(220,172,84,0.28)', 'rgba(10,18,46,0.18)', 'rgba(4,8,20,0.0)']}
+          locations={[0, 0.45, 1]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={styles.backgroundGlow}
+        />
+        <View pointerEvents="none" style={styles.atmosphereLayer}>
+          <View style={[styles.atmosphereOrb, styles.atmosphereOrbTop]} />
+          <View style={[styles.atmosphereOrb, styles.atmosphereOrbBottom]} />
+          <StarField />
+        </View>
+        <ScrollView
+          style={[styles.container, { backgroundColor: 'transparent' }]}
+          contentContainerStyle={[styles.contentContainer, { paddingTop: insets.top }]}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onPullRefresh}
+              tintColor={N ? N.text : '#F5F8F5'}
+            />
+          }
+        >
+          <View style={styles.inner}>
+            <Text style={[styles.title, N && { color: '#F5E8C4' }]}>Quran</Text>
+            <Text style={styles.titleArabic}>القرآن الكريم</Text>
+            <View style={styles.titleDivider}>
+              <View style={styles.titleDividerLine} />
+              <Text style={styles.titleDividerStar}>✦</Text>
+              <View style={styles.titleDividerLine} />
             </View>
-          </>
-        ) : (
-          <>
-            <Text style={[styles.sub, styles.sectionTitle, N && { color: N.textSub }]}>
-              {selectedMushaf === '16line' ? '16-Line Quran' : '15-Line Quran'}
-            </Text>
-            <TouchableOpacity
-              style={[styles.backBtn, N && { borderColor: 'rgba(255,255,255,0.2)' }]}
-              onPress={() => {
-                setSelectedMushaf(null);
-                setExpandedJuz(1);
-                setSelectedJuz(null);
-                setSelectedQuarter(null);
-                setSelectedSurah(null);
-              }}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.backBtnText, N && { color: N.textSub }]}>Choose another Quran</Text>
-            </TouchableOpacity>
+            {!selectedMushaf ? (
+              <>
+                <Text style={[styles.sub, styles.sectionTitle]}>Choose Quran First</Text>
+                <View style={styles.layoutChoiceWrap}>
+                  {(['15line', '16line'] as MushafLayout[]).map((layout) => {
+                    const label = layout === '16line' ? '16-Line Quran' : '15-Line Quran';
+                    return (
+                      <TouchableOpacity
+                        key={layout}
+                        onPress={() => chooseMushaf(layout)}
+                        style={styles.layoutChoice}
+                        activeOpacity={0.88}
+                      >
+                        <Text style={styles.layoutChoiceTitle}>{label}</Text>
+                        <Text style={styles.layoutChoiceSub}>Tap to open and choose Juz</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </>
+            ) : (
+              <>
+                <Text style={[styles.sub, styles.sectionTitle]}>
+                  {selectedMushaf === '16line' ? '16-Line Quran' : '15-Line Quran'}
+                </Text>
+                <TouchableOpacity
+                  style={styles.backBtn}
+                  onPress={() => {
+                    setSelectedMushaf(null);
+                    setExpandedJuz(1);
+                    setSelectedJuz(null);
+                    setSelectedQuarter(null);
+                    setSelectedSurah(null);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.backBtnText}>Choose another Quran</Text>
+                </TouchableOpacity>
 
-            <Text style={[styles.sub, N && { color: N.textSub }]}>Choose Juz or Surah</Text>
-            <View style={styles.juzGroupsWrap}>
-              {Array.from({ length: 30 }, (_, index) => index + 1).map((juz) => {
-                const selected = selectedJuz === juz;
-                const surahsInJuz = getSurahsInJuz(mushafLayout, juz);
-                const firstSurah = surahsInJuz[0] ?? 1;
-                const lastSurah = surahsInJuz[surahsInJuz.length - 1] ?? firstSurah;
+                <Text style={styles.sub}>Choose Juz or Surah</Text>
+                <View style={styles.juzGroupsWrap}>
+                  {Array.from({ length: 30 }, (_, index) => index + 1).map((juz) => {
+                    const selected = selectedJuz === juz;
+                    const surahsInJuz = getSurahsInJuz(mushafLayout, juz);
 
-                return (
-                  <View
-                    key={juz}
-                    style={[
-                      styles.juzGroup,
-                      N && { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.12)' },
-                    ]}
-                  >
-                    <TouchableOpacity
-                      onPress={() => chooseJuz(juz)}
-                      style={[styles.juzHeaderBtn, selected && styles.juzHeaderBtnActive]}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={[styles.juzTitle, selected && styles.juzTitleActive]}>Juz {juz}</Text>
-                      <Text style={[styles.juzSub, N && { color: N.textSub }]}>Pages {getDisplayedJuzPage(mushafLayout, getJuzStartPage(mushafLayout, juz))}-{getDisplayedJuzPage(mushafLayout, getJuzEndPage(mushafLayout, juz))}</Text>
-                    </TouchableOpacity>
+                    return (
+                      <View
+                        key={juz}
+                        style={styles.juzGroup}
+                      >
+                        <TouchableOpacity
+                          onPress={() => chooseJuz(juz)}
+                          style={[styles.juzHeaderBtn, selected && styles.juzHeaderBtnActive]}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={[styles.juzTitle, selected && styles.juzTitleActive]} numberOfLines={1}>
+                            Juz {juz}
+                          </Text>
+                          <Text style={styles.juzSub} numberOfLines={1}>
+                            Pages {getDisplayedJuzPage(mushafLayout, getJuzStartPage(mushafLayout, juz))}–{getDisplayedJuzPage(mushafLayout, getJuzEndPage(mushafLayout, juz))}
+                          </Text>
+                        </TouchableOpacity>
 
-                    <View style={styles.optionsWrap}>
-                      <Text style={[styles.optionGroupLabel, N && { color: N.textSub }]}>Quarters</Text>
-                      <View style={styles.chipsWrap}>
-                        {getQuarterStartsInJuz(mushafLayout, juz).map((item) => {
-                          const isQuarterSelected = selectedQuarter?.juz === juz && selectedQuarter.quarter === item.quarter;
-                          const quarterLabel = item.quarter === 1
-                            ? '1st Quarter'
-                            : item.quarter === 2
-                              ? '2nd Quarter'
-                              : item.quarter === 3
-                                ? '3rd Quarter'
-                                : '4th Quarter';
-                          return (
-                            <TouchableOpacity
-                              key={`q-${juz}-${item.quarter}`}
-                              onPress={() => chooseQuarterInJuz(juz, item.quarter)}
-                              style={[styles.quarterChip, isQuarterSelected && styles.quarterChipActive]}
-                              activeOpacity={0.85}
-                            >
-                              <Text style={[styles.quarterChipText, isQuarterSelected && styles.quarterChipTextActive]}>
-                                {quarterLabel}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
+                        <View style={styles.optionsWrap}>
+                          <Text style={styles.optionGroupLabel}>Quarters</Text>
+                          <View style={styles.quarterRowsWrap}>
+                            {[0, 2].map((startIndex) => (
+                              <View key={`quarter-row-${startIndex}`} style={styles.quarterRow}>
+                                {getQuarterStartsInJuz(mushafLayout, juz)
+                                  .slice(startIndex, startIndex + 2)
+                                  .map((item) => {
+                                    const isQuarterSelected = selectedQuarter?.juz === juz && selectedQuarter.quarter === item.quarter;
+                                    const quarterLabel = `${toOrdinal(item.quarter)} Quarter`;
+                                    return (
+                                      <TouchableOpacity
+                                        key={`q-${juz}-${item.quarter}`}
+                                        onPress={() => chooseQuarterInJuz(juz, item.quarter)}
+                                        style={[styles.quarterChip, isQuarterSelected && styles.quarterChipActive]}
+                                        activeOpacity={0.85}
+                                      >
+                                        <Text
+                                          style={[styles.quarterChipText, isQuarterSelected && styles.quarterChipTextActive]}
+                                          numberOfLines={1}
+                                          adjustsFontSizeToFit
+                                          minimumFontScale={0.85}
+                                        >
+                                          {quarterLabel}
+                                        </Text>
+                                      </TouchableOpacity>
+                                    );
+                                  })}
+                              </View>
+                            ))}
+                          </View>
+
+                          <Text style={styles.optionGroupLabel}>Surahs</Text>
+                          <View style={styles.chipsWrap}>
+                            {surahsInJuz.map((chapter) => {
+                              const isSelected = selectedSurah === chapter;
+                              return (
+                                <TouchableOpacity
+                                  key={chapter}
+                                  onPress={() => chooseSurahInJuz(chapter)}
+                                  style={[styles.surahChip, isSelected && styles.surahChipActive]}
+                                  activeOpacity={0.85}
+                                >
+                                  <Text style={[styles.surahChipText, isSelected && styles.surahChipTextActive]}>
+                                    {SURAH_NAMES[chapter] ?? `Surah ${chapter}`}
+                                  </Text>
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </View>
+                        </View>
                       </View>
+                    );
+                  })}
+                </View>
 
-                      <Text style={[styles.optionGroupLabel, N && { color: N.textSub }]}>Surahs</Text>
-                      <View style={styles.chipsWrap}>
-                        {surahsInJuz.map((chapter) => {
-                          const isSelected = selectedSurah === chapter;
-                          return (
-                            <TouchableOpacity
-                              key={chapter}
-                              onPress={() => chooseSurahInJuz(chapter)}
-                              style={[styles.surahChip, isSelected && styles.surahChipActive]}
-                              activeOpacity={0.85}
-                            >
-                              <Text style={[styles.surahChipText, isSelected && styles.surahChipTextActive]}>
-                                {SURAH_NAMES[chapter] ?? `Surah ${chapter}`}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-
-          </>
-        )}
-        <Text style={[styles.sub, N && { color: N.textSub }]}>Updated {lastUpdated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</Text>
-      </View>
-    </ScrollView>
+              </>
+            )}
+            <Text style={styles.updatedLabel}>Updated {lastUpdated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</Text>
+          </View>
+        </ScrollView>
+      </ImageBackground>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: '#050C1C',
+  },
+  backgroundImage: {
+    flex: 1,
+  },
+  backgroundVeil: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  backgroundGlow: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  atmosphereLayer: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  atmosphereOrb: {
+    position: 'absolute',
+    borderRadius: 999,
+    backgroundColor: 'rgba(230, 200, 130, 0.16)',
+  },
+  atmosphereOrbTop: {
+    width: 380,
+    height: 380,
+    top: -160,
+    right: -110,
+  },
+  atmosphereOrbBottom: {
+    width: 400,
+    height: 400,
+    bottom: -200,
+    left: -140,
+    backgroundColor: 'rgba(44, 74, 152, 0.22)',
+  },
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   contentContainer: {
     flexGrow: 1,
@@ -524,9 +601,9 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'flex-start',
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-    paddingTop: 96,
+    paddingHorizontal: 18,
+    paddingBottom: 32,
+    paddingTop: 72,
   },
   settingRow: {
     width: '100%',
@@ -557,85 +634,142 @@ const styles = StyleSheet.create({
     color: Colors.textSubtle,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    marginBottom: 8,
+    fontSize: 40,
+    lineHeight: 48,
+    fontWeight: '800',
+    fontFamily: 'serif',
+    letterSpacing: 1.2,
+    color: '#F5E8C4',
+    marginBottom: 4,
+    textShadowColor: 'rgba(0,0,0,0.55)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 10,
+  },
+  titleArabic: {
+    fontSize: 18,
+    fontFamily: 'serif',
+    color: '#D4A853',
+    letterSpacing: 1.5,
+    marginBottom: 10,
+    textShadowColor: 'rgba(0,0,0,0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  titleDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '60%',
+    marginBottom: 18,
+    gap: 8,
+  },
+  titleDividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(212,168,84,0.45)',
+  },
+  titleDividerStar: {
+    fontSize: 10,
+    color: '#D4A853',
+    opacity: 0.9,
   },
   sectionTitle: {
-    marginTop: 8,
-    marginBottom: 12,
+    marginTop: 2,
+    marginBottom: 14,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    color: '#C8D8EE',
   },
   layoutChoiceWrap: {
     width: '100%',
-    gap: 10,
+    gap: 14,
     marginBottom: 8,
   },
   layoutChoice: {
     borderWidth: 1,
-    borderColor: '#D6E1DB',
-    backgroundColor: '#EEF4F0',
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    borderColor: 'rgba(212,172,90,0.55)',
+    backgroundColor: 'rgba(8,14,34,0.72)',
+    borderRadius: 18,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
   },
   layoutChoiceTitle: {
-    fontSize: 18,
+    fontSize: 21,
+    lineHeight: 28,
     fontWeight: '800',
-    color: Colors.textPrimary,
+    fontFamily: 'serif',
+    color: '#F2E3B0',
+    letterSpacing: 0.4,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   layoutChoiceSub: {
-    marginTop: 4,
+    marginTop: 5,
     fontSize: 13,
-    color: Colors.textSubtle,
+    color: '#94B8D4',
+    lineHeight: 18,
+    letterSpacing: 0.2,
   },
   backBtn: {
     borderWidth: 1,
-    borderColor: '#C7D8CE',
+    borderColor: 'rgba(212,172,90,0.65)',
+    backgroundColor: 'rgba(10,18,42,0.60)',
     borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    marginBottom: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    marginBottom: 14,
   },
   backBtnText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#4A6457',
+    color: '#E8D9AA',
+    letterSpacing: 0.3,
   },
   juzGroupsWrap: {
     width: '100%',
-    gap: 8,
+    gap: 10,
     marginBottom: 8,
   },
   juzGroup: {
     borderWidth: 1,
-    borderColor: '#D6E1DB',
-    backgroundColor: '#F0F5F2',
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 8,
+    borderColor: 'rgba(212,172,90,0.28)',
+    backgroundColor: 'rgba(8,14,32,0.70)',
+    borderRadius: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
   },
   juzHeaderBtn: {
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
+    borderRadius: 12,
+    paddingVertical: 13,
+    paddingHorizontal: 14,
     alignItems: 'center',
+    width: '100%',
+    backgroundColor: 'rgba(16,26,56,0.78)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,172,90,0.22)',
   },
   juzHeaderBtnActive: {
-    backgroundColor: '#4FE948',
+    backgroundColor: '#C4942E',
+    borderColor: '#D4A848',
   },
   juzTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: Colors.textPrimary,
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: '700',
+    color: '#F0E8D0',
+    letterSpacing: 0.6,
+    textAlign: 'center',
   },
   juzTitleActive: {
-    color: '#0B2817',
+    color: '#150E02',
   },
   juzSub: {
-    marginTop: 2,
-    fontSize: 11,
-    color: '#6B7F74',
+    marginTop: 3,
+    fontSize: 12,
+    lineHeight: 16,
+    color: '#84A4C0',
+    letterSpacing: 0.2,
+    textAlign: 'center',
   },
   juzRangeSub: {
     marginTop: 3,
@@ -651,62 +785,91 @@ const styles = StyleSheet.create({
   },
   optionsWrap: {
     paddingHorizontal: 4,
-    paddingTop: 6,
-    gap: 6,
+    paddingTop: 10,
+    gap: 9,
   },
   optionGroupLabel: {
     fontSize: 11,
+    lineHeight: 16,
     fontWeight: '700',
-    color: '#60756A',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: '#C4A860',
   },
   chipsWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
+    gap: 8,
+  },
+  quarterRowsWrap: {
+    width: '100%',
+    gap: 8,
+  },
+  quarterRow: {
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
+    gap: 8,
   },
   quarterChip: {
     borderWidth: 1,
-    borderColor: '#8BC997',
-    backgroundColor: '#EAF8EE',
-    borderRadius: 999,
+    borderColor: 'rgba(212,172,90,0.50)',
+    backgroundColor: 'rgba(12,20,48,0.86)',
+    borderRadius: 10,
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 8,
+    flex: 1,
+    alignItems: 'center',
   },
   quarterChipActive: {
-    backgroundColor: '#4FE948',
-    borderColor: '#4FE948',
+    backgroundColor: '#C4942E',
+    borderColor: '#D4A848',
   },
   quarterChipText: {
     fontSize: 11,
-    fontWeight: '800',
-    color: '#23563A',
+    lineHeight: 15,
+    fontWeight: '600',
+    color: '#EAE2D0',
+    letterSpacing: 0.1,
+    textAlign: 'center',
+    width: '100%',
   },
   quarterChipTextActive: {
-    color: '#0B2817',
+    color: '#100800',
   },
   surahChip: {
     borderWidth: 1,
-    borderColor: '#BFD0C7',
-    backgroundColor: '#F8FBF9',
+    borderColor: 'rgba(160,192,228,0.32)',
+    backgroundColor: 'rgba(10,18,44,0.80)',
     borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
   surahChipActive: {
-    backgroundColor: '#4FE948',
-    borderColor: '#4FE948',
+    backgroundColor: '#C4942E',
+    borderColor: '#D4A848',
   },
   surahChipText: {
-    fontSize: 11,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: '700',
-    color: '#355645',
+    color: '#C8DCEA',
+    letterSpacing: 0.15,
   },
   surahChipTextActive: {
-    color: '#0B2817',
+    color: '#100800',
   },
   sub: {
-    fontSize: 15,
-    color: Colors.textSubtle,
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#A0BACE',
     marginTop: 4,
+    letterSpacing: 0.3,
+  },
+  updatedLabel: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: 'rgba(180,196,216,0.55)',
+    marginTop: 16,
+    letterSpacing: 0.3,
   },
 });

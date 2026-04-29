@@ -508,7 +508,7 @@ function stationImageSource(id: string) {
   if (id === 'qiraat') return require('@/assets/images/quran-radio-thumb.jpg');
   if (id === 'hadr') return require('@/assets/images/quran-radio-thumb.jpg');
   if (id === 'minshawi-mujawwad') return require('@/assets/images/reciters/minshawi.jpg');
-  if (id === 'abdul-basit-murattal') return require('@/assets/images/reciters/basit.jpg');
+  if (id === 'abdul-basit-mujawwad') return require('@/assets/images/reciters/basit.jpg');
   if (id === 'sadaqat-ali') return require('@/assets/images/reciters/sadaqat-ali.jpg');
   if (id === 'ibrahim-kashidan') return require('@/assets/images/reciters/ibrahim.png');
   if (id === 'tablawy-mujawwad') return require('@/assets/images/reciters/tablawy.jpg');

@@ -895,6 +895,7 @@ export function DbAdhkarScreen({
   };
 
   const totalCount = adhkar.length;
+  const headerSummary = `${totalCount} adhkar${!showFlat && sortedGroups.length > 0 ? ` · ${sortedGroups.length} groups` : ''}`;
   const benefitsOverlayItem = benefitsOverlayItemId
     ? (adhkar.find((row) => row.id === benefitsOverlayItemId) ?? null)
     : null;
@@ -919,17 +920,14 @@ export function DbAdhkarScreen({
     <View style={{ flex: 1 }}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: Spacing.md, paddingBottom: 32, gap: 16 }}
+        contentContainerStyle={{ paddingHorizontal: Spacing.md, paddingTop: 6, paddingBottom: 32, gap: 16 }}
       >
         {/* Page header */}
-        <View style={[styles.headerBand, N && { backgroundColor: N.surface, borderColor: N.border }]}>
-          <MaterialIcons name={meta.icon as any} size={22} color={accent} />
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.headerTitle, N && { color: N.text }]}>{displayTitle}</Text>
-            <Text style={[styles.headerSub, N && { color: N.textSub }]}>
-              {totalCount} adhkar{!showFlat && sortedGroups.length > 0 ? ` · ${sortedGroups.length} groups` : ''}
-            </Text>
-          </View>
+        <View style={styles.headerBand}>
+          <MaterialIcons name={meta.icon as any} size={16} color={accent} />
+          <Text style={[styles.headerLineText, N && { color: N.textSub }]} numberOfLines={1}>
+            {displayTitle} {'\u2022'} {headerSummary}
+          </Text>
         </View>
 
         {showFlat ? (
@@ -1080,16 +1078,12 @@ const styles = StyleSheet.create({
   headerBand: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: 4,
+    gap: 6,
+    paddingHorizontal: 2,
+    paddingVertical: 2,
+    marginBottom: 2,
   },
-  headerTitle: { fontSize: 17, lineHeight: 22, fontWeight: '800', color: Colors.textPrimary },
-  headerSub:   { fontSize: 12, lineHeight: 16, fontWeight: '500', color: Colors.textSubtle, marginTop: 1 },
+  headerLineText: { flex: 1, fontSize: 13, lineHeight: 18, fontWeight: '700', color: Colors.textSubtle },
 
   // Item card
   itemCard: {

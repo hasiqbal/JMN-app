@@ -1223,11 +1223,13 @@ export default function MonthlyCalendarSection({
         }
 
         if (firstSeen && lastSeen) {
+          const firstSeenYear = (firstSeen as ParsedHijriLabel).year;
+          const lastSeenYear = (lastSeen as ParsedHijriLabel).year;
           const nextYearHints = new Map(portalYearHints);
-          if (firstSeen.year === lastSeen.year) {
-            nextYearHints.set(year, `${firstSeen.year} AH`);
+          if (firstSeenYear === lastSeenYear) {
+            nextYearHints.set(year, `${firstSeenYear} AH`);
           } else {
-            nextYearHints.set(year, `${firstSeen.year}/${lastSeen.year} AH`);
+            nextYearHints.set(year, `${firstSeenYear}/${lastSeenYear} AH`);
           }
           setPortalYearHints(nextYearHints);
         }

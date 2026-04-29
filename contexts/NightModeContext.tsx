@@ -1,7 +1,9 @@
-import React, { createContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useEffect, useCallback, ReactNode, useContext, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppThemeContext } from '@/contexts/AppThemeContext';
 
 const NIGHT_MODE_KEY = 'jmn_night_mode_pref'; // 'day' | 'night'
+const APP_DARK_MODE_KEY = 'jmn_app_dark_mode'; // 'true' | 'false'
 
 export type NightModePref = 'day' | 'night';
 
@@ -22,32 +24,49 @@ export const NightModeContext = createContext<NightModeContextType>({
 });
 
 export function NightModeProvider({ children }: { children: ReactNode }) {
-  const [modePref, setModePrefState] = useState<NightModePref>('day');
+  const { darkMode, setDarkMode, toggleDarkMode } = useContext(AppThemeContext);
+  const migratedRef = useRef(false);
 
-  // Load persisted preference on mount
+  // One-time migration from legacy preference key to the shared app theme key.
   useEffect(() => {
-    AsyncStorage.getItem(NIGHT_MODE_KEY).then(val => {
-      if (val === 'day' || val === 'night') {
-        setModePrefState(val);
-      }
-    });
-  }, []);
+    if (migratedRef.current) return;
+    migratedRef.current = true;
 
-  const nightMode = modePref === 'night';
+    const migrateLegacyNightMode = async () => {
+      try {
+        const [appThemeRaw, legacyNightRaw] = await Promise.all([
+          AsyncStorage.getItem(APP_DARK_MODE_KEY),
+          AsyncStorage.getItem(NIGHT_MODE_KEY),
+        ]);
+
+        if ((appThemeRaw === 'true' || appThemeRaw === 'false') || !legacyNightRaw) return;
+
+        if (legacyNightRaw === 'night') setDarkMode(true);
+        if (legacyNightRaw === 'day') setDarkMode(false);
+      } catch {
+        // Keep defaults if storage is unavailable.
+      }
+    };
+
+    void migrateLegacyNightMode();
+  }, [setDarkMode]);
+
+  // Keep legacy key in sync so older consumers remain consistent.
+  useEffect(() => {
+    AsyncStorage.setItem(NIGHT_MODE_KEY, darkMode ? 'night' : 'day').catch(() => {});
+  }, [darkMode]);
+
+  const modePref: NightModePref = darkMode ? 'night' : 'day';
+  const nightMode = darkMode;
   const manualOverride = true;
 
   const toggleManual = useCallback(() => {
-    setModePrefState(prev => {
-      const next: NightModePref = prev === 'night' ? 'day' : 'night';
-      AsyncStorage.setItem(NIGHT_MODE_KEY, next);
-      return next;
-    });
-  }, []);
+    toggleDarkMode();
+  }, [toggleDarkMode]);
 
   const setModePref = useCallback((pref: NightModePref) => {
-    setModePrefState(pref);
-    AsyncStorage.setItem(NIGHT_MODE_KEY, pref);
-  }, []);
+    setDarkMode(pref === 'night');
+  }, [setDarkMode]);
 
   return (
     <NightModeContext.Provider value={{ nightMode, modePref, manualOverride, toggleManual, setModePref }}>

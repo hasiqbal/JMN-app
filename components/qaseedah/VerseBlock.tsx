@@ -134,13 +134,13 @@ export function VerseBlock({
 const styles = StyleSheet.create({
   wrap: {
     paddingHorizontal: 6,
-    paddingVertical: 18,
+    paddingVertical: 12,
     alignItems: 'center',
-    gap: 14,
+    gap: 10,
   },
   chorusWrap: {
     borderRadius: 16,
-    paddingVertical: 22,
+    paddingVertical: 16,
     paddingHorizontal: 10,
     marginHorizontal: -4,
     backgroundColor: Colors.chorusBg,
@@ -152,21 +152,21 @@ const styles = StyleSheet.create({
     marginBottom: -6,
   },
   label: {
-    fontSize: 11,
-    letterSpacing: 2,
+    fontSize: 10,
+    letterSpacing: 1.2,
     textTransform: 'uppercase',
     fontWeight: '700',
     color: Colors.textSubtle,
   },
   chapterLabel: {
     fontSize: 10,
-    letterSpacing: 1.5,
+    letterSpacing: 1.1,
     textTransform: 'uppercase',
     fontWeight: '600',
     color: Colors.textSubtle,
     textAlign: 'center',
     opacity: 0.75,
-    marginBottom: -6,
+    marginBottom: -3,
   },
   chorusLabel: {
     color: Colors.gold,
@@ -176,9 +176,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   hint: {
-    fontSize: 11,
+    fontSize: 10,
     color: Colors.textSubtle,
     fontStyle: 'italic',
-    marginTop: 4,
+    marginTop: 2,
   },
 });

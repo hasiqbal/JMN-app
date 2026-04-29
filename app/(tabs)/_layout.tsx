@@ -20,9 +20,11 @@ import {
   DEFAULT_ADHAAN_OPTION_ID,
   DEFAULT_ADHKAR_REMINDER_SOUND_MODE,
   DEFAULT_ADHKAR_REMINDERS_ENABLED,
+  DEFAULT_IQAMAH_EXACT_SOUND_ENABLED,
   DEFAULT_PRAYER_AUDIO_MUTED,
   getAdhaanOptionById,
   getPrayerStartChannelId,
+  IQAMAH_EXACT_SOUND_ENABLED_STORAGE_KEY,
   IQAMAH_NOTIFICATION_CHANNEL_ID,
   IQAMAH_NOTIFICATION_SILENT_CHANNEL_ID,
   IQAMAH_SOUND_FILE,
@@ -463,6 +465,29 @@ export default function TabLayout() {
               ? DEFAULT_PRAYER_AUDIO_MUTED
               : prayerAudioMutedRaw === 'true';
             if (prayerAudioMuted) return;
+
+            const iqamahExactSoundRaw = await AsyncStorage
+              .getItem(IQAMAH_EXACT_SOUND_ENABLED_STORAGE_KEY)
+              .catch(() => null);
+            const iqamahExactSoundEnabled = iqamahExactSoundRaw == null
+              ? DEFAULT_IQAMAH_EXACT_SOUND_ENABLED
+              : iqamahExactSoundRaw === 'true';
+            if (!iqamahExactSoundEnabled) return;
+
+            await playIqamah();
+          })();
+          return;
+        }
+
+        if (scope === PRAYER_NOTIFICATION_SCOPE && type === 'jamaat-10') {
+          void (async () => {
+            const prayerAudioMutedRaw = await AsyncStorage
+              .getItem(PRAYER_AUDIO_MUTED_STORAGE_KEY)
+              .catch(() => null);
+            const prayerAudioMuted = prayerAudioMutedRaw == null
+              ? DEFAULT_PRAYER_AUDIO_MUTED
+              : prayerAudioMutedRaw === 'true';
+            if (prayerAudioMuted) return;
             await playIqamah();
           })();
         }
@@ -601,6 +626,13 @@ export default function TabLayout() {
         ? DEFAULT_PRAYER_AUDIO_MUTED
         : prayerAudioMutedRaw === 'true';
 
+      const iqamahExactSoundRaw = await AsyncStorage
+        .getItem(IQAMAH_EXACT_SOUND_ENABLED_STORAGE_KEY)
+        .catch(() => null);
+      const iqamahExactSoundEnabled = iqamahExactSoundRaw == null
+        ? DEFAULT_IQAMAH_EXACT_SOUND_ENABLED
+        : iqamahExactSoundRaw === 'true';
+
       await ensureAndroidPrayerNotificationChannel(selectedAdhaanOption.id);
 
       const now = new Date();
@@ -629,16 +661,24 @@ export default function TabLayout() {
       for (const item of planned) {
         const isPrayerStart = item.data.type === 'prayer-start';
         const isIqamahStart = item.data.type === 'iqamah-start';
+        const isJamaatLead = item.data.type === 'jamaat-10';
+        const iqamahStartAudible = !prayerAudioMuted && iqamahExactSoundEnabled;
         const prayerStartChannelId = getPrayerStartChannelId(selectedAdhaanOption.id, prayerAudioMuted);
         const prayerChannelId = isPrayerStart
           ? prayerStartChannelId
           : (isIqamahStart
+              ? (iqamahStartAudible ? IQAMAH_NOTIFICATION_CHANNEL_ID : IQAMAH_NOTIFICATION_SILENT_CHANNEL_ID)
+              : isJamaatLead
               ? (prayerAudioMuted ? IQAMAH_NOTIFICATION_SILENT_CHANNEL_ID : IQAMAH_NOTIFICATION_CHANNEL_ID)
               : PRAYER_NOTIFICATION_CHANNEL_ID);
         const prayerSound = isPrayerStart
           ? (prayerAudioMuted ? false : selectedAdhaanOption.soundFile)
-          : (isIqamahStart ? (prayerAudioMuted ? false : IQAMAH_SOUND_FILE) : 'default');
-        const categoryIdentifier = (isPrayerStart || isIqamahStart)
+          : (isIqamahStart
+              ? (iqamahStartAudible ? IQAMAH_SOUND_FILE : false)
+              : isJamaatLead
+              ? (prayerAudioMuted ? false : IQAMAH_SOUND_FILE)
+              : 'default');
+        const categoryIdentifier = (isPrayerStart || isIqamahStart || isJamaatLead)
           ? PRAYER_AUDIO_NOTIFICATION_CATEGORY_ID
           : undefined;
 

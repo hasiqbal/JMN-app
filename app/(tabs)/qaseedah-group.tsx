@@ -96,6 +96,16 @@ function hasLatinScript(value: string): boolean {
   return /[A-Za-z]/.test(value);
 }
 
+function hasLikelyUrduScript(value: string): boolean {
+  // Prefer Urdu fallback only when Urdu-specific letters are present.
+  // This avoids pulling Arabic-only lines into the Urdu layer.
+  return /[ٹڈڑںےھہچژگپکڑ]/.test(value);
+}
+
+function hasQuranicDiacritics(value: string): boolean {
+  return /[\u064B-\u065F\u0670\u06D6-\u06ED]/.test(value);
+}
+
 function normalizeLineFields(line: GroupChapterItem['lines'][number]): {
   arabic: string;
   transliteration: string;
@@ -107,16 +117,21 @@ function normalizeLineFields(line: GroupChapterItem['lines'][number]): {
   const rawEnglish = line.translation?.trim() || '';
   const rawUrdu = line.urdu_translation?.trim() || '';
 
+  const arabicLooksUrdu = hasLikelyUrduScript(rawArabic) && !hasQuranicDiacritics(rawArabic);
+  const normalizedArabic = (!rawUrdu && arabicLooksUrdu) ? '' : rawArabic;
+
   const english = hasLatinScript(rawEnglish)
     ? rawEnglish
     : (!hasLatinScript(rawEnglish) && hasLatinScript(rawUrdu) ? rawUrdu : '');
 
-  const urdu = hasArabicScript(rawUrdu)
+  const urdu = rawUrdu
     ? rawUrdu
-    : (!hasArabicScript(rawUrdu) && hasArabicScript(rawEnglish) ? rawEnglish : '');
+    : (arabicLooksUrdu
+      ? rawArabic
+      : (hasLikelyUrduScript(rawEnglish) ? rawEnglish : ''));
 
   return {
-    arabic: rawArabic,
+    arabic: normalizedArabic,
     transliteration: rawTranslit,
     english,
     urdu,
@@ -280,7 +295,11 @@ function extractChapterItems(rows: AdhkarRow[]): GroupChapterItem[] {
         const arabic = typeof section.arabic === 'string' ? section.arabic.trim() : '';
         const transliteration = typeof section.transliteration === 'string' ? section.transliteration.trim() : '';
         const translation = typeof section.translation === 'string' ? section.translation.trim() : '';
-        const urduTranslation = typeof section.urdu_translation === 'string' ? section.urdu_translation.trim() : '';
+        const urduTranslation = typeof section.urdu_translation === 'string'
+          ? section.urdu_translation.trim()
+          : (typeof (section as { translation_urdu?: unknown }).translation_urdu === 'string'
+            ? ((section as { translation_urdu?: string }).translation_urdu || '').trim()
+            : '');
         if (!arabic && !transliteration && !translation && !urduTranslation) return;
 
         const chapter = isPoem
@@ -444,22 +463,23 @@ export default function QaseedahGroupScreen() {
         }
       };
 
-      // Always render from cache first for a stable, fast experience.
+      const contentType = type === 'naat' ? 'naat' : 'qaseedah';
+
+      // Render quickly from cache when available, then always revalidate so
+      // updated portal verses appear immediately without waiting for cache TTL.
       const cachedOrLiveRows = await fetchQaseedahNaatEntriesForGroup(
         groupName,
-        type === 'naat' ? 'naat' : 'qaseedah',
+        contentType,
       );
       applyRows(cachedOrLiveRows);
 
-      if (asRefresh) {
-        // Revalidate on pull-to-refresh and only apply if content actually changed.
-        const revalidatedRows = await fetchQaseedahNaatEntriesForGroup(
-          groupName,
-          type === 'naat' ? 'naat' : 'qaseedah',
-          { forceRefresh: true },
-        );
-        applyRows(revalidatedRows);
-      }
+      // Revalidate on focus and pull-to-refresh; applyRows updates only on signature changes.
+      const revalidatedRows = await fetchQaseedahNaatEntriesForGroup(
+        groupName,
+        contentType,
+        { forceRefresh: true },
+      );
+      applyRows(revalidatedRows);
 
       setError(null);
     } catch {
@@ -749,6 +769,10 @@ export default function QaseedahGroupScreen() {
                         const effectiveTranslit = formatTransliterationText(normalized.transliteration || auto?.transliteration || '');
                         const effectiveEnglish = formatEnglishTranslationText(normalized.english || auto?.english || '');
                         const effectiveUrdu = normalized.urdu || auto?.urdu || '';
+                        const renderedArabic = chapter.disableAutoArabic ? '' : effectiveArabic;
+                        const renderedTranslit = chapter.disableAutoTransliteration ? '' : effectiveTranslit;
+                        const renderedEnglish = chapter.disableAutoEnglish ? '' : effectiveEnglish;
+                        const renderedUrdu = chapter.disableAutoUrdu ? '' : effectiveUrdu;
 
                         const headingLower = (line.heading || '').toLowerCase();
                         let role: VerseRole = 'verse';
@@ -773,10 +797,10 @@ export default function QaseedahGroupScreen() {
                               verseNumber={verseNumber}
                               chapterLabel={chapter.isPoem ? undefined : chapter.chapter}
                               primaryLanguage={chapter.primaryLanguage}
-                              arabic={effectiveArabic}
-                              transliteration={effectiveTranslit || undefined}
-                              translation={effectiveEnglish || undefined}
-                              urdu={effectiveUrdu || undefined}
+                              arabic={renderedArabic}
+                              transliteration={renderedTranslit || undefined}
+                              translation={renderedEnglish || undefined}
+                              urdu={renderedUrdu || undefined}
                               isAutoTranslated={isAuto}
                               layers={layers}
                               scale={textScale}

@@ -44,10 +44,10 @@ export const APP_CONFIG = {
       isRandom: false,
     },
     {
-      id: 'abdul-basit-murattal',
+      id: 'abdul-basit-mujawwad',
       label: 'Qari Abdul Basit Abdus Samad',
-      sublabel: "Hafs 'an Asim • Murattal",
-      url: 'https://server7.mp3quran.net/basit/{}',
+      sublabel: "Hafs 'an Asim • Mujawwad",
+      url: 'https://media.way2quran.com/abdul-basit-abdul-samad-(mujawd)/hafs-an-asim/{}.mp3',
       icon: 'menu-book',
       isRandom: false,
     },
