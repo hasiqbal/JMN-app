@@ -1971,7 +1971,6 @@ function ForYouCard({
   const N = nightMode ? NIGHT : null;
   const isOverdue = !!card.isOverdue;
   const overdueColor = nightMode ? '#FF736A' : '#C62828';
-
   const accentColor = isOverdue ? overdueColor : card.color;
 
   return (
@@ -1994,12 +1993,7 @@ function ForYouCard({
               size={16}
               color={accentColor}
             />
-            {isOverdue ? (
-              <View style={[fyStyles.badgeRow, { backgroundColor: overdueColor + '18', flexDirection: 'row', alignItems: 'center', gap: 3 }]}>
-                <MaterialIcons name="warning-amber" size={9} color={overdueColor} />
-                <Text style={[fyStyles.badgeText, { color: overdueColor }]}>Still Due</Text>
-              </View>
-            ) : card.badge ? (
+            {card.badge ? (
               <View style={[
                 fyStyles.badgeRow,
                 { backgroundColor: card.color + '14' },

@@ -49,6 +49,177 @@ const PRAYER_NOTIFICATION_SCOPE = 'jmn-prayer';
 const BG_ADHAAN_TEST_LOG_KEY = 'jmn_bg_adhaan_test_log_v1';
 const BG_IQAMAH_TEST_LOG_KEY = 'jmn_bg_iqamah_test_log_v1';
 
+type AndroidChannelSnapshot = Awaited<ReturnType<ExpoNotificationsModule['getNotificationChannelAsync']>>;
+
+function getChannelSoundLabel(channel: AndroidChannelSnapshot): string {
+  if (!channel) return 'missing-channel';
+  return channel.sound === null ? 'null' : String(channel.sound);
+}
+
+function getChannelVibrationLabel(channel: AndroidChannelSnapshot): string {
+  if (!channel) return 'missing-channel';
+  return Array.isArray(channel.vibrationPattern) && channel.vibrationPattern.length > 0 ? 'configured' : 'missing';
+}
+
+async function ensureAndroidSilentPrayerChannel(Notifications: ExpoNotificationsModule): Promise<void> {
+  await Notifications.setNotificationChannelAsync(PRAYER_SILENT_CHANNEL_ID, {
+    name: 'JMN Prayer Alerts (Silent)',
+    importance: Notifications.AndroidImportance.HIGH,
+    enableVibrate: true,
+    vibrationPattern: [0, 80],
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    sound: null,
+  }).catch(() => {});
+}
+
+async function ensureAndroidCustomPrayerChannel(args: {
+  Notifications: ExpoNotificationsModule;
+  channelId: string;
+  name: string;
+  sound: string;
+}): Promise<AndroidChannelSnapshot> {
+  const existingChannel = await args.Notifications
+    .getNotificationChannelAsync(args.channelId)
+    .catch(() => null);
+
+  const shouldResetChannel = !!existingChannel && (
+    existingChannel.sound === 'default'
+    || existingChannel.sound == null
+    || !Array.isArray(existingChannel.vibrationPattern)
+    || existingChannel.vibrationPattern.length === 0
+  );
+
+  if (shouldResetChannel) {
+    await args.Notifications.deleteNotificationChannelAsync(args.channelId).catch(() => {});
+  }
+
+  await args.Notifications.setNotificationChannelAsync(args.channelId, {
+    name: args.name,
+    importance: args.Notifications.AndroidImportance.HIGH,
+    enableVibrate: true,
+    vibrationPattern: [0, 200, 120, 200],
+    lockscreenVisibility: args.Notifications.AndroidNotificationVisibility.PUBLIC,
+    sound: args.sound,
+  }).catch(() => {});
+
+  return await args.Notifications.getNotificationChannelAsync(args.channelId).catch(() => null);
+}
+
+async function resolveAndroidAdhaanTestChannel(args: {
+  Notifications: ExpoNotificationsModule;
+  selectedOptionId: string;
+  selectedSoundFile: string;
+}): Promise<{
+  channelId: string;
+  notificationSound: string;
+  channel: AndroidChannelSnapshot;
+  failureDetails: string;
+}> {
+  const attempts = [
+    {
+      channelId: getPrayerAdhaanChannelId(args.selectedOptionId),
+      name: 'JMN Adhaan Alerts',
+      soundForChannel: args.selectedSoundFile,
+      notificationSound: args.selectedSoundFile,
+    },
+    {
+      channelId: getPrayerAdhaanRecoveryChannelId(args.selectedOptionId),
+      name: 'JMN Adhaan Alerts (Recovery)',
+      soundForChannel: args.selectedSoundFile,
+      notificationSound: args.selectedSoundFile,
+    },
+    {
+      channelId: getPrayerAdhaanRecoveryNoExtChannelId(args.selectedOptionId),
+      name: 'JMN Adhaan Alerts (Recovery NoExt)',
+      soundForChannel: args.selectedSoundFile.replace(/\.[^/.]+$/, ''),
+      notificationSound: args.selectedSoundFile,
+    },
+  ] as const;
+
+  const failureDetails: string[] = [];
+
+  for (const attempt of attempts) {
+    const channel = await ensureAndroidCustomPrayerChannel({
+      Notifications: args.Notifications,
+      channelId: attempt.channelId,
+      name: attempt.name,
+      sound: attempt.soundForChannel,
+    });
+
+    if (channel?.sound === 'custom') {
+      return {
+        channelId: attempt.channelId,
+        notificationSound: attempt.notificationSound,
+        channel,
+        failureDetails: '',
+      };
+    }
+
+    failureDetails.push(
+      `${attempt.channelId}[expected=${attempt.soundForChannel},actual=${String(channel?.sound ?? null)}]`
+    );
+  }
+
+  return {
+    channelId: attempts[0].channelId,
+    notificationSound: args.selectedSoundFile,
+    channel: await args.Notifications.getNotificationChannelAsync(attempts[0].channelId).catch(() => null),
+    failureDetails: failureDetails.join('; '),
+  };
+}
+
+async function resolveAndroidIqamahTestChannel(args: {
+  Notifications: ExpoNotificationsModule;
+}): Promise<{
+  channelId: string;
+  notificationSound: string;
+  channel: AndroidChannelSnapshot;
+  failureDetails: string;
+}> {
+  const noExtIqamahSound = IQAMAH_BACKGROUND_SOUND_FILE.replace(/\.[^/.]+$/, '');
+  const attempts = [
+    {
+      soundForChannel: IQAMAH_BACKGROUND_SOUND_FILE,
+      name: 'JMN Jamaat Alerts',
+    },
+    {
+      soundForChannel: noExtIqamahSound,
+      name: 'JMN Jamaat Alerts (NoExt)',
+    },
+  ] as const;
+
+  const failureDetails: string[] = [];
+
+  for (const attempt of attempts) {
+    const channel = await ensureAndroidCustomPrayerChannel({
+      Notifications: args.Notifications,
+      channelId: PRAYER_JAMAAT_CHANNEL_ID,
+      name: attempt.name,
+      sound: attempt.soundForChannel,
+    });
+
+    if (channel?.sound === 'custom') {
+      return {
+        channelId: PRAYER_JAMAAT_CHANNEL_ID,
+        notificationSound: IQAMAH_BACKGROUND_SOUND_FILE,
+        channel,
+        failureDetails: '',
+      };
+    }
+
+    failureDetails.push(
+      `${PRAYER_JAMAAT_CHANNEL_ID}[expected=${attempt.soundForChannel},actual=${String(channel?.sound ?? null)}]`
+    );
+  }
+
+  return {
+    channelId: PRAYER_JAMAAT_CHANNEL_ID,
+    notificationSound: IQAMAH_BACKGROUND_SOUND_FILE,
+    channel: await args.Notifications.getNotificationChannelAsync(PRAYER_JAMAAT_CHANNEL_ID).catch(() => null),
+    failureDetails: failureDetails.join('; '),
+  };
+}
+
 type SwitchRowProps = {
   label: string;
   hint: string;
@@ -205,7 +376,8 @@ export default function SettingsScreen() {
     const adhaanMutedNow = await isAdhaanMutedEnabled();
     const selectedAdhaanOption = getAdhaanOptionByUrl(selectedAdhaanUrl) ?? ADHAAN_AUDIO_OPTIONS[0];
     let activeAdhaanChannelId = getPrayerAdhaanChannelId(selectedAdhaanOption.id);
-    const activeAdhaanSoundFile = selectedAdhaanOption.backgroundSoundFile;
+    let activeAdhaanSoundFile = selectedAdhaanOption.backgroundSoundFile;
+    let resolvedChannel: AndroidChannelSnapshot = null;
 
     if (status !== 'granted') {
       const requested = await Notifications.requestPermissionsAsync().catch(() => null);
@@ -225,139 +397,44 @@ export default function SettingsScreen() {
 
     if (Platform.OS === 'android') {
       if (adhaanMutedNow) {
-        await Notifications.setNotificationChannelAsync(PRAYER_SILENT_CHANNEL_ID, {
-          name: 'JMN Prayer Alerts (Silent)',
-          importance: Notifications.AndroidImportance.HIGH,
-          enableVibrate: true,
-          vibrationPattern: [0, 80],
-          lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-          sound: null,
-        }).catch(() => {});
+        await ensureAndroidSilentPrayerChannel(Notifications);
+        resolvedChannel = await Notifications.getNotificationChannelAsync(PRAYER_SILENT_CHANNEL_ID).catch(() => null);
       } else {
-        const existingAdhaanChannel = await Notifications
-          .getNotificationChannelAsync(activeAdhaanChannelId)
-          .catch(() => null);
+        const resolved = await resolveAndroidAdhaanTestChannel({
+          Notifications,
+          selectedOptionId: selectedAdhaanOption.id,
+          selectedSoundFile: selectedAdhaanOption.backgroundSoundFile,
+        });
 
-        const shouldResetAdhaanChannel = !!existingAdhaanChannel && (
-          existingAdhaanChannel.sound === 'default'
-          || existingAdhaanChannel.sound == null
-          || !Array.isArray(existingAdhaanChannel.vibrationPattern)
-          || existingAdhaanChannel.vibrationPattern.length === 0
-        );
+        activeAdhaanChannelId = resolved.channelId;
+        activeAdhaanSoundFile = resolved.notificationSound;
+        resolvedChannel = resolved.channel;
 
-        if (shouldResetAdhaanChannel) {
-          await Notifications.deleteNotificationChannelAsync(activeAdhaanChannelId).catch(() => {});
-        }
-
-        await Notifications.setNotificationChannelAsync(activeAdhaanChannelId, {
-          name: 'JMN Adhaan Alerts',
-          importance: Notifications.AndroidImportance.HIGH,
-          enableVibrate: true,
-          vibrationPattern: [0, 200, 120, 200],
-          lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-          sound: activeAdhaanSoundFile,
-        }).catch(() => {});
-
-        const selectedAfterCreate = await Notifications
-          .getNotificationChannelAsync(activeAdhaanChannelId)
-          .catch(() => null);
-
-        if (selectedAfterCreate?.sound !== 'custom') {
-          const recoveryChannelId = getPrayerAdhaanRecoveryChannelId(selectedAdhaanOption.id);
-
-          const existingRecoveryChannel = await Notifications
-            .getNotificationChannelAsync(recoveryChannelId)
-            .catch(() => null);
-
-          const shouldResetRecoveryChannel = !!existingRecoveryChannel && (
-            existingRecoveryChannel.sound === 'default'
-            || existingRecoveryChannel.sound == null
-            || !Array.isArray(existingRecoveryChannel.vibrationPattern)
-            || existingRecoveryChannel.vibrationPattern.length === 0
+        if (resolvedChannel?.sound !== 'custom') {
+          const reason = resolved.failureDetails || `channel=${activeAdhaanChannelId}, actual=${String(resolvedChannel?.sound ?? null)}`;
+          await AsyncStorage.setItem(BG_ADHAAN_TEST_LOG_KEY, JSON.stringify({
+            ts: new Date().toISOString(),
+            ok: false,
+            reason,
+          })).catch(() => {});
+          showBanner(
+            'Adhaan test setup failed',
+            `Could not bind custom adhaan channel sound. ${reason}`,
+            10000,
+            'warning',
           );
-
-          if (shouldResetRecoveryChannel) {
-            await Notifications.deleteNotificationChannelAsync(recoveryChannelId).catch(() => {});
-          }
-
-          await Notifications.setNotificationChannelAsync(recoveryChannelId, {
-            name: 'JMN Adhaan Alerts (Recovery)',
-            importance: Notifications.AndroidImportance.HIGH,
-            enableVibrate: true,
-            vibrationPattern: [0, 200, 120, 200],
-            lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-            sound: activeAdhaanSoundFile,
-          }).catch(() => {});
-
-          const recoveryAfterCreate = await Notifications
-            .getNotificationChannelAsync(recoveryChannelId)
-            .catch(() => null);
-
-          if (recoveryAfterCreate?.sound === 'custom') {
-            activeAdhaanChannelId = recoveryChannelId;
-          } else {
-            const selectedSoundNoExt = activeAdhaanSoundFile.replace(/\.[^/.]+$/, '');
-            const recoveryNoExtChannelId = getPrayerAdhaanRecoveryNoExtChannelId(selectedAdhaanOption.id);
-
-            const existingRecoveryNoExtChannel = await Notifications
-              .getNotificationChannelAsync(recoveryNoExtChannelId)
-              .catch(() => null);
-
-            const shouldResetRecoveryNoExtChannel = !!existingRecoveryNoExtChannel && (
-              existingRecoveryNoExtChannel.sound === 'default'
-              || existingRecoveryNoExtChannel.sound == null
-              || !Array.isArray(existingRecoveryNoExtChannel.vibrationPattern)
-              || existingRecoveryNoExtChannel.vibrationPattern.length === 0
-            );
-
-            if (shouldResetRecoveryNoExtChannel) {
-              await Notifications.deleteNotificationChannelAsync(recoveryNoExtChannelId).catch(() => {});
-            }
-
-            await Notifications.setNotificationChannelAsync(recoveryNoExtChannelId, {
-              name: 'JMN Adhaan Alerts (Recovery NoExt)',
-              importance: Notifications.AndroidImportance.HIGH,
-              enableVibrate: true,
-              vibrationPattern: [0, 200, 120, 200],
-              lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-              sound: selectedSoundNoExt,
-            }).catch(() => {});
-
-            const recoveryNoExtAfterCreate = await Notifications
-              .getNotificationChannelAsync(recoveryNoExtChannelId)
-              .catch(() => null);
-
-            if (recoveryNoExtAfterCreate?.sound === 'custom') {
-              activeAdhaanChannelId = recoveryNoExtChannelId;
-            }
-          }
+          return;
         }
       }
     }
 
-    const resolvedChannel = Platform.OS === 'android'
-      ? await Notifications.getNotificationChannelAsync(adhaanMutedNow ? PRAYER_SILENT_CHANNEL_ID : activeAdhaanChannelId)
-        .catch(() => null)
-      : null;
-
     const channelSound = Platform.OS === 'android'
-      ? (resolvedChannel ? (resolvedChannel.sound === null ? 'null' : String(resolvedChannel.sound)) : 'missing-channel')
+      ? getChannelSoundLabel(resolvedChannel)
       : 'ios';
 
     const channelVibration = Platform.OS === 'android'
-      ? (resolvedChannel
-        ? (Array.isArray(resolvedChannel.vibrationPattern) && resolvedChannel.vibrationPattern.length > 0 ? 'configured' : 'missing')
-        : 'missing-channel')
+      ? getChannelVibrationLabel(resolvedChannel)
       : 'ios';
-
-    if (Platform.OS === 'android' && !adhaanMutedNow && channelSound === 'default') {
-      showBanner(
-        'Android channel still default',
-        'Selected adhaan sound was not applied to the active channel. Install a fresh build and reinstall app so selected adhaan channels are recreated.',
-        10000,
-        'warning',
-      );
-    }
 
     const fireAt = new Date(Date.now() + 10_000);
     const trigger = Platform.OS === 'android'
@@ -428,6 +505,9 @@ export default function SettingsScreen() {
     const current = await Notifications.getPermissionsAsync().catch(() => null);
     let status = current?.status ?? 'undetermined';
     const iqamahMutedNow = await isIqamahMutedEnabled();
+    let activeIqamahChannelId = PRAYER_JAMAAT_CHANNEL_ID;
+    let activeIqamahSoundFile = IQAMAH_BACKGROUND_SOUND_FILE;
+    let resolvedChannel: AndroidChannelSnapshot = null;
 
     if (status !== 'granted') {
       const requested = await Notifications.requestPermissionsAsync().catch(() => null);
@@ -447,66 +527,50 @@ export default function SettingsScreen() {
 
     if (Platform.OS === 'android') {
       if (iqamahMutedNow) {
-        await Notifications.setNotificationChannelAsync(PRAYER_SILENT_CHANNEL_ID, {
-          name: 'JMN Prayer Alerts (Silent)',
-          importance: Notifications.AndroidImportance.HIGH,
-          enableVibrate: true,
-          vibrationPattern: [0, 80],
-          lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-          sound: null,
-        }).catch(() => {});
+        await ensureAndroidSilentPrayerChannel(Notifications);
+        resolvedChannel = await Notifications.getNotificationChannelAsync(PRAYER_SILENT_CHANNEL_ID).catch(() => null);
       } else {
-        const existingIqamahChannel = await Notifications
-          .getNotificationChannelAsync(PRAYER_JAMAAT_CHANNEL_ID)
-          .catch(() => null);
+        const resolved = await resolveAndroidIqamahTestChannel({ Notifications });
+        activeIqamahChannelId = resolved.channelId;
+        activeIqamahSoundFile = resolved.notificationSound;
+        resolvedChannel = resolved.channel;
 
-        const shouldResetIqamahChannel = !!existingIqamahChannel && (
-          existingIqamahChannel.sound === 'default'
-          || existingIqamahChannel.sound == null
-          || !Array.isArray(existingIqamahChannel.vibrationPattern)
-          || existingIqamahChannel.vibrationPattern.length === 0
-        );
-
-        if (shouldResetIqamahChannel) {
-          await Notifications.deleteNotificationChannelAsync(PRAYER_JAMAAT_CHANNEL_ID).catch(() => {});
+        if (resolvedChannel?.sound !== 'custom') {
+          const reason = resolved.failureDetails || `channel=${activeIqamahChannelId}, actual=${String(resolvedChannel?.sound ?? null)}`;
+          await AsyncStorage.setItem(BG_IQAMAH_TEST_LOG_KEY, JSON.stringify({
+            ts: new Date().toISOString(),
+            ok: false,
+            reason,
+          })).catch(() => {});
+          showBanner(
+            'Iqamah test setup failed',
+            `Could not bind custom iqamah channel sound. ${reason}`,
+            10000,
+            'warning',
+          );
+          return;
         }
-
-        await Notifications.setNotificationChannelAsync(PRAYER_JAMAAT_CHANNEL_ID, {
-          name: 'JMN Jamaat Alerts',
-          importance: Notifications.AndroidImportance.HIGH,
-          enableVibrate: true,
-          vibrationPattern: [0, 200, 120, 200],
-          lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-          sound: IQAMAH_BACKGROUND_SOUND_FILE,
-        }).catch(() => {});
       }
     }
 
-    const resolvedChannel = Platform.OS === 'android'
-      ? await Notifications.getNotificationChannelAsync(iqamahMutedNow ? PRAYER_SILENT_CHANNEL_ID : PRAYER_JAMAAT_CHANNEL_ID)
-        .catch(() => null)
-      : null;
-
     const channelSound = Platform.OS === 'android'
-      ? (resolvedChannel ? (resolvedChannel.sound === null ? 'null' : String(resolvedChannel.sound)) : 'missing-channel')
+      ? getChannelSoundLabel(resolvedChannel)
       : 'ios';
 
     const channelVibration = Platform.OS === 'android'
-      ? (resolvedChannel
-        ? (Array.isArray(resolvedChannel.vibrationPattern) && resolvedChannel.vibrationPattern.length > 0 ? 'configured' : 'missing')
-        : 'missing-channel')
+      ? getChannelVibrationLabel(resolvedChannel)
       : 'ios';
 
     const fireAt = new Date(Date.now() + 10_000);
     const trigger = Platform.OS === 'android'
-      ? ({ type: 'date', date: fireAt, channelId: iqamahMutedNow ? PRAYER_SILENT_CHANNEL_ID : PRAYER_JAMAAT_CHANNEL_ID } as unknown as import('expo-notifications').NotificationTriggerInput)
+      ? ({ type: 'date', date: fireAt, channelId: iqamahMutedNow ? PRAYER_SILENT_CHANNEL_ID : activeIqamahChannelId } as unknown as import('expo-notifications').NotificationTriggerInput)
       : (fireAt as unknown as import('expo-notifications').NotificationTriggerInput);
 
     const scheduledId = await Notifications.scheduleNotificationAsync({
       content: {
         title: 'Test Iqamah (10s)',
         body: 'Background test: this should ring even if app is not open.',
-        sound: iqamahMutedNow ? false : IQAMAH_BACKGROUND_SOUND_FILE,
+        sound: iqamahMutedNow ? false : activeIqamahSoundFile,
         categoryIdentifier: PRAYER_NOTIFICATION_CATEGORY_ID,
         data: {
           scope: PRAYER_NOTIFICATION_SCOPE,
@@ -544,11 +608,11 @@ export default function SettingsScreen() {
       fireAtIso: fireAt.toISOString(),
       channelSound,
       channelVibration,
-      channelId: iqamahMutedNow ? PRAYER_SILENT_CHANNEL_ID : PRAYER_JAMAAT_CHANNEL_ID,
+      channelId: iqamahMutedNow ? PRAYER_SILENT_CHANNEL_ID : activeIqamahChannelId,
     })).catch(() => {});
 
     const mutedInfo = iqamahMutedNow ? 'Muted is ON, so this test should be silent.' : 'Muted is OFF, so iqamah should play at fire time.';
-    showBanner('Iqamah test scheduled', `${info} Prayer schedules: ${ownPrayerCount}. ${mutedInfo} Channel sound: ${channelSound}. Vibration: ${channelVibration}. Channel ID: ${iqamahMutedNow ? PRAYER_SILENT_CHANNEL_ID : PRAYER_JAMAAT_CHANNEL_ID}.`, 10000);
+    showBanner('Iqamah test scheduled', `${info} Prayer schedules: ${ownPrayerCount}. ${mutedInfo} Selected asset: ${activeIqamahSoundFile}. Channel sound: ${channelSound}. Vibration: ${channelVibration}. Channel ID: ${iqamahMutedNow ? PRAYER_SILENT_CHANNEL_ID : activeIqamahChannelId}.`, 10000);
   }, [showBanner]);
 
   const showLastAdhaanTestLog = useCallback(async () => {

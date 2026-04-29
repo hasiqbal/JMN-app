@@ -46,6 +46,7 @@ import { useInAppBanner } from '@/template';
 type ExpoNotificationsModule = typeof import('expo-notifications');
 
 let notificationsModulePromise: Promise<ExpoNotificationsModule | null> | null = null;
+const loggedAdhaanSoundMismatchKeys = new Set<string>();
 
 async function getNotificationsModule(): Promise<ExpoNotificationsModule | null> {
   if (Platform.OS === 'web') return null;
@@ -73,6 +74,7 @@ const JAMAAT_REMINDER_MINUTES = 10;
 const NOTIFICATION_MIN_LEAD_MS = 30 * 1000;
 const ANDROID_PRAYER_START_ADVANCE_MS = 60 * 1000;
 const IS_EXPO_GO = Constants.appOwnership === 'expo';
+const LEGACY_PRAYER_CHANNEL_CLEANUP_KEY = 'jmn_legacy_prayer_channel_cleanup_v1';
 const PUSH_MESSAGE_STORAGE_KEY = 'jmn_last_opened_push_message_v1';
 const FARD_PRAYER_NAMES = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'] as const;
 
@@ -188,6 +190,37 @@ async function ensureAndroidLiveNotificationChannel(): Promise<void> {
   }).catch(() => {});
 }
 
+async function cleanupLegacyAndroidPrayerChannels(): Promise<void> {
+  const Notifications = await getNotificationsModule();
+  if (!Notifications || Platform.OS !== 'android') return;
+
+  const alreadyCleaned = await AsyncStorage.getItem(LEGACY_PRAYER_CHANNEL_CLEANUP_KEY).catch(() => null);
+  if (alreadyCleaned === 'true') return;
+
+  const keepChannelIds = new Set<string>([
+    PRAYER_ALERT_CHANNEL_ID,
+    PRAYER_JAMAAT_CHANNEL_ID,
+    PRAYER_SILENT_CHANNEL_ID,
+  ]);
+
+  for (const option of ADHAAN_AUDIO_OPTIONS) {
+    keepChannelIds.add(getPrayerAdhaanChannelId(option.id));
+    keepChannelIds.add(getPrayerAdhaanRecoveryChannelId(option.id));
+    keepChannelIds.add(getPrayerAdhaanRecoveryNoExtChannelId(option.id));
+  }
+
+  const existingChannels = await Notifications.getNotificationChannelsAsync().catch(() => []);
+  const legacyChannelIds = existingChannels
+    .map((channel) => channel.id)
+    .filter((id) => id.startsWith('jmn-prayer-') && !keepChannelIds.has(id));
+
+  for (const channelId of legacyChannelIds) {
+    await Notifications.deleteNotificationChannelAsync(channelId).catch(() => {});
+  }
+
+  await AsyncStorage.setItem(LEGACY_PRAYER_CHANNEL_CLEANUP_KEY, 'true').catch(() => {});
+}
+
 async function ensureAndroidPrayerNotificationChannels(args?: {
   adhaanChannelId?: string;
   adhaanSoundFile?: string;
@@ -265,19 +298,8 @@ async function ensureAndroidPrayerNotificationChannels(args?: {
   if (!__DEV__) return;
 
   try {
-    const [adhaanChannel, jamaatChannel] = await Promise.all([
-      Notifications.getNotificationChannelAsync(adhaanChannelId),
-      Notifications.getNotificationChannelAsync(PRAYER_JAMAAT_CHANNEL_ID),
-    ]);
-
-    const actualAdhaanSound = adhaanChannel?.sound ?? null;
+    const jamaatChannel = await Notifications.getNotificationChannelAsync(PRAYER_JAMAAT_CHANNEL_ID).catch(() => null);
     const actualJamaatSound = jamaatChannel?.sound ?? null;
-
-    if (actualAdhaanSound === 'default' || actualAdhaanSound == null) {
-      console.warn(
-        `[notif] adhaan channel sound mismatch: id=${adhaanChannelId}, expected-custom=${adhaanSoundFile}, actual=${String(actualAdhaanSound)}`
-      );
-    }
 
     if (actualJamaatSound === 'default' || actualJamaatSound == null) {
       console.warn(
@@ -306,57 +328,64 @@ async function resolveAndroidPrayerAdhaanChannel(args: {
     };
   }
 
-  await ensureAndroidPrayerNotificationChannels({
-    adhaanChannelId: selectedChannelId,
-    adhaanSoundFile: args.selectedSoundFile,
-  });
-
-  const selectedChannel = await args.Notifications
-    .getNotificationChannelAsync(selectedChannelId)
-    .catch(() => null);
-
-  if (selectedChannel?.sound === 'custom') {
-    return {
-      channelId: selectedChannelId,
-      soundFile: args.selectedSoundFile,
-    };
-  }
-
   const recoveryChannelId = getPrayerAdhaanRecoveryChannelId(args.selectedOptionId);
-
-  await ensureAndroidPrayerNotificationChannels({
-    adhaanChannelId: recoveryChannelId,
-    adhaanSoundFile: args.selectedSoundFile,
-  });
-
-  const recoveryChannel = await args.Notifications
-    .getNotificationChannelAsync(recoveryChannelId)
-    .catch(() => null);
-
-  if (recoveryChannel?.sound === 'custom') {
-    return {
-      channelId: recoveryChannelId,
-      soundFile: args.selectedSoundFile,
-    };
-  }
-
   const selectedSoundNoExt = args.selectedSoundFile.replace(/\.[^/.]+$/, '');
   const recoveryNoExtChannelId = getPrayerAdhaanRecoveryNoExtChannelId(args.selectedOptionId);
 
-  await ensureAndroidPrayerNotificationChannels({
-    adhaanChannelId: recoveryNoExtChannelId,
-    adhaanSoundFile: selectedSoundNoExt,
-  });
-
-  const recoveryNoExtChannel = await args.Notifications
-    .getNotificationChannelAsync(recoveryNoExtChannelId)
-    .catch(() => null);
-
-  if (recoveryNoExtChannel?.sound === 'custom') {
-    return {
+  const attempts = [
+    {
+      channelId: selectedChannelId,
+      soundForChannel: args.selectedSoundFile,
+      soundForNotification: args.selectedSoundFile,
+    },
+    {
+      channelId: recoveryChannelId,
+      soundForChannel: args.selectedSoundFile,
+      soundForNotification: args.selectedSoundFile,
+    },
+    {
       channelId: recoveryNoExtChannelId,
-      soundFile: args.selectedSoundFile,
-    };
+      soundForChannel: selectedSoundNoExt,
+      soundForNotification: args.selectedSoundFile,
+    },
+  ] as const;
+
+  const attemptResults: Array<{ channelId: string; expected: string; actual: string | null }> = [];
+
+  for (const attempt of attempts) {
+    await ensureAndroidPrayerNotificationChannels({
+      adhaanChannelId: attempt.channelId,
+      adhaanSoundFile: attempt.soundForChannel,
+    });
+
+    const createdChannel = await args.Notifications
+      .getNotificationChannelAsync(attempt.channelId)
+      .catch(() => null);
+
+    if (createdChannel?.sound === 'custom') {
+      return {
+        channelId: attempt.channelId,
+        soundFile: attempt.soundForNotification,
+      };
+    }
+
+    attemptResults.push({
+      channelId: attempt.channelId,
+      expected: attempt.soundForChannel,
+      actual: createdChannel?.sound ?? null,
+    });
+  }
+
+  if (__DEV__) {
+    const details = attemptResults
+      .map((result) => `${result.channelId}[expected=${result.expected},actual=${String(result.actual)}]`)
+      .join('; ');
+    const mismatchKey = `${args.selectedOptionId}:${details}`;
+
+    if (!loggedAdhaanSoundMismatchKeys.has(mismatchKey)) {
+      loggedAdhaanSoundMismatchKeys.add(mismatchKey);
+      console.warn(`[notif] adhaan channel sound mismatch: ${details}`);
+    }
   }
 
   return {
@@ -669,6 +698,7 @@ export default function TabLayout() {
       const Notifications = await getNotificationsModule();
       if (!Notifications) return;
 
+      await cleanupLegacyAndroidPrayerChannels();
       await ensureAndroidLiveNotificationChannel();
       await ensureAndroidPrayerNotificationChannels();
       await ensureAndroidAdhkarNotificationChannels(DEFAULT_ADHKAR_REMINDER_SOUND_MODE);

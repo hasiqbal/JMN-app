@@ -1654,7 +1654,8 @@ function HeroPrayerStatus({
   showJamaatAnchor: boolean;
 }) {
   const jamaatPillFlashAnim = useRef(new Animated.Value(1)).current;
-  const isJamaatNow = stateLabel === 'JAMAAT NOW' || stateLabel === 'JAMAAT STARTING NOW';
+  const isJamaatNow = stateLabel === 'JAMAAT NOW';
+  const isJamaatStartingNow = stateLabel === 'JAMAAT STARTING NOW';
   const isJamaatInProgress = stateLabel === 'JAMAAT NOW';
   const isJamaatSoon = stateLabel === 'JAMAAT SOON';
   const isEndingSoon = stateLabel === 'ENDING SOON';
@@ -1662,7 +1663,7 @@ function HeroPrayerStatus({
   const normalizedStateLabel = stateLabel.trim().toUpperCase();
   const isForbidden = normalizedStateLabel === 'FORBIDDEN WINDOW' || prayerName === 'Zawaal';
   const showJamaatPill = showJamaatAnchor
-    && (normalizedStateLabel === 'UNTIL JAMAAT' || isJamaatNow || isJamaatSoon || isEndingSoon || isUntilEnd);
+    && (normalizedStateLabel === 'UNTIL JAMAAT' || isJamaatNow || isJamaatStartingNow || isJamaatSoon || isEndingSoon || isUntilEnd);
   const showContextPill = countdownText !== '00:00:00';
 
   useEffect(() => {
@@ -1714,6 +1715,8 @@ function HeroPrayerStatus({
   const pillLabel = showJamaatPill
     ? isJamaatNow
       ? 'Jamaat in progress'
+      : isJamaatStartingNow
+      ? 'Jamaat starts now'
       : isJamaatSoon
       ? 'Jamaat time soon'
       : isEndingSoon
