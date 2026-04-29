@@ -68,8 +68,20 @@ export default function RootLayout() {
             shouldShowList: true,
             shouldPlaySound: true,
             shouldSetBadge: false,
+            shouldVibrate: true,
           }),
         });
+
+        if (Platform.OS === 'android') {
+          await notifications.setNotificationChannelAsync('jmn-general-v2', {
+            name: 'JMN General Alerts',
+            importance: notifications.AndroidImportance.HIGH,
+            enableVibrate: true,
+            vibrationPattern: [0, 250, 150, 250],
+            lockscreenVisibility: notifications.AndroidNotificationVisibility.PUBLIC,
+            sound: 'default',
+          }).catch(() => {});
+        }
       } catch {
         // Keep app startup resilient when notifications module is unavailable.
       }

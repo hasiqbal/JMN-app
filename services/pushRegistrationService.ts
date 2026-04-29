@@ -11,10 +11,17 @@ type SyncResult = {
   reason?: string;
 };
 
+type SyncPushTokenOptions = {
+  youtubeLiveEnabled?: boolean;
+};
+
+export const YOUTUBE_LIVE_NOTIFY_KEY = 'jmn_youtube_live_notify';
+
 const TOKEN_SYNC_THROTTLE_MS = 10 * 60 * 1000;
 
 let lastSyncedToken: string | null = null;
 let lastSyncedAtMs = 0;
+let lastSyncedYoutubeLiveEnabled: boolean | null = null;
 
 function resolveProjectId(): string | null {
   const easProjectId = Constants.easConfig?.projectId;
@@ -59,7 +66,7 @@ async function upsertDeviceToken(token: string): Promise<void> {
   }
 }
 
-async function upsertLegacyPushSubscription(token: string): Promise<void> {
+async function upsertLegacyPushSubscription(token: string, youtubeLiveEnabled: boolean): Promise<void> {
   const client = getSupabaseClient();
 
   // Keep legacy compatibility while push_subscriptions exists in backend flows.
@@ -70,6 +77,7 @@ async function upsertLegacyPushSubscription(token: string): Promise<void> {
         token,
         platform: Platform.OS,
         is_active: true,
+        youtube_live_enabled: youtubeLiveEnabled,
       },
       { onConflict: 'token' },
     );
@@ -81,6 +89,7 @@ async function upsertLegacyPushSubscription(token: string): Promise<void> {
 
 export async function syncPushTokenWithBackend(
   notificationsModule: ExpoNotificationsModule,
+  options: SyncPushTokenOptions = {},
 ): Promise<SyncResult> {
   try {
     if (Platform.OS === 'web') {
@@ -100,6 +109,8 @@ export async function syncPushTokenWithBackend(
     if (!projectId) {
       return { synced: false, reason: 'missing-project-id' };
     }
+
+    const youtubeLiveEnabled = options.youtubeLiveEnabled === true;
 
     const permissions = await notificationsModule.getPermissionsAsync();
     if (permissions.status !== 'granted') {
@@ -139,7 +150,11 @@ export async function syncPushTokenWithBackend(
     }
 
     const nowMs = Date.now();
-    if (token === lastSyncedToken && nowMs - lastSyncedAtMs < TOKEN_SYNC_THROTTLE_MS) {
+    if (
+      token === lastSyncedToken
+      && lastSyncedYoutubeLiveEnabled === youtubeLiveEnabled
+      && nowMs - lastSyncedAtMs < TOKEN_SYNC_THROTTLE_MS
+    ) {
       return { synced: false, reason: 'throttled' };
     }
 
@@ -151,13 +166,14 @@ export async function syncPushTokenWithBackend(
     }
 
     try {
-      await upsertLegacyPushSubscription(token);
+      await upsertLegacyPushSubscription(token, youtubeLiveEnabled);
     } catch {
       // Legacy table may be removed later; device_tokens remains canonical.
     }
 
     lastSyncedToken = token;
     lastSyncedAtMs = nowMs;
+    lastSyncedYoutubeLiveEnabled = youtubeLiveEnabled;
 
     return { synced: true };
   } catch (error) {

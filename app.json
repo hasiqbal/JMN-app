@@ -38,16 +38,7 @@
       "expo-router",
       [
         "expo-notifications",
-        {
-          "sounds": [
-            "./assets/audio/adhaan_1.mp3",
-            "./assets/audio/adhaan_2.mp3",
-            "./assets/audio/adhaan_3.mp3",
-            "./assets/audio/adhaan_4.mp3",
-            "./assets/audio/adhaan_5.mp3",
-            "./assets/audio/iqamah.mp3"
-          ]
-        }
+        {}
       ],
       [
         "expo-splash-screen",

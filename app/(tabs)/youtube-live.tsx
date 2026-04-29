@@ -11,17 +11,15 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useIsFocused } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import WebView from 'react-native-webview';
 import { APP_CONFIG } from '@/constants/config';
 import { Radius, Spacing } from '@/constants/theme';
-import { useJmnLiveStatus } from '@/hooks/useJmnLiveStatus';
 
 const CHROME_HIDE_DELAY_MS = 2600;
 const PLAYER_TAP_MESSAGE = 'jmn-player-tap';
 const PLAYER_URL_MESSAGE_PREFIX = 'jmn-player-url:';
-const JMN_CHANNEL_HANDLE = APP_CONFIG.youtubeChannelId.replace(/^@/, '').toLowerCase();
+const JMN_CHANNEL_HANDLE = APP_CONFIG.youtubeChannelHandle.replace(/^@/, '').toLowerCase();
 const JMN_CHANNEL_HANDLE_COMPACT = JMN_CHANNEL_HANDLE.replace(/[^a-z0-9]/g, '');
 const JMN_CHANNEL_ID = APP_CONFIG.youtubeChannelId.toLowerCase().startsWith('uc')
   ? APP_CONFIG.youtubeChannelId.toLowerCase()
@@ -451,8 +449,6 @@ const WEBVIEW_BRIDGE_SCRIPT = `
 export default function YouTubeLiveScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const isFocused = useIsFocused();
-  const { isLive } = useJmnLiveStatus({ enabled: isFocused });
 
   const [showChrome, setShowChrome] = useState(false);
   const [playerError, setPlayerError] = useState<string | null>(null);
@@ -463,10 +459,7 @@ export default function YouTubeLiveScreen() {
   const lastBlockedUrlRef = useRef<string | null>(null);
   const currentVideoIdRef = useRef<string | null>(null);
 
-  const inAppPlayerUrl = useMemo(
-    () => (isLive ? APP_CONFIG.youtubeStreamUrl : APP_CONFIG.youtubeChannelUrl),
-    [isLive],
-  );
+  const inAppPlayerUrl = APP_CONFIG.youtubeStreamUrl;
   const escapedInAppPlayerUrl = useMemo(
     () => inAppPlayerUrl.replace(/\\/g, '\\\\').replace(/'/g, "\\'"),
     [inAppPlayerUrl],
@@ -808,8 +801,8 @@ export default function YouTubeLiveScreen() {
               <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
             </TouchableOpacity>
 
-            <View style={[styles.livePill, { backgroundColor: isLive ? '#BC2F2F' : '#637084' }]}>
-              <Text style={styles.livePillText}>{isLive ? 'LIVE' : 'OFFLINE'}</Text>
+            <View style={[styles.livePill, { backgroundColor: '#637084' }]}>
+              <Text style={styles.livePillText}>YOUTUBE</Text>
             </View>
 
             <View style={styles.topBarActions}>

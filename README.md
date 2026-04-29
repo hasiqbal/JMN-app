@@ -163,6 +163,70 @@ To remove the schedule later:
 select cron.unschedule('jmn-sync-mymasjid-live-every-minute');
 ```
 
+## Live Status Auto Sync (YouTube)
+
+This project also includes a Supabase Edge Function that:
+
+- reads the public YouTube channel feed
+- checks recent watch pages for `liveBroadcastDetails.isLiveNow`
+- sends push notifications to devices that enabled YouTube live alerts
+
+### 1. Apply the DB change
+
+Run the migration that adds `push_subscriptions.youtube_live_enabled` before deploying the function.
+
+### 2. Deploy the function
+
+```bash
+supabase functions deploy sync-youtube-live
+```
+
+### 3. Configure optional secrets
+
+```bash
+supabase secrets set YOUTUBE_LIVE_CHANNEL_ID="UCb41kAjATcW5rzOK0Z5QGwA"
+supabase secrets set YOUTUBE_LIVE_NOTIFY_COOLDOWN_MINUTES="15"
+supabase secrets set YOUTUBE_LIVE_SCAN_LIMIT="5"
+```
+
+### 4. Run a dry run check (manual)
+
+```bash
+curl -X POST "https://<project-ref>.functions.supabase.co/sync-youtube-live" \
+	-H "Authorization: Bearer <anon-or-service-role-key>" \
+	-H "Content-Type: application/json" \
+	-d '{"dryRun": true}'
+```
+
+### 5. Schedule it with pg_cron (recommended)
+
+Run this in the Supabase SQL editor:
+
+```sql
+select cron.schedule(
+	'jmn-sync-youtube-live-every-minute',
+	'*/1 * * * *',
+	$$
+	select
+		net.http_post(
+			url := 'https://<project-ref>.functions.supabase.co/sync-youtube-live',
+			headers := '{"Content-Type":"application/json","Authorization":"Bearer <anon-or-service-role-key>"}'::jsonb,
+			body := '{"dryRun":false}'::jsonb
+		);
+	$$
+);
+```
+
+To remove the schedule later:
+
+```sql
+select cron.unschedule('jmn-sync-youtube-live-every-minute');
+```
+
+### 6. App opt-in
+
+Users must enable `Notify when YouTube goes live` in the Settings screen so their Expo push token is synced with `youtube_live_enabled = true`.
+
 ## Notes
 
 - This project is configured as a private application.

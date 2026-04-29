@@ -31,7 +31,6 @@ import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useIsFocused } from '@react-navigation/native';
 import { APP_CONFIG } from '@/constants/config';
 import { Colors, Radius, Spacing, Typography } from '@/constants/theme';
-import { isPrayerAudioActive, subscribePrayerAudioState } from '@/hooks/useQuranPrayerPopups';
 import { useJmnLiveStatus } from '@/hooks/useJmnLiveStatus';
 import { useNightMode } from '@/hooks/useNightMode';
 import { refreshJmnLiveStatus } from '@/services/liveService';
@@ -335,7 +334,6 @@ const REWIND_SEEK_SETTLE_MS = 90;
 const SEEK_EPSILON_SEC = 0.35;
 const BOTTOM_PLAYER_COLLAPSED_HEIGHT = 200;
 const ANDROID_PLAYER_BOOTSTRAP_DELAY_MS = 40;
-const PRAYER_AUDIO_LOCK_NOTICE = 'Adhaan or iqamah is playing. Other app audio stays paused until prayer audio is muted or ends.';
 const EXPO_GO_NOTIFICATIONS_FALLBACK =
   Constants.appOwnership === 'expo' &&
   Number((Constants.expoConfig?.sdkVersion ?? '0').split('.')[0] || 0) >= 53;
@@ -940,25 +938,7 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
     setAudioLoading(false);
   }, []);
 
-  const ensurePrayerAudioUnlocked = useCallback((): boolean => {
-    if (!isPrayerAudioActive()) return true;
-
-    setAudioPlaying(false);
-    setAudioPaused(false);
-    setAudioLoading(false);
-    setRewindNotice(PRAYER_AUDIO_LOCK_NOTICE);
-    return false;
-  }, []);
-
-  useEffect(() => {
-    const unsubscribe = subscribePrayerAudioState((state) => {
-      if (!state.active) return;
-      setRewindNotice(PRAYER_AUDIO_LOCK_NOTICE);
-      void stopAudio();
-    });
-
-    return unsubscribe;
-  }, [stopAudio]);
+  const ensurePrayerAudioUnlocked = useCallback((): boolean => true, []);
 
   const pauseActiveAudio = useCallback(async () => {
     if ((!soundRef.current && !webAudioRef.current) || audioLoading) return;

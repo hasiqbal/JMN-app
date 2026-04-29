@@ -83,6 +83,7 @@ create table if not exists public.push_subscriptions (
   token      text        not null unique,
   platform   text,
   is_active  boolean     not null default true,
+  youtube_live_enabled boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

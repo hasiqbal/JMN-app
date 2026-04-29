@@ -13,7 +13,8 @@ export const APP_CONFIG = {
   aladhanMethod: 1, // Muslim World League — standard for UK mosques
 
   // Live Stream
-  youtubeChannelId: '@jamimasjidnoorani',
+  youtubeChannelHandle: '@jamimasjidnoorani',
+  youtubeChannelId: 'UCb41kAjATcW5rzOK0Z5QGwA',
   youtubeChannelUrl: 'https://youtube.com/@jamimasjidnoorani',
   youtubeStreamUrl: 'https://www.youtube.com/@jamimasjidnoorani/live',
   // Primary masjid live stream
