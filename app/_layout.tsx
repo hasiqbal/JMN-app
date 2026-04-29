@@ -101,9 +101,7 @@ export default function RootLayout() {
           <AppThemeProvider>
             <NightModeProvider>
               <InAppBannerProvider>
-                <Stack screenOptions={{ headerShown: false }}>
-                  <Stack.Screen name="(tabs)" />
-                </Stack>
+                <Stack screenOptions={{ headerShown: false }} />
               </InAppBannerProvider>
             </NightModeProvider>
           </AppThemeProvider>

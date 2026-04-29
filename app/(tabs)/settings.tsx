@@ -5,6 +5,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
+import {
+  PRAYER_NOTIFICATION_SCOPE,
+  PRAYER_START_NOTIFICATION_CHANNEL_ID,
+  PRAYER_START_NOTIFICATION_SOUND_FILE,
+} from '@/constants/prayerNotifications';
 import { syncPushTokenWithBackend, YOUTUBE_LIVE_NOTIFY_KEY } from '@/services/pushRegistrationService';
 import { useInAppBanner } from '@/template';
 
@@ -24,6 +29,7 @@ async function getNotificationsModule(): Promise<ExpoNotificationsModule | null>
 
 const LIVE_NOTIFICATION_CHANNEL_ID = 'jmn-live-v2';
 const LIVE_NOTIFY_KEY = 'jmn_radio_notify';
+const PRAYER_TEST_LEAD_MS = 10 * 1000;
 
 type SwitchRowProps = {
   label: string;
@@ -233,6 +239,58 @@ export default function SettingsScreen() {
     [ensureLiveNotificationPermission, showBanner],
   );
 
+  const runBackgroundAdhaanTest = useCallback(async () => {
+    const Notifications = await getNotificationsModule();
+    if (!Notifications) {
+      showBanner('Adhaan test unavailable', 'Notifications module is unavailable on this runtime.', 7000, 'warning');
+      return;
+    }
+
+    const allowed = await ensureLiveNotificationPermission();
+    if (!allowed) {
+      showBanner('Permission required', 'Enable notifications first to run adhaan background test.', 7000, 'warning');
+      return;
+    }
+
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync(PRAYER_START_NOTIFICATION_CHANNEL_ID, {
+        name: 'Prayer Start Adhaan',
+        importance: Notifications.AndroidImportance.HIGH,
+        enableVibrate: true,
+        vibrationPattern: [0, 220, 140, 220],
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        sound: PRAYER_START_NOTIFICATION_SOUND_FILE,
+      }).catch(() => {});
+    }
+
+    const fireAt = new Date(Date.now() + PRAYER_TEST_LEAD_MS);
+    const trigger = Platform.OS === 'android'
+      ? ({ type: 'date', date: fireAt, channelId: PRAYER_START_NOTIFICATION_CHANNEL_ID } as unknown as import('expo-notifications').NotificationTriggerInput)
+      : (fireAt as unknown as import('expo-notifications').NotificationTriggerInput);
+
+    const scheduled = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'Adhaan test (10s)',
+        body: 'Background test for prayer-start adhaan sound.',
+        sound: PRAYER_START_NOTIFICATION_SOUND_FILE,
+        data: {
+          scope: PRAYER_NOTIFICATION_SCOPE,
+          type: 'prayer-start',
+          prayerName: 'Test',
+          route: '/prayer',
+        },
+      },
+      trigger,
+    }).catch(() => null);
+
+    if (!scheduled) {
+      showBanner('Adhaan test failed', 'Could not schedule background adhaan test notification.', 7000, 'warning');
+      return;
+    }
+
+    showBanner('Adhaan test scheduled', 'Notification will fire in ~10 seconds. Lock the phone now to test background adhaan.', 9000);
+  }, [ensureLiveNotificationPermission, showBanner]);
+
   return (
     <View style={[styles.container, { backgroundColor: palette.bg, paddingTop: insets.top + 8 }]}> 
       <ScrollView
@@ -292,6 +350,17 @@ export default function SettingsScreen() {
             textColor={palette.text}
             hintColor={palette.sub}
           />
+
+          <TouchableOpacity
+            activeOpacity={0.85}
+            style={[styles.actionButton, { borderColor: palette.border, backgroundColor: palette.chip }]}
+            onPress={() => {
+              void runBackgroundAdhaanTest();
+            }}
+          >
+            <MaterialIcons name="alarm" size={16} color={palette.text} />
+            <Text style={[styles.actionButtonText, { color: palette.text }]}>Run 10s background adhaan test</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </View>
@@ -359,5 +428,20 @@ const styles = StyleSheet.create({
   switchHint: {
     fontSize: 12,
     lineHeight: 17,
+  },
+  actionButton: {
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    minHeight: 42,
+    marginTop: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  actionButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

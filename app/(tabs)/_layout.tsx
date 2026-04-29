@@ -8,6 +8,7 @@ import Constants from 'expo-constants';
 import { Colors } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useJmnLiveStatus } from '@/hooks/useJmnLiveStatus';
+import { playPrayerStartAdhaan } from '@/hooks/usePrayerAdhaanPlayer';
 import { getPrayerTimesForDate } from '@/services/prayerService';
 import {
   ADHKAR_NOTIFICATION_CHANNEL_ID,
@@ -18,6 +19,8 @@ import {
   DEFAULT_ADHKAR_REMINDER_SOUND_MODE,
   DEFAULT_ADHKAR_REMINDERS_ENABLED,
   PRAYER_NOTIFICATION_CHANNEL_ID,
+  PRAYER_START_NOTIFICATION_CHANNEL_ID,
+  PRAYER_START_NOTIFICATION_SOUND_FILE,
   PRAYER_NOTIFICATION_SCOPE,
   type AdhkarReminderSoundMode,
 } from '@/constants/prayerNotifications';
@@ -100,6 +103,15 @@ async function ensureAndroidPrayerNotificationChannel(): Promise<void> {
       vibrationPattern: [0, 220, 140, 220],
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       sound: 'default',
+    });
+
+    await Notifications.setNotificationChannelAsync(PRAYER_START_NOTIFICATION_CHANNEL_ID, {
+      name: 'Prayer Start Adhaan',
+      importance: Notifications.AndroidImportance.HIGH,
+      enableVibrate: true,
+      vibrationPattern: [0, 220, 140, 220],
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      sound: PRAYER_START_NOTIFICATION_SOUND_FILE,
     });
   } catch (error) {
     if (__DEV__) {
@@ -362,7 +374,15 @@ export default function TabLayout() {
         void handleResponse(Notifications, response);
       });
 
-      receivedSub = Notifications.addNotificationReceivedListener(() => {});
+      receivedSub = Notifications.addNotificationReceivedListener((notification) => {
+        const data = notification.request.content.data as Record<string, unknown> | undefined;
+        const scope = typeof data?.scope === 'string' ? data.scope : '';
+        const type = typeof data?.type === 'string' ? data.type : '';
+
+        if (scope === PRAYER_NOTIFICATION_SCOPE && type === 'prayer-start') {
+          void playPrayerStartAdhaan();
+        }
+      });
     };
 
     void setup();
@@ -506,8 +526,16 @@ export default function TabLayout() {
       await clearScheduledPrayerNotifications();
 
       for (const item of planned) {
+        const isPrayerStart = item.data.type === 'prayer-start';
+        const prayerChannelId = isPrayerStart
+          ? PRAYER_START_NOTIFICATION_CHANNEL_ID
+          : PRAYER_NOTIFICATION_CHANNEL_ID;
+        const prayerSound = isPrayerStart
+          ? PRAYER_START_NOTIFICATION_SOUND_FILE
+          : 'default';
+
         const trigger = Platform.OS === 'android'
-          ? ({ type: 'date', date: item.fireAt, channelId: PRAYER_NOTIFICATION_CHANNEL_ID } as unknown as import('expo-notifications').NotificationTriggerInput)
+          ? ({ type: 'date', date: item.fireAt, channelId: prayerChannelId } as unknown as import('expo-notifications').NotificationTriggerInput)
           : (item.fireAt as unknown as import('expo-notifications').NotificationTriggerInput);
 
         try {
@@ -515,7 +543,7 @@ export default function TabLayout() {
             content: {
               title: item.title,
               body: item.body,
-              sound: 'default',
+              sound: prayerSound,
               data: item.data,
             },
             trigger,
@@ -712,7 +740,7 @@ export default function TabLayout() {
     borderTopColor: darkMode ? '#1E2D47' : Colors.border,
   };
 
-  const hiddenRoutes = ['howto', 'events', 'youtube-live', 'qaseedah-naat', 'qaseedah-viewer', 'qaseedah-group', 'settings', 'push-notification'] as const;
+  const hiddenRoutes = ['howto', 'events', 'youtube-live', 'qaseedah-naat', 'qaseedah-viewer', 'qaseedah-group', 'settings', 'push-notification', 'donation-confirmation'] as const;
 
   return (
     <Tabs

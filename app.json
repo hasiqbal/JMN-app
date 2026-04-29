@@ -38,7 +38,11 @@
       "expo-router",
       [
         "expo-notifications",
-        {}
+        {
+          "sounds": [
+            "./assets/audio/adhaan_1.mp3"
+          ]
+        }
       ],
       [
         "expo-splash-screen",

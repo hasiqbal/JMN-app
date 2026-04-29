@@ -13,8 +13,6 @@ export const APP_CONFIG = {
   aladhanMethod: 1, // Muslim World League — standard for UK mosques
 
   // Live Stream
-  youtubeChannelHandle: '@jamimasjidnoorani',
-  youtubeChannelId: 'UCb41kAjATcW5rzOK0Z5QGwA',
   youtubeChannelUrl: 'https://youtube.com/@jamimasjidnoorani',
   youtubeStreamUrl: 'https://www.youtube.com/@jamimasjidnoorani/live',
   // Primary masjid live stream
@@ -42,6 +40,14 @@ export const APP_CONFIG = {
       label: 'Qari Muhammad Siddiq Al-Minshawi',
       sublabel: "Hafs 'an Asim • Mujawwad",
       url: 'https://media.way2quran.com/muhammad-siddiq-al-minshawi-(mujawd)/hafs-an-asim/{}',
+      icon: 'menu-book',
+      isRandom: false,
+    },
+    {
+      id: 'abdul-basit-murattal',
+      label: 'Qari Abdul Basit Abdus Samad',
+      sublabel: "Hafs 'an Asim • Murattal",
+      url: 'https://server7.mp3quran.net/basit/{}',
       icon: 'menu-book',
       isRandom: false,
     },
