@@ -41,11 +41,39 @@ function normalizeToken(value: string | null | undefined): string {
   return (value ?? '').trim();
 }
 
+async function resolveDeviceId(): Promise<string | null> {
+  try {
+    if (Platform.OS === 'android') {
+      return Application.getAndroidId() ?? null;
+    }
+    if (Platform.OS === 'ios') {
+      return (await Application.getIosIdForVendorAsync()) ?? null;
+    }
+  } catch {
+    // Ignore — device ID is best-effort.
+  }
+  return null;
+}
+
 async function upsertDeviceToken(token: string): Promise<void> {
   const client = getSupabaseClient();
   const nowIso = new Date().toISOString();
   const appVersion = Application.nativeApplicationVersion ?? null;
   const deviceModel = Device.modelName ?? null;
+  const deviceId = await resolveDeviceId();
+
+  // If we know the physical device ID, deactivate any stale token rows
+  // for this device before inserting the current one.  This prevents
+  // the same phone from accumulating multiple active rows when the
+  // Expo push token rotates (e.g. after app reload or channel change).
+  if (deviceId) {
+    await client
+      .from('device_tokens')
+      .update({ is_active: false })
+      .eq('device_id', deviceId)
+      .neq('token', token)
+      .catch(() => {});
+  }
 
   const { error } = await client
     .from('device_tokens')
@@ -55,6 +83,7 @@ async function upsertDeviceToken(token: string): Promise<void> {
         platform: Platform.OS,
         app_version: appVersion,
         device_model: deviceModel,
+        device_id: deviceId,
         is_active: true,
         last_active: nowIso,
       },

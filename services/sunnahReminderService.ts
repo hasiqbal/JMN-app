@@ -26,6 +26,12 @@ type CachePayload = {
 
 let memoryCache: CachePayload | null = null;
 
+function isAbortError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const maybeError = error as { name?: string; message?: string };
+  return maybeError.name === 'AbortError' || maybeError.message === 'Aborted';
+}
+
 function getSupabaseEnv() {
   const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
   const anonKey =
@@ -153,6 +159,9 @@ export async function fetchDailySunnah(
     return data;
   } catch (err) {
     clearTimeout(timeoutId);
+    if (isAbortError(err)) {
+      return fallbackCached;
+    }
     console.warn('[sunnahReminderService] fetch failed:', err);
     return fallbackCached;
   }

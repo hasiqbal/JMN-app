@@ -10,7 +10,7 @@ import type { PrayerTime } from '@/services/prayerService';
 const IQAMAH_ROLLOVER_TOLERANCE_MS = 5 * 60 * 1000;
 const FARD_PRAYER_NAMES = new Set(['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha']);
 
-export type PrayerNotificationType = 'prayer-start' | 'prayer-near-end' | 'jamaat-10';
+export type PrayerNotificationType = 'prayer-start' | 'prayer-near-end' | 'jamaat-10' | 'iqamah-start';
 
 export type PlannedPrayerNotification = {
   title: string;
@@ -79,6 +79,22 @@ export function buildPrayerNotificationsForPrayers(
     }
 
     const iqamahDate = parseIqamahDate(prayer.iqamah, prayerStartAt);
+    const effectiveIqamahDate = iqamahDate ?? prayerStartAt;
+
+    if (effectiveIqamahDate.getTime() - now.getTime() > minLeadMs) {
+      planned.push({
+        title: `${prayer.name} iqamah now`,
+        body: `${prayer.name} iqamah has started.`,
+        fireAt: effectiveIqamahDate,
+        data: {
+          scope: PRAYER_NOTIFICATION_SCOPE,
+          type: 'iqamah-start',
+          prayerName: prayer.name,
+          route: PRAYER_NOTIFICATION_ROUTE,
+        },
+      });
+    }
+
     if (iqamahDate) {
       const jamaatReminderAt = new Date(iqamahDate.getTime() - PRAYER_NOTIFICATION_JAMAAT_LEAD_MINUTES * 60 * 1000);
       if (jamaatReminderAt.getTime() >= prayerStartAt.getTime() && jamaatReminderAt.getTime() - now.getTime() > minLeadMs) {

@@ -8,7 +8,7 @@ import Constants from 'expo-constants';
 import { Colors } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useJmnLiveStatus } from '@/hooks/useJmnLiveStatus';
-import { playPrayerStartAdhaan } from '@/hooks/usePrayerAdhaanPlayer';
+import { playIqamah, playPrayerStartAdhaan, stopPrayerStartAdhaan } from '@/hooks/usePrayerAdhaanPlayer';
 import { getPrayerTimesForDate } from '@/services/prayerService';
 import {
   ADHAAN_SELECTION_STORAGE_KEY,
@@ -20,9 +20,16 @@ import {
   DEFAULT_ADHAAN_OPTION_ID,
   DEFAULT_ADHKAR_REMINDER_SOUND_MODE,
   DEFAULT_ADHKAR_REMINDERS_ENABLED,
+  DEFAULT_PRAYER_AUDIO_MUTED,
   getAdhaanOptionById,
   getPrayerStartChannelId,
+  IQAMAH_NOTIFICATION_CHANNEL_ID,
+  IQAMAH_NOTIFICATION_SILENT_CHANNEL_ID,
+  IQAMAH_SOUND_FILE,
   PRAYER_NOTIFICATION_CHANNEL_ID,
+  PRAYER_AUDIO_MUTE_ACTION_ID,
+  PRAYER_AUDIO_MUTED_STORAGE_KEY,
+  PRAYER_AUDIO_NOTIFICATION_CATEGORY_ID,
   PRAYER_NOTIFICATION_SCOPE,
   type AdhkarReminderSoundMode,
 } from '@/constants/prayerNotifications';
@@ -98,7 +105,8 @@ async function ensureAndroidPrayerNotificationChannel(selectedAdhaanOptionId: '1
   if (!Notifications || Platform.OS !== 'android') return;
 
   const selectedOption = getAdhaanOptionById(selectedAdhaanOptionId);
-  const prayerStartChannelId = getPrayerStartChannelId(selectedOption.id);
+  const prayerStartChannelId = getPrayerStartChannelId(selectedOption.id, false);
+  const prayerStartSilentChannelId = getPrayerStartChannelId(selectedOption.id, true);
 
   try {
     await Notifications.setNotificationChannelAsync(PRAYER_NOTIFICATION_CHANNEL_ID, {
@@ -117,6 +125,33 @@ async function ensureAndroidPrayerNotificationChannel(selectedAdhaanOptionId: '1
       vibrationPattern: [0, 220, 140, 220],
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       sound: selectedOption.soundFile,
+    });
+
+    await Notifications.setNotificationChannelAsync(prayerStartSilentChannelId, {
+      name: `Prayer Start Adhaan ${selectedOption.id} (Vibration Only)`,
+      importance: Notifications.AndroidImportance.HIGH,
+      enableVibrate: true,
+      vibrationPattern: [0, 220, 140, 220],
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      sound: null,
+    });
+
+    await Notifications.setNotificationChannelAsync(IQAMAH_NOTIFICATION_CHANNEL_ID, {
+      name: 'Iqamah Start',
+      importance: Notifications.AndroidImportance.HIGH,
+      enableVibrate: true,
+      vibrationPattern: [0, 220, 140, 220],
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      sound: IQAMAH_SOUND_FILE,
+    });
+
+    await Notifications.setNotificationChannelAsync(IQAMAH_NOTIFICATION_SILENT_CHANNEL_ID, {
+      name: 'Iqamah Start (Vibration Only)',
+      importance: Notifications.AndroidImportance.HIGH,
+      enableVibrate: true,
+      vibrationPattern: [0, 220, 140, 220],
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      sound: null,
     });
   } catch (error) {
     if (__DEV__) {
@@ -348,6 +383,11 @@ export default function TabLayout() {
       const requestId = request?.identifier;
       const actionIdentifier = response?.actionIdentifier;
 
+      if (actionIdentifier === PRAYER_AUDIO_MUTE_ACTION_ID) {
+        await stopPrayerStartAdhaan();
+        return;
+      }
+
       if (typeof requestId === 'string') {
         if (handledNotificationIdsRef.current.has(requestId)) return;
         handledNotificationIdsRef.current.add(requestId);
@@ -368,6 +408,17 @@ export default function TabLayout() {
       const Notifications = await getNotificationsModule();
       if (!mounted || !Notifications) return;
 
+      await Notifications.setNotificationCategoryAsync(
+        PRAYER_AUDIO_NOTIFICATION_CATEGORY_ID,
+        [
+          {
+            identifier: PRAYER_AUDIO_MUTE_ACTION_ID,
+            buttonTitle: 'Mute',
+            options: { opensAppToForeground: false },
+          },
+        ],
+      ).catch(() => {});
+
       Notifications.getLastNotificationResponseAsync()
         .then((response) => {
           if (!mounted) return;
@@ -386,11 +437,33 @@ export default function TabLayout() {
 
         if (scope === PRAYER_NOTIFICATION_SCOPE && type === 'prayer-start') {
           void (async () => {
+            const prayerAudioMutedRaw = await AsyncStorage
+              .getItem(PRAYER_AUDIO_MUTED_STORAGE_KEY)
+              .catch(() => null);
+            const prayerAudioMuted = prayerAudioMutedRaw == null
+              ? DEFAULT_PRAYER_AUDIO_MUTED
+              : prayerAudioMutedRaw === 'true';
+            if (prayerAudioMuted) return;
+
             const selectedAdhaanOptionRaw = await AsyncStorage
               .getItem(ADHAAN_SELECTION_STORAGE_KEY)
               .catch(() => null);
             const selectedAdhaanOption = getAdhaanOptionById(selectedAdhaanOptionRaw ?? DEFAULT_ADHAAN_OPTION_ID);
             await playPrayerStartAdhaan(selectedAdhaanOption.id);
+          })();
+          return;
+        }
+
+        if (scope === PRAYER_NOTIFICATION_SCOPE && type === 'iqamah-start') {
+          void (async () => {
+            const prayerAudioMutedRaw = await AsyncStorage
+              .getItem(PRAYER_AUDIO_MUTED_STORAGE_KEY)
+              .catch(() => null);
+            const prayerAudioMuted = prayerAudioMutedRaw == null
+              ? DEFAULT_PRAYER_AUDIO_MUTED
+              : prayerAudioMutedRaw === 'true';
+            if (prayerAudioMuted) return;
+            await playIqamah();
           })();
         }
       });
@@ -521,6 +594,13 @@ export default function TabLayout() {
         .catch(() => null);
       const selectedAdhaanOption = getAdhaanOptionById(selectedAdhaanOptionRaw ?? DEFAULT_ADHAAN_OPTION_ID);
 
+      const prayerAudioMutedRaw = await AsyncStorage
+        .getItem(PRAYER_AUDIO_MUTED_STORAGE_KEY)
+        .catch(() => null);
+      const prayerAudioMuted = prayerAudioMutedRaw == null
+        ? DEFAULT_PRAYER_AUDIO_MUTED
+        : prayerAudioMutedRaw === 'true';
+
       await ensureAndroidPrayerNotificationChannel(selectedAdhaanOption.id);
 
       const now = new Date();
@@ -548,13 +628,19 @@ export default function TabLayout() {
 
       for (const item of planned) {
         const isPrayerStart = item.data.type === 'prayer-start';
-        const prayerStartChannelId = getPrayerStartChannelId(selectedAdhaanOption.id);
+        const isIqamahStart = item.data.type === 'iqamah-start';
+        const prayerStartChannelId = getPrayerStartChannelId(selectedAdhaanOption.id, prayerAudioMuted);
         const prayerChannelId = isPrayerStart
           ? prayerStartChannelId
-          : PRAYER_NOTIFICATION_CHANNEL_ID;
+          : (isIqamahStart
+              ? (prayerAudioMuted ? IQAMAH_NOTIFICATION_SILENT_CHANNEL_ID : IQAMAH_NOTIFICATION_CHANNEL_ID)
+              : PRAYER_NOTIFICATION_CHANNEL_ID);
         const prayerSound = isPrayerStart
-          ? selectedAdhaanOption.soundFile
-          : 'default';
+          ? (prayerAudioMuted ? false : selectedAdhaanOption.soundFile)
+          : (isIqamahStart ? (prayerAudioMuted ? false : IQAMAH_SOUND_FILE) : 'default');
+        const categoryIdentifier = (isPrayerStart || isIqamahStart)
+          ? PRAYER_AUDIO_NOTIFICATION_CATEGORY_ID
+          : undefined;
 
         const trigger = Platform.OS === 'android'
           ? ({ type: 'date', date: item.fireAt, channelId: prayerChannelId } as unknown as import('expo-notifications').NotificationTriggerInput)
@@ -566,6 +652,7 @@ export default function TabLayout() {
               title: item.title,
               body: item.body,
               sound: prayerSound,
+              categoryIdentifier,
               data: item.data,
             },
             trigger,

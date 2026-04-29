@@ -1,7 +1,10 @@
 import { Asset } from 'expo-asset';
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import type { AudioPlayer } from 'expo-audio';
+import { Platform } from 'react-native';
+import { VolumeManager } from 'react-native-volume-manager';
 import {
+  IQAMAH_SOUND_FILE,
   DEFAULT_ADHAAN_OPTION_ID,
   getAdhaanOptionById,
   type AdhaanOption,
@@ -9,10 +12,11 @@ import {
 
 let activeAdhaanPlayer: AudioPlayer | null = null;
 let previewStopTimer: ReturnType<typeof setTimeout> | null = null;
+let volumeStopSubscription: { remove: () => void } | null = null;
 const bundledAdhaanUrisByFile = new Map<string, string | null>();
 const PREVIEW_PLAYBACK_MS = 10_000;
 
-function resolveAdhaanModule(soundFile: string) {
+function resolveAudioModule(soundFile: string) {
   switch (soundFile) {
     case '1.mp3':
       return require('../assets/audio/1.mp3');
@@ -20,6 +24,8 @@ function resolveAdhaanModule(soundFile: string) {
       return require('../assets/audio/2.mp3');
     case '3.mp3':
       return require('../assets/audio/3.mp3');
+    case 'iqamah.mp3':
+      return require('../assets/audio/iqamah.mp3');
     default:
       return require('../assets/audio/1.mp3');
   }
@@ -31,7 +37,7 @@ async function loadBundledAdhaanUri(soundFile: string): Promise<string | null> {
   }
 
   try {
-    const moduleAsset = resolveAdhaanModule(soundFile);
+    const moduleAsset = resolveAudioModule(soundFile);
     const asset = Asset.fromModule(moduleAsset);
     if (!asset.downloaded) {
       await asset.downloadAsync();
@@ -46,10 +52,32 @@ async function loadBundledAdhaanUri(soundFile: string): Promise<string | null> {
   }
 }
 
+function attachVolumeButtonStopListener(): void {
+  if (Platform.OS === 'web') return;
+  if (volumeStopSubscription) return;
+
+  try {
+    volumeStopSubscription = VolumeManager.addVolumeListener(() => {
+      void stopPrayerStartAdhaan();
+    });
+  } catch {
+    volumeStopSubscription = null;
+  }
+}
+
 export async function stopPrayerStartAdhaan(): Promise<void> {
   if (previewStopTimer) {
     clearTimeout(previewStopTimer);
     previewStopTimer = null;
+  }
+
+  if (volumeStopSubscription) {
+    try {
+      volumeStopSubscription.remove();
+    } catch {
+      // Ignore listener cleanup failures.
+    }
+    volumeStopSubscription = null;
   }
 
   const player = activeAdhaanPlayer;
@@ -71,7 +99,11 @@ export async function stopPrayerStartAdhaan(): Promise<void> {
 
 async function playAdhaanByOption(optionId: AdhaanOption['id'], maxDurationMs?: number): Promise<boolean> {
   const option = getAdhaanOptionById(optionId);
-  const uri = await loadBundledAdhaanUri(option.soundFile);
+  return await playPrayerAudioBySoundFile(option.soundFile, maxDurationMs);
+}
+
+async function playPrayerAudioBySoundFile(soundFile: string, maxDurationMs?: number): Promise<boolean> {
+  const uri = await loadBundledAdhaanUri(soundFile);
   if (!uri) return false;
 
   try {
@@ -91,6 +123,7 @@ async function playAdhaanByOption(optionId: AdhaanOption['id'], maxDurationMs?: 
   try {
     const player = createAudioPlayer({ uri }, { updateInterval: 400 });
     activeAdhaanPlayer = player;
+    attachVolumeButtonStopListener();
 
     player.addListener('playbackStatusUpdate', (status) => {
       if (activeAdhaanPlayer !== player) return;
@@ -125,6 +158,10 @@ async function playAdhaanByOption(optionId: AdhaanOption['id'], maxDurationMs?: 
 
 export async function playPrayerStartAdhaan(optionId: AdhaanOption['id'] = DEFAULT_ADHAAN_OPTION_ID): Promise<boolean> {
   return await playAdhaanByOption(optionId);
+}
+
+export async function playIqamah(): Promise<boolean> {
+  return await playPrayerAudioBySoundFile(IQAMAH_SOUND_FILE);
 }
 
 export async function previewAdhaanOption(optionId: AdhaanOption['id']): Promise<boolean> {
