@@ -4,12 +4,14 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { NIGHT_PALETTE } from '@/constants/nightPalette';
@@ -28,6 +30,7 @@ import {
 } from '@/components/qaseedah';
 import {
   AdhkarRow,
+  fetchQaseedahNaatEntries,
   fetchQaseedahNaatEntriesForGroup,
   translateTextToArabic,
   translateTextToEnglish,
@@ -79,6 +82,18 @@ type ChorusLine = {
   urdu_translation?: string;
 };
 
+type ReaderGroupOption = {
+  name: string;
+  type: 'qaseedah' | 'naat';
+  entryTitles: string[];
+};
+
+type ReaderEntryTarget = {
+  groupName: string;
+  type: 'qaseedah' | 'naat';
+  entryTitle: string;
+};
+
 function transliterateArabicToLatin(text: string): string {
   const map: Record<string, string> = {
     ا: 'a', أ: 'a', إ: 'i', آ: 'aa', ب: 'b', ت: 't', ث: 'th', ج: 'j', ح: 'h', خ: 'kh',
@@ -100,10 +115,6 @@ function normalizeInlineSpacing(value: string): string {
     .replace(/\s+/g, ' ')
     .replace(/\s+([,.;!?])/g, '$1')
     .trim();
-}
-
-function hasArabicScript(value: string): boolean {
-  return /[\u0600-\u06FF]/.test(value);
 }
 
 function hasLatinScript(value: string): boolean {
@@ -466,12 +477,55 @@ function buildChapterSignature(chapters: GroupChapterItem[]): string {
     .join('|');
 }
 
+function normalizeGroupLabel(value: string): string {
+  return value.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function extractReaderGroupOptions(rows: AdhkarRow[]): ReaderGroupOption[] {
+  const grouped = new Map<string, { name: string; type: 'qaseedah' | 'naat'; entryTitles: Set<string> }>();
+
+  rows.forEach((row) => {
+    const name = (row.group_name || 'General').trim() || 'General';
+    const type: 'qaseedah' | 'naat' = row.content_type === 'naat' ? 'naat' : 'qaseedah';
+    const key = `${type}::${normalizeGroupLabel(name)}`;
+    const existing = grouped.get(key);
+
+    const titleCandidates = [row.title, row.arabic_title]
+      .filter((value): value is string => typeof value === 'string')
+      .map((value) => normalizeInlineSpacing(value))
+      .filter(Boolean);
+
+    if (existing) {
+      titleCandidates.forEach((title) => existing.entryTitles.add(title));
+      return;
+    }
+
+    grouped.set(key, {
+      name,
+      type,
+      entryTitles: new Set(titleCandidates),
+    });
+  });
+
+  return Array.from(grouped.values())
+    .map((item) => ({
+      name: item.name,
+      type: item.type,
+      entryTitles: Array.from(item.entryTitles).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })),
+    }))
+    .sort((a, b) => {
+      if (a.type !== b.type) return a.type.localeCompare(b.type);
+      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    });
+}
+
 export default function QaseedahGroupScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ group?: string; type?: string }>();
-  const groupName = typeof params.group === 'string' ? params.group : 'Group';
-  const type = typeof params.type === 'string' ? params.type : 'qaseedah';
+  const initialGroupName = typeof params.group === 'string' ? params.group : 'Group';
+  const initialType: 'qaseedah' | 'naat' = params.type === 'naat' ? 'naat' : 'qaseedah';
 
   const { nightMode, toggleManual } = useQaseedahNightMode();
   const N = nightMode ? NIGHT_PALETTE : null;
@@ -490,10 +544,63 @@ export default function QaseedahGroupScreen() {
   const [chapterTitleEnglish, setChapterTitleEnglish] = React.useState<Record<string, string>>({});
   const [chapterTitleUrdu, setChapterTitleUrdu] = React.useState<Record<string, string>>({});
   const [chapterTitleArabic, setChapterTitleArabic] = React.useState<Record<string, string>>({});
+  const [activeGroupName, setActiveGroupName] = React.useState(initialGroupName);
+  const [activeType, setActiveType] = React.useState<'qaseedah' | 'naat'>(initialType);
+  const [stagedGroupName, setStagedGroupName] = React.useState(initialGroupName);
+  const [stagedType, setStagedType] = React.useState<'qaseedah' | 'naat'>(initialType);
+  const [groupOptions, setGroupOptions] = React.useState<ReaderGroupOption[]>([]);
+  const [groupPickerQuery, setGroupPickerQuery] = React.useState('');
+  const [focusEntryRequiredNotice, setFocusEntryRequiredNotice] = React.useState(false);
+  const [pendingEntrySelection, setPendingEntrySelection] = React.useState<ReaderEntryTarget | null>(null);
   const [focusMode, setFocusMode] = React.useState(false);
   const [focusMenuOpen, setFocusMenuOpen] = React.useState(false);
   const [focusControlsVisible, setFocusControlsVisible] = React.useState(false);
+  const [focusNavExpanded, setFocusNavExpanded] = React.useState(false);
+  const scrollRef = React.useRef<ScrollView | null>(null);
   const chapterSignatureRef = React.useRef('');
+
+  React.useEffect(() => {
+    setActiveGroupName(initialGroupName);
+    setActiveType(initialType);
+    setStagedGroupName(initialGroupName);
+    setStagedType(initialType);
+  }, [initialGroupName, initialType]);
+
+  React.useEffect(() => {
+    if (!focusMenuOpen) return;
+    setStagedGroupName(activeGroupName);
+    setStagedType(activeType);
+    setFocusNavExpanded(false);
+  }, [focusMenuOpen, activeGroupName, activeType]);
+
+  React.useEffect(() => {
+    if (focusMode) {
+      navigation.setOptions({ tabBarStyle: { display: 'none' } });
+    } else {
+      navigation.setOptions({ tabBarStyle: undefined });
+      setGroupPickerQuery('');
+    }
+
+    return () => {
+      navigation.setOptions({ tabBarStyle: undefined });
+    };
+  }, [focusMode, navigation]);
+
+  const loadGroupOptions = React.useCallback(async () => {
+    try {
+      const rows = await fetchQaseedahNaatEntries();
+      const nextOptions = extractReaderGroupOptions(rows);
+      setGroupOptions(nextOptions);
+    } catch {
+      // Ignore search index hydration failures.
+    }
+  }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      void loadGroupOptions();
+    }, [loadGroupOptions])
+  );
 
   const handleModeChange = React.useCallback((next: ReadingMode) => {
     setReadingMode(next);
@@ -520,19 +627,19 @@ export default function QaseedahGroupScreen() {
         }
       };
 
-      const contentType = type === 'naat' ? 'naat' : 'qaseedah';
+      const contentType = activeType;
 
       // Render quickly from cache when available, then always revalidate so
       // updated portal verses appear immediately without waiting for cache TTL.
       const cachedOrLiveRows = await fetchQaseedahNaatEntriesForGroup(
-        groupName,
+        activeGroupName,
         contentType,
       );
       applyRows(cachedOrLiveRows);
 
       // Revalidate on focus and pull-to-refresh; applyRows updates only on signature changes.
       const revalidatedRows = await fetchQaseedahNaatEntriesForGroup(
-        groupName,
+        activeGroupName,
         contentType,
         { forceRefresh: true },
       );
@@ -545,7 +652,7 @@ export default function QaseedahGroupScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [groupName, type]);
+  }, [activeGroupName, activeType]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -651,6 +758,107 @@ export default function QaseedahGroupScreen() {
       cancelled = true;
     };
   }, [chapters]);
+
+  const groupsInStagedType = React.useMemo(
+    () => groupOptions.filter((item) => item.type === stagedType),
+    [groupOptions, stagedType]
+  );
+
+  const stagedGroupIndex = React.useMemo(
+    () => groupsInStagedType.findIndex((item) => normalizeGroupLabel(item.name) === normalizeGroupLabel(stagedGroupName)),
+    [groupsInStagedType, stagedGroupName]
+  );
+
+  const previousGroup = stagedGroupIndex > 0 ? groupsInStagedType[stagedGroupIndex - 1] : null;
+  const nextGroup = stagedGroupIndex >= 0 && stagedGroupIndex < groupsInStagedType.length - 1
+    ? groupsInStagedType[stagedGroupIndex + 1]
+    : null;
+
+  const hasPendingWheelSelection = stagedType !== activeType
+    || normalizeGroupLabel(stagedGroupName) !== normalizeGroupLabel(activeGroupName);
+
+  const hasOpenedEntry = React.useMemo(
+    () => chapters.some((chapter) => !!expanded[chapter.id]),
+    [chapters, expanded]
+  );
+
+  const filteredEntryTargets = React.useMemo(() => {
+    const query = groupPickerQuery.trim().toLowerCase();
+    const targets: ReaderEntryTarget[] = [];
+    groupOptions.forEach((option) => {
+      option.entryTitles.forEach((entryTitle) => {
+        if (query && !entryTitle.toLowerCase().includes(query)) return;
+        targets.push({
+          groupName: option.name,
+          type: option.type,
+          entryTitle,
+        });
+      });
+    });
+
+    return targets;
+  }, [groupOptions, groupPickerQuery]);
+
+  const handleStageNavigateGroup = React.useCallback((target: ReaderGroupOption | null) => {
+    if (!target) return;
+    setStagedType(target.type);
+    setStagedGroupName(target.name);
+  }, []);
+
+  const handleStageSwitchType = React.useCallback((targetType: 'qaseedah' | 'naat') => {
+    if (targetType === stagedType) return;
+    const groupsForType = groupOptions.filter((item) => item.type === targetType);
+    if (groupsForType.length === 0) return;
+
+    const sameName = groupsForType.find(
+      (item) => normalizeGroupLabel(item.name) === normalizeGroupLabel(stagedGroupName)
+    );
+    const nextTarget = sameName ?? groupsForType[0];
+
+    setStagedType(targetType);
+    setStagedGroupName(nextTarget.name);
+  }, [groupOptions, stagedGroupName, stagedType]);
+
+  const handleConfirmWheelSelection = React.useCallback(() => {
+    if (!hasPendingWheelSelection) return;
+    setActiveType(stagedType);
+    setActiveGroupName(stagedGroupName);
+    setExpanded({});
+    setPendingEntrySelection(null);
+    setFocusEntryRequiredNotice(false);
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [hasPendingWheelSelection, stagedType, stagedGroupName]);
+
+  const handleNavigateEntry = React.useCallback((target: ReaderEntryTarget) => {
+    setActiveType(target.type);
+    setActiveGroupName(target.groupName);
+    setPendingEntrySelection(target);
+    setFocusEntryRequiredNotice(false);
+    setFocusMenuOpen(false);
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, []);
+
+  const handleToggleChapter = React.useCallback((chapterId: string) => {
+    setExpanded((prev) => ({ ...prev, [chapterId]: !prev[chapterId] }));
+    setFocusEntryRequiredNotice(false);
+  }, []);
+
+  React.useEffect(() => {
+    if (!pendingEntrySelection) return;
+    if (pendingEntrySelection.type !== activeType) return;
+    if (normalizeGroupLabel(pendingEntrySelection.groupName) !== normalizeGroupLabel(activeGroupName)) return;
+
+    const normalizedEntry = normalizeInlineSpacing(pendingEntrySelection.entryTitle).toLowerCase();
+    const matched = chapters.filter((chapter) => normalizeInlineSpacing(chapter.entryTitle).toLowerCase() === normalizedEntry);
+    if (matched.length === 0) return;
+
+    const nextExpanded: Record<string, boolean> = {};
+    matched.forEach((chapter) => {
+      nextExpanded[chapter.id] = true;
+    });
+    setExpanded(nextExpanded);
+    setPendingEntrySelection(null);
+  }, [activeGroupName, activeType, chapters, pendingEntrySelection]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -770,8 +978,8 @@ export default function QaseedahGroupScreen() {
       {!focusMode || focusControlsVisible ? (
         <>
           <QaseedahHeader
-            title={groupName}
-            subtitle={`${type === 'naat' ? 'Naat' : 'Qaseedah'} · ${chapters.length} ${chapters.every((chapter) => chapter.isPoem) ? (chapters.length === 1 ? 'poem' : 'poems') : (chapters.length === 1 ? 'chapter' : 'chapters')}`}
+            title={activeGroupName}
+            subtitle={`${activeType === 'naat' ? 'Naat' : 'Qaseedah'} · ${chapters.length} ${chapters.every((chapter) => chapter.isPoem) ? (chapters.length === 1 ? 'poem' : 'poems') : (chapters.length === 1 ? 'chapter' : 'chapters')}`}
             onBack={() => router.replace('/(tabs)/qaseedah-naat')}
             onRefresh={() => { void load(true); }}
             refreshing={refreshing}
@@ -797,7 +1005,7 @@ export default function QaseedahGroupScreen() {
         </>
       ) : null}
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.content}>
         {loading ? (
           <View style={styles.loadingWrap}>
             <ActivityIndicator size="small" color={N ? N.accent : Colors.primary} />
@@ -830,7 +1038,7 @@ export default function QaseedahGroupScreen() {
                     entryTitle={chapter.entryTitle}
                     lineCount={chapter.lines.length}
                     isOpen={isOpen}
-                    onToggle={() => setExpanded((prev) => ({ ...prev, [chapter.id]: !prev[chapter.id] }))}
+                    onToggle={() => handleToggleChapter(chapter.id)}
                     isPoem={!!chapter.isPoem}
                     night={N}
                   />
@@ -902,6 +1110,171 @@ export default function QaseedahGroupScreen() {
       <View style={[styles.focusFabWrap, { top: insets.top + 8 }]}> 
         {focusMode && focusMenuOpen ? (
           <View style={[styles.focusMenu, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}>
+            <Text style={[styles.focusHintText, N && { color: N.textMuted }]}>Two fingers zoom, one finger scroll</Text>
+            <TouchableOpacity
+              style={[styles.focusMenuSectionToggle, N && { borderColor: N.border, backgroundColor: N.surface }]}
+              activeOpacity={0.85}
+              onPress={() => setFocusNavExpanded((prev) => !prev)}
+            >
+              <Text style={[styles.focusMenuSectionToggleText, N && { color: N.textSub }]}>Entry Navigation</Text>
+              <MaterialIcons
+                name={focusNavExpanded ? 'expand-less' : 'expand-more'}
+                size={16}
+                color={N ? N.textMuted : Colors.textSubtle}
+              />
+            </TouchableOpacity>
+
+            {focusNavExpanded ? (
+              <>
+                <View style={[styles.focusSearchWrap, N && { borderColor: N.border, backgroundColor: N.surface }]}> 
+                  <MaterialIcons name="search" size={14} color={N ? N.textMuted : Colors.textSubtle} />
+                  <TextInput
+                    value={groupPickerQuery}
+                    onChangeText={setGroupPickerQuery}
+                    placeholder="Search entry in any group"
+                    placeholderTextColor={N ? N.textMuted : Colors.textSubtle}
+                    style={[styles.focusSearchInput, N && { color: N.text }]}
+                    autoCorrect={false}
+                    autoCapitalize="none"
+                    returnKeyType="search"
+                  />
+                  {groupPickerQuery.trim().length > 0 ? (
+                    <TouchableOpacity
+                      style={styles.focusSearchClear}
+                      activeOpacity={0.85}
+                      onPress={() => setGroupPickerQuery('')}
+                    >
+                      <MaterialIcons name="close" size={13} color={N ? N.textMuted : Colors.textSubtle} />
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+
+                <View style={[styles.quickNavCard, styles.focusWheelCard, N && { backgroundColor: N.surface, borderColor: N.border }]}> 
+                  <View style={styles.quickNavWheelRow}>
+                    <TouchableOpacity
+                      style={[
+                        styles.quickNavArrow,
+                        !previousGroup && styles.quickNavArrowDisabled,
+                        N && { borderColor: N.border },
+                      ]}
+                      activeOpacity={0.85}
+                      disabled={!previousGroup}
+                      onPress={() => handleStageNavigateGroup(previousGroup)}
+                    >
+                      <MaterialIcons name="chevron-left" size={18} color={N ? N.textSub : Colors.textSecondary} />
+                    </TouchableOpacity>
+
+                    <View style={styles.quickNavTypeRow}>
+                      <TouchableOpacity
+                        style={[
+                          styles.quickTypeChip,
+                          stagedType === 'qaseedah' && styles.quickTypeChipActive,
+                          N && stagedType !== 'qaseedah' && { borderColor: N.border, backgroundColor: N.surfaceAlt },
+                        ]}
+                        activeOpacity={0.85}
+                        onPress={() => handleStageSwitchType('qaseedah')}
+                      >
+                        <Text
+                          style={[
+                            styles.quickTypeChipText,
+                            stagedType === 'qaseedah' && styles.quickTypeChipTextActive,
+                            N && stagedType !== 'qaseedah' && { color: N.textSub },
+                          ]}
+                        >
+                          Qaseedah
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.quickTypeChip,
+                          stagedType === 'naat' && styles.quickTypeChipActive,
+                          N && stagedType !== 'naat' && { borderColor: N.border, backgroundColor: N.surfaceAlt },
+                        ]}
+                        activeOpacity={0.85}
+                        onPress={() => handleStageSwitchType('naat')}
+                      >
+                        <Text
+                          style={[
+                            styles.quickTypeChipText,
+                            stagedType === 'naat' && styles.quickTypeChipTextActive,
+                            N && stagedType !== 'naat' && { color: N.textSub },
+                          ]}
+                        >
+                          Naat
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.quickNavArrow,
+                        !nextGroup && styles.quickNavArrowDisabled,
+                        N && { borderColor: N.border },
+                      ]}
+                      activeOpacity={0.85}
+                      disabled={!nextGroup}
+                      onPress={() => handleStageNavigateGroup(nextGroup)}
+                    >
+                      <MaterialIcons name="chevron-right" size={18} color={N ? N.textSub : Colors.textSecondary} />
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={[styles.quickNavLabelBtn, N && { borderColor: N.border, backgroundColor: N.surfaceAlt }]}> 
+                    <Text style={[styles.quickNavLabel, N && { color: N.textMuted }]} numberOfLines={1}>
+                      {stagedGroupName}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.wheelConfirmBtn,
+                      !hasPendingWheelSelection && styles.wheelConfirmBtnDisabled,
+                      N && { borderColor: N.border, backgroundColor: hasPendingWheelSelection ? N.accent + '26' : N.surfaceAlt },
+                    ]}
+                    activeOpacity={0.85}
+                    disabled={!hasPendingWheelSelection}
+                    onPress={handleConfirmWheelSelection}
+                  >
+                    <MaterialIcons
+                      name="check"
+                      size={14}
+                      color={N ? (hasPendingWheelSelection ? N.accent : N.textMuted) : (hasPendingWheelSelection ? Colors.primary : Colors.textSubtle)}
+                    />
+                    <Text
+                      style={[
+                        styles.wheelConfirmBtnText,
+                        !hasPendingWheelSelection && styles.wheelConfirmBtnTextDisabled,
+                        N && hasPendingWheelSelection && { color: N.accent },
+                      ]}
+                    >
+                      Confirm Selection
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {filteredEntryTargets.length === 0 ? (
+                  <Text style={[styles.focusSearchNoMatch, N && { color: N.textMuted }]}>No entries match your search.</Text>
+                ) : (
+                  <ScrollView style={styles.focusEntryList} contentContainerStyle={styles.focusEntryListContent}>
+                    {filteredEntryTargets.map((target) => (
+                      <TouchableOpacity
+                        key={`${target.type}::${target.groupName}::${target.entryTitle}`}
+                        style={[styles.focusEntryItem, N && { borderColor: N.border, backgroundColor: N.surface }]}
+                        activeOpacity={0.86}
+                        onPress={() => handleNavigateEntry(target)}
+                      >
+                        <Text style={[styles.focusEntryTitle, N && { color: N.text }]} numberOfLines={1}>{target.entryTitle}</Text>
+                        <Text style={[styles.focusEntryMeta, N && { color: N.textMuted }]} numberOfLines={1}>
+                          {target.groupName} · {target.type === 'naat' ? 'Naat' : 'Qaseedah'}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                )}
+              </>
+            ) : null}
+
             <TouchableOpacity
               style={[styles.focusMenuBtn, N && { borderColor: N.border }]}
               activeOpacity={0.85}
@@ -926,11 +1299,18 @@ export default function QaseedahGroupScreen() {
                 setFocusMode(false);
                 setFocusMenuOpen(false);
                 setFocusControlsVisible(false);
+                setGroupPickerQuery('');
               }}
             >
               <MaterialIcons name="fullscreen-exit" size={16} color={N ? N.textSub : Colors.textSecondary} />
               <Text style={[styles.focusMenuBtnText, N && { color: N.textSub }]}>Exit Full Screen</Text>
             </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {!focusMode && focusEntryRequiredNotice ? (
+          <View style={[styles.focusEntryHint, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}> 
+            <Text style={[styles.focusEntryHintText, N && { color: N.textMuted }]}>Open an entry first, then use full screen.</Text>
           </View>
         ) : null}
 
@@ -944,9 +1324,15 @@ export default function QaseedahGroupScreen() {
           activeOpacity={0.85}
           onPress={() => {
             if (!focusMode) {
+              if (!hasOpenedEntry) {
+                setFocusEntryRequiredNotice(true);
+                setFocusMenuOpen(false);
+                return;
+              }
               setFocusMode(true);
               setFocusControlsVisible(false);
               setFocusMenuOpen(false);
+              setFocusEntryRequiredNotice(false);
               return;
             }
             setFocusMenuOpen((prev) => !prev);
@@ -1028,13 +1414,210 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   focusMenu: {
-    minWidth: 154,
+    minWidth: 360,
+    maxWidth: 430,
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: Radius.md,
     backgroundColor: Colors.surface,
     padding: 6,
     gap: 6,
+  },
+  focusHintText: {
+    fontSize: 11,
+    textAlign: 'center',
+    color: Colors.textSubtle,
+    paddingHorizontal: 6,
+    paddingTop: 2,
+  },
+  focusMenuSectionToggle: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surface,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  focusMenuSectionToggleText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+  focusSearchWrap: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surface,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  focusSearchInput: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 12,
+    color: Colors.textPrimary,
+    paddingVertical: 0,
+  },
+  focusSearchClear: {
+    width: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  focusSearchNoMatch: {
+    fontSize: 10,
+    textAlign: 'center',
+    color: Colors.textSubtle,
+  },
+  quickNavCard: {
+    width: '100%',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.surface,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  focusWheelCard: {
+    width: '100%',
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+    gap: 6,
+  },
+  quickNavWheelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  quickNavArrow: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surface,
+  },
+  quickNavArrowDisabled: {
+    opacity: 0.45,
+  },
+  quickNavTypeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+    gap: 6,
+  },
+  quickTypeChip: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: Colors.surface,
+  },
+  quickTypeChipActive: {
+    borderColor: Colors.primary,
+    backgroundColor: '#E8F2FF',
+  },
+  quickTypeChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+  quickTypeChipTextActive: {
+    color: Colors.primary,
+  },
+  quickNavLabel: {
+    maxWidth: '90%',
+    textAlign: 'center',
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textSubtle,
+  },
+  quickNavLabelBtn: {
+    maxWidth: '95%',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surface,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  wheelConfirmBtn: {
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    borderRadius: Radius.full,
+    backgroundColor: '#E8F2FF',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+  },
+  wheelConfirmBtnDisabled: {
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  wheelConfirmBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  wheelConfirmBtnTextDisabled: {
+    color: Colors.textSubtle,
+  },
+  focusEntryList: {
+    maxHeight: 260,
+  },
+  focusEntryListContent: {
+    gap: 5,
+  },
+  focusEntryItem: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surface,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    gap: 2,
+  },
+  focusEntryTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+  },
+  focusEntryMeta: {
+    fontSize: 10,
+    color: Colors.textSubtle,
+  },
+  focusEntryHint: {
+    maxWidth: 220,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surface,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  focusEntryHintText: {
+    fontSize: 11,
+    color: Colors.textSubtle,
+    textAlign: 'center',
+    fontWeight: '600',
   },
   focusMenuBtn: {
     flexDirection: 'row',
