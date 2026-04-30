@@ -26,6 +26,37 @@ const splitLines = (text: string) =>
     .map((line) => line.trim())
     .filter(Boolean);
 
+const VERSE_MARKER_PREFIX_REGEX = /^\s*(?:\(?\d{1,3}\)?\s*[.):\-\]]?\s*|[•●◦▪▫◆◇۞٭*✦✧❖]+\s*)/;
+
+const normalizeVerseLine = (line: string) => line.replace(VERSE_MARKER_PREFIX_REGEX, '').trim();
+
+const looksLikeMeaningLine = (line: string) => {
+  const normalized = line.toLowerCase();
+  if (!normalized) return false;
+  if (/[.!?]/.test(normalized)) return true;
+  return /\b(the|and|to|of|for|with|from|that|this|your|you|their|his|her|our|my|is|are|be|shall|should|must|let)\b/.test(normalized);
+};
+
+const splitMeaningAndTransliteration = (first: string[], second: string[]) => {
+  const firstMeaningScore = first.filter(looksLikeMeaningLine).length;
+  const secondMeaningScore = second.filter(looksLikeMeaningLine).length;
+
+  if (firstMeaningScore === secondMeaningScore) {
+    const firstAvgLength = first.reduce((sum, line) => sum + line.length, 0) / Math.max(1, first.length);
+    const secondAvgLength = second.reduce((sum, line) => sum + line.length, 0) / Math.max(1, second.length);
+    if (firstAvgLength >= secondAvgLength) {
+      return { meaning: first, transliteration: second };
+    }
+    return { meaning: second, transliteration: first };
+  }
+
+  if (firstMeaningScore > secondMeaningScore) {
+    return { meaning: first, transliteration: second };
+  }
+
+  return { meaning: second, transliteration: first };
+};
+
 interface LabeledSections {
   intro: string;
   arabic: string;
@@ -191,6 +222,70 @@ const buildRecitationFromInlineCue = (text: string): {
   };
 };
 
+const buildRecitationFromPairedStanzas = (text: string): RecitationBlockData | null => {
+  if (!hasArabic(text) || !/\n\s*\n/.test(text)) return null;
+
+  const stanzas = text
+    .replace(/\r/g, '')
+    .split(/\n\s*\n+/)
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+    .map((chunk) => (
+      chunk
+        .split('\n')
+        .map((line) => normalizeVerseLine(line.trim()))
+        .filter(Boolean)
+    ));
+
+  if (stanzas.length < 2) return null;
+
+  const lineCount = stanzas[0]?.length ?? 0;
+  if (lineCount !== 2 && lineCount !== 3) return null;
+  if (stanzas.some((lines) => lines.length !== lineCount)) return null;
+
+  if (lineCount === 2) {
+    const firstArabicCount = stanzas.filter((lines) => hasArabic(lines[0])).length;
+    const secondArabicCount = stanzas.filter((lines) => hasArabic(lines[1])).length;
+
+    const arabicAtFirst = firstArabicCount === stanzas.length && secondArabicCount === 0;
+    const arabicAtSecond = secondArabicCount === stanzas.length && firstArabicCount === 0;
+    if (!arabicAtFirst && !arabicAtSecond) return null;
+
+    const arabic = stanzas.map((lines) => (arabicAtFirst ? lines[0] : lines[1]));
+    const secondary = stanzas.map((lines) => (arabicAtFirst ? lines[1] : lines[0]));
+    if (secondary.some((line) => hasArabic(line))) return null;
+
+    const meaningLikeCount = secondary.filter(looksLikeMeaningLine).length;
+    const useMeaning = meaningLikeCount >= Math.ceil(secondary.length / 2);
+
+    return {
+      kind: 'recitation',
+      arabic,
+      transliteration: useMeaning ? undefined : secondary,
+      meaning: useMeaning ? secondary : undefined,
+    };
+  }
+
+  const arabicColumn = [0, 1, 2].find((columnIdx) =>
+    stanzas.every((lines) => hasArabic(lines[columnIdx]))
+    && [0, 1, 2].filter((idx) => idx !== columnIdx).every((idx) => stanzas.every((lines) => !hasArabic(lines[idx]))),
+  );
+  if (arabicColumn == null) return null;
+
+  const otherColumns = [0, 1, 2].filter((idx) => idx !== arabicColumn);
+  const arabic = stanzas.map((lines) => lines[arabicColumn]);
+  const firstSecondary = stanzas.map((lines) => lines[otherColumns[0]]);
+  const secondSecondary = stanzas.map((lines) => lines[otherColumns[1]]);
+  const { meaning, transliteration } = splitMeaningAndTransliteration(firstSecondary, secondSecondary);
+
+  return {
+    kind: 'recitation',
+    arabic,
+    transliteration,
+    meaning,
+  };
+};
+
 /** Parse a raw `detail` string into a typed block array. */
 export const parseDetailToBlocks = (detail: string): GuideBlock[] => {
   const blocks: GuideBlock[] = [];
@@ -237,6 +332,13 @@ export const parseDetailToBlocks = (detail: string): GuideBlock[] => {
     if (inlineCue) {
       if (inlineCue.leadingText) blocks.push({ kind: 'text', text: inlineCue.leadingText });
       blocks.push(inlineCue.block);
+      return;
+    }
+
+    // Pattern-based pairing: two lines + blank + two lines (+ markers like 1), •, ۞).
+    const pairedStanzas = buildRecitationFromPairedStanzas(text);
+    if (pairedStanzas) {
+      blocks.push(pairedStanzas);
       return;
     }
 

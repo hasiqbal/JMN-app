@@ -36,6 +36,8 @@ export interface RecitationBlockData {
   repeat?: string;
   /** Optional source tag shown in a quiet footer. */
   source?: string;
+  /** Optional jurisprudence/priority flags (e.g. Wajib, Fardh, Sunnah). */
+  flags?: string[];
 }
 
 export interface ActionBlockData {

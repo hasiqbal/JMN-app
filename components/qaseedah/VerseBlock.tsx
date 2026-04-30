@@ -6,7 +6,13 @@ import { ArabicTextBlock } from './ArabicTextBlock';
 import { TransliterationBlock } from './TransliterationBlock';
 import { TranslationBlock } from './TranslationBlock';
 import { UrduBlock } from './UrduBlock';
-import type { LayerVisibility, NightPaletteType, PrimaryLanguage, VerseRole } from './types';
+import type {
+  LanguageFontScales,
+  LayerVisibility,
+  NightPaletteType,
+  PrimaryLanguage,
+  VerseRole,
+} from './types';
 
 type VerseLanguageKey = 'arabic' | 'transliteration' | 'english' | 'urdu';
 
@@ -23,6 +29,7 @@ type Props = {
   isAutoTranslated?: boolean;
   layers: LayerVisibility;
   scale: number;
+  languageScales?: LanguageFontScales;
   night: NightPaletteType | null;
 };
 
@@ -54,6 +61,7 @@ export function VerseBlock({
   isAutoTranslated,
   layers,
   scale,
+  languageScales,
   night,
 }: Props) {
   const isChorus = role !== 'verse';
@@ -65,26 +73,36 @@ export function VerseBlock({
     : defaultOrder;
   const nothingVisible =
     !layers.arabic && !layers.transliteration && !layers.english && !layers.urdu;
+  const perLanguageScale: LanguageFontScales = {
+    arabic: languageScales?.arabic ?? 1,
+    transliteration: languageScales?.transliteration ?? 1,
+    english: languageScales?.english ?? 1,
+    urdu: languageScales?.urdu ?? 1,
+  };
 
   const languageBlocks: Record<VerseLanguageKey, React.ReactNode> = {
     arabic: layers.arabic && arabic ? (
       <View key="arabic" style={styles.section}>
-        <ArabicTextBlock text={arabic} scale={scale} night={night} />
+        <ArabicTextBlock text={arabic} scale={scale * perLanguageScale.arabic} night={night} />
       </View>
     ) : null,
     transliteration: layers.transliteration && transliteration ? (
       <View key="transliteration" style={styles.section}>
-        <TransliterationBlock text={transliteration} scale={scale} night={night} />
+        <TransliterationBlock
+          text={transliteration}
+          scale={scale * perLanguageScale.transliteration}
+          night={night}
+        />
       </View>
     ) : null,
     english: layers.english && translation ? (
       <View key="english" style={styles.section}>
-        <TranslationBlock text={translation} scale={scale} night={night} />
+        <TranslationBlock text={translation} scale={scale * perLanguageScale.english} night={night} />
       </View>
     ) : null,
     urdu: layers.urdu && urdu ? (
       <View key="urdu" style={styles.section}>
-        <UrduBlock text={urdu} scale={scale} night={night} />
+        <UrduBlock text={urdu} scale={scale * perLanguageScale.urdu} night={night} />
       </View>
     ) : null,
   };

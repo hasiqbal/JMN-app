@@ -32,5 +32,8 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     fontFamily: 'IndopakNastaleeq',
     letterSpacing: 0.2,
+    width: '100%',
+    maxWidth: 560,
+    alignSelf: 'center',
   },
 });

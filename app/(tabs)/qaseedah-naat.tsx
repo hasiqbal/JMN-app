@@ -294,13 +294,10 @@ export default function QaseedahNaatScreen() {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.modeRow}>
+          <View style={styles.controlsCompactRow}>
             <NightModeToggle nightMode={nightMode} onToggle={toggleManual} />
-          </View>
 
-          <View style={styles.textSizeRow}>
-            <Text style={[styles.textSizeLabel, N && { color: N.textMuted }]}>Text size</Text>
-            <View style={styles.textSizeChipWrap}>
+            <View style={[styles.textSizeCompactWrap, N && { borderColor: N.border }]}> 
               {(['sm', 'md', 'lg'] as const).map((option) => {
                 const active = textScale === option;
                 return (
@@ -575,7 +572,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     borderRadius: Radius.lg,
     padding: Spacing.md,
-    gap: 10,
+    gap: 8,
   },
   headerTopRow: {
     flexDirection: 'row',
@@ -610,33 +607,29 @@ const styles = StyleSheet.create({
   countRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 6,
   },
-  modeRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-  },
-  textSizeRow: {
+  controlsCompactRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
   },
-  textSizeLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.textSubtle,
-  },
-  textSizeChipWrap: {
+  textSizeCompactWrap: {
     flexDirection: 'row',
-    gap: 6,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.full,
+    paddingHorizontal: 4,
+    paddingVertical: 3,
   },
   textSizeChip: {
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
     backgroundColor: Colors.surface,
   },
   textSizeChipActive: {
@@ -644,7 +637,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.primaryLight,
   },
   textSizeChipText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     color: Colors.textSubtle,
   },
@@ -652,27 +645,27 @@ const styles = StyleSheet.create({
     color: Colors.qaseedahInkDark,
   },
   countChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 10,
     backgroundColor: Colors.headerBg,
   },
   countChipText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     color: Colors.textSubtle,
   },
   filterRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 6,
   },
   filterChip: {
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    borderRadius: 12,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
     backgroundColor: Colors.surface,
   },
   filterChipActive: {
@@ -680,7 +673,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.primaryLight,
   },
   filterChipText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: Colors.textSubtle,
   },

@@ -3,7 +3,7 @@
     "name": "JMN",
     "slug": "jmn",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/favicon.png",
     "scheme": "jmn",
     "userInterfaceStyle": "light",
@@ -43,7 +43,7 @@
             "./assets/audio/adhaan_1.mp3",
             "./assets/audio/adhaan_2.mp3",
             "./assets/audio/adhaan_3.mp3",
-            "./assets/audio/iqamah.mp3"
+            "./assets/audio/iqamah_new.mp3"
           ]
         }
       ],

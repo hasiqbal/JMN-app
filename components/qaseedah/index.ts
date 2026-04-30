@@ -8,6 +8,7 @@ export { TranslationBlock } from './TranslationBlock';
 export { UrduBlock } from './UrduBlock';
 export { VerseDivider } from './VerseDivider';
 export type {
+  LanguageFontScales,
   LayerVisibility,
   NightPaletteType,
   PrimaryLanguage,

@@ -15,6 +15,21 @@ let previewStopTimer: ReturnType<typeof setTimeout> | null = null;
 let volumeStopSubscription: { remove: () => void } | null = null;
 const bundledAdhaanUrisByFile = new Map<string, string | null>();
 const PREVIEW_PLAYBACK_MS = 10_000;
+const ADHAAN_DEBUG_TAG = '[ADHAAN_DEBUG]';
+
+function logAdhaanDebug(stage: string, payload: Record<string, unknown> = {}): void {
+  const event = {
+    ts: new Date().toISOString(),
+    stage,
+    ...payload,
+  };
+
+  try {
+    console.log(`${ADHAAN_DEBUG_TAG} ${JSON.stringify(event)}`);
+  } catch {
+    console.log(ADHAAN_DEBUG_TAG, stage);
+  }
+}
 
 function resolveAudioModule(soundFile: string) {
   switch (soundFile) {
@@ -24,8 +39,8 @@ function resolveAudioModule(soundFile: string) {
       return require('../assets/audio/adhaan_2.mp3');
     case 'adhaan_3.mp3':
       return require('../assets/audio/adhaan_3.mp3');
-    case 'iqamah.mp3':
-      return require('../assets/audio/iqamah.mp3');
+    case 'iqamah_new.mp3':
+      return require('../assets/audio/iqamah_new.mp3');
     default:
       return require('../assets/audio/adhaan_1.mp3');
   }
@@ -104,7 +119,16 @@ async function playAdhaanByOption(optionId: AdhaanOption['id'], maxDurationMs?: 
 
 async function playPrayerAudioBySoundFile(soundFile: string, maxDurationMs?: number): Promise<boolean> {
   const uri = await loadBundledAdhaanUri(soundFile);
-  if (!uri) return false;
+  if (!uri) {
+    logAdhaanDebug('audio-uri-missing', { soundFile });
+    return false;
+  }
+
+  logAdhaanDebug('audio-resolved', {
+    soundFile,
+    uri,
+    maxDurationMs: typeof maxDurationMs === 'number' ? maxDurationMs : null,
+  });
 
   try {
     await setAudioModeAsync({
@@ -115,6 +139,7 @@ async function playPrayerAudioBySoundFile(soundFile: string, maxDurationMs?: num
       interruptionMode: 'doNotMix',
     });
   } catch {
+    logAdhaanDebug('audio-mode-config-failed', { soundFile });
     return false;
   }
 
@@ -141,6 +166,7 @@ async function playPrayerAudioBySoundFile(soundFile: string, maxDurationMs?: num
     });
 
     player.play();
+    logAdhaanDebug('audio-play-started', { soundFile, uri });
 
     if (typeof maxDurationMs === 'number' && maxDurationMs > 0) {
       previewStopTimer = setTimeout(() => {
@@ -151,6 +177,7 @@ async function playPrayerAudioBySoundFile(soundFile: string, maxDurationMs?: num
 
     return true;
   } catch {
+    logAdhaanDebug('audio-play-failed', { soundFile });
     await stopPrayerStartAdhaan();
     return false;
   }

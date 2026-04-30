@@ -32,7 +32,7 @@ export function TranslationBlock({ text, scale, night, label = 'Meaning' }: Prop
 
 const styles = StyleSheet.create({
   wrap: {
-    alignItems: 'center',
+    alignItems: 'stretch',
     gap: 4,
   },
   label: {
@@ -45,6 +45,8 @@ const styles = StyleSheet.create({
   text: {
     textAlign: 'center',
     color: Colors.textSecondary,
+    width: '100%',
     maxWidth: 520,
+    alignSelf: 'center',
   },
 });

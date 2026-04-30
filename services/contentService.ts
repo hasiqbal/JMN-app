@@ -47,6 +47,16 @@ const qaseedahNaatGroupMemoryCache = new Map<string, QaseedahNaatCachePayload>()
 let qaseedahNaatFetchInFlight: Promise<AdhkarRow[]> | null = null;
 const qaseedahNaatGroupFetchInFlight = new Map<string, Promise<AdhkarRow[]>>();
 const howToFetchInFlight = new Map<'en' | 'ur', Promise<HowToGuide[]>>();
+const HOWTO_STEP_BATCH_SIZE = 120;
+
+function chunkItems<T>(items: T[], size: number): T[][] {
+  if (size <= 0) return [items];
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+}
 
 function isCacheFresh(updatedAt: number, ttlMs: number): boolean {
   return Date.now() - updatedAt <= ttlMs;
@@ -732,6 +742,7 @@ type HowToStepRow = {
   title: string;
   detail: string | null;
   note: string | null;
+  rich_content_html?: string | null;
 };
 
 type HowToStepBlockRow = {
@@ -1361,7 +1372,7 @@ async function fetchHowToGuidesFromNetwork(language: 'en' | 'ur'): Promise<HowTo
   if (sectionIds.length > 0) {
     const { data: steps, error: stepsError } = await supabase
       .from('howto_steps')
-      .select('id,section_id,step_order,title,detail,note')
+      .select('id,section_id,step_order,title,detail,note,rich_content_html')
       .in('section_id', sectionIds)
       .order('step_order', { ascending: true });
 
@@ -1375,25 +1386,31 @@ async function fetchHowToGuidesFromNetwork(language: 'en' | 'ur'): Promise<HowTo
   let blockRows: HowToStepBlockRow[] = [];
   let imageRows: HowToStepImageRow[] = [];
   if (stepIds.length > 0) {
-    const [blocksResult, imagesResult] = await Promise.all([
-      supabase
-        .from('howto_step_blocks')
-        .select('step_id,block_order,kind,payload')
-        .in('step_id', stepIds)
-        .order('block_order', { ascending: true }),
-      supabase
-        .from('howto_step_images')
-        .select('step_id,display_order,image_url,caption,source')
-        .in('step_id', stepIds)
-        .order('display_order', { ascending: true }),
-    ]);
+    const stepIdChunks = chunkItems(stepIds, HOWTO_STEP_BATCH_SIZE);
+    for (const stepIdChunk of stepIdChunks) {
+      const [blocksResult, imagesResult] = await Promise.all([
+        supabase
+          .from('howto_step_blocks')
+          .select('step_id,block_order,kind,payload')
+          .in('step_id', stepIdChunk)
+          .order('block_order', { ascending: true }),
+        supabase
+          .from('howto_step_images')
+          .select('step_id,display_order,image_url,caption,source')
+          .in('step_id', stepIdChunk)
+          .order('display_order', { ascending: true }),
+      ]);
 
-    if (!blocksResult.error) {
-      blockRows = (blocksResult.data ?? []) as HowToStepBlockRow[];
-    }
+      if (blocksResult.error) {
+        throw new Error(`Failed to load how-to step blocks: ${blocksResult.error.message}`);
+      }
 
-    if (!imagesResult.error) {
-      imageRows = (imagesResult.data ?? []) as HowToStepImageRow[];
+      if (imagesResult.error) {
+        throw new Error(`Failed to load how-to step images: ${imagesResult.error.message}`);
+      }
+
+      blockRows.push(...((blocksResult.data ?? []) as HowToStepBlockRow[]));
+      imageRows.push(...((imagesResult.data ?? []) as HowToStepImageRow[]));
     }
   }
 
@@ -1449,14 +1466,20 @@ async function fetchHowToGuidesFromNetwork(language: 'en' | 'ur'): Promise<HowTo
       : undefined,
     sections: (sectionsByGuideId.get(guide.id) ?? []).map((section) => ({
       heading: section.heading,
-      steps: (stepsBySectionId.get(section.id) ?? []).map((step, index) => ({
-        step: index + 1,
-        title: step.title,
-        detail: step.detail ?? '',
-        blocks: blocksByStepId.get(step.id) ?? undefined,
-        note: step.note ?? undefined,
-        images: imagesByStepId.get(step.id) ?? undefined,
-      })),
+      steps: (stepsBySectionId.get(section.id) ?? []).map((step, index) => {
+        const stepBlocks = blocksByStepId.get(step.id) ?? undefined;
+        const stepDetail = step.detail ?? '';
+        const richContentFallback = step.rich_content_html ? stripHtml(step.rich_content_html) : '';
+
+        return {
+          step: index + 1,
+          title: step.title,
+          detail: stepDetail || richContentFallback,
+          blocks: stepBlocks,
+          note: step.note ?? undefined,
+          images: imagesByStepId.get(step.id) ?? undefined,
+        };
+      }),
     })),
   }));
 

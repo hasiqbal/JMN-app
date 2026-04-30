@@ -18,8 +18,24 @@ function normalizeUrduGlyphs(value: string): string {
     .replace(/\u0629/g, '\u06C1');
 }
 
+function restoreCollapsedUrduLineBreaks(value: string): string {
+  if (!value.trim()) return value;
+  if (value.includes('\n')) return value;
+
+  const markerMatches = value.match(/[۞٭❁✽✦•]/g) ?? [];
+  if (markerMatches.length < 2) return value;
+
+  return value
+    .replace(/\s*([۞٭❁✽✦•])\s*/g, ' $1\n')
+    .replace(/\n{2,}/g, '\n')
+    .trim();
+}
+
 export function UrduBlock({ text, scale, night }: Props) {
-  const normalizedText = React.useMemo(() => normalizeUrduGlyphs(text), [text]);
+  const normalizedText = React.useMemo(() => {
+    const glyphs = normalizeUrduGlyphs(text);
+    return restoreCollapsedUrduLineBreaks(glyphs);
+  }, [text]);
   const fontSize = Math.round(17 * scale);
   const lineHeight = Math.round(31 * scale);
   return (

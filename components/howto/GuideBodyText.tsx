@@ -9,6 +9,8 @@ import {
   transliterationFromText,
 } from './arabic';
 
+type GuideLearningMode = 'default' | 'salah-pilot';
+
 interface InlineArabicTextProps {
   text: string;
   style?: any;
@@ -42,13 +44,19 @@ interface GuideBodyTextProps {
   nightMode: boolean;
   /** Auto-render detected Arabic token transliterations below the text. Defaults to true. */
   autoTransliteration?: boolean;
+  learningMode?: GuideLearningMode;
 }
 
 /**
  * Plain guide body text. Renders inline Arabic in Nastaleeq and shows an auto-transliteration
  * footer when the line contains Arabic that isn't already transliterated.
  */
-export function GuideBodyText({ text, nightMode, autoTransliteration = true }: GuideBodyTextProps) {
+export function GuideBodyText({
+  text,
+  nightMode,
+  autoTransliteration = true,
+  learningMode = 'default',
+}: GuideBodyTextProps) {
   const P = pickPalette(nightMode);
   const translit = autoTransliteration ? transliterationFromText(text) : null;
   const showTranslit = Boolean(translit) && shouldRenderAutoTransliteration(text, translit);
@@ -58,7 +66,7 @@ export function GuideBodyText({ text, nightMode, autoTransliteration = true }: G
       <InlineArabicText
         text={text}
         nightMode={nightMode}
-        style={[styles.bodyText, { color: P.textSub }]}
+        style={[styles.bodyText, learningMode === 'salah-pilot' && styles.bodyTextPilot, { color: P.textSub }]}
       />
       {showTranslit ? (
         <Text style={[styles.bodyTransliteration, { color: P.textSub }]}>{translit}</Text>
@@ -75,6 +83,10 @@ const styles = StyleSheet.create({
     fontSize: GuideType.bodySize,
     lineHeight: GuideType.bodyLineHeight,
     fontWeight: '400',
+  },
+  bodyTextPilot: {
+    fontSize: GuideType.bodySize + 0.3,
+    lineHeight: GuideType.bodyLineHeight + 1,
   },
   bodyTransliteration: {
     fontSize: 12,

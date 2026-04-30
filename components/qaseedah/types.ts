@@ -13,6 +13,13 @@ export type LayerVisibility = {
   urdu: boolean;
 };
 
+export type LanguageFontScales = {
+  arabic: number;
+  transliteration: number;
+  english: number;
+  urdu: number;
+};
+
 export type VerseLine = {
   heading: string;
   arabic: string;

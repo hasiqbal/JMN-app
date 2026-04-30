@@ -29,11 +29,11 @@ export function getAdhaanOptionById(value: string | null | undefined): AdhaanOpt
 
 export function getPrayerStartChannelId(optionId: AdhaanOption['id'], silent = false): string {
 	return silent
-		? `jmn-prayer-start-adhaan-${optionId}-silent-v1`
-		: `jmn-prayer-start-adhaan-${optionId}-v2`;
+		? `jmn-prayer-start-adhaan-${optionId}-silent-v2`
+		: `jmn-prayer-start-adhaan-${optionId}-v3`;
 }
 
-export const IQAMAH_NOTIFICATION_CHANNEL_ID = 'jmn-iqamah-start-v3';
+export const IQAMAH_NOTIFICATION_CHANNEL_ID = 'jmn-iqamah-start-v4';
 export const IQAMAH_NOTIFICATION_SILENT_CHANNEL_ID = 'jmn-iqamah-start-silent-v2';
 export const PRAYER_AUDIO_NOTIFICATION_CATEGORY_ID = 'jmnPrayerAudio';
 export const PRAYER_AUDIO_MUTE_ACTION_ID = 'jmnPrayerAudioMute';
@@ -42,7 +42,7 @@ export const PRAYER_NOTIFICATION_SCOPE = 'jmn-prayer';
 export const PRAYER_NOTIFICATION_ROUTE = '/prayer';
 export const PRAYER_NOTIFICATION_CHANNEL_ID = 'jmn-prayer-alerts-v1';
 export const PRAYER_START_NOTIFICATION_SOUND_FILE = ADHAAN_OPTIONS[0].soundFile;
-export const IQAMAH_SOUND_FILE = 'iqamah.mp3';
+export const IQAMAH_SOUND_FILE = 'iqamah_new.mp3';
 export const PRAYER_NOTIFICATION_MIN_LEAD_MS = 30 * 1000;
 export const PRAYER_NOTIFICATION_NEAR_END_MINUTES = 45;
 export const PRAYER_NOTIFICATION_JAMAAT_LEAD_MINUTES = 10;

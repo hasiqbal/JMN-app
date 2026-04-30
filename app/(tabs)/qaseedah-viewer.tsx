@@ -1,6 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import WebView from 'react-native-webview';
 
@@ -18,8 +19,28 @@ function normalizeParam(value: string | string[] | undefined): string {
   return value ?? '';
 }
 
+const ENABLE_PINCH_ZOOM_SCRIPT = `
+(function () {
+  var head = document.head || document.getElementsByTagName('head')[0];
+  if (!head) return;
+
+  var existing = document.querySelector('meta[name="viewport"]');
+  if (existing) {
+    existing.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=5.0, minimum-scale=0.5, user-scalable=yes');
+    return;
+  }
+
+  var meta = document.createElement('meta');
+  meta.name = 'viewport';
+  meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=5.0, minimum-scale=0.5, user-scalable=yes';
+  head.appendChild(meta);
+})();
+true;
+`;
+
 export default function QaseedahViewerScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { nightMode } = useQaseedahNightMode();
   const N = nightMode ? NIGHT_PALETTE : null;
   const params = useLocalSearchParams<ViewerParams>();
@@ -27,6 +48,14 @@ export default function QaseedahViewerScreen() {
   const rawUrl = normalizeParam(params.url).trim();
   const title = normalizeParam(params.title).trim() || 'Attachment';
   const safeUrl = /^https?:\/\//i.test(rawUrl) ? rawUrl : '';
+
+  React.useEffect(() => {
+    navigation.setOptions({ tabBarStyle: { display: 'none' } });
+
+    return () => {
+      navigation.setOptions({ tabBarStyle: undefined });
+    };
+  }, [navigation]);
 
   return (
     <View style={[styles.screen, N && { backgroundColor: N.bg }]}>
@@ -49,6 +78,11 @@ export default function QaseedahViewerScreen() {
         <WebView
           source={{ uri: safeUrl }}
           style={styles.webview}
+          javaScriptEnabled
+          injectedJavaScriptBeforeContentLoaded={ENABLE_PINCH_ZOOM_SCRIPT}
+          setBuiltInZoomControls
+          setDisplayZoomControls={false}
+          scalesPageToFit
           startInLoadingState
           renderLoading={() => (
             <View style={styles.loadingOverlay}>

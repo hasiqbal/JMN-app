@@ -7,6 +7,7 @@ import { useFonts } from 'expo-font';
 import { AlertProvider, InAppBannerProvider } from '@/template';
 import { runInitialTranslationWarmup } from '@/services/translationWarmupService';
 import { prewarmQaseedahAndHowToCaches } from '@/services/contentService';
+import { runInitialHadrWarmup } from '@/services/hadrWarmupService';
 import { NightModeProvider } from '@/contexts/NightModeContext';
 import { AppThemeProvider } from '@/contexts/AppThemeContext';
 
@@ -50,6 +51,7 @@ export default function RootLayout() {
   React.useEffect(() => {
     void runInitialTranslationWarmup();
     void prewarmQaseedahAndHowToCaches();
+    void runInitialHadrWarmup();
   }, []);
 
   React.useEffect(() => {

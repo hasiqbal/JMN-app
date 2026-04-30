@@ -32,5 +32,8 @@ const styles = StyleSheet.create({
     color: Colors.textSubtle,
     letterSpacing: 0.3,
     fontWeight: '400',
+    width: '100%',
+    maxWidth: 540,
+    alignSelf: 'center',
   },
 });

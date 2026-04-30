@@ -7,6 +7,8 @@ import { GuideBlockList } from './GuideBlockList';
 import { hasArabic } from './arabic';
 import { InlineArabicText } from './GuideBodyText';
 
+type GuideLearningMode = 'default' | 'salah-pilot';
+
 interface GuideStepCardProps {
   step: number;
   title: string;
@@ -20,6 +22,7 @@ interface GuideStepCardProps {
   isLast: boolean;
   nightMode: boolean;
   contentLanguage?: 'en' | 'ur';
+  learningMode?: GuideLearningMode;
   /** Optional extra content (e.g. step image list) rendered below the blocks. */
   children?: React.ReactNode;
 }
@@ -44,6 +47,7 @@ export function GuideStepCard({
   isLast,
   nightMode,
   contentLanguage = 'en',
+  learningMode = 'default',
   children,
 }: GuideStepCardProps) {
   const P = pickPalette(nightMode);
@@ -56,14 +60,15 @@ export function GuideStepCard({
     <View
       style={[
         styles.row,
+        learningMode === 'salah-pilot' && styles.rowPilot,
         { borderBottomColor: P.border },
         isLast && styles.rowLast,
       ]}
     >
-      <View style={[styles.stepNum, { backgroundColor: effectiveAccent }]}>
+      <View style={[styles.stepNum, learningMode === 'salah-pilot' && styles.stepNumPilot, { backgroundColor: effectiveAccent }]}>
         <Text style={styles.stepNumText}>{step}</Text>
       </View>
-      <View style={styles.contentCol}>
+      <View style={[styles.contentCol, learningMode === 'salah-pilot' && styles.contentColPilot]}>
         {hasUrduTitle ? (
           <InlineArabicText
             text={title}
@@ -71,6 +76,7 @@ export function GuideStepCard({
             style={[
               styles.title,
               styles.titleUrdu,
+              learningMode === 'salah-pilot' && styles.titlePilot,
               { color: isWarning ? effectiveAccent : P.text },
             ]}
           />
@@ -78,6 +84,7 @@ export function GuideStepCard({
           <Text
             style={[
               styles.title,
+              learningMode === 'salah-pilot' && styles.titlePilot,
               { color: isWarning ? effectiveAccent : P.text },
             ]}
           >
@@ -101,6 +108,7 @@ export function GuideStepCard({
             detail={detail}
             nightMode={nightMode}
             contentLanguage={contentLanguage}
+            learningMode={learningMode}
           />
         </View>
         {note ? (
@@ -129,6 +137,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  rowPilot: {
+    gap: 10,
+    paddingVertical: 10,
+  },
   rowLast: { borderBottomWidth: 0 },
   stepNum: {
     width: 26,
@@ -139,6 +151,11 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     marginTop: 1,
   },
+  stepNumPilot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
   stepNumText: {
     fontSize: 12,
     fontWeight: '800',
@@ -148,11 +165,18 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 8,
   },
+  contentColPilot: {
+    gap: 7,
+  },
   title: {
     fontSize: 14,
     fontWeight: '700',
     lineHeight: 20,
     letterSpacing: 0.1,
+  },
+  titlePilot: {
+    fontSize: 15,
+    lineHeight: 21,
   },
   titleUrdu: {
     fontFamily: 'UrduNastaliq',

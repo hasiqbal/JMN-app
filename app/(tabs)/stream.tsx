@@ -434,10 +434,16 @@ async function resolveAudioSourceUri(source: AudioSource): Promise<string> {
   }
 
   const asset = Asset.fromModule(source);
-  if (!asset.localUri) {
-    await asset.downloadAsync().catch(() => {});
+  const immediateUri = asset.localUri ?? asset.uri;
+  if (immediateUri) {
+    if (!asset.localUri) {
+      // Warm local cache in background without blocking playback startup.
+      void asset.downloadAsync().catch(() => {});
+    }
+    return immediateUri;
   }
 
+  await asset.downloadAsync().catch(() => {});
   const uri = asset.localUri ?? asset.uri;
   if (!uri) {
     throw new Error('audio-asset-uri-missing');
@@ -702,6 +708,26 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
   }, [repeatEnabled]);
 
   useEffect(() => {
+    if (Platform.OS === 'web' || !hadrOpen) return;
+
+    const currentJuz = Math.max(1, Math.min(30, selectedHadrJuz));
+    const warmupJuz = [
+      currentJuz,
+      getPreviousJuzNumber(currentJuz),
+      getNextJuzNumber(currentJuz),
+    ];
+
+    warmupJuz.forEach((juz) => {
+      const source = HADR_JUZ_TRACKS[juz];
+      if (!source) return;
+      const asset = Asset.fromModule(source);
+      if (!asset.localUri) {
+        void asset.downloadAsync().catch(() => {});
+      }
+    });
+  }, [hadrOpen, selectedHadrJuz]);
+
+  useEffect(() => {
     AsyncStorage.getItem(NOTIF_KEY).then((value) => {
       if (value === null) {
         setNotifyEnabled(true);
@@ -885,12 +911,6 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
       }
 
       try {
-        await player.seekTo(0);
-      } catch {
-        // Some streams do not support seek.
-      }
-
-      try {
         player.remove();
       } catch {
         // Disposal errors should not block UI flow.
@@ -1035,9 +1055,6 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
       let connected = false;
 
       try {
-        const url = await resolveAudioSourceUri(source);
-        if (requestId !== playRequestIdRef.current) return;
-
         setAudioLoading(true);
         setAudioPlaying(true);
         setAudioPaused(false);
@@ -1050,6 +1067,9 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
         setSeekDraftSec(null);
         setTimeshiftDraftSec(null);
         setTimeshiftSec(0);
+
+        const url = await resolveAudioSourceUri(source);
+        if (requestId !== playRequestIdRef.current) return;
 
         if (Platform.OS === 'web') {
           const AudioCtor = (globalThis as { Audio?: new (src?: string) => any }).Audio;
@@ -1534,6 +1554,14 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
       }
 
       await playUrl(hadrTrack, { retries: 1, connectTimeoutMs: 2200 });
+
+      const nextTrack = HADR_JUZ_TRACKS[getNextJuzNumber(normalizedJuz)];
+      if (nextTrack) {
+        const nextAsset = Asset.fromModule(nextTrack);
+        if (!nextAsset.localUri) {
+          void nextAsset.downloadAsync().catch(() => {});
+        }
+      }
     },
     [playUrl, radioStreams, stopAudio],
   );

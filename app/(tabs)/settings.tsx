@@ -39,6 +39,21 @@ async function getNotificationsModule(): Promise<ExpoNotificationsModule | null>
 const LIVE_NOTIFICATION_CHANNEL_ID = 'jmn-live-v3';
 const LIVE_NOTIFY_KEY = 'jmn_radio_notify';
 const PRAYER_TEST_LEAD_MS = 10 * 1000;
+const ADHAAN_DEBUG_TAG = '[ADHAAN_DEBUG]';
+
+function logAdhaanDebug(stage: string, payload: Record<string, unknown> = {}): void {
+  const event = {
+    ts: new Date().toISOString(),
+    stage,
+    ...payload,
+  };
+
+  try {
+    console.log(`${ADHAAN_DEBUG_TAG} ${JSON.stringify(event)}`);
+  } catch {
+    console.log(ADHAAN_DEBUG_TAG, stage);
+  }
+}
 
 type SwitchRowProps = {
   label: string;
@@ -301,12 +316,14 @@ export default function SettingsScreen() {
   const runBackgroundAdhaanTest = useCallback(async () => {
     const Notifications = await getNotificationsModule();
     if (!Notifications) {
+      logAdhaanDebug('test-abort-notifications-module-missing');
       showBanner('Adhaan test unavailable', 'Notifications module is unavailable on this runtime.', 7000, 'warning');
       return;
     }
 
     const allowed = await ensureLiveNotificationPermission();
     if (!allowed) {
+      logAdhaanDebug('test-abort-permission-denied');
       showBanner('Permission required', 'Enable notifications first to run adhaan background test.', 7000, 'warning');
       return;
     }
@@ -314,7 +331,22 @@ export default function SettingsScreen() {
     const selectedAdhaanOption = getAdhaanOptionById(selectedAdhaanOptionId);
     const prayerStartChannelId = getPrayerStartChannelId(selectedAdhaanOption.id, prayerAudioMuted);
 
+    logAdhaanDebug('test-start', {
+      selectedAdhaanOptionId: selectedAdhaanOption.id,
+      selectedSoundFile: selectedAdhaanOption.soundFile,
+      prayerAudioMuted,
+      prayerStartChannelId,
+    });
+
     if (Platform.OS === 'android') {
+      const channelsBefore = await Notifications.getNotificationChannelsAsync().catch(() => []);
+      logAdhaanDebug('android-channels-before-cleanup', {
+        channels: channelsBefore
+          .filter((channel) =>
+            channel.id.includes('jmn-prayer-start-adhaan') || channel.id.includes('jmn-iqamah'))
+          .map((channel) => ({ id: channel.id, sound: channel.sound ?? null, name: channel.name })),
+      });
+
       await Notifications.setNotificationChannelAsync(prayerStartChannelId, {
         name: prayerAudioMuted
           ? `Prayer Start Adhaan ${selectedAdhaanOption.id} (Vibration Only)`
@@ -325,6 +357,14 @@ export default function SettingsScreen() {
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
         sound: prayerAudioMuted ? null : selectedAdhaanOption.soundFile,
       }).catch(() => {});
+
+      const channelsAfter = await Notifications.getNotificationChannelsAsync().catch(() => []);
+      logAdhaanDebug('android-channels-after-setup', {
+        channels: channelsAfter
+          .filter((channel) =>
+            channel.id.includes('jmn-prayer-start-adhaan') || channel.id.includes('jmn-iqamah'))
+          .map((channel) => ({ id: channel.id, sound: channel.sound ?? null, name: channel.name })),
+      });
     }
 
     const fireAt = new Date(Date.now() + PRAYER_TEST_LEAD_MS);
@@ -351,9 +391,24 @@ export default function SettingsScreen() {
     }).catch(() => null);
 
     if (!scheduled) {
+      logAdhaanDebug('test-schedule-failed', {
+        selectedAdhaanOptionId: selectedAdhaanOption.id,
+        selectedSoundFile: selectedAdhaanOption.soundFile,
+        prayerStartChannelId,
+      });
       showBanner('Adhaan test failed', 'Could not schedule background adhaan test notification.', 7000, 'warning');
       return;
     }
+
+    logAdhaanDebug('test-scheduled', {
+      notificationId: scheduled,
+      fireAtIso: fireAt.toISOString(),
+      selectedAdhaanOptionId: selectedAdhaanOption.id,
+      selectedSoundFile: selectedAdhaanOption.soundFile,
+      prayerAudioMuted,
+      prayerStartChannelId,
+      contentSound: prayerAudioMuted ? false : selectedAdhaanOption.soundFile,
+    });
 
     showBanner('Adhaan test scheduled', 'Notification will fire in ~10 seconds. Lock the phone now to test background adhaan.', 9000);
   }, [ensureLiveNotificationPermission, prayerAudioMuted, selectedAdhaanOptionId, showBanner]);

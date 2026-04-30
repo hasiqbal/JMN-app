@@ -10,7 +10,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import Reanimated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
@@ -422,12 +422,30 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
 
   const renderGuideCard = (guide: HowToGuide) => {
     const isOpen = expandedGuide === guide.id;
+    const isSalahPilot = true;
     const { english, arabic } = splitBilingualTitle(guide.title);
     const arabicForCard = selectedLanguageCode === 'ur' ? arabic : null;
+    const totalSteps = guide.sections.reduce((count, section) => count + section.steps.length, 0);
+    const totalImages = guide.sections.reduce(
+      (count, section) => count + section.steps.reduce((stepCount, step) => stepCount + (step.images?.length ?? 0), 0),
+      0,
+    );
+    const recitationBlocks = guide.sections.reduce(
+      (count, section) => count + section.steps.reduce(
+        (stepCount, step) => stepCount + ((step.blocks ?? []).filter((block) => block.kind === 'recitation').length),
+        0,
+      ),
+      0,
+    );
+
     return (
       <View
         key={guide.id}
-        style={[howToStyles.guideCard, N && { backgroundColor: N.surface, borderColor: N.border }]}
+        style={[
+          howToStyles.guideCard,
+          isSalahPilot && howToStyles.salahPilotGuideCard,
+          N && { backgroundColor: N.surface, borderColor: N.border },
+        ]}
         onLayout={(e) => { guideYRefs.current[guide.id] = e.nativeEvent.layout.y; }}
       >
         <TouchableOpacity
@@ -454,9 +472,39 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
 
         {isOpen ? (
           <View style={howToStyles.guideBody}>
-            <View style={[howToStyles.introBand, { borderLeftColor: guide.color }, N && { backgroundColor: guide.color + '15' }]}>
-              <Text style={[howToStyles.introText, N && { color: N.textSub }]}>{guide.intro}</Text>
-            </View>
+            {isSalahPilot ? (
+              <View style={[
+                howToStyles.salahPilotHero,
+                N
+                  ? { backgroundColor: N.surfaceAlt, borderColor: N.border }
+                  : { backgroundColor: guide.color + '12', borderColor: guide.color + '4A' },
+              ]}>
+                <View style={howToStyles.salahPilotHeroHeader}>
+                  <Text style={[howToStyles.salahPilotEyebrow, { color: N ? N.accent : guide.color }]}>GUIDED LESSON MODE</Text>
+                  <View style={[howToStyles.salahPilotBadge, { borderColor: guide.color + '66', backgroundColor: guide.color + '18' }]}>
+                    <Text style={[howToStyles.salahPilotBadgeText, { color: guide.color }]}>Focused learning</Text>
+                  </View>
+                </View>
+                <Text style={[howToStyles.salahPilotMeta, N && { color: N.textSub }]}> 
+                  {guide.sections.length} sections · {totalSteps} steps · {recitationBlocks} recitations{totalImages > 0 ? ` · ${totalImages} visuals` : ''}
+                </Text>
+                {guide.intro ? (
+                  <View style={[
+                    howToStyles.salahPilotIntroBand,
+                    { borderLeftColor: guide.color },
+                    N
+                      ? { backgroundColor: guide.color + '18' }
+                      : { backgroundColor: guide.color + '14' },
+                  ]}>
+                    <Text style={[howToStyles.introText, N && { color: N.textSub }]}>{guide.intro}</Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : (
+              <View style={[howToStyles.introBand, { borderLeftColor: guide.color }, N && { backgroundColor: guide.color + '15' }]}>
+                <Text style={[howToStyles.introText, N && { color: N.textSub }]}>{guide.intro}</Text>
+              </View>
+            )}
 
             {guide.sections.map((section: HowToSection, si: number) => {
               const secKey = guide.id + '-' + si;
@@ -464,7 +512,7 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
               return (
                 <View
                   key={secKey}
-                  style={[howToStyles.sectionBlock, N && { borderColor: N.border }]}
+                  style={[howToStyles.sectionBlock, isSalahPilot && howToStyles.sectionBlockPilot, N && { borderColor: N.border }]}
                   onLayout={(e) => {
                     const guideY = guideYRefs.current[guide.id] ?? 0;
                     sectionYRefs.current[secKey] = guideY + e.nativeEvent.layout.y;
@@ -477,6 +525,27 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
                     onToggle={() => handleSectionToggle(secKey)}
                     nightMode={nightMode}
                   />
+
+                  {!secOpen && isSalahPilot ? (
+                    <View style={[
+                      howToStyles.salahPilotSectionPreview,
+                      N
+                        ? { backgroundColor: N.surface }
+                        : { backgroundColor: guide.color + '0D', borderTopColor: guide.color + '3A' },
+                    ]}>
+                      <Text style={[howToStyles.salahPilotSectionMeta, N && { color: N.textMuted }]}>
+                        {section.steps.length} {section.steps.length === 1 ? 'step' : 'steps'} in this section
+                      </Text>
+                      {section.steps.slice(0, 2).map((step, index) => (
+                        <View key={`${secKey}-preview-${index}`} style={howToStyles.salahPilotPreviewRow}>
+                          <Text style={[howToStyles.salahPilotPreviewBullet, { color: guide.color }]}>•</Text>
+                          <Text numberOfLines={1} style={[howToStyles.salahPilotPreviewText, N && { color: N.textSub }]}>
+                            {step.title}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
 
                   {secOpen ? (
                     <View style={howToStyles.stepsContainer}>
@@ -494,13 +563,19 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
                             isLast={isLastStep}
                             nightMode={nightMode}
                             contentLanguage={selectedLanguageCode}
+                            learningMode={isSalahPilot ? 'salah-pilot' : 'default'}
                           >
                             {step.images && step.images.length > 0 ? (
                               <View style={howToStyles.stepMediaList}>
                                 {step.images.map((photo: HowToStepImage, photoIdx: number) => (
                                   <TouchableOpacity
                                     key={`${step.step}-media-${photoIdx}`}
-                                    style={[howToStyles.stepMediaCard, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}
+                                    style={[
+                                      howToStyles.stepMediaCard,
+                                      isSalahPilot && howToStyles.stepMediaCardPilot,
+                                      isSalahPilot && !N && { backgroundColor: guide.color + '0E', borderColor: guide.color + '3F' },
+                                      N && { backgroundColor: N.surfaceAlt, borderColor: N.border },
+                                    ]}
                                     onPress={() => openImageViewer(photo)}
                                     activeOpacity={0.9}
                                   >
@@ -517,7 +592,9 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
                                     </View>
                                     <View style={howToStyles.stepMediaMeta}>
                                       <Text style={[howToStyles.stepMediaCaption, N && { color: N.textSub }]}>{photo.caption}</Text>
-                                      <Text style={[howToStyles.stepMediaHint, N && { color: N.textMuted }]}>Tap to enlarge, pinch to zoom, drag to pan</Text>
+                                      <Text style={[howToStyles.stepMediaHint, N && { color: N.textMuted }]}>
+                                        Tap to enlarge, pinch to zoom, drag to pan
+                                      </Text>
                                     </View>
                                   </TouchableOpacity>
                                 ))}
@@ -533,10 +610,15 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
             })}
 
             {guide.notes && guide.notes.length > 0 ? (
-              <View style={[howToStyles.notesBlock, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}>
+              <View style={[
+                howToStyles.notesBlock,
+                isSalahPilot && howToStyles.notesBlockPilot,
+                isSalahPilot && !N && { backgroundColor: guide.color + '10', borderColor: guide.color + '40' },
+                N && { backgroundColor: N.surfaceAlt, borderColor: N.border },
+              ]}>
                 <View style={howToStyles.notesHeader}>
                   <MaterialIcons name="info-outline" size={14} color={N ? N.textMuted : Colors.textSubtle} />
-                  <Text style={[howToStyles.notesTitle, N && { color: N.textSub }]}>Important Notes</Text>
+                  <Text style={[howToStyles.notesTitle, N && { color: N.textSub }]}>{isSalahPilot ? 'Study Notes' : 'Important Notes'}</Text>
                 </View>
                 {guide.notes.map((note: string, ni: number) => (
                   <View key={ni} style={howToStyles.noteItem}>
@@ -622,6 +704,7 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
       animationType="fade"
       onRequestClose={closeImageViewer}
     >
+      <GestureHandlerRootView style={howToStyles.viewerRoot}>
       <View style={howToStyles.viewerBackdrop}>
         <View style={[howToStyles.viewerHeader, N && { borderBottomColor: N.border }]}> 
           <View style={{ flex: 1 }}>
@@ -678,6 +761,7 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
           </TouchableOpacity>
         </View>
       </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 
@@ -1052,6 +1136,11 @@ const howToStyles = StyleSheet.create({
     borderWidth: 1, borderColor: Colors.border,
     overflow: 'hidden',
   },
+  salahPilotGuideCard: {
+    borderRadius: Radius.xl,
+    borderColor: '#CBDDCE',
+    backgroundColor: '#FBFEFC',
+  },
   guideHeader: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     padding: Spacing.md,
@@ -1077,6 +1166,50 @@ const howToStyles = StyleSheet.create({
   },
   guideSub: { fontSize: 11, fontWeight: '500', color: Colors.textSubtle, marginTop: 3, letterSpacing: 0.2 },
   guideBody: { paddingHorizontal: Spacing.md, paddingBottom: Spacing.md, gap: 14 },
+  salahPilotHero: {
+    borderWidth: 1,
+    borderColor: '#CFE0D2',
+    borderRadius: Radius.md,
+    backgroundColor: '#F7FBF8',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  salahPilotHeroHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  salahPilotEyebrow: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.15,
+    color: '#2D6A47',
+  },
+  salahPilotBadge: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  salahPilotBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  salahPilotMeta: {
+    fontSize: 11,
+    lineHeight: 16,
+    color: '#436253',
+  },
+  salahPilotIntroBand: {
+    borderLeftWidth: 4,
+    borderRadius: 8,
+    backgroundColor: '#EDF8F0',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
   introBand: {
     borderLeftWidth: 4, borderRadius: 8,
     backgroundColor: Colors.primarySoft,
@@ -1085,6 +1218,39 @@ const howToStyles = StyleSheet.create({
   introText: { fontSize: 14, fontWeight: '400', lineHeight: 22, color: Colors.textSecondary },
   sectionBlock: {
     borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, overflow: 'hidden',
+  },
+  sectionBlockPilot: {
+    borderRadius: Radius.lg,
+    borderColor: '#D0E0D2',
+    backgroundColor: '#FCFEFC',
+  },
+  salahPilotSectionPreview: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#D8E7DA',
+    backgroundColor: '#F3FAF5',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 5,
+  },
+  salahPilotSectionMeta: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6A8073',
+  },
+  salahPilotPreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  salahPilotPreviewBullet: {
+    fontSize: 12,
+    lineHeight: 14,
+  },
+  salahPilotPreviewText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#476154',
   },
   sectionHeader: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -1284,6 +1450,11 @@ const howToStyles = StyleSheet.create({
     backgroundColor: Colors.surfaceAlt,
     overflow: 'hidden',
   },
+  stepMediaCardPilot: {
+    borderRadius: Radius.lg,
+    borderColor: '#CADDCD',
+    backgroundColor: '#F7FBF8',
+  },
   stepMediaImage: {
     width: '100%',
     aspectRatio: 16 / 9,
@@ -1319,6 +1490,9 @@ const howToStyles = StyleSheet.create({
     lineHeight: 16,
     color: Colors.textSubtle,
     fontStyle: 'italic',
+  },
+  viewerRoot: {
+    flex: 1,
   },
   viewerBackdrop: {
     flex: 1,
@@ -1402,6 +1576,12 @@ const howToStyles = StyleSheet.create({
   notesBlock: {
     backgroundColor: Colors.surfaceAlt, borderRadius: Radius.md,
     borderWidth: 1, borderColor: Colors.border, padding: 12, gap: 8,
+  },
+  notesBlockPilot: {
+    borderRadius: Radius.lg,
+    paddingVertical: 10,
+    borderColor: '#CFE0D2',
+    backgroundColor: '#F6FBF7',
   },
   notesHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
   notesTitle: { fontSize: 12, fontWeight: '700', color: Colors.textSubtle, letterSpacing: 0.6, textTransform: 'uppercase' },

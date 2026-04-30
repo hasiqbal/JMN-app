@@ -67,6 +67,22 @@ const PRAYER_SCHEDULE_REFRESH_MS = 15 * 60 * 1000;
 const PRAYER_SCHEDULE_DAY_WINDOW = 3;
 const IS_EXPO_GO = Constants.appOwnership === 'expo';
 const PUSH_MESSAGE_STORAGE_KEY = 'jmn_last_opened_push_message_v1';
+const ADHAAN_DEBUG_TAG = '[ADHAAN_DEBUG]';
+const IQAMAH_SUPPRESS_AFTER_PRAYER_START_MS = 2 * 60 * 1000;
+
+function logAdhaanDebug(stage: string, payload: Record<string, unknown> = {}): void {
+  const event = {
+    ts: new Date().toISOString(),
+    stage,
+    ...payload,
+  };
+
+  try {
+    console.log(`${ADHAAN_DEBUG_TAG} ${JSON.stringify(event)}`);
+  } catch {
+    console.log(ADHAAN_DEBUG_TAG, stage);
+  }
+}
 
 type PersistedPushMessage = {
   notificationId: string;
@@ -237,6 +253,7 @@ export default function TabLayout() {
   const schedulingAdhkarNotificationsRef = useRef(false);
   const prayerPermissionRequestedRef = useRef(false);
   const handledNotificationIdsRef = useRef<Set<string>>(new Set());
+  const lastPrayerStartByPrayerRef = useRef<Record<string, number>>({});
 
   useEffect(() => {
     if (!__DEV__ || !IS_EXPO_GO) return;
@@ -436,6 +453,18 @@ export default function TabLayout() {
         const data = notification.request.content.data as Record<string, unknown> | undefined;
         const scope = typeof data?.scope === 'string' ? data.scope : '';
         const type = typeof data?.type === 'string' ? data.type : '';
+        const prayerName = typeof data?.prayerName === 'string' ? data.prayerName : '';
+
+        logAdhaanDebug('notification-received', {
+          notificationId: notification.request.identifier,
+          scope,
+          type,
+          contentSound: notification.request.content.sound ?? null,
+          channelId: typeof (notification.request.trigger as { channelId?: unknown } | null | undefined)?.channelId === 'string'
+            ? (notification.request.trigger as { channelId: string }).channelId
+            : null,
+          data,
+        });
 
         if (scope === PRAYER_NOTIFICATION_SCOPE && type === 'prayer-start') {
           void (async () => {
@@ -451,36 +480,40 @@ export default function TabLayout() {
               .getItem(ADHAAN_SELECTION_STORAGE_KEY)
               .catch(() => null);
             const selectedAdhaanOption = getAdhaanOptionById(selectedAdhaanOptionRaw ?? DEFAULT_ADHAAN_OPTION_ID);
-            await playPrayerStartAdhaan(selectedAdhaanOption.id);
+            const playbackOk = await playPrayerStartAdhaan(selectedAdhaanOption.id);
+            if (playbackOk && prayerName) {
+              lastPrayerStartByPrayerRef.current[prayerName] = Date.now();
+            }
+            logAdhaanDebug('prayer-start-playback-triggered', {
+              prayerName,
+              selectedAdhaanOptionId: selectedAdhaanOption.id,
+              selectedSoundFile: selectedAdhaanOption.soundFile,
+              playbackOk,
+            });
           })();
           return;
         }
 
         if (scope === PRAYER_NOTIFICATION_SCOPE && type === 'iqamah-start') {
-          void (async () => {
-            const prayerAudioMutedRaw = await AsyncStorage
-              .getItem(PRAYER_AUDIO_MUTED_STORAGE_KEY)
-              .catch(() => null);
-            const prayerAudioMuted = prayerAudioMutedRaw == null
-              ? DEFAULT_PRAYER_AUDIO_MUTED
-              : prayerAudioMutedRaw === 'true';
-            if (prayerAudioMuted) return;
-
-            const iqamahExactSoundRaw = await AsyncStorage
-              .getItem(IQAMAH_EXACT_SOUND_ENABLED_STORAGE_KEY)
-              .catch(() => null);
-            const iqamahExactSoundEnabled = iqamahExactSoundRaw == null
-              ? DEFAULT_IQAMAH_EXACT_SOUND_ENABLED
-              : iqamahExactSoundRaw === 'true';
-            if (!iqamahExactSoundEnabled) return;
-
-            await playIqamah();
-          })();
+          logAdhaanDebug('iqamah-start-playback-disabled', {
+            prayerName,
+          });
           return;
         }
 
         if (scope === PRAYER_NOTIFICATION_SCOPE && type === 'jamaat-10') {
           void (async () => {
+            const lastPrayerStartAt = prayerName
+              ? lastPrayerStartByPrayerRef.current[prayerName] ?? 0
+              : 0;
+            if (lastPrayerStartAt > 0 && Date.now() - lastPrayerStartAt <= IQAMAH_SUPPRESS_AFTER_PRAYER_START_MS) {
+              logAdhaanDebug('jamaat-10-playback-suppressed-near-prayer-start', {
+                prayerName,
+                msSincePrayerStart: Date.now() - lastPrayerStartAt,
+              });
+              return;
+            }
+
             const prayerAudioMutedRaw = await AsyncStorage
               .getItem(PRAYER_AUDIO_MUTED_STORAGE_KEY)
               .catch(() => null);
@@ -488,7 +521,11 @@ export default function TabLayout() {
               ? DEFAULT_PRAYER_AUDIO_MUTED
               : prayerAudioMutedRaw === 'true';
             if (prayerAudioMuted) return;
-            await playIqamah();
+            const playbackOk = await playIqamah();
+            logAdhaanDebug('jamaat-10-playback-triggered', {
+              prayerName,
+              playbackOk,
+            });
           })();
         }
       });
@@ -654,6 +691,17 @@ export default function TabLayout() {
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
+      });
+
+      logAdhaanDebug('prayer-plan-built', {
+        totalPlanned: planned.length,
+        audioItems: planned
+          .filter((item) => item.data.type === 'prayer-start' || item.data.type === 'iqamah-start' || item.data.type === 'jamaat-10')
+          .map((item) => ({
+            prayerName: item.data.prayerName,
+            type: item.data.type,
+            fireAtIso: item.fireAt.toISOString(),
+          })),
       });
 
       await clearScheduledPrayerNotifications();

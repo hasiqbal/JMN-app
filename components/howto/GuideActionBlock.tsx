@@ -4,12 +4,15 @@ import { Radius } from '@/constants/theme';
 import { pickPalette } from './palette';
 import { InlineArabicText } from './GuideBodyText';
 
+type GuideLearningMode = 'default' | 'salah-pilot';
+
 interface GuideActionBlockProps {
   /** Optional short label such as "Action", "Do this", "Next". */
   label?: string;
   /** The instruction text (what to do, not what to say). */
   text: string;
   nightMode: boolean;
+  learningMode?: GuideLearningMode;
 }
 
 /**
@@ -19,14 +22,24 @@ interface GuideActionBlockProps {
  * Styled as a quiet bordered card so it's visually distinct from RecitationBlock and GuideNote
  * but doesn't compete with them.
  */
-export function GuideActionBlock({ label, text, nightMode }: GuideActionBlockProps) {
+export function GuideActionBlock({ label, text, nightMode, learningMode = 'default' }: GuideActionBlockProps) {
   const P = pickPalette(nightMode);
+  const pilotMode = learningMode === 'salah-pilot';
+  const pilotTone = pilotMode
+    ? {
+      borderLeftColor: nightMode ? '#4E7AA8' : '#3E7E57',
+      borderColor: nightMode ? '#2F4D70' : '#C4D9C8',
+      backgroundColor: nightMode ? '#101D31' : '#F5FBF7',
+    }
+    : null;
 
   return (
     <View
       style={[
         styles.block,
+        pilotMode && styles.blockPilot,
         { backgroundColor: P.surface, borderColor: P.border },
+        pilotTone,
       ]}
     >
       {label ? (
@@ -50,6 +63,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
     gap: 4,
+  },
+  blockPilot: {
+    borderLeftWidth: 4,
+    borderLeftColor: '#8FA4BC',
+    borderRadius: Radius.md,
+    paddingVertical: 11,
+    paddingHorizontal: 13,
   },
   label: {
     fontSize: 10,

@@ -4,9 +4,12 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { MaterialIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { NIGHT_PALETTE } from '@/constants/nightPalette';
@@ -18,6 +21,7 @@ import {
   ReadingPreferencesBar,
   VerseBlock,
   VerseDivider,
+  type LanguageFontScales,
   type LayerVisibility,
   type ReadingMode,
   type VerseRole,
@@ -43,6 +47,10 @@ type GroupChapterItem = {
   disableAutoTitleArabic?: boolean;
   disableAutoTitleEnglish?: boolean;
   disableAutoTitleUrdu?: boolean;
+  fontScaleArabic?: number;
+  fontScaleTransliteration?: number;
+  fontScaleEnglish?: number;
+  fontScaleUrdu?: number;
   isPoem?: boolean;
   entryTitle: string;
   lines: {
@@ -56,6 +64,12 @@ type GroupChapterItem = {
 
 const CHORUS_MARKER = '__chorus__';
 const SETTINGS_MARKER = '__settings__';
+const DEFAULT_LANGUAGE_SCALES: LanguageFontScales = {
+  arabic: 1,
+  transliteration: 1,
+  english: 1,
+  urdu: 1,
+};
 
 type ChorusLine = {
   heading: string;
@@ -104,6 +118,19 @@ function hasLikelyUrduScript(value: string): boolean {
 
 function hasQuranicDiacritics(value: string): boolean {
   return /[\u064B-\u065F\u0670\u06D6-\u06ED]/.test(value);
+}
+
+function parseScale(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.max(0.7, Math.min(1.8, Number(value.toFixed(2))));
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return Math.max(0.7, Math.min(1.8, Number(parsed.toFixed(2))));
+    }
+  }
+  return undefined;
 }
 
 function normalizeLineFields(line: GroupChapterItem['lines'][number]): {
@@ -192,6 +219,10 @@ function extractChapterItems(rows: AdhkarRow[]): GroupChapterItem[] {
       let disableAutoTitleArabic = false;
       let disableAutoTitleEnglish = false;
       let disableAutoTitleUrdu = false;
+      let fontScaleArabic = 1;
+      let fontScaleTransliteration = 1;
+      let fontScaleEnglish = 1;
+      let fontScaleUrdu = 1;
       for (const section of row.sections) {
         if (!section || typeof section !== 'object') continue;
         const chapterStr = typeof section.chapter === 'string' ? section.chapter.trim() : '';
@@ -231,6 +262,10 @@ function extractChapterItems(rows: AdhkarRow[]): GroupChapterItem[] {
         const perTitleArabic = (section as { disable_auto_title_arabic?: unknown }).disable_auto_title_arabic;
         const perTitleEnglish = (section as { disable_auto_title_english?: unknown }).disable_auto_title_english;
         const perTitleUrdu = (section as { disable_auto_title_urdu?: unknown }).disable_auto_title_urdu;
+        const scaleArabic = parseScale((section as { font_scale_arabic?: unknown }).font_scale_arabic);
+        const scaleTranslit = parseScale((section as { font_scale_transliteration?: unknown }).font_scale_transliteration);
+        const scaleEnglish = parseScale((section as { font_scale_english?: unknown }).font_scale_english);
+        const scaleUrdu = parseScale((section as { font_scale_urdu?: unknown }).font_scale_urdu);
 
         if (typeof perTranslit === 'boolean') disableAutoTransliteration = perTranslit;
         if (typeof perArabic === 'boolean') disableAutoArabic = perArabic;
@@ -240,6 +275,10 @@ function extractChapterItems(rows: AdhkarRow[]): GroupChapterItem[] {
         if (typeof perTitleArabic === 'boolean') disableAutoTitleArabic = perTitleArabic;
         if (typeof perTitleEnglish === 'boolean') disableAutoTitleEnglish = perTitleEnglish;
         if (typeof perTitleUrdu === 'boolean') disableAutoTitleUrdu = perTitleUrdu;
+        if (typeof scaleArabic === 'number') fontScaleArabic = scaleArabic;
+        if (typeof scaleTranslit === 'number') fontScaleTransliteration = scaleTranslit;
+        if (typeof scaleEnglish === 'number') fontScaleEnglish = scaleEnglish;
+        if (typeof scaleUrdu === 'number') fontScaleUrdu = scaleUrdu;
 
         if (
           typeof disable === 'boolean'
@@ -251,6 +290,10 @@ function extractChapterItems(rows: AdhkarRow[]): GroupChapterItem[] {
           || typeof perTitleArabic === 'boolean'
           || typeof perTitleEnglish === 'boolean'
           || typeof perTitleUrdu === 'boolean'
+          || typeof scaleArabic === 'number'
+          || typeof scaleTranslit === 'number'
+          || typeof scaleEnglish === 'number'
+          || typeof scaleUrdu === 'number'
         ) {
           break;
         }
@@ -357,6 +400,10 @@ function extractChapterItems(rows: AdhkarRow[]): GroupChapterItem[] {
           disableAutoTitleArabic,
           disableAutoTitleEnglish,
           disableAutoTitleUrdu,
+          fontScaleArabic,
+          fontScaleTransliteration,
+          fontScaleEnglish,
+          fontScaleUrdu,
           isPoem,
           entryTitle: row.title || 'Untitled',
           lines: withChorus,
@@ -399,6 +446,10 @@ function extractChapterItems(rows: AdhkarRow[]): GroupChapterItem[] {
       disableAutoTitleArabic: false,
       disableAutoTitleEnglish: false,
       disableAutoTitleUrdu: false,
+      fontScaleArabic: 1,
+      fontScaleTransliteration: 1,
+      fontScaleEnglish: 1,
+      fontScaleUrdu: 1,
       isPoem: true,
       entryTitle: row.title || 'Untitled',
       lines,
@@ -417,6 +468,7 @@ function buildChapterSignature(chapters: GroupChapterItem[]): string {
 
 export default function QaseedahGroupScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ group?: string; type?: string }>();
   const groupName = typeof params.group === 'string' ? params.group : 'Group';
   const type = typeof params.type === 'string' ? params.type : 'qaseedah';
@@ -432,10 +484,15 @@ export default function QaseedahGroupScreen() {
   const [readingMode, setReadingMode] = React.useState<ReadingMode>('full');
   const [layers, setLayers] = React.useState<LayerVisibility>({ arabic: true, transliteration: true, english: true, urdu: true });
   const [textScale, setTextScale] = React.useState(1);
+  const [languageScales, setLanguageScales] = React.useState<LanguageFontScales>(DEFAULT_LANGUAGE_SCALES);
+  const [languageScalesTouched, setLanguageScalesTouched] = React.useState(false);
   const [autoTranslatedByLine, setAutoTranslatedByLine] = React.useState<Record<string, { arabic?: string; transliteration?: string; english?: string; urdu?: string }>>({});
   const [chapterTitleEnglish, setChapterTitleEnglish] = React.useState<Record<string, string>>({});
   const [chapterTitleUrdu, setChapterTitleUrdu] = React.useState<Record<string, string>>({});
   const [chapterTitleArabic, setChapterTitleArabic] = React.useState<Record<string, string>>({});
+  const [focusMode, setFocusMode] = React.useState(false);
+  const [focusMenuOpen, setFocusMenuOpen] = React.useState(false);
+  const [focusControlsVisible, setFocusControlsVisible] = React.useState(false);
   const chapterSignatureRef = React.useRef('');
 
   const handleModeChange = React.useCallback((next: ReadingMode) => {
@@ -495,6 +552,17 @@ export default function QaseedahGroupScreen() {
       void load(false, { silent: true });
     }, [load])
   );
+
+  React.useEffect(() => {
+    if (languageScalesTouched || chapters.length === 0) return;
+    const first = chapters[0];
+    setLanguageScales({
+      arabic: first.fontScaleArabic ?? 1,
+      transliteration: first.fontScaleTransliteration ?? 1,
+      english: first.fontScaleEnglish ?? 1,
+      urdu: first.fontScaleUrdu ?? 1,
+    });
+  }, [chapters, languageScalesTouched]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -699,26 +767,35 @@ export default function QaseedahGroupScreen() {
 
   return (
     <View style={[styles.screen, N && { backgroundColor: N.bg }]}>
-      <QaseedahHeader
-        title={groupName}
-        subtitle={`${type === 'naat' ? 'Naat' : 'Qaseedah'} · ${chapters.length} ${chapters.every((chapter) => chapter.isPoem) ? (chapters.length === 1 ? 'poem' : 'poems') : (chapters.length === 1 ? 'chapter' : 'chapters')}`}
-        onBack={() => router.replace('/(tabs)/qaseedah-naat')}
-        onRefresh={() => { void load(true); }}
-        refreshing={refreshing}
-        night={N}
-      />
+      {!focusMode || focusControlsVisible ? (
+        <>
+          <QaseedahHeader
+            title={groupName}
+            subtitle={`${type === 'naat' ? 'Naat' : 'Qaseedah'} · ${chapters.length} ${chapters.every((chapter) => chapter.isPoem) ? (chapters.length === 1 ? 'poem' : 'poems') : (chapters.length === 1 ? 'chapter' : 'chapters')}`}
+            onBack={() => router.replace('/(tabs)/qaseedah-naat')}
+            onRefresh={() => { void load(true); }}
+            refreshing={refreshing}
+            night={N}
+          />
 
-      <ReadingPreferencesBar
-        mode={readingMode}
-        onModeChange={handleModeChange}
-        layers={layers}
-        onLayersChange={setLayers}
-        textScale={textScale}
-        onTextScaleChange={setTextScale}
-        nightMode={nightMode}
-        onNightToggle={toggleManual}
-        night={N}
-      />
+          <ReadingPreferencesBar
+            mode={readingMode}
+            onModeChange={handleModeChange}
+            layers={layers}
+            onLayersChange={setLayers}
+            textScale={textScale}
+            onTextScaleChange={setTextScale}
+            languageScales={languageScales}
+            onLanguageScalesChange={(next) => {
+              setLanguageScalesTouched(true);
+              setLanguageScales(next);
+            }}
+            nightMode={nightMode}
+            onNightToggle={toggleManual}
+            night={N}
+          />
+        </>
+      ) : null}
 
       <ScrollView contentContainerStyle={styles.content}>
         {loading ? (
@@ -736,7 +813,7 @@ export default function QaseedahGroupScreen() {
           </View>
         ) : (
           chapters.map((chapter) => {
-            const isOpen = !!expanded[chapter.id];
+            const isOpen = focusMode ? true : !!expanded[chapter.id];
             return (
               <View
                 key={chapter.id}
@@ -745,17 +822,19 @@ export default function QaseedahGroupScreen() {
                   N && { backgroundColor: N.surface, borderColor: N.border },
                 ]}
               >
-                <ChapterIntro
-                  chapter={chapterTitleEnglish[chapter.chapter] || chapter.chapter}
-                  chapterUrdu={chapter.isPoem ? undefined : (layers.urdu ? (chapter.chapterUrdu || chapterTitleUrdu[chapter.chapter]) : undefined)}
-                  chapterArabic={chapter.isPoem ? undefined : (layers.arabic ? (chapter.chapterArabic || chapterTitleArabic[chapter.chapter]) : undefined)}
-                  entryTitle={chapter.entryTitle}
-                  lineCount={chapter.lines.length}
-                  isOpen={isOpen}
-                  onToggle={() => setExpanded((prev) => ({ ...prev, [chapter.id]: !prev[chapter.id] }))}
-                  isPoem={!!chapter.isPoem}
-                  night={N}
-                />
+                {!focusMode ? (
+                  <ChapterIntro
+                    chapter={chapterTitleEnglish[chapter.chapter] || chapter.chapter}
+                    chapterUrdu={chapter.isPoem ? undefined : (layers.urdu ? (chapter.chapterUrdu || chapterTitleUrdu[chapter.chapter]) : undefined)}
+                    chapterArabic={chapter.isPoem ? undefined : (layers.arabic ? (chapter.chapterArabic || chapterTitleArabic[chapter.chapter]) : undefined)}
+                    entryTitle={chapter.entryTitle}
+                    lineCount={chapter.lines.length}
+                    isOpen={isOpen}
+                    onToggle={() => setExpanded((prev) => ({ ...prev, [chapter.id]: !prev[chapter.id] }))}
+                    isPoem={!!chapter.isPoem}
+                    night={N}
+                  />
+                ) : null}
 
                 {isOpen ? (
                   <View style={styles.chapterBody}>
@@ -804,6 +883,7 @@ export default function QaseedahGroupScreen() {
                               isAutoTranslated={isAuto}
                               layers={layers}
                               scale={textScale}
+                              languageScales={languageScales}
                               isPoem={!!chapter.isPoem}
                               night={N}
                             />
@@ -818,6 +898,67 @@ export default function QaseedahGroupScreen() {
           })
         )}
       </ScrollView>
+
+      <View style={[styles.focusFabWrap, { top: insets.top + 8 }]}> 
+        {focusMode && focusMenuOpen ? (
+          <View style={[styles.focusMenu, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}>
+            <TouchableOpacity
+              style={[styles.focusMenuBtn, N && { borderColor: N.border }]}
+              activeOpacity={0.85}
+              onPress={() => {
+                setFocusControlsVisible((prev) => !prev);
+                setFocusMenuOpen(false);
+              }}
+            >
+              <MaterialIcons
+                name={focusControlsVisible ? 'visibility-off' : 'visibility'}
+                size={16}
+                color={N ? N.textSub : Colors.textSecondary}
+              />
+              <Text style={[styles.focusMenuBtnText, N && { color: N.textSub }]}>
+                {focusControlsVisible ? 'Hide Controls' : 'Show Controls'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.focusMenuBtn, N && { borderColor: N.border }]}
+              activeOpacity={0.85}
+              onPress={() => {
+                setFocusMode(false);
+                setFocusMenuOpen(false);
+                setFocusControlsVisible(false);
+              }}
+            >
+              <MaterialIcons name="fullscreen-exit" size={16} color={N ? N.textSub : Colors.textSecondary} />
+              <Text style={[styles.focusMenuBtnText, N && { color: N.textSub }]}>Exit Full Screen</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        <TouchableOpacity
+          style={[
+            styles.focusFab,
+            N
+              ? { backgroundColor: N.surfaceAlt, borderColor: N.border }
+              : { backgroundColor: Colors.surface, borderColor: Colors.border },
+          ]}
+          activeOpacity={0.85}
+          onPress={() => {
+            if (!focusMode) {
+              setFocusMode(true);
+              setFocusControlsVisible(false);
+              setFocusMenuOpen(false);
+              return;
+            }
+            setFocusMenuOpen((prev) => !prev);
+          }}
+        >
+          <MaterialIcons
+            name={!focusMode ? 'fullscreen' : 'tune'}
+            size={18}
+            color={N ? N.textSub : Colors.textSecondary}
+          />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -866,5 +1007,49 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.textSubtle,
     textAlign: 'center',
+  },
+  focusFabWrap: {
+    position: 'absolute',
+    right: Spacing.md,
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+  focusFab: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  focusMenu: {
+    minWidth: 154,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surface,
+    padding: 6,
+    gap: 6,
+  },
+  focusMenuBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
+    borderRadius: Radius.md,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    backgroundColor: Colors.surface,
+  },
+  focusMenuBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textSecondary,
   },
 });
