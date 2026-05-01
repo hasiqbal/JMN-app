@@ -48,11 +48,27 @@ pnpm web
 pnpm lint
 ```
 
-### 4. Reset local project state if needed
+### 4. Run type checks and deployment validation
+
+```bash
+pnpm typecheck
+pnpm validate
+pnpm validate:deploy
+```
+
+- `pnpm validate` runs lint + TypeScript checks.
+- `pnpm validate:deploy` runs validation plus a non-interactive web bundle sanity check.
+- For local preview sessions, use `pnpm start:clear` to avoid stale Metro cache.
+
+### 5. Reset local project state if needed
 
 ```bash
 pnpm reset-project
 ```
+
+### 6. Run manual release smoke checks
+
+Use [howtoguides/deployment-smoke-checklist.md](howtoguides/deployment-smoke-checklist.md) before any deployment build.
 
 ## Tech Stack
 

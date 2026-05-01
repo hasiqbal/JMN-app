@@ -15,7 +15,6 @@ import {
   Pressable,
   StyleSheet,
   useWindowDimensions,
-  LayoutAnimation,
   Platform,
   UIManager,
 } from 'react-native';
@@ -38,8 +37,6 @@ import { AdhkarSelection } from '@/types/duasTypes';
 
 const ADHKAR_ACCENT_GREEN = '#3FAE5A';
 const ADHKAR_CARD_TITLE = '#111827';
-const ADHKAR_CARD_TEXT = '#374151';
-const ADHKAR_META_TEXT = '#4B5563';
 const ADHKAR_DESCRIPTION_TEXT = '#374151';
 const ADHKAR_ICON_BG = '#F0F7F3';
 const ADHKAR_TAG_BG = '#E6F4EA';
@@ -47,7 +44,6 @@ const ADHKAR_ARROW = '#A0A8A2';
 const ADHKAR_BENEFITS_GOLD = '#B88917';
 const ADHKAR_BENEFITS_GOLD_SOFT = '#FFF4D6';
 const ADHKAR_TAFSIR_TEAL = '#0D7C6E';
-const ADHKAR_TAFSIR_TEAL_SOFT = '#E6F7F4';
 const DEFAULT_MUSLIM_ENTRY_ICONS = [
   'brightness-3',
   'nights-stay',
@@ -528,7 +524,6 @@ export function DbAdhkarScreen({
   // ── Item renderer ─────────────────────────────────────────────────────
   const renderItem = (item: AdhkarRow) => {
     const isOpen = !!expandedById[item.id];
-    const isBenefitsOverlayOpen = benefitsOverlayItemId === item.id;
     const isTafsirOverlayOpen = tafsirOverlayItemId === item.id;
     const isTransliterationOpen = !!transliterationById[item.id];
     const arabicFontSize = useEnhancedFont
@@ -545,9 +540,7 @@ export function DbAdhkarScreen({
     const hasTafsir = itemTafsir.length > 0;
     const tafsirIsHtml = hasTafsir && containsHtml(itemTafsir);
     const itemTafsirPlain = tafsirIsHtml ? itemTafsir.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() : itemTafsir;
-    const urduBenefitsText = (urduBenefitsFallbackById[item.id] ?? '').trim();
     const isUrduBenefitsLoading = !!urduBenefitsLoadingById[item.id];
-    const urduTafsirText = (urduTafsirFallbackById[item.id] ?? '').trim();
     const isUrduTafsirLoading = !!urduTafsirLoadingById[item.id];
     const dbUrduTranslation = resolveAdhkarUrduTranslation(item);
     const fallbackUrduTranslation = (urduFallbackById[item.id] ?? '').trim();
@@ -559,8 +552,6 @@ export function DbAdhkarScreen({
     const canResolveUrdu = hasUrduTranslation || hasEnglishTranslation;
     const itemBadge = (item.card_badge ?? '').trim();
     const showUrdu = !!urduById[item.id] && hasUrduTranslation;
-    const showUrduBenefits = showUrdu && urduBenefitsText.length > 0;
-    const showUrduTafsir = showUrdu && urduTafsirText.length > 0;
     const isLanguageSwitchLoading = isUrduLoading || isUrduBenefitsLoading || isUrduTafsirLoading;
     const selectedTranslation = showUrdu ? urduTranslation : englishTranslationSource;
     const itemLeadVisual = resolveEntryLeadVisual(groupFilter, item, salawatGroupName);

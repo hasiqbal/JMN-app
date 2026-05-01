@@ -422,13 +422,6 @@ function isShawwalMonth(hijriMonth: string): boolean {
   );
 }
 
-function formatVerseReference(reference: string): string {
-  const trimmed = reference.trim();
-  if (!trimmed) return '';
-  if (/^surah\s/i.test(trimmed)) return trimmed;
-  return `Surah ${trimmed}`;
-}
-
 // ── Hadith of the Day ────────────────────────────────────────────────────
 const HADITHS = [
   { text: "The best of you are those who learn the Quran and teach it.", ref: "Sahih al-Bukhari 5027" },
@@ -2181,6 +2174,7 @@ export default function HomeScreen() {
   const [donationOptionsLoading, setDonationOptionsLoading] = useState(false);
   const [selectedDonationOption, setSelectedDonationOption] = useState<AppDonationOption | null>(null);
   const [donationConfirmation, setDonationConfirmation] = useState<DonationConfirmationState | null>(null);
+  const donationGiftAidAnim = useRef(new Animated.Value(0)).current;
   const donationOutcomeHandledRef = useRef(false);
   const [webPrayerDrawerVisible, setWebPrayerDrawerVisible] = useState(false);
   const prayerSheetRef = useRef<BottomSheet>(null);
@@ -2334,7 +2328,7 @@ export default function HomeScreen() {
   const currentTime = useCurrentTime();
   const nextInfo = React.useMemo(
     () => (data ? getNextPrayer(data.prayers, currentTime) : null),
-    [data?.prayers, currentTime]
+    [data, currentTime]
   );
 
   const {
@@ -2384,7 +2378,7 @@ export default function HomeScreen() {
     const tomorrow = new Date(currentTime);
     tomorrow.setDate(tomorrow.getDate() + 1);
     return getPrayerTimesFromTimetable(tomorrow);
-  }, [currentTime.getFullYear(), currentTime.getMonth(), currentTime.getDate()]);
+  }, [currentTime]);
   const tomorrowHijriDayNum = tomorrowPrayerTimes
     ? Number.parseInt(getHijriDayNumber(tomorrowPrayerTimes.hijriDate) || '0', 10)
     : 0;
@@ -2964,6 +2958,19 @@ export default function HomeScreen() {
     setDonationConfirmation(null);
   }, []);
 
+  useEffect(() => {
+    if (!selectedDonationOption || !showDonationOptions) {
+      donationGiftAidAnim.setValue(0);
+      return;
+    }
+
+    Animated.timing(donationGiftAidAnim, {
+      toValue: 1,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [donationGiftAidAnim, selectedDonationOption, showDonationOptions]);
+
   const submitDonationCheckout = useCallback(async () => {
     if (!selectedDonationOption || donationLoading) return;
 
@@ -3339,6 +3346,7 @@ export default function HomeScreen() {
           </TouchableOpacity>
 
         {showDonationOptions ? (
+          <>
           <ScrollView
             style={styles.donationOptionsWrap}
             contentContainerStyle={[
@@ -3386,44 +3394,11 @@ export default function HomeScreen() {
               </View>
             ) : null}
 
-            {selectedDonationOption ? (
-              <View style={styles.donationGiftAidCard}>
-                <Text style={styles.donationGiftAidTitle}>Donation details</Text>
-                <Text style={styles.donationGiftAidSubtitle}>
-                  Option: {selectedDonationOption.title}
-                </Text>
-
-                <Text style={styles.donationGiftAidHint}>
-                  Gift Aid opt-in will be asked on the secure Stripe payment page at time of payment.
-                </Text>
-
-                <View style={styles.donationGiftAidActionsRow}>
-                  <TouchableOpacity
-                    style={styles.donationGiftAidContinueBtn}
-                    onPress={submitDonationCheckout}
-                    disabled={donationLoading}
-                    activeOpacity={0.9}
-                  >
-                    <Text style={styles.donationGiftAidContinueText}>Continue to secure checkout</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.donationGiftAidChangeBtn}
-                    onPress={() => {
-                      setSelectedDonationOption(null);
-                      setDonationStatusMessage(null);
-                    }}
-                    disabled={donationLoading}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={styles.donationGiftAidChangeText}>Change amount</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : (
+            {!selectedDonationOption ? (
               <View style={styles.donationStatusNotice}>
                 <Text style={styles.donationStatusNoticeText}>Select an amount, then choose Gift Aid before checkout.</Text>
               </View>
-            )}
+            ) : null}
 
             <View style={styles.donationOptionSection}>
               <Text style={styles.donationOptionSectionTitle}>One-off donation</Text>
@@ -3488,6 +3463,81 @@ export default function HomeScreen() {
               </View>
             ) : null}
           </ScrollView>
+          {selectedDonationOption ? (
+            <View style={styles.donationGiftAidPopupWrap}>
+              <Animated.View
+                style={[
+                  styles.donationGiftAidBackdrop,
+                  { opacity: donationGiftAidAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }) },
+                ]}
+              >
+                <TouchableOpacity
+                  style={styles.donationGiftAidBackdrop}
+                  activeOpacity={1}
+                  onPress={() => {
+                    if (donationLoading) return;
+                    setSelectedDonationOption(null);
+                    setDonationStatusMessage(null);
+                  }}
+                />
+              </Animated.View>
+              <Animated.View
+                style={[
+                  styles.donationGiftAidCard,
+                  styles.donationGiftAidPopupCard,
+                  {
+                    opacity: donationGiftAidAnim,
+                    transform: [
+                      {
+                        translateY: donationGiftAidAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [18, 0],
+                        }),
+                      },
+                      {
+                        scale: donationGiftAidAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.97, 1],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <Text style={styles.donationGiftAidTitle}>Donation details</Text>
+                <Text style={styles.donationGiftAidSubtitle}>
+                  Option: {selectedDonationOption.title}
+                </Text>
+
+                <Text style={styles.donationGiftAidHint}>
+                  Gift Aid opt-in will be asked on the secure Stripe payment page at time of payment.
+                </Text>
+
+                <View style={styles.donationGiftAidActionsRow}>
+                  <TouchableOpacity
+                    style={styles.donationGiftAidContinueBtn}
+                    onPress={submitDonationCheckout}
+                    disabled={donationLoading}
+                    activeOpacity={0.9}
+                  >
+                    <Text style={styles.donationGiftAidContinueText}>Continue to secure checkout</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.donationGiftAidChangeBtn}
+                    onPress={() => {
+                      setSelectedDonationOption(null);
+                      setDonationStatusMessage(null);
+                    }}
+                    disabled={donationLoading}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.donationGiftAidChangeText}>Change amount</Text>
+                  </TouchableOpacity>
+                </View>
+              </Animated.View>
+            </View>
+          ) : null}
+          </>
         ) : donationCheckoutUrl ? (
           <WebView
             style={styles.donationCheckoutWebview}
@@ -4458,6 +4508,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     marginBottom: 12,
+  },
+  donationGiftAidPopupWrap: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  donationGiftAidBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(8,31,21,0.22)',
+  },
+  donationGiftAidPopupCard: {
+    width: '100%',
+    maxWidth: 640,
+    marginBottom: 0,
+    zIndex: 1,
+    shadowColor: '#102E20',
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
   },
   donationGiftAidTitle: {
     fontSize: 15,

@@ -14,7 +14,7 @@ const ARABIC_VERY_SHORT_LAST_LINE_RATIO = 0.3;
 
 const countWords = (value: string): number => value.trim().split(/\s+/).filter(Boolean).length;
 
-const getArabicShrinkTarget = (lines: Array<{ text?: string; width?: number }>): number => {
+const getArabicShrinkTarget = (lines: { text?: string; width?: number }[]): number => {
   if (lines.length <= 1) return 0;
 
   const trailingLine = lines[lines.length - 1];

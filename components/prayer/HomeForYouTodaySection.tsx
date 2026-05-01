@@ -2896,7 +2896,7 @@ export function HomeForYouTodaySection({
             <View style={[sectionStyles.kickerBar, N && { backgroundColor: N.accent }]} />
             <Text style={[sectionStyles.kicker, N && { color: N.textSub }]}>YOUR ADHKAR</Text>
           </View>
-          <Text style={[sectionStyles.title, N && { color: N.text }]}>Today's Adhkar Plan</Text>
+          <Text style={[sectionStyles.title, N && { color: N.text }]}>Today&apos;s Adhkar Plan</Text>
           <Text style={[sectionStyles.titleSub, N && { color: N.textMuted }]}>Stay consistent with your daily adhkar throughout the prayer day.</Text>
         </View>
         <View style={[

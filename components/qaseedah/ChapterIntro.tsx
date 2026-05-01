@@ -20,7 +20,6 @@ type Props = {
 };
 
 export function ChapterIntro({ chapter, chapterUrdu, chapterArabic, entryTitle, lineCount, isOpen, onToggle, isPoem, night }: Props) {
-  const accent = night ? night.accent : Colors.primary;
   const goldColor = night ? (night.gold ?? night.accent) : Colors.gold;
   const goldInk = night ? (night.goldInk ?? night.accent) : Colors.goldInk;
   const hairlineColor = night ? (night.goldHairline ?? night.border) : Colors.goldHairline;

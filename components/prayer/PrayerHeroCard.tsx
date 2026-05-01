@@ -48,7 +48,7 @@ type Props = {
 	endTime?: string;
 	midLabel?: string;
 	midTime?: string;
-	timelinePoints?: Array<{ label: string; position: number }>;
+	timelinePoints?: { label: string; position: number }[];
 	hasNext?: boolean;
 	nextPrayerName?: string;
 	nextPrayerTime?: string;

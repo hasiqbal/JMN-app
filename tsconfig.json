@@ -20,6 +20,7 @@
     ".pnpm",
     "**/.pnpm/**",
     ".expo",
-    "supabase/functions/**"
+    "supabase/functions/**",
+    "template/preview-routes/**"
   ]
 }

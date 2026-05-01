@@ -440,7 +440,6 @@ function CalendarPrayerPanel({
   }
 
   const { day, dbRow, date, isFriday } = selectedDay;
-  const bstFallback = isBST(date);
   const now = new Date();
   const selectedStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();

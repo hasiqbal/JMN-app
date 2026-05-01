@@ -28,7 +28,6 @@ import {
   IQAMAH_NOTIFICATION_CHANNEL_ID,
   IQAMAH_NOTIFICATION_SILENT_CHANNEL_ID,
   IQAMAH_SOUND_FILE,
-  LEGACY_PRAYER_NOTIFICATION_CHANNEL_IDS,
   PRAYER_NOTIFICATION_CHANNEL_ID,
   PRAYER_NOTIFICATION_SILENT_CHANNEL_ID,
   PRAYER_AUDIO_MUTE_ACTION_ID,
@@ -43,22 +42,17 @@ import {
 import {
   buildPrayerNotificationsForPrayers,
 } from '@/services/prayerNotificationPlanner';
+import { routeFromPushNotificationData } from '@/services/pushNotificationRouting';
 import { syncPushTokenWithBackend, YOUTUBE_LIVE_NOTIFY_KEY } from '@/services/pushRegistrationService';
+import {
+  deleteLegacyPrayerNotificationChannels,
+  ensureAndroidAdhkarNotificationChannels,
+  ensureAndroidLiveNotificationChannel,
+  ensureAndroidPrayerNotificationChannel,
+  type ExpoNotificationsModule,
+  getNotificationsModule,
+} from '@/hooks/useAndroidNotificationChannels';
 import { useInAppBanner } from '@/template';
-
-type ExpoNotificationsModule = typeof import('expo-notifications');
-
-let notificationsModulePromise: Promise<ExpoNotificationsModule | null> | null = null;
-
-async function getNotificationsModule(): Promise<ExpoNotificationsModule | null> {
-  if (Platform.OS === 'web') return null;
-  if (!notificationsModulePromise) {
-    notificationsModulePromise = import('expo-notifications')
-      .then((mod) => mod)
-      .catch(() => null);
-  }
-  return notificationsModulePromise;
-}
 
 const HIDDEN_TAB_OPTIONS = { href: null };
 const LIVE_NOTIFICATION_CHANNEL_ID = 'jmn-live-v3';
@@ -83,186 +77,6 @@ function logAdhaanDebug(stage: string, payload: Record<string, unknown> = {}): v
     console.log(`${ADHAAN_DEBUG_TAG} ${JSON.stringify(event)}`);
   } catch {
     console.log(ADHAAN_DEBUG_TAG, stage);
-  }
-}
-
-type PersistedPushMessage = {
-  notificationId: string;
-  title: string;
-  body: string;
-  urduTitle?: string;
-  urduBody?: string;
-  category?: string;
-  audience?: string;
-  imageUrl?: string;
-  linkUrl?: string;
-  receivedAt: string;
-};
-
-async function ensureAndroidLiveNotificationChannel(): Promise<void> {
-  const Notifications = await getNotificationsModule();
-  if (!Notifications || Platform.OS !== 'android') return;
-
-  try {
-    try {
-      await Notifications.deleteNotificationChannelAsync(LIVE_NOTIFICATION_CHANNEL_ID);
-    } catch {
-      // ignore
-    }
-
-    await Notifications.setNotificationChannelAsync(LIVE_NOTIFICATION_CHANNEL_ID, {
-      name: 'JMN Live Alerts',
-      importance: Notifications.AndroidImportance.HIGH,
-      enableVibrate: true,
-      vibrationPattern: [0, 250, 150, 250],
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      sound: 'default',
-    });
-  } catch (error) {
-    if (__DEV__) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn('[notif] set live channel failed', message);
-    }
-  }
-}
-
-async function deleteLegacyPrayerNotificationChannels(): Promise<void> {
-  const Notifications = await getNotificationsModule();
-  if (!Notifications || Platform.OS !== 'android') return;
-
-  for (const channelId of LEGACY_PRAYER_NOTIFICATION_CHANNEL_IDS) {
-    try {
-      await Notifications.deleteNotificationChannelAsync(channelId);
-    } catch {
-      // ignore — channel may not exist
-    }
-  }
-}
-
-async function ensureAndroidPrayerNotificationChannel(selectedAdhaanOptionId: '1' | '2' | '3'): Promise<void> {
-  const Notifications = await getNotificationsModule();
-  if (!Notifications || Platform.OS !== 'android') return;
-
-  const selectedOption = getAdhaanOptionById(selectedAdhaanOptionId);
-  const prayerStartChannelId = getPrayerStartChannelId(selectedOption.id, false);
-  const prayerStartSilentChannelId = getPrayerStartChannelId(selectedOption.id, true);
-
-  try {
-    // Force a clean rebind of audio channels so any stale Android sound cache
-    // (which is keyed per channel and never updated after first creation) is
-    // discarded. Silent channels don't need this since their sound is null.
-    try {
-      await Notifications.deleteNotificationChannelAsync(prayerStartChannelId);
-    } catch {
-      // ignore
-    }
-    try {
-      await Notifications.deleteNotificationChannelAsync(IQAMAH_NOTIFICATION_CHANNEL_ID);
-    } catch {
-      // ignore
-    }
-
-    await Notifications.setNotificationChannelAsync(PRAYER_NOTIFICATION_CHANNEL_ID, {
-      name: 'Prayer Reminders',
-      importance: Notifications.AndroidImportance.HIGH,
-      enableVibrate: true,
-      vibrationPattern: [0, 220, 140, 220],
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      sound: 'default',
-    });
-
-    await Notifications.setNotificationChannelAsync(PRAYER_NOTIFICATION_SILENT_CHANNEL_ID, {
-      name: 'Prayer Reminders (Vibration Only)',
-      importance: Notifications.AndroidImportance.HIGH,
-      enableVibrate: true,
-      vibrationPattern: [0, 220, 140, 220],
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      sound: null,
-    });
-
-    await Notifications.setNotificationChannelAsync(prayerStartChannelId, {
-      name: `Prayer Start Adhaan ${selectedOption.id}`,
-      importance: Notifications.AndroidImportance.HIGH,
-      enableVibrate: true,
-      vibrationPattern: [0, 220, 140, 220],
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      sound: selectedOption.soundFile,
-    });
-
-    await Notifications.setNotificationChannelAsync(prayerStartSilentChannelId, {
-      name: `Prayer Start Adhaan ${selectedOption.id} (Vibration Only)`,
-      importance: Notifications.AndroidImportance.HIGH,
-      enableVibrate: true,
-      vibrationPattern: [0, 220, 140, 220],
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      sound: null,
-    });
-
-    await Notifications.setNotificationChannelAsync(IQAMAH_NOTIFICATION_CHANNEL_ID, {
-      name: 'Iqamah Start',
-      importance: Notifications.AndroidImportance.HIGH,
-      enableVibrate: true,
-      vibrationPattern: [0, 220, 140, 220],
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      sound: IQAMAH_SOUND_FILE,
-    });
-
-    await Notifications.setNotificationChannelAsync(IQAMAH_NOTIFICATION_SILENT_CHANNEL_ID, {
-      name: 'Iqamah Start (Vibration Only)',
-      importance: Notifications.AndroidImportance.HIGH,
-      enableVibrate: true,
-      vibrationPattern: [0, 220, 140, 220],
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      sound: null,
-    });
-  } catch (error) {
-    if (__DEV__) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn('[notif] set prayer channel failed', message);
-    }
-  }
-}
-
-async function ensureAndroidAdhkarNotificationChannels(
-  soundMode: AdhkarReminderSoundMode,
-): Promise<void> {
-  const Notifications = await getNotificationsModule();
-  if (!Notifications || Platform.OS !== 'android') return;
-
-  try {
-    try {
-      await Notifications.deleteNotificationChannelAsync(ADHKAR_NOTIFICATION_CHANNEL_ID);
-    } catch {
-      // ignore
-    }
-    try {
-      await Notifications.deleteNotificationChannelAsync(ADHKAR_NOTIFICATION_SILENT_CHANNEL_ID);
-    } catch {
-      // ignore
-    }
-
-    await Notifications.setNotificationChannelAsync(ADHKAR_NOTIFICATION_CHANNEL_ID, {
-      name: 'Adhkar Reminders',
-      importance: Notifications.AndroidImportance.DEFAULT,
-      enableVibrate: true,
-      vibrationPattern: [0, 150, 100, 150],
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      sound: 'default',
-    });
-
-    await Notifications.setNotificationChannelAsync(ADHKAR_NOTIFICATION_SILENT_CHANNEL_ID, {
-      name: 'Adhkar Reminders (Silent)',
-      importance: Notifications.AndroidImportance.DEFAULT,
-      enableVibrate: true,
-      vibrationPattern: [0, 150, 100, 150],
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      sound: null,
-    });
-  } catch (error) {
-    if (__DEV__) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn('[notif] set adhkar channels failed', message, { soundMode });
-    }
   }
 }
 
@@ -292,12 +106,6 @@ const dotStyles = StyleSheet.create({
   },
 });
 
-function readDataString(data: Record<string, unknown> | null, key: string): string {
-  const value = data?.[key];
-  if (typeof value !== 'string') return '';
-  return value.trim();
-}
-
 export default function TabLayout() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -320,55 +128,6 @@ export default function TabLayout() {
     );
   }, [showBanner]);
 
-  const parseNotificationData = useCallback((rawData: unknown): Record<string, unknown> | null => {
-    if (rawData && typeof rawData === 'object') {
-      return rawData as Record<string, unknown>;
-    }
-
-    if (typeof rawData === 'string') {
-      try {
-        const parsed = JSON.parse(rawData) as unknown;
-        if (parsed && typeof parsed === 'object') {
-          return parsed as Record<string, unknown>;
-        }
-      } catch {
-        return null;
-      }
-    }
-
-    return null;
-  }, []);
-
-  const persistPushMessage = useCallback(async (args: {
-    rawData: unknown;
-    contentTitle?: string | null;
-    contentBody?: string | null;
-  }): Promise<boolean> => {
-    const data = parseNotificationData(args.rawData);
-    const notificationId = readDataString(data, 'notificationId');
-    if (!notificationId) return false;
-
-    const englishTitle = readDataString(data, 'title') || (args.contentTitle ?? '').trim();
-    const englishBody = readDataString(data, 'body') || (args.contentBody ?? '').trim();
-    if (!englishTitle && !englishBody) return false;
-
-    const payload: PersistedPushMessage = {
-      notificationId,
-      title: englishTitle,
-      body: englishBody,
-      urduTitle: readDataString(data, 'urduTitle'),
-      urduBody: readDataString(data, 'urduBody'),
-      category: readDataString(data, 'category'),
-      audience: readDataString(data, 'audience'),
-      imageUrl: readDataString(data, 'imageUrl'),
-      linkUrl: readDataString(data, 'url') || readDataString(data, 'linkUrl'),
-      receivedAt: new Date().toISOString(),
-    };
-
-    await AsyncStorage.setItem(PUSH_MESSAGE_STORAGE_KEY, JSON.stringify(payload)).catch(() => {});
-    return true;
-  }, [parseNotificationData]);
-
   const openLiveStreamFromIntent = useCallback(() => {
     router.push({
       pathname: '/stream',
@@ -380,52 +139,14 @@ export default function TabLayout() {
   }, [router]);
 
   const routeFromNotificationData = useCallback(async (rawData: unknown, content?: { title?: string | null; body?: string | null }) => {
-    const data = parseNotificationData(rawData);
-    if (!data) return;
-
-    const routeRaw = typeof data.route === 'string' ? data.route.trim() : null;
-    const notificationId = readDataString(data, 'notificationId');
-    const hasPushMessage = await persistPushMessage({
+    await routeFromPushNotificationData({
       rawData,
-      contentTitle: content?.title,
-      contentBody: content?.body,
+      content,
+      push: (target) => router.push(target as never),
+      openLiveStreamFromIntent,
+      pushMessageStorageKey: PUSH_MESSAGE_STORAGE_KEY,
     });
-
-    if (routeRaw === '/push-notification' || (!routeRaw && notificationId && hasPushMessage)) {
-      router.push({
-        pathname: '/push-notification',
-        params: { notificationId, openedAt: String(Date.now()) },
-      } as never);
-      return;
-    }
-
-    if (!routeRaw) return;
-    const route = routeRaw.startsWith('/') ? routeRaw : `/${routeRaw}`;
-
-    const type = typeof data.type === 'string' ? data.type : null;
-    const shouldAutoplayLive = route === '/stream' && type === 'jmn-live';
-
-    if (shouldAutoplayLive) {
-      openLiveStreamFromIntent();
-      return;
-    }
-
-    if (route === '/duas' && data.scope === ADHKAR_NOTIFICATION_SCOPE) {
-      const prayerTime = typeof data.prayerTime === 'string' ? data.prayerTime.trim() : '';
-      if (prayerTime) {
-        router.push({
-          pathname: '/duas',
-          params: {
-            prayerTime,
-            openAt: String(Date.now()),
-          },
-        } as never);
-        return;
-      }
-    }
-
-    router.push(route as never);
-  }, [openLiveStreamFromIntent, parseNotificationData, persistPushMessage, router]);
+  }, [openLiveStreamFromIntent, router]);
 
   useEffect(() => {
     if (Platform.OS === 'web') return;
@@ -989,7 +710,7 @@ export default function TabLayout() {
       await Notifications.scheduleNotificationAsync({
         content: {
           title: 'JMN Radio is now live',
-          body: "Tap to open Jami' Masjid Noorani live stream.",
+          body: "Tap to open Jami' Masjid Noorani live stream. | جے ایم این ریڈیو اب براہِ راست ہے۔ سننے کے لیے کھولیں۔",
           sound: 'default',
           data: { route: '/stream', type: 'jmn-live' },
         },
@@ -1004,17 +725,8 @@ export default function TabLayout() {
 
   useEffect(() => {
     if (!transitionedToLive) return;
-
-    showBanner(
-      'JMN Radio is now live',
-      'Tap Live to listen now.',
-      undefined,
-      'default',
-      'جے ایم این ریڈیو اب براہِ راست ہے۔ سننے کے لیے لائیو ٹیب کھولیں۔',
-      openLiveStreamFromIntent,
-    );
     void maybeNotifyLiveStart();
-  }, [maybeNotifyLiveStart, openLiveStreamFromIntent, showBanner, transitionedToLive]);
+  }, [maybeNotifyLiveStart, transitionedToLive]);
 
   const tabBarStyle = {
     height: Platform.select({

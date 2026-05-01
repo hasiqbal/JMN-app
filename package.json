@@ -5,6 +5,7 @@
   "scripts": {
     "prestart": "node ./scripts/check-node-version.js",
     "start": "expo start",
+    "start:clear": "expo start --clear",
     "reset-project": "node ./scripts/reset-project.js",
     "preandroid": "node ./scripts/check-node-version.js",
     "android": "expo run:android",
@@ -12,7 +13,10 @@
     "ios": "expo run:ios",
     "preweb": "node ./scripts/check-node-version.js",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "typecheck": "tsc --noEmit",
+    "validate": "pnpm lint && pnpm typecheck",
+    "validate:deploy": "pnpm validate && expo export --platform web"
   },
   "engines": {
     "node": ">=22 <25"

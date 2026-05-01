@@ -65,7 +65,7 @@ export default function YouTubeLiveScreen() {
         </View>
 
         <Text style={[styles.title, N && { color: N.text }]}>JMN YouTube Live</Text>
-        <Text style={[styles.subtitle, N && { color: N.textSub }]}>Watch Jami' Masjid Noorani live streams directly on YouTube.</Text>
+        <Text style={[styles.subtitle, N && { color: N.textSub }]}>Watch Jami&apos; Masjid Noorani live streams directly on YouTube.</Text>
 
         <View style={[styles.noticeCard, N && { backgroundColor: N.surface, borderColor: N.border }]}>
           <MaterialIcons name="verified-user" size={16} color={N ? N.accent : Colors.primary} />

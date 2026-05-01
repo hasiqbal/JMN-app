@@ -21,10 +21,6 @@ import { Image } from 'expo-image';
 import {
   ASR_GROUP_TO_SELECTION,
   BEFORE_FAJR_GROUP_TO_SELECTION,
-  DEFAULT_COLORS,
-  DEFAULT_COLORS_ASR,
-  DEFAULT_COLORS_JUMUAH,
-  DEFAULT_COLORS_DHUHR,
   DHUHR_GROUP_TO_SELECTION,
   FAJR_GROUP_TO_SELECTION,
   ISHA_GROUP_TO_SELECTION,
@@ -53,7 +49,6 @@ const ADHKAR_SURFACE_OVERLAY = 'rgba(245, 247, 245, 0.82)';
 const ADHKAR_CONTEXT_OVERLAY = 'rgba(63, 174, 90, 0.03)';
 const ADHKAR_HERO_GRADIENT: [string, string, string] = ['rgba(255,255,255,0.22)', 'rgba(230,244,234,0.74)', 'rgba(245,247,245,0.96)'];
 const ADHKAR_CARD_TITLE = '#1F2A24';
-const ADHKAR_CARD_TEXT = '#6B7A72';
 const ADHKAR_META_TEXT = '#7A887F';
 const ADHKAR_DESCRIPTION_TEXT = '#4F5D56';
 const ADHKAR_ICON_BG = '#F0F7F3';
@@ -1174,7 +1169,6 @@ function PrayerTimeSelectionScreen({
       ) : visibleGroups.length === 0 ? (
         <View style={{ height: 32 }} />
       ) : visibleGroups.map((grp, idx) => {
-        const color = grp.card_color ?? colors[idx % colors.length];
         const badge = (grp.card_badge ?? '').trim() || undefined;
         const subtitleText = grp.card_subtitle ?? null;
         const detail = grp.description ?? null;
@@ -2275,7 +2269,7 @@ function resolveGroupToSurah(groupName: string): AdhkarSelection | null {
   return null;
 }
 
-function PrayerGuidedFlowScreen({
+export function PrayerGuidedFlowScreen({
   prayerTime, onExit, nightMode, onOpenSpecialGroup,
 }: {
   prayerTime: PrayerTimeId;

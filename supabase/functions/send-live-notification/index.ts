@@ -12,7 +12,7 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}));
     const title   = body.title   ?? "JMN Live Radio";
-    const message = body.message ?? "Jami' Masjid Noorani is now LIVE!";
+    const message = body.message ?? "Jami' Masjid Noorani is now LIVE! | جے ایم این ریڈیو اب براہِ راست ہے۔";
     const data    = body.data    ?? {};
 
     const supabase = createClient(

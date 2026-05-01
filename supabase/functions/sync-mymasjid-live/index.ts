@@ -20,7 +20,7 @@ const APP_SETTING_LAST_SERVER_NOTIFY_TS = 'live_notify_last_sent_ts';
 const APP_SETTING_POLL_LOCK = 'live_poll_lock_ts';
 
 const LIVE_TITLE = 'JMN Radio is now live';
-const LIVE_BODY = "Tap to open Jami' Masjid Noorani live stream.";
+const LIVE_BODY = "Tap to open Jami' Masjid Noorani live stream. | جے ایم این ریڈیو اب براہِ راست ہے۔ سننے کے لیے کھولیں۔";
 
 type AppSettingRow = {
   key: string;

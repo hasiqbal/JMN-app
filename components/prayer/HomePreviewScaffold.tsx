@@ -1,10 +1,10 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useRef } from 'react';
 import { Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
 import PrayerHeroCard from '@/components/prayer/PrayerHeroCard';
 import { PRAYER_BG_IMAGES, PRAYER_GRADIENTS, PRAYER_ICONS, getInterpolatedPrayerOverlay } from '@/components/prayer/heroConfig';
-import { Colors, Radius, Spacing, Typography } from '@/constants/theme';
+import { Colors, Radius, Typography } from '@/constants/theme';
 import { type SharedPreviewScenario } from '@/components/prayer/previewScenarios';
 
 type PreviewMode = 'jumuah' | 'eid-fitr-jumuah' | 'eid-adha' | 'eid-adha-jumuah';

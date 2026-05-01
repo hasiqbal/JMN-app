@@ -17,6 +17,12 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Colors, Radius, Spacing } from '@/constants/theme';
+import { NIGHT_PALETTE } from '@/constants/nightPalette';
+import { useQaseedahNightMode } from '@/hooks/useQaseedahNightMode';
+import { NightModeToggle } from '@/components/adhkar/NightModeToggle';
+import { AdhkarRow, fetchQaseedahNaatEntries } from '@/services/contentService';
+
 // Professional serif font for devotional prose. Uses Georgia on iOS/web,
 // and Android's bundled "serif" family as a close visual fallback.
 const SERIF_FONT = Platform.select({ ios: 'Georgia', android: 'serif', default: 'Georgia' }) as string;
@@ -95,12 +101,6 @@ function RichText({ value, baseStyle, dark }: { value: string; baseStyle: TextSt
     </View>
   );
 }
-
-import { Colors, Radius, Spacing } from '@/constants/theme';
-import { NIGHT_PALETTE } from '@/constants/nightPalette';
-import { useQaseedahNightMode } from '@/hooks/useQaseedahNightMode';
-import { NightModeToggle } from '@/components/adhkar/NightModeToggle';
-import { AdhkarRow, fetchQaseedahNaatEntries, resolveAdhkarUrduTranslation } from '@/services/contentService';
 
 type FilterMode = 'all' | 'qaseedah' | 'naat';
 
