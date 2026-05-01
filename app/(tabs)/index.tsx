@@ -422,6 +422,13 @@ function isShawwalMonth(hijriMonth: string): boolean {
   );
 }
 
+function formatVerseReference(reference: string): string {
+  const trimmed = reference.trim();
+  if (!trimmed) return '';
+  if (/^surah\s/i.test(trimmed)) return trimmed;
+  return `Surah ${trimmed}`;
+}
+
 // ── Hadith of the Day ────────────────────────────────────────────────────
 const HADITHS = [
   { text: "The best of you are those who learn the Quran and teach it.", ref: "Sahih al-Bukhari 5027" },
@@ -2174,7 +2181,6 @@ export default function HomeScreen() {
   const [donationOptionsLoading, setDonationOptionsLoading] = useState(false);
   const [selectedDonationOption, setSelectedDonationOption] = useState<AppDonationOption | null>(null);
   const [donationConfirmation, setDonationConfirmation] = useState<DonationConfirmationState | null>(null);
-  const donationGiftAidAnim = useRef(new Animated.Value(0)).current;
   const donationOutcomeHandledRef = useRef(false);
   const [webPrayerDrawerVisible, setWebPrayerDrawerVisible] = useState(false);
   const prayerSheetRef = useRef<BottomSheet>(null);
@@ -2328,7 +2334,7 @@ export default function HomeScreen() {
   const currentTime = useCurrentTime();
   const nextInfo = React.useMemo(
     () => (data ? getNextPrayer(data.prayers, currentTime) : null),
-    [data, currentTime]
+    [data?.prayers, currentTime]
   );
 
   const {
@@ -2378,7 +2384,7 @@ export default function HomeScreen() {
     const tomorrow = new Date(currentTime);
     tomorrow.setDate(tomorrow.getDate() + 1);
     return getPrayerTimesFromTimetable(tomorrow);
-  }, [currentTime]);
+  }, [currentTime.getFullYear(), currentTime.getMonth(), currentTime.getDate()]);
   const tomorrowHijriDayNum = tomorrowPrayerTimes
     ? Number.parseInt(getHijriDayNumber(tomorrowPrayerTimes.hijriDate) || '0', 10)
     : 0;
@@ -2958,19 +2964,6 @@ export default function HomeScreen() {
     setDonationConfirmation(null);
   }, []);
 
-  useEffect(() => {
-    if (!selectedDonationOption || !showDonationOptions) {
-      donationGiftAidAnim.setValue(0);
-      return;
-    }
-
-    Animated.timing(donationGiftAidAnim, {
-      toValue: 1,
-      duration: 220,
-      useNativeDriver: true,
-    }).start();
-  }, [donationGiftAidAnim, selectedDonationOption, showDonationOptions]);
-
   const submitDonationCheckout = useCallback(async () => {
     if (!selectedDonationOption || donationLoading) return;
 
@@ -3465,43 +3458,20 @@ export default function HomeScreen() {
           </ScrollView>
           {selectedDonationOption ? (
             <View style={styles.donationGiftAidPopupWrap}>
-              <Animated.View
-                style={[
-                  styles.donationGiftAidBackdrop,
-                  { opacity: donationGiftAidAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }) },
-                ]}
-              >
-                <TouchableOpacity
-                  style={styles.donationGiftAidBackdrop}
-                  activeOpacity={1}
-                  onPress={() => {
-                    if (donationLoading) return;
-                    setSelectedDonationOption(null);
-                    setDonationStatusMessage(null);
-                  }}
-                />
-              </Animated.View>
-              <Animated.View
+              <TouchableOpacity
+                style={styles.donationGiftAidBackdrop}
+                activeOpacity={1}
+                onPress={() => {
+                  if (donationLoading) return;
+                  setSelectedDonationOption(null);
+                  setDonationStatusMessage(null);
+                }}
+              />
+              <View
                 style={[
                   styles.donationGiftAidCard,
                   styles.donationGiftAidPopupCard,
-                  {
-                    opacity: donationGiftAidAnim,
-                    transform: [
-                      {
-                        translateY: donationGiftAidAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [18, 0],
-                        }),
-                      },
-                      {
-                        scale: donationGiftAidAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0.97, 1],
-                        }),
-                      },
-                    ],
-                  },
+                  { marginBottom: Math.max(insets.bottom + 12, 16) },
                 ]}
               >
                 <Text style={styles.donationGiftAidTitle}>Donation details</Text>
@@ -3534,7 +3504,7 @@ export default function HomeScreen() {
                     <Text style={styles.donationGiftAidChangeText}>Change amount</Text>
                   </TouchableOpacity>
                 </View>
-              </Animated.View>
+              </View>
             </View>
           ) : null}
           </>
@@ -4511,8 +4481,7 @@ const styles = StyleSheet.create({
   },
   donationGiftAidPopupWrap: {
     ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'flex-end',
     paddingHorizontal: 20,
   },
   donationGiftAidBackdrop: {
@@ -4520,9 +4489,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(8,31,21,0.22)',
   },
   donationGiftAidPopupCard: {
-    width: '100%',
-    maxWidth: 640,
-    marginBottom: 0,
     zIndex: 1,
     shadowColor: '#102E20',
     shadowOpacity: 0.18,
