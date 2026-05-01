@@ -343,8 +343,7 @@ export default function SettingsScreen() {
       const channelsBefore = await Notifications.getNotificationChannelsAsync().catch(() => []);
       logAdhaanDebug('android-channels-before-cleanup', {
         channels: channelsBefore
-          .filter((channel) =>
-            channel.id.includes('jmn-prayer-start-adhaan') || channel.id.includes('jmn-iqamah'))
+          .filter((channel) => channel.id.includes('jmn-prayer-start-adhaan'))
           .map((channel) => ({ id: channel.id, sound: channel.sound ?? null, name: channel.name })),
       });
 
@@ -371,13 +370,13 @@ export default function SettingsScreen() {
       const channelsAfter = await Notifications.getNotificationChannelsAsync().catch(() => []);
       logAdhaanDebug('android-channels-after-setup', {
         channels: channelsAfter
-          .filter((channel) =>
-            channel.id.includes('jmn-prayer-start-adhaan') || channel.id.includes('jmn-iqamah'))
+          .filter((channel) => channel.id.includes('jmn-prayer-start-adhaan'))
           .map((channel) => ({ id: channel.id, sound: channel.sound ?? null, name: channel.name })),
       });
     }
 
     const fireAt = new Date(Date.now() + PRAYER_TEST_LEAD_MS);
+    const testRunId = `manual-adhaan-test-${Date.now()}`;
     const trigger = Platform.OS === 'android'
       ? ({ type: 'date', date: fireAt, channelId: prayerStartChannelId } as unknown as import('expo-notifications').NotificationTriggerInput)
       : (fireAt as unknown as import('expo-notifications').NotificationTriggerInput);
@@ -395,6 +394,9 @@ export default function SettingsScreen() {
           type: 'prayer-start',
           prayerName: 'Test',
           route: '/prayer',
+          testRunId,
+          expectedChannelId: prayerStartChannelId,
+          expectedSoundFile: prayerAudioMuted ? null : selectedAdhaanOption.soundFile,
         },
       },
       trigger,
@@ -418,6 +420,7 @@ export default function SettingsScreen() {
       prayerAudioMuted,
       prayerStartChannelId,
       contentSound: prayerAudioMuted ? false : selectedAdhaanOption.soundFile,
+      testRunId,
     });
 
     showBanner('Adhaan test scheduled', 'Notification will fire in ~10 seconds. Lock the phone now to test background adhaan.', 9000);

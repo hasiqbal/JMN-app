@@ -33,16 +33,16 @@ function logAdhaanDebug(stage: string, payload: Record<string, unknown> = {}): v
 
 function resolveAudioModule(soundFile: string) {
   switch (soundFile) {
-    case 'adhaan_1.mp3':
-      return require('../assets/audio/adhaan_1.mp3');
-    case 'adhaan_2.mp3':
-      return require('../assets/audio/adhaan_2.mp3');
-    case 'adhaan_3.mp3':
-      return require('../assets/audio/adhaan_3.mp3');
+    case 'adhaan_1_v2.mp3':
+      return require('../assets/audio/adhaan_1_v2.mp3');
+    case 'adhaan_2_v2.mp3':
+      return require('../assets/audio/adhaan_2_v2.mp3');
+    case 'adhaan_3_v2.mp3':
+      return require('../assets/audio/adhaan_3_v2.mp3');
     case 'iqamah_new.mp3':
       return require('../assets/audio/iqamah_new.mp3');
     default:
-      return require('../assets/audio/adhaan_1.mp3');
+      return require('../assets/audio/adhaan_1_v2.mp3');
   }
 }
 

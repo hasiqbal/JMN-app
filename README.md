@@ -232,3 +232,15 @@ Users must enable `Notify when YouTube goes live` in the Settings screen so thei
 - This project is configured as a private application.
 - App configuration is defined in `app.json`.
 - Package metadata and scripts are defined in `package.json`.
+
+### Notification sound asset versioning (Android)
+
+- You may see "duplicate" adhaan files in `assets/audio` (for example `adhaan_1.mp3` and `adhaan_1_v2.mp3`).
+- These are intentional. Android notification channels can cache sound bindings, and stale bindings may continue in background notifications even when JS code is updated.
+- Versioned filenames force a fresh native resource name, which helps prevent old/stale sounds from being reused when the app is closed.
+- If background adhaan ever plays an unexpected old sound again:
+	1. Create a new versioned filename (for example `adhaan_1_v3.mp3`).
+	2. Update `constants/prayerNotifications.ts` to point adhaan options at the new filenames.
+	3. Update the `expo-notifications` `sounds` list in `app.json`.
+	4. Bump prayer-start channel IDs in `constants/prayerNotifications.ts`.
+	5. Build and install a fresh Android binary (OTA/fast refresh is not enough for native sound resources).

@@ -16,9 +16,9 @@ export type AdhaanOption = {
 };
 
 export const ADHAAN_OPTIONS: AdhaanOption[] = [
-	{ id: '1', label: 'Adhaan 1', soundFile: 'adhaan_1.mp3' },
-	{ id: '2', label: 'Adhaan 2', soundFile: 'adhaan_2.mp3' },
-	{ id: '3', label: 'Adhaan 3', soundFile: 'adhaan_3.mp3' },
+	{ id: '1', label: 'Adhaan 1', soundFile: 'adhaan_1_v2.mp3' },
+	{ id: '2', label: 'Adhaan 2', soundFile: 'adhaan_2_v2.mp3' },
+	{ id: '3', label: 'Adhaan 3', soundFile: 'adhaan_3_v2.mp3' },
 ];
 
 export const DEFAULT_ADHAAN_OPTION_ID: AdhaanOption['id'] = '1';
@@ -29,13 +29,19 @@ export function getAdhaanOptionById(value: string | null | undefined): AdhaanOpt
 
 export function getPrayerStartChannelId(optionId: AdhaanOption['id'], silent = false): string {
 	return silent
-		? `jmn-prayer-start-adhaan-${optionId}-silent-v3`
-		: `jmn-prayer-start-adhaan-${optionId}-v4`;
+		? `jmn-prayer-start-adhaan-${optionId}-silent-v4`
+		: `jmn-prayer-start-adhaan-${optionId}-v5`;
 }
 
 // Legacy channel IDs to be deleted on app launch (Android caches sound bindings per channel,
 // so when sound config changes we bump the version and clean up the old IDs).
 export const LEGACY_PRAYER_NOTIFICATION_CHANNEL_IDS: readonly string[] = [
+	'jmn-prayer-start-adhaan-1-v4',
+	'jmn-prayer-start-adhaan-2-v4',
+	'jmn-prayer-start-adhaan-3-v4',
+	'jmn-prayer-start-adhaan-1-silent-v3',
+	'jmn-prayer-start-adhaan-2-silent-v3',
+	'jmn-prayer-start-adhaan-3-silent-v3',
 	'jmn-prayer-start-adhaan-1-v3',
 	'jmn-prayer-start-adhaan-2-v3',
 	'jmn-prayer-start-adhaan-3-v3',

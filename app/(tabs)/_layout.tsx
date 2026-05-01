@@ -509,17 +509,35 @@ export default function TabLayout() {
         const scope = typeof data?.scope === 'string' ? data.scope : '';
         const type = typeof data?.type === 'string' ? data.type : '';
         const prayerName = typeof data?.prayerName === 'string' ? data.prayerName : '';
+        const testRunId = typeof data?.testRunId === 'string' ? data.testRunId : '';
+        const expectedChannelId = typeof data?.expectedChannelId === 'string' ? data.expectedChannelId : null;
+        const expectedSoundFile = typeof data?.expectedSoundFile === 'string' ? data.expectedSoundFile : null;
+        const channelId = typeof (notification.request.trigger as { channelId?: unknown } | null | undefined)?.channelId === 'string'
+          ? (notification.request.trigger as { channelId: string }).channelId
+          : null;
 
         logAdhaanDebug('notification-received', {
           notificationId: notification.request.identifier,
           scope,
           type,
           contentSound: notification.request.content.sound ?? null,
-          channelId: typeof (notification.request.trigger as { channelId?: unknown } | null | undefined)?.channelId === 'string'
-            ? (notification.request.trigger as { channelId: string }).channelId
-            : null,
+          channelId,
           data,
         });
+
+        if (testRunId) {
+          logAdhaanDebug('test-notification-received', {
+            notificationId: notification.request.identifier,
+            testRunId,
+            scope,
+            type,
+            prayerName,
+            channelId,
+            contentSound: notification.request.content.sound ?? null,
+            expectedChannelId,
+            expectedSoundFile,
+          });
+        }
 
         // Remote FCM live notifications carry data.type === 'jmn-live'. Record
         // the timestamp so the foreground polling fallback (maybeNotifyLiveStart)
