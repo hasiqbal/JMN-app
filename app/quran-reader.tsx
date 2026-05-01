@@ -235,6 +235,7 @@ export default function QuranReaderScreen() {
   const [showTranslit, setShowTranslit] = useState(false);
   const [isLoadingPanelContent, setIsLoadingPanelContent] = useState(false);
   const [isLoadingSources, setIsLoadingSources] = useState(false);
+  const [imageRenderNonce, setImageRenderNonce] = useState(0);
   const [translationOptionsByLang, setTranslationOptionsByLang] = useState<Record<ContentLanguage, QuranTranslationResource[]>>({ en: [], ur: [] });
   const [tafsirOptionsByLang, setTafsirOptionsByLang] = useState<Record<ContentLanguage, QuranTafsirResource[]>>({ en: [], ur: [] });
   const [selectedTranslationIdByLang, setSelectedTranslationIdByLang] = useState<Record<ContentLanguage, number | null>>({
@@ -405,6 +406,9 @@ export default function QuranReaderScreen() {
   useEffect(() => {
     if (!showContentPanel) {
       setShowSourcePicker(false);
+      // On native, expo-image can occasionally keep a stale surface after
+      // closing the overlay panel. Remounting the image forces a clean draw.
+      setImageRenderNonce((prev) => prev + 1);
     }
   }, [showContentPanel]);
 
@@ -740,7 +744,13 @@ export default function QuranReaderScreen() {
 
         {localSource ? (
           <Reanimated.View style={[styles.imageWrap, zoomStyle]}>
-            <Image source={localSource} style={styles.image} contentFit="contain" transition={80} />
+            <Image
+              key={`quran-image-${mushaf}-${page}-${imageRenderNonce}`}
+              source={localSource}
+              style={styles.image}
+              contentFit="contain"
+              transition={80}
+            />
             <View pointerEvents="none" style={[styles.quranTintOverlay, { backgroundColor: quranTintOverlay }]} />
           </Reanimated.View>
         ) : (

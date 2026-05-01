@@ -29,7 +29,7 @@ export const NIGHT_PALETTE = {
   highlightInk: '#FDE68A',
 
   // Chorus accent.
-  chorusBg:   'rgba(106, 174, 255, 0.08)',
+  chorusBg:   'rgba(230, 194, 112, 0.14)',
 
   // Type tints.
   qaseedahChip: 'rgba(52, 211, 153, 0.18)',

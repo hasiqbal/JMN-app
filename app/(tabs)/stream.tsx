@@ -1872,6 +1872,7 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
       await Notifications.setNotificationChannelAsync(LIVE_NOTIFICATION_CHANNEL_ID, {
         name: 'JMN Live Alerts',
         importance: Notifications.AndroidImportance.HIGH,
+        enableVibrate: true,
         vibrationPattern: [0, 250, 150, 250],
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
         sound: 'default',

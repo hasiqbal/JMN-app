@@ -65,6 +65,22 @@ const NIGHT: NightPalette = {
   cardShadow: 'rgba(0,0,0,0.30)',
 };
 
+const FY_THEME = {
+  primary: '#2FA66A',
+  primaryStrong: '#1F7D50',
+  primarySoft: '#EAF7F0',
+  heroAccent: '#79E2A8',
+  heroAccentSoft: '#C8F4DA',
+  heroOverlay: 'rgba(9,21,16,0.56)',
+  heroPanel: 'rgba(255,255,255,0.20)',
+  heroSegment: 'rgba(7,22,15,0.46)',
+  heroText: '#F8FCF9',
+  heroSubText: 'rgba(233,246,238,0.84)',
+  heroMutedText: 'rgba(221,239,228,0.74)',
+  catchupBg: 'rgba(8,34,23,0.68)',
+  catchupBorder: 'rgba(121,226,168,0.44)',
+};
+
 const DAY_OF_YEAR = Math.floor(
   (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000
 );
@@ -99,27 +115,27 @@ type CounterLevelOption = {
 
 const PRAYER_ADHKAR_CARDS: Record<string, FYCardData> = {
   Fajr: {
-    id: 'adhkar-fajr', icon: 'wb-twilight', color: '#3FAE5A',
+    id: 'adhkar-fajr', icon: 'wb-twilight', color: FY_THEME.primary,
     title: 'After Fajr Adhkar', sub: 'Wird al-Latif · Yaseen · Dua of Yaseen',
     route: '/(tabs)/duas', badge: 'After Fajr', prayerTab: 'after-fajr',
   },
   Dhuhr: {
-    id: 'adhkar-dhuhr', icon: 'wb-sunny', color: '#3FAE5A',
+    id: 'adhkar-dhuhr', icon: 'wb-sunny', color: FY_THEME.primary,
     title: 'After Dhuhr Adhkar', sub: 'Tasbih · Salawat · Astaghfirullah',
     route: '/(tabs)/duas', badge: 'After Dhuhr', prayerTab: 'after-dhuhr',
   },
   Asr: {
-    id: 'adhkar-asr', icon: 'wb-cloudy', color: '#3FAE5A',
+    id: 'adhkar-asr', icon: 'wb-cloudy', color: FY_THEME.primary,
     title: 'After Asr Adhkar', sub: 'Surah Al-Waqiah · Hizb ul Bahr',
     route: '/(tabs)/duas', badge: 'After Asr', prayerTab: 'after-asr',
   },
   Maghrib: {
-    id: 'adhkar-maghrib', icon: 'bedtime', color: '#3FAE5A',
+    id: 'adhkar-maghrib', icon: 'bedtime', color: FY_THEME.primary,
     title: 'After Maghrib Adhkar', sub: 'Evening duas & protection dhikr',
     route: '/(tabs)/duas', badge: 'After Maghrib', prayerTab: 'after-maghrib',
   },
   Isha: {
-    id: 'adhkar-isha', icon: 'nightlight', color: '#3FAE5A',
+    id: 'adhkar-isha', icon: 'nightlight', color: FY_THEME.primary,
     title: 'After Isha Adhkar', sub: "Night remembrance & du'a before sleep",
     route: '/(tabs)/duas', badge: 'After Isha', prayerTab: 'after-isha',
   },
@@ -199,31 +215,31 @@ const QURAN_PORTIONS = [
 // ── Durood Levels ────────────────────────────────────────────────────────
 // ── Quran Reading Levels ────────────────────────────────────────────────
 const QURAN_READ_LEVELS = [
-  { level: 1, label: 'Ayahs', desc: '3–5 Ayahs',  color: '#66DDAA', bg: 'rgba(102,221,170,0.15)' },
-  { level: 2, label: '1 Page', desc: '~1 Page',   color: '#5BCFA5', bg: 'rgba(91,207,165,0.15)' },
-  { level: 3, label: '½ Juz',  desc: '~10 Pages', color: '#5DD9A0', bg: 'rgba(93,217,160,0.15)' },
-  { level: 4, label: 'Full Juz', desc: '~20 Pgs', color: '#6ECF97', bg: 'rgba(110,207,151,0.13)' },
+  { level: 1, label: 'Ayahs', desc: '3–5 Ayahs',  color: '#6FD9A4', bg: 'rgba(111,217,164,0.16)' },
+  { level: 2, label: '1 Page', desc: '~1 Page',   color: '#5FD093', bg: 'rgba(95,208,147,0.16)' },
+  { level: 3, label: '½ Juz',  desc: '~10 Pages', color: '#4ABF82', bg: 'rgba(74,191,130,0.16)' },
+  { level: 4, label: 'Full Juz', desc: '~20 Pgs', color: FY_THEME.primary, bg: 'rgba(47,166,106,0.16)' },
 ];
 
 const DUROOD_LEVELS = [
-  { level: 1, target: 100,  label: 'L1',  color: '#A8E8CC', bg: '#E8F5E9' },
-  { level: 2, target: 300,  label: 'L2',  color: '#A8E8CC', bg: '#EAF6EE' },
-  { level: 3, target: 500,  label: 'L3',  color: '#A8E8CC', bg: '#EDF5F0' },
-  { level: 4, target: 1000, label: 'L4',  color: '#A8E8CC', bg: '#FBF4E3' },
+  { level: 1, target: 100,  label: 'L1',  color: '#8BE2B8', bg: '#E8F5E9' },
+  { level: 2, target: 300,  label: 'L2',  color: '#8BE2B8', bg: '#EAF6EE' },
+  { level: 3, target: 500,  label: 'L3',  color: '#8BE2B8', bg: '#EDF5F0' },
+  { level: 4, target: 1000, label: 'L4',  color: '#8BE2B8', bg: '#FBF4E3' },
 ];
 
 const ISTIGHFAR_LEVELS = [
-  { level: 1, target: 100,  label: 'L1',  color: '#A8E8CC' },
-  { level: 2, target: 300,  label: 'L2',  color: '#A8E8CC' },
-  { level: 3, target: 500,  label: 'L3',  color: '#A8E8CC' },
-  { level: 4, target: 1000, label: 'L4',  color: '#A8E8CC' },
+  { level: 1, target: 100,  label: 'L1',  color: '#8BE2B8' },
+  { level: 2, target: 300,  label: 'L2',  color: '#8BE2B8' },
+  { level: 3, target: 500,  label: 'L3',  color: '#8BE2B8' },
+  { level: 4, target: 1000, label: 'L4',  color: '#8BE2B8' },
 ];
 
 const TAWHID_LEVELS = [
-  { level: 1, target: 100,  label: 'L1',  color: '#A8E8CC' },
-  { level: 2, target: 300,  label: 'L2',  color: '#A8E8CC' },
-  { level: 3, target: 500,  label: 'L3',  color: '#A8E8CC' },
-  { level: 4, target: 1000, label: 'L4',  color: '#A8E8CC' },
+  { level: 1, target: 100,  label: 'L1',  color: '#8BE2B8' },
+  { level: 2, target: 300,  label: 'L2',  color: '#8BE2B8' },
+  { level: 3, target: 500,  label: 'L3',  color: '#8BE2B8' },
+  { level: 4, target: 1000, label: 'L4',  color: '#8BE2B8' },
 ];
 
 const PENDING_OPEN_KEY = 'quran_pending_open_v1';
@@ -983,7 +999,7 @@ function QuranPortionCard({
   };
 
   const lv = levelIdx !== null ? QURAN_READ_LEVELS[levelIdx] : QURAN_READ_LEVELS[0];
-  const accentColor = nightMode ? '#4FE948' : (levelIdx !== null ? lv.color : '#4CAF82');
+  const accentColor = nightMode ? FY_THEME.heroAccent : (levelIdx !== null ? lv.color : FY_THEME.primary);
   const cardWidth = Math.max(300, windowWidth - (Spacing.md * 2));
   const nextMissedJuz = pendingMissedDays[0] ?? null;
   const shouldRenderCatchupBanner = levelIdx === 3 && pendingMissedDays.length > 0;
@@ -1058,24 +1074,24 @@ function QuranPortionCard({
             </View>
 
             {/* Content */}
-            <View style={[fyStyles.counterPanelCompact, { backgroundColor: 'rgba(255,255,255,0.18)', paddingVertical: 10, paddingHorizontal: 10 }]}>
-              <Text style={[fyStyles.cardTitle, { textAlign: 'center', fontSize: 14, lineHeight: 18, color: '#FFFFFF', fontWeight: '900' }]} numberOfLines={2}>
+            <View style={[fyStyles.counterPanelCompact, { backgroundColor: FY_THEME.heroPanel, paddingVertical: 10, paddingHorizontal: 10 }]}>
+              <Text style={[fyStyles.cardTitle, { textAlign: 'center', fontSize: 14, lineHeight: 18, color: FY_THEME.heroText, fontWeight: '900' }]} numberOfLines={2}>
                 {titleLine}
               </Text>
               {ayahLine ? (
-                <Text style={[fyStyles.cardSub, { textAlign: 'center', marginTop: 1, fontSize: 11, lineHeight: 14, fontWeight: '700', color: 'rgba(255,255,255,0.82)' }]} numberOfLines={1}>
+                <Text style={[fyStyles.cardSub, { textAlign: 'center', marginTop: 1, fontSize: 11, lineHeight: 14, fontWeight: '700', color: FY_THEME.heroSubText }]} numberOfLines={1}>
                   {ayahLine}
                 </Text>
               ) : null}
               {subLine ? (
-                <Text style={[fyStyles.cardSub, { textAlign: 'center', marginTop: 2, fontWeight: '500', opacity: 1, color: 'rgba(255,255,255,0.70)' }]} numberOfLines={2}>
+                <Text style={[fyStyles.cardSub, { textAlign: 'center', marginTop: 2, fontWeight: '500', opacity: 1, color: FY_THEME.heroMutedText }]} numberOfLines={2}>
                   {subLine}
                 </Text>
               ) : null}
             </View>
 
             {/* Level selector */}
-            <View style={[fyStyles.counterSegmentedCompact, { backgroundColor: 'rgba(0,0,0,0.3)' }]}>
+            <View style={[fyStyles.counterSegmentedCompact, { backgroundColor: FY_THEME.heroSegment }]}>
               {QURAN_READ_LEVELS.map((ql, i) => (
                 <TouchableOpacity
                   key={ql.level}
@@ -1090,13 +1106,13 @@ function QuranPortionCard({
                 >
                   <Text style={[
                     fyStyles.counterSegmentTextCompact,
-                    { color: i === levelIdx ? '#000' : 'rgba(255,255,255,0.7)' },
+                    { color: i === levelIdx ? '#0D2A1B' : 'rgba(236,247,240,0.78)' },
                   ]}>{ql.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            <View style={[fyStyles.counterSegmentedCompact, { backgroundColor: 'rgba(0,0,0,0.3)' }]}>
+            <View style={[fyStyles.counterSegmentedCompact, { backgroundColor: FY_THEME.heroSegment }]}>
               {(['15line', '16line'] as MushafLayout[]).map((layout) => {
                 const selected = mushafLayout === layout;
                 return (
@@ -1113,7 +1129,7 @@ function QuranPortionCard({
                   >
                     <Text style={[
                       fyStyles.counterSegmentTextCompact,
-                      { color: selected ? '#000' : 'rgba(255,255,255,0.7)' },
+                      { color: selected ? '#0D2A1B' : 'rgba(236,247,240,0.78)' },
                     ]}>
                       {layout === '16line' ? '16 line Quran' : '15 line Quran'}
                     </Text>
@@ -1162,16 +1178,23 @@ function QuranPortionCard({
                   onPress={openInQuran}
                   style={[fyStyles.openRow, { flex: 1, backgroundColor: accentColor, justifyContent: 'center', marginTop: 0 }]}
                 >
-                  <MaterialIcons name="auto-stories" size={11} color="#fff" />
-                  <Text style={[fyStyles.openText, { color: '#fff' }]}>Read in App</Text>
+                  <MaterialIcons name="auto-stories" size={11} color="#0A2417" />
+                  <Text style={[fyStyles.openText, { color: '#0A2417' }]}>Read in App</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   onPress={handleMarkAsRead}
-                  style={[fyStyles.openRow, { flex: 1, backgroundColor: accentColor, justifyContent: 'center', marginTop: 0 }]}
+                  style={[fyStyles.openRow, {
+                    flex: 1,
+                    backgroundColor: 'rgba(255,255,255,0.12)',
+                    borderWidth: 1,
+                    borderColor: 'rgba(255,255,255,0.30)',
+                    justifyContent: 'center',
+                    marginTop: 0,
+                  }]}
                 >
-                  <MaterialIcons name="check-circle" size={11} color="#fff" />
-                  <Text style={[fyStyles.openText, { color: '#fff' }]}>Mark as Read</Text>
+                  <MaterialIcons name="check-circle" size={11} color={FY_THEME.heroText} />
+                  <Text style={[fyStyles.openText, { color: FY_THEME.heroText }]}>Mark as Read</Text>
                 </TouchableOpacity>
               </View>
             ) : null}
@@ -1260,6 +1283,7 @@ function IstighfarCounterCard({
   if (!loaded || dismissed.has(cardId)) return null;
 
   const accentColor = nightMode ? '#A8E8CC' : currentLevel.color;
+  const istighfarTone = '#F5E7B8';
   const flashOpacity = flashAnim.interpolate({ inputRange: [0,1], outputRange: [0, 0.30] });
 
   return (
@@ -1277,31 +1301,31 @@ function IstighfarCounterCard({
 
           {/* Header */}
           <View style={[fyStyles.counterHeaderRow, { paddingLeft: 4 }]}>
-            <Text style={[fyStyles.counterTitleText, { color: '#A8E8CC' }]}>Astaghfirullah</Text>
+            <Text style={[fyStyles.counterTitleText, { color: istighfarTone }]}>Astaghfirullah</Text>
             {done ? (
               <View style={[fyStyles.counterDoneBadge, { backgroundColor: 'rgba(255,255,255,0.2)', borderColor: 'rgba(255,255,255,0.3)' }]}>
                 <MaterialIcons name="check" size={7} color="#fff" />
                 <Text style={[fyStyles.counterDoneText, { color: '#fff' }]}>Done</Text>
               </View>
             ) : null}
-            <MaterialIcons name="replay" size={14} color="#A8E8CC" />
+            <MaterialIcons name="replay" size={14} color={istighfarTone} />
           </View>
 
           {/* Counter tap */}
           <TouchableOpacity onPress={tap} activeOpacity={done ? 1 : 0.7} disabled={done}>
             <Animated.View style={[
               fyStyles.counterPanelCompact,
-              { backgroundColor: 'rgba(255,255,255,0.18)' },
+              { backgroundColor: 'rgba(255,245,222,0.16)' },
               { transform: [{ scale: scaleAnim }] },
             ]}>
               <Text style={[fyStyles.counterCountCompact, { color: '#fff' }]}>{count}</Text>
-              <Text style={[fyStyles.counterTargetCompact, { color: 'rgba(255,255,255,0.7)' }]}>of {currentLevel.target} today</Text>
-              <Text style={{ fontSize: 7, fontWeight: '700', color: 'rgba(255,255,255,0.5)', marginTop: 1, letterSpacing: 0.6, textTransform: 'uppercase' }}>TAP</Text>
+              <Text style={[fyStyles.counterTargetCompact, { color: 'rgba(255,246,222,0.78)' }]}>of {currentLevel.target} today</Text>
+              <Text style={{ fontSize: 7, fontWeight: '700', color: 'rgba(255,238,206,0.62)', marginTop: 1, letterSpacing: 0.6, textTransform: 'uppercase' }}>TAP</Text>
             </Animated.View>
           </TouchableOpacity>
 
           {/* Level selector */}
-          <View style={[fyStyles.counterSegmentedCompact, { backgroundColor: 'rgba(0,0,0,0.3)' }]}>
+          <View style={[fyStyles.counterSegmentedCompact, { backgroundColor: 'rgba(24,16,8,0.42)' }]}>
             {ISTIGHFAR_LEVELS.map((lv, i) => (
               <TouchableOpacity
                 key={lv.level}
@@ -1325,25 +1349,25 @@ function IstighfarCounterCard({
           <View style={fyStyles.counterActionRowCompact}>
             <TouchableOpacity
               onPress={() => onDismiss(cardId)}
-              style={[fyStyles.counterActionCompact, { borderColor: '#A8E8CC44' }]}
+              style={[fyStyles.counterActionCompact, { borderColor: '#E8D9AA55' }]}
             >
-              <MaterialIcons name="check-circle-outline" size={9} color="#A8E8CC" />
-              <Text style={[fyStyles.counterActionTextCompact, { color: '#A8E8CC' }]}>Complete</Text>
+              <MaterialIcons name="check-circle-outline" size={9} color={istighfarTone} />
+              <Text style={[fyStyles.counterActionTextCompact, { color: istighfarTone }]}>Complete</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               onPress={() => setExpanded(true)}
-              style={[fyStyles.counterActionCompact, { borderColor: '#A8E8CC44' }]}
+              style={[fyStyles.counterActionCompact, { borderColor: '#E8D9AA55' }]}
             >
-              <MaterialIcons name="open-in-full" size={9} color="#A8E8CC" />
-              <Text style={[fyStyles.counterActionTextCompact, { color: '#A8E8CC' }]}>Expand</Text>
+              <MaterialIcons name="open-in-full" size={9} color={istighfarTone} />
+              <Text style={[fyStyles.counterActionTextCompact, { color: istighfarTone }]}>Expand</Text>
             </TouchableOpacity>
           </View>
 
           {/* Hadith caption */}
           <Text
             numberOfLines={2}
-            style={[fyStyles.counterCaption, { color: 'rgba(255,255,255,0.8)' }]}
+            style={[fyStyles.counterCaption, { color: 'rgba(255,244,220,0.82)' }]}
           >
             100× daily — all sins forgiven · Bukhari 6307
           </Text>
@@ -1743,31 +1767,31 @@ function DuroodCounterCard({
 
           {/* Header */}
           <View style={[fyStyles.counterHeaderRow, { paddingLeft: 4 }]}>
-            <Text style={[fyStyles.counterTitleText, { color: '#A8E8CC' }]}>Daily Durood</Text>
+            <Text style={[fyStyles.counterTitleText, { color: '#CFF5E2' }]}>Daily Durood</Text>
             {done ? (
               <View style={[fyStyles.counterDoneBadge, { backgroundColor: 'rgba(255,255,255,0.2)', borderColor: 'rgba(255,255,255,0.3)' }]}>
                 <MaterialIcons name="check" size={7} color="#fff" />
                 <Text style={[fyStyles.counterDoneText, { color: '#fff' }]}>Done</Text>
               </View>
             ) : null}
-            <Text style={{ fontSize: 14, color: '#A8E8CC' }}>ﷺ</Text>
+            <Text style={{ fontSize: 14, color: '#CFF5E2' }}>ﷺ</Text>
           </View>
 
           {/* Counter tap */}
           <TouchableOpacity onPress={tap} activeOpacity={done ? 1 : 0.7} disabled={done}>
             <Animated.View style={[
               fyStyles.counterPanelCompact,
-              { backgroundColor: 'rgba(255,255,255,0.18)' },
+              { backgroundColor: 'rgba(255,255,255,0.2)' },
               { transform: [{ scale: scaleAnim }] },
             ]}>
               <Text style={[fyStyles.counterCountCompact, { color: '#fff' }]}>{count}</Text>
               <Text style={[fyStyles.counterTargetCompact, { color: 'rgba(255,255,255,0.7)' }]}>of {currentLevel.target} today</Text>
-              <Text style={{ fontSize: 7, fontWeight: '700', color: 'rgba(255,255,255,0.5)', marginTop: 1, letterSpacing: 0.6, textTransform: 'uppercase' }}>TAP</Text>
+              <Text style={{ fontSize: 7, fontWeight: '700', color: 'rgba(255,255,255,0.6)', marginTop: 1, letterSpacing: 0.6, textTransform: 'uppercase' }}>TAP</Text>
             </Animated.View>
           </TouchableOpacity>
 
           {/* Level selector */}
-          <View style={[fyStyles.counterSegmentedCompact, { backgroundColor: 'rgba(0,0,0,0.3)' }]}>
+          <View style={[fyStyles.counterSegmentedCompact, { backgroundColor: 'rgba(8,20,14,0.44)' }]}>
             {DUROOD_LEVELS.map((lv, i) => (
               <TouchableOpacity
                 key={lv.level}
@@ -1982,9 +2006,16 @@ function ForYouCard({
     >
       <Animated.View style={[
         fyStyles.card,
+        fyStyles.adhkarTileCard,
         N && { backgroundColor: N.surface, borderColor: N.border },
         { transform: [{ scale }] },
       ]}>
+        <View
+          style={[
+            fyStyles.adhkarTileTopLine,
+            { backgroundColor: isOverdue ? overdueColor : card.color },
+          ]}
+        />
         <View style={fyStyles.cardBody}>
           {/* Row 1: icon + badge */}
           <View style={fyStyles.iconBadgeRow}>
@@ -1996,7 +2027,7 @@ function ForYouCard({
             {card.badge ? (
               <View style={[
                 fyStyles.badgeRow,
-                { backgroundColor: card.color + '14' },
+                { backgroundColor: card.color + '14', borderColor: card.color + '2B' },
               ]}>
                 <Text style={[fyStyles.badgeText, { color: card.color }]}>{card.badge}</Text>
               </View>
@@ -2014,6 +2045,9 @@ function ForYouCard({
                 style={[
                   fyStyles.openPrimary,
                   {
+                    borderColor: isOverdue
+                      ? (N ? 'rgba(255,200,196,0.38)' : accentColor + '34')
+                      : accentColor + (N ? '4A' : '36'),
                     backgroundColor: isOverdue
                       ? (N ? 'rgba(255,115,106,0.26)' : accentColor + '18')
                       : accentColor + (N ? '2A' : '18'),
@@ -2027,7 +2061,13 @@ function ForYouCard({
             <TouchableOpacity
               onPress={(e) => { e.stopPropagation(); onDismiss(card.id); }}
               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-              style={[fyStyles.doneIconBtn, { borderColor: accentColor + (N ? '44' : '30') }]}
+              style={[
+                fyStyles.doneIconBtn,
+                {
+                  borderColor: accentColor + (N ? '44' : '30'),
+                  backgroundColor: N ? 'rgba(255,255,255,0.04)' : accentColor + '0A',
+                },
+              ]}
               accessibilityLabel="Mark adhkar done"
             >
               <MaterialIcons name="check" size={12} color={accentColor} />
@@ -2047,29 +2087,29 @@ const sectionStyles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     marginHorizontal: Spacing.md,
-    marginBottom: 2,
+    marginBottom: 6,
   },
   kickerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 4,
+    marginBottom: 3,
     marginTop: Spacing.sm,
   },
   kickerBar: {
     width: 3,
     height: 11,
     borderRadius: 2,
-    backgroundColor: '#2C6A50',
+    backgroundColor: FY_THEME.primaryStrong,
   },
   kicker: {
     fontSize: 10,
     fontWeight: '800',
-    letterSpacing: 1.5,
-    color: '#2C6A50',
+    letterSpacing: 1.2,
+    color: FY_THEME.primaryStrong,
     textTransform: 'uppercase',
   },
   title: {
@@ -2078,26 +2118,90 @@ const sectionStyles = StyleSheet.create({
     letterSpacing: 0.1,
     lineHeight: 28,
     color: Colors.textPrimary,
-    marginBottom: 10,
+    marginBottom: 2,
+  },
+  titleSub: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: '#5E7C6B',
+    fontWeight: '500',
   },
   countPill: {
     borderRadius: Radius.full,
     borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    backgroundColor: '#EAF3EE',
-    borderColor: 'rgba(17,73,51,0.12)',
-    marginBottom: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: FY_THEME.primarySoft,
+    borderColor: 'rgba(47,166,106,0.20)',
+    marginTop: Spacing.sm,
   },
   countPillText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#51645A',
+    color: '#385647',
     letterSpacing: 0.2,
+  },
+  trackShell: {
+    marginHorizontal: Spacing.md,
+    marginBottom: 10,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(31,125,80,0.11)',
+    backgroundColor: '#F8FCF9',
+    paddingTop: 6,
+    paddingBottom: 2,
+  },
+  trackShellNight: {
+    borderColor: NIGHT.border,
+    backgroundColor: NIGHT.surface,
+  },
+  trackHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingBottom: 6,
+  },
+  trackHeaderTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  trackTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+    color: '#256A4A',
+  },
+  trackHint: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#5E7C6B',
+  },
+  trackDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(37,106,74,0.14)',
+    marginHorizontal: 12,
+    marginBottom: 2,
   },
 });
 
 const fyStyles = StyleSheet.create({
+  adhkarTilesBackPanel: {
+    marginHorizontal: 0,
+    marginTop: 0,
+    borderRadius: 0,
+    borderWidth: 0,
+    borderColor: 'transparent',
+    backgroundColor: 'transparent',
+    boxShadow: 'none',
+    elevation: 0,
+  },
+  adhkarTilesBackPanelNight: {
+    borderColor: NIGHT.border,
+    backgroundColor: 'rgba(255,255,255,0.02)',
+  },
   duroodCard: {
     width: 184,
     backgroundColor: Colors.surface,
@@ -2171,20 +2275,20 @@ const fyStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: Radius.md,
-    paddingVertical: 3,
-    paddingHorizontal: 6,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
   },
   counterCountCompact: {
-    fontSize: 22,
-    lineHeight: 26,
+    fontSize: 24,
+    lineHeight: 28,
     fontWeight: '900',
     letterSpacing: -0.5,
   },
   counterTargetCompact: {
-    fontSize: 7,
+    fontSize: 8,
     fontWeight: '600',
     color: '#8A958F',
-    marginTop: -1,
+    marginTop: 0,
     letterSpacing: 0.15,
   },
   counterProgressBgCompact: {
@@ -2202,11 +2306,11 @@ const fyStyles = StyleSheet.create({
   counterSegmentedCompact: {
     flexDirection: 'row',
     gap: 2,
-    padding: 2,
+    padding: 3,
     borderRadius: Radius.full,
     borderWidth: 0,
     borderColor: 'transparent',
-    backgroundColor: '#F0F3F1',
+    backgroundColor: '#EDF3EF',
   },
   counterSegmentBtnCompact: {
     flex: 1,
@@ -2214,23 +2318,23 @@ const fyStyles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: Radius.full,
     borderWidth: 0,
-    minHeight: 18,
-    paddingHorizontal: 2,
+    minHeight: 24,
+    paddingHorizontal: 3,
   },
   counterSegmentTextCompact: {
-    fontSize: 7.5,
+    fontSize: 8,
     fontWeight: '800',
     letterSpacing: 0.1,
     fontVariant: ['tabular-nums'] as any,
   },
   counterCaption: {
-    fontSize: 7.5,
+    fontSize: 8,
     fontWeight: '700',
     color: '#A8B0AB',
     textAlign: 'center',
-    lineHeight: 10,
+    lineHeight: 11,
     fontStyle: 'italic',
-    marginTop: -1,
+    marginTop: 0,
   },
   counterActionCompact: {
     flexDirection: 'row',
@@ -2240,8 +2344,9 @@ const fyStyles = StyleSheet.create({
     alignSelf: 'stretch',
     borderWidth: 1,
     borderRadius: Radius.full,
-    paddingVertical: 3,
+    paddingVertical: 4,
     paddingHorizontal: 8,
+    backgroundColor: 'rgba(0,0,0,0.22)',
   },
   counterActionRowCompact: {
     flexDirection: 'row',
@@ -2358,6 +2463,19 @@ const fyStyles = StyleSheet.create({
     boxShadow: '0px 4px 12px rgba(11,92,58,0.06)',
     elevation: 3,
   },
+  adhkarTileCard: {
+    borderWidth: 1.25,
+    borderColor: 'rgba(33,90,63,0.14)',
+    backgroundColor: '#FCFEFD',
+    boxShadow: '0px 7px 16px rgba(14,63,43,0.10)',
+    elevation: 5,
+  },
+  adhkarTileTopLine: {
+    height: 3,
+    opacity: 0.92,
+    borderTopLeftRadius: Radius.lg,
+    borderTopRightRadius: Radius.lg,
+  },
   nextAdhkarStrip: {
     width: 'auto' as any,
     flexDirection: 'row',
@@ -2382,16 +2500,16 @@ const fyStyles = StyleSheet.create({
     borderRadius: Radius.xl,
   },
   quranBgOverlay: {
-    backgroundColor: 'rgba(0,0,0,0.44)',
+    backgroundColor: FY_THEME.heroOverlay,
     borderRadius: Radius.xl,
-    padding: 11,
-    gap: 8,
+    padding: 12,
+    gap: 10,
   },
   catchupBannerWrap: {
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: 'rgba(164,242,160,0.35)',
-    backgroundColor: 'rgba(11,37,25,0.58)',
+    borderColor: FY_THEME.catchupBorder,
+    backgroundColor: FY_THEME.catchupBg,
     paddingHorizontal: 10,
     paddingVertical: 8,
     gap: 6,
@@ -2406,7 +2524,7 @@ const fyStyles = StyleSheet.create({
     flex: 1,
     fontSize: 10,
     fontWeight: '800',
-    color: '#C9F7D4',
+    color: FY_THEME.heroAccentSoft,
     letterSpacing: 0.2,
   },
   catchupBannerBody: {
@@ -2419,14 +2537,14 @@ const fyStyles = StyleSheet.create({
     borderRadius: Radius.full,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    backgroundColor: 'rgba(79,233,72,0.22)',
+    backgroundColor: 'rgba(121,226,168,0.22)',
     borderWidth: 1,
-    borderColor: 'rgba(79,233,72,0.45)',
+    borderColor: 'rgba(121,226,168,0.45)',
   },
   catchupCountPillText: {
     fontSize: 9,
     fontWeight: '900',
-    color: '#BFF8B6',
+    color: FY_THEME.heroAccentSoft,
     letterSpacing: 0.2,
   },
   catchupActionRow: {
@@ -2444,12 +2562,12 @@ const fyStyles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   catchupPrimaryBtn: {
-    backgroundColor: '#A4F2A0',
+    backgroundColor: FY_THEME.heroAccent,
   },
   catchupPrimaryBtnText: {
     fontSize: 9,
     fontWeight: '900',
-    color: '#0B2817',
+    color: '#0A2417',
     letterSpacing: 0.15,
   },
   catchupSecondaryBtn: {
@@ -2465,16 +2583,16 @@ const fyStyles = StyleSheet.create({
   },
   duroodImageOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.48)',
+    backgroundColor: 'rgba(6,12,10,0.34)',
     borderRadius: Radius.xl,
-    padding: 9,
-    gap: 4,
+    padding: 10,
+    gap: 6,
   },
   colorBar: {
     height: 3,
     borderTopLeftRadius: Radius.lg,
     borderTopRightRadius: Radius.lg,
-    backgroundColor: '#4FE948',
+    backgroundColor: FY_THEME.primary,
   },
   cardBody: { padding: 12, gap: 8 },
   iconBadgeRow: {
@@ -2491,16 +2609,17 @@ const fyStyles = StyleSheet.create({
   badgeRow: {
     paddingHorizontal: 7, paddingVertical: 2,
     borderRadius: Radius.full,
+    borderWidth: 1,
   },
   badgeText: { fontSize: 9, fontWeight: '700', letterSpacing: 0.2 },
   cardTitle: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary, lineHeight: 17 },
-  cardSub: { fontSize: 10.5, fontWeight: '400', lineHeight: 14, color: Colors.textSubtle, opacity: 0.9 },
+  cardSub: { fontSize: 10.5, fontWeight: '500', lineHeight: 14, color: Colors.textSubtle, opacity: 0.92 },
   ctaRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2, gap: 8,
   },
   openRow: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
-    alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4,
+    alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5,
     borderRadius: Radius.full, marginTop: 3,
   },
   openText: { fontSize: 10, fontWeight: '700' },
@@ -2511,6 +2630,7 @@ const fyStyles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: Radius.full,
+    borderWidth: 1,
   },
   openPrimaryText: { fontSize: 10, fontWeight: '700' },
   doneIconBtn: {
@@ -2538,7 +2658,11 @@ function ForYouTickerRow({
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingHorizontal: Spacing.md, paddingBottom: 8, paddingTop: 3 }}
+      style={[
+        fyStyles.adhkarTilesBackPanel,
+        nightMode && fyStyles.adhkarTilesBackPanelNight,
+      ]}
+      contentContainerStyle={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingHorizontal: 10, paddingBottom: 8, paddingTop: 2 }}
     >
       {/* Prayer adhkar cards first — highest priority */}
       {cards.map(card => (
@@ -2772,6 +2896,8 @@ export function HomeForYouTodaySection({
             <View style={[sectionStyles.kickerBar, N && { backgroundColor: N.accent }]} />
             <Text style={[sectionStyles.kicker, N && { color: N.textSub }]}>YOUR ADHKAR</Text>
           </View>
+          <Text style={[sectionStyles.title, N && { color: N.text }]}>Today's Adhkar Plan</Text>
+          <Text style={[sectionStyles.titleSub, N && { color: N.textMuted }]}>Stay consistent with your daily adhkar throughout the prayer day.</Text>
         </View>
         <View style={[
           sectionStyles.countPill,
@@ -2784,92 +2910,124 @@ export function HomeForYouTodaySection({
       </View>
 
       {showQuranRow ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: Spacing.md, gap: 12, paddingBottom: 6, paddingTop: 2 }}
-        >
-          <QuranPortionCard
-            nightMode={nightMode}
-            todayKey={todayKey}
-            dismissed={dismissed}
-            onDismiss={dismissOnly}
-            hijriDay={hijriDay}
-            hijriMonthName={hijriMonthName}
-          />
-        </ScrollView>
+        <View style={[sectionStyles.trackShell, N && sectionStyles.trackShellNight]}>
+          <View style={sectionStyles.trackHeaderRow}>
+            <View style={sectionStyles.trackHeaderTitleRow}>
+              <MaterialIcons name="menu-book" size={14} color={N ? N.textSub : '#2F7E59'} />
+              <Text style={[sectionStyles.trackTitle, N && { color: N.textSub }]}>Quran Track</Text>
+            </View>
+            <Text style={[sectionStyles.trackHint, N && { color: N.textMuted }]}>Daily reading plan</Text>
+          </View>
+          <View style={[sectionStyles.trackDivider, N && { backgroundColor: N.border }]} />
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 10, gap: 12, paddingBottom: 8, paddingTop: 2 }}
+          >
+            <QuranPortionCard
+              nightMode={nightMode}
+              todayKey={todayKey}
+              dismissed={dismissed}
+              onDismiss={dismissOnly}
+              hijriDay={hijriDay}
+              hijriMonthName={hijriMonthName}
+            />
+          </ScrollView>
+        </View>
       ) : null}
 
-      {allDone ? (
-        // Static current row when all prayer cards are done
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: Spacing.md, gap: 12, paddingBottom: 6, paddingTop: 2 }}
-        >
-          {ishaHasPassed ? (
-            <BedTimeCard nightMode={nightMode} todayKey={todayKey} dismissed={dismissed} onDismiss={dismissOnly} onOpen={() => router.push(`/(tabs)/duas?prayerTime=after-isha&group=Before+Sleep&openAt=${Date.now()}` as any)} />
-          ) : null}
-          <NextAdhkarCountdownCard
-            nightMode={nightMode}
-            prayers={augmentedPrayersForCountdown}
-            currentTime={currentTime}
-            onOpen={(prayerTab) => router.push(`/(tabs)/duas?prayerTime=${prayerTab}&openAt=${Date.now()}` as any)}
-          />
-          <View style={[
-            fyStyles.card, { width: 172, justifyContent: 'center' },
-            N && { backgroundColor: N.surface, borderColor: N.border },
-          ]}>
-            <View style={fyStyles.colorBar} />
-            <View style={[fyStyles.cardBody, { alignItems: 'center', gap: 8, paddingVertical: 16 }]}>
-              <View style={[fyStyles.iconCircle, { backgroundColor: '#4FE94822', width: 40, height: 40, borderRadius: 20 }]}>
-                <MaterialIcons name="check-circle" size={22} color="#4FE948" />
-              </View>
-              <Text style={[fyStyles.cardTitle, { textAlign: 'center', fontSize: 13 }, N && { color: N.text }]}>
-                All caught up!
-              </Text>
-              <Text style={[fyStyles.cardSub, { textAlign: 'center', lineHeight: 15 }, N && { color: N.textSub }]}>
-                Check back after the next Salah.
-              </Text>
-            </View>
+      <View style={[sectionStyles.trackShell, N && sectionStyles.trackShellNight]}>
+        <View style={sectionStyles.trackHeaderRow}>
+          <View style={sectionStyles.trackHeaderTitleRow}>
+            <MaterialIcons name="schedule" size={14} color={N ? N.textSub : '#2F7E59'} />
+            <Text style={[sectionStyles.trackTitle, N && { color: N.textSub }]}>Adhkar Windows</Text>
           </View>
-        </ScrollView>
-      ) : (
-        // Auto-scrolling current row when cards are present
-        <ForYouTickerRow
-          cards={cards}
-          nightMode={nightMode}
-          onOpen={openCard}
-          onDismiss={dismissOnly}
-          extraSlots={currentRowExtraSlots}
-        />
-      )}
+          <Text style={[sectionStyles.trackHint, N && { color: N.textMuted }]}>
+            {allDone ? 'You are up to date' : 'Adhkar after each salah'}
+          </Text>
+        </View>
+        <View style={[sectionStyles.trackDivider, N && { backgroundColor: N.border }]} />
+        {allDone ? (
+          // Static current row when all prayer cards are done
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 10, gap: 12, paddingBottom: 8, paddingTop: 2 }}
+          >
+            {ishaHasPassed ? (
+              <BedTimeCard nightMode={nightMode} todayKey={todayKey} dismissed={dismissed} onDismiss={dismissOnly} onOpen={() => router.push(`/(tabs)/duas?prayerTime=after-isha&group=Before+Sleep&openAt=${Date.now()}` as any)} />
+            ) : null}
+            <NextAdhkarCountdownCard
+              nightMode={nightMode}
+              prayers={augmentedPrayersForCountdown}
+              currentTime={currentTime}
+              onOpen={(prayerTab) => router.push(`/(tabs)/duas?prayerTime=${prayerTab}&openAt=${Date.now()}` as any)}
+            />
+            <View style={[
+              fyStyles.card, { width: 172, justifyContent: 'center' },
+              N && { backgroundColor: N.surface, borderColor: N.border },
+            ]}>
+              <View style={fyStyles.colorBar} />
+              <View style={[fyStyles.cardBody, { alignItems: 'center', gap: 8, paddingVertical: 16 }]}>
+                <View style={[fyStyles.iconCircle, { backgroundColor: '#4FE94822', width: 40, height: 40, borderRadius: 20 }]}>
+                  <MaterialIcons name="check-circle" size={22} color="#4FE948" />
+                </View>
+                <Text style={[fyStyles.cardTitle, { textAlign: 'center', fontSize: 13 }, N && { color: N.text }]}> 
+                  All caught up!
+                </Text>
+                <Text style={[fyStyles.cardSub, { textAlign: 'center', lineHeight: 15 }, N && { color: N.textSub }]}> 
+                  Check back after the next Salah.
+                </Text>
+              </View>
+            </View>
+          </ScrollView>
+        ) : (
+          // Auto-scrolling current row when cards are present
+          <ForYouTickerRow
+            cards={cards}
+            nightMode={nightMode}
+            onOpen={openCard}
+            onDismiss={dismissOnly}
+            extraSlots={currentRowExtraSlots}
+          />
+        )}
+      </View>
 
       {showCountersRow ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: Spacing.md, gap: 12, paddingBottom: 8, paddingTop: 2 }}
-        >
-          <MemoDuroodCounterCard
-            nightMode={nightMode}
-            todayKey={todayKey}
-            dismissed={dismissed}
-            onDismiss={dismissOnly}
-          />
-          <MemoIstighfarCounterCard
-            nightMode={nightMode}
-            todayKey={todayKey}
-            dismissed={dismissed}
-            onDismiss={dismissOnly}
-          />
-          <MemoTawhidCounterCard
-            nightMode={nightMode}
-            todayKey={todayKey}
-            dismissed={dismissed}
-            onDismiss={dismissOnly}
-          />
-        </ScrollView>
+        <View style={[sectionStyles.trackShell, N && sectionStyles.trackShellNight]}>
+          <View style={sectionStyles.trackHeaderRow}>
+            <View style={sectionStyles.trackHeaderTitleRow}>
+              <MaterialIcons name="timelapse" size={14} color={N ? N.textSub : '#2F7E59'} />
+              <Text style={[sectionStyles.trackTitle, N && { color: N.textSub }]}>Daily Counters</Text>
+            </View>
+            <Text style={[sectionStyles.trackHint, N && { color: N.textMuted }]}>Tap to progress</Text>
+          </View>
+          <View style={[sectionStyles.trackDivider, N && { backgroundColor: N.border }]} />
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 10, gap: 12, paddingBottom: 8, paddingTop: 2 }}
+          >
+            <MemoDuroodCounterCard
+              nightMode={nightMode}
+              todayKey={todayKey}
+              dismissed={dismissed}
+              onDismiss={dismissOnly}
+            />
+            <MemoIstighfarCounterCard
+              nightMode={nightMode}
+              todayKey={todayKey}
+              dismissed={dismissed}
+              onDismiss={dismissOnly}
+            />
+            <MemoTawhidCounterCard
+              nightMode={nightMode}
+              todayKey={todayKey}
+              dismissed={dismissed}
+              onDismiss={dismissOnly}
+            />
+          </ScrollView>
+        </View>
       ) : null}
     </View>
   );

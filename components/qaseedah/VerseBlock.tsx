@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 import { ArabicTextBlock } from './ArabicTextBlock';
@@ -15,6 +15,8 @@ import type {
 } from './types';
 
 type VerseLanguageKey = 'arabic' | 'transliteration' | 'english' | 'urdu';
+
+const SERIF_FONT = Platform.select({ ios: 'Georgia', android: 'serif', default: 'Georgia' });
 
 type Props = {
   role: VerseRole;
@@ -108,7 +110,14 @@ export function VerseBlock({
   };
 
   return (
-    <View style={[styles.wrap, isChorus && styles.chorusWrap, isChorus && night && { backgroundColor: night.chorusBg ?? `${night.accent}10` }]}>
+    <View
+      style={[
+        styles.wrap,
+        night && styles.wrapNight,
+        isChorus && styles.chorusWrap,
+        isChorus && night && { backgroundColor: night.chorusBg ?? `${night.accent}14`, borderColor: night.goldHairline ?? night.border },
+      ]}
+    >
       {showChapterLabel ? (
         <Text
           style={[
@@ -123,16 +132,27 @@ export function VerseBlock({
       {isChorus ? (
         <Text style={[styles.chorusOrnament, night && { color: night.gold ?? night.accent }]}>۞</Text>
       ) : null}
-      <Text
-        style={[
-          styles.label,
-          isChorus && styles.chorusLabel,
-          night && { color: night.textMuted },
-          isChorus && night && { color: night.gold ?? night.accent },
-        ]}
-      >
-        {verseLabelFor(role, verseNumber)}
-      </Text>
+      {isChorus ? (
+        <Text
+          style={[
+            styles.label,
+            styles.chorusLabel,
+            night && { color: night.textMuted },
+            night && { color: night.gold ?? night.accent },
+          ]}
+        >
+          {verseLabelFor(role, verseNumber)}
+        </Text>
+      ) : verseNumber ? (
+        <Text
+          style={[
+            styles.verseNumeral,
+            night && { color: night.goldInk ?? night.accent },
+          ]}
+        >
+          {verseNumber}
+        </Text>
+      ) : null}
 
       {languageOrder.map((key) => languageBlocks[key])}
 
@@ -151,16 +171,28 @@ export function VerseBlock({
 
 const styles = StyleSheet.create({
   wrap: {
-    paddingHorizontal: 6,
-    paddingVertical: 12,
+    width: '100%',
+    alignSelf: 'stretch',
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    marginHorizontal: 2,
     alignItems: 'center',
-    gap: 10,
+    gap: 11,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(184, 134, 11, 0.28)',
+    backgroundColor: 'rgba(255, 253, 247, 0.86)',
+  },
+  wrapNight: {
+    borderColor: 'rgba(230, 194, 112, 0.24)',
+    backgroundColor: 'rgba(17, 28, 50, 0.72)',
   },
   chorusWrap: {
     borderRadius: 16,
     paddingVertical: 16,
-    paddingHorizontal: 10,
-    marginHorizontal: -4,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: Colors.goldHairline,
     backgroundColor: Colors.chorusBg,
   },
   chorusOrnament: {
@@ -176,6 +208,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.textSubtle,
   },
+  verseNumeral: {
+    fontFamily: SERIF_FONT,
+    fontStyle: 'italic',
+    fontSize: 16,
+    color: Colors.goldInk,
+    letterSpacing: 0.5,
+    fontWeight: '400',
+    opacity: 0.85,
+  },
   chapterLabel: {
     fontSize: 10,
     letterSpacing: 1.1,
@@ -183,20 +224,29 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.textSubtle,
     textAlign: 'center',
-    opacity: 0.75,
-    marginBottom: -3,
+    width: '100%',
+    maxWidth: '100%',
+    alignSelf: 'stretch',
+    paddingHorizontal: 4,
+    opacity: 0.82,
+    marginBottom: -1,
   },
   chorusLabel: {
     color: Colors.gold,
   },
   section: {
     width: '100%',
+    maxWidth: '100%',
+    alignSelf: 'stretch',
     alignItems: 'center',
+    overflow: 'hidden',
+    paddingVertical: 1,
   },
   hint: {
     fontSize: 10,
     color: Colors.textSubtle,
     fontStyle: 'italic',
-    marginTop: 2,
+    marginTop: 4,
+    textAlign: 'center',
   },
 });

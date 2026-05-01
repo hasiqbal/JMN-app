@@ -10,34 +10,60 @@ type Props = {
 };
 
 export function VerseDivider({ night, variant = 'dot' }: Props) {
+  const goldColor = night ? (night.gold ?? night.accent) : Colors.gold;
+  const hairlineColor = night ? (night.goldHairline ?? night.border) : Colors.goldHairline;
+
   if (variant === 'line') {
-    return (
-      <View style={[styles.line, night && { backgroundColor: night.border }]} />
-    );
+    return <View style={[styles.line, { backgroundColor: hairlineColor }]} />;
   }
   return (
     <View style={styles.wrap}>
-      <Text style={[styles.dots, night && { color: night.gold ?? night.textMuted }]}>﹏ ۞ ﹏</Text>
+      <View style={[styles.hair, { backgroundColor: hairlineColor }]} />
+      <View style={[styles.glyphCluster]}>
+        <Text style={[styles.glyphSide, { color: goldColor }]}>❖</Text>
+        <Text style={[styles.glyph, { color: goldColor }]}>❀</Text>
+        <Text style={[styles.glyphSide, { color: goldColor }]}>❖</Text>
+      </View>
+      <View style={[styles.hair, { backgroundColor: hairlineColor }]} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: {
+    flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'center',
+    width: '84%',
     paddingVertical: 14,
+    gap: 8,
   },
-  dots: {
-    fontSize: 12,
-    letterSpacing: 4,
+  hair: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: Colors.goldHairline,
+  },
+  glyphCluster: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  glyph: {
+    fontSize: 13,
     color: Colors.gold,
-    opacity: 0.75,
+    fontWeight: '700',
+    opacity: 0.86,
+  },
+  glyphSide: {
+    fontSize: 8,
+    color: Colors.gold,
+    opacity: 0.7,
   },
   line: {
     alignSelf: 'center',
-    width: '45%',
+    width: '60%',
     height: StyleSheet.hairlineWidth,
     backgroundColor: Colors.goldHairline,
-    marginVertical: 12,
+    marginVertical: 16,
   },
 });

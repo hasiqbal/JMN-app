@@ -3,6 +3,7 @@ import { StyleSheet, Text } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 import type { NightPaletteType } from './types';
+import { addSoftWrapOpportunities } from './softWrap';
 
 type Props = {
   text: string;
@@ -13,6 +14,7 @@ type Props = {
 export function TransliterationBlock({ text, scale, night }: Props) {
   const fontSize = Math.round(13 * scale);
   const lineHeight = Math.round(22 * scale);
+  const wrappedText = React.useMemo(() => addSoftWrapOpportunities(text), [text]);
   return (
     <Text
       style={[
@@ -21,7 +23,7 @@ export function TransliterationBlock({ text, scale, night }: Props) {
         night && { color: night.textMuted },
       ]}
     >
-      {text}
+      {wrappedText}
     </Text>
   );
 }
@@ -29,11 +31,13 @@ export function TransliterationBlock({ text, scale, night }: Props) {
 const styles = StyleSheet.create({
   text: {
     textAlign: 'center',
-    color: Colors.textSubtle,
+    color: Colors.textSecondary,
     letterSpacing: 0.3,
     fontWeight: '400',
     width: '100%',
-    maxWidth: 540,
-    alignSelf: 'center',
+    maxWidth: '100%',
+    alignSelf: 'stretch',
+    paddingHorizontal: 4,
+    flexShrink: 1,
   },
 });

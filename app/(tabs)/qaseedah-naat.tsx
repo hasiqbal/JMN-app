@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  ImageBackground,
   Modal,
   Platform,
   Pressable,
@@ -13,6 +14,8 @@ import {
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Professional serif font for devotional prose. Uses Georgia on iOS/web,
 // and Android's bundled "serif" family as a close visual fallback.
@@ -100,19 +103,8 @@ import { NightModeToggle } from '@/components/adhkar/NightModeToggle';
 import { AdhkarRow, fetchQaseedahNaatEntries, resolveAdhkarUrduTranslation } from '@/services/contentService';
 
 type FilterMode = 'all' | 'qaseedah' | 'naat';
-type TextScale = 'sm' | 'md' | 'lg';
 
-const TEXT_SCALE_FACTOR: Record<TextScale, number> = {
-  sm: 0.9,
-  md: 1,
-  lg: 1.15,
-};
-
-const TEXT_SCALE_LABEL: Record<TextScale, string> = {
-  sm: 'A-',
-  md: 'A',
-  lg: 'A+',
-};
+const GATES_BG = require('@/assets/images/background/gates.jpg');
 
 function sortRows(rows: AdhkarRow[]): AdhkarRow[] {
   return [...rows].sort((a, b) => {
@@ -142,6 +134,7 @@ function entryTypeLabel(value: string | null | undefined): string {
 
 export default function QaseedahNaatScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { nightMode, toggleManual } = useQaseedahNightMode();
   const N = nightMode ? NIGHT_PALETTE : null;
 
@@ -150,14 +143,12 @@ export default function QaseedahNaatScreen() {
   const [refreshing, setRefreshing] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [filterMode, setFilterMode] = React.useState<FilterMode>('all');
-  const [textScale, setTextScale] = React.useState<TextScale>('md');
   const [detailsFor, setDetailsFor] = React.useState<null | {
     name: string;
     description: string;
     tafsir: string;
   }>(null);
-  const scaleFactor = TEXT_SCALE_FACTOR[textScale];
-  const sized = React.useCallback((base: number) => Math.round(base * scaleFactor), [scaleFactor]);
+  const sized = React.useCallback((base: number) => base, []);
 
   const rowsEqual = React.useCallback((a: AdhkarRow[], b: AdhkarRow[]) => {
     if (a.length !== b.length) return false;
@@ -268,101 +259,96 @@ export default function QaseedahNaatScreen() {
 
   return (
     <View style={[styles.screen, N && { backgroundColor: N.bg }]}> 
-      <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          { paddingBottom: 30 + Spacing.lg },
-        ]}
-      >
-        <View style={[styles.headerCard, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}> 
-          <View style={styles.headerTopRow}>
-            <View style={styles.headerTitleWrap}>
-              <Text style={[styles.headerTitle, { fontSize: sized(20) }, N && { color: N.text }]}>Qaseedahs & Naats</Text>
-              <Text style={[styles.headerSubtitle, { fontSize: sized(12), lineHeight: sized(18) }, N && { color: N.textMuted }]}>Read content published from the portal, including Arabic, English, Urdu, and PDF attachments.</Text>
-            </View>
-            <TouchableOpacity
-              style={[styles.refreshBtn, N && { borderColor: N.border, backgroundColor: N.surface }]}
-              onPress={() => { void loadData(true); }}
-              disabled={refreshing}
-              activeOpacity={0.85}
-            >
-              {refreshing ? (
-                <ActivityIndicator size="small" color={N ? N.accent : Colors.primary} />
-              ) : (
-                <MaterialIcons name="refresh" size={18} color={N ? N.accent : Colors.primary} />
-              )}
-            </TouchableOpacity>
+      <ImageBackground source={GATES_BG} style={styles.bgWrap} imageStyle={styles.bgImage}>
+        <View
+          pointerEvents="none"
+          style={[
+            styles.bgOverlay,
+            N && styles.bgOverlayNight,
+          ]}
+        />
+
+        <ScrollView
+          contentContainerStyle={[
+            styles.content,
+            { paddingBottom: 30 + Spacing.lg },
+            { paddingTop: Math.max(Spacing.md, insets.top + 8) },
+          ]}
+        >
+        <View style={[styles.headerCard, styles.headerCardSpiritual, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}> 
+          <TouchableOpacity
+            style={[styles.refreshBtnFloating, N && { borderColor: N.border, backgroundColor: N.surface }]}
+            onPress={() => { void loadData(true); }}
+            disabled={refreshing}
+            activeOpacity={0.85}
+            hitSlop={8}
+          >
+            {refreshing ? (
+              <ActivityIndicator size="small" color={N ? N.accent : Colors.primary} />
+            ) : (
+              <MaterialIcons name="refresh" size={15} color={N ? N.accent : Colors.primary} />
+            )}
+          </TouchableOpacity>
+
+          <Text style={[styles.heroEyebrow, { fontSize: sized(9) }, N && { color: N.goldInk }]}>Sacred Recitations</Text>
+
+          <View style={styles.titleRow}>
+            <Text style={[styles.heroTitleCentered, { fontSize: sized(22) }, N && { color: N.text }]}>Qaseedahs & Naats</Text>
           </View>
 
-          <View style={styles.controlsCompactRow}>
-            <NightModeToggle nightMode={nightMode} onToggle={toggleManual} />
+          <Text style={[styles.heroVerse, { fontSize: sized(11), lineHeight: sized(16) }, N && { color: N.textMuted }]}>
+            “Recite with presence and reflection — in praise, remembrance, and longing.”
+          </Text>
 
-            <View style={[styles.textSizeCompactWrap, N && { borderColor: N.border }]}> 
-              {(['sm', 'md', 'lg'] as const).map((option) => {
-                const active = textScale === option;
-                return (
-                  <TouchableOpacity
-                    key={option}
-                    activeOpacity={0.85}
-                    onPress={() => setTextScale(option)}
-                    style={[
-                      styles.textSizeChip,
-                      active && styles.textSizeChipActive,
-                      N && {
-                        borderColor: N.border,
-                        backgroundColor: active ? N.accent + '26' : N.surface,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.textSizeChipText,
-                        active && styles.textSizeChipTextActive,
-                        N && !active && { color: N.textSub },
-                      ]}
-                    >
-                      {TEXT_SCALE_LABEL[option]}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+          {/* Mid divider */}
+          <View style={styles.dividerRow}>
+            <View style={[styles.dividerLine, N && { backgroundColor: N.goldHairline }]} />
           </View>
 
-          <View style={styles.countRow}>
-            <View style={[styles.countChip, N && { backgroundColor: N.surface }]}> 
-              <Text style={[styles.countChipText, N && { color: N.textSub }]}>All: {rows.length}</Text>
-            </View>
-            <View style={[styles.countChip, N && { backgroundColor: N.surface }]}> 
-              <Text style={[styles.countChipText, { color: N ? NIGHT_PALETTE.qaseedahInk : Colors.qaseedahInk }]}>Qaseedah: {qaseedahCount}</Text>
-            </View>
-            <View style={[styles.countChip, N && { backgroundColor: N.surface }]}> 
-              <Text style={[styles.countChipText, { color: N ? NIGHT_PALETTE.naatInk : Colors.naatInk }]}>Naat: {naatCount}</Text>
-            </View>
-          </View>
-
-          <View style={styles.filterRow}>
+          {/* Single combined filter row with inline counts — quiet hairline + glyph active state */}
+          <View style={styles.filterRowCentered}>
             {([
-              { id: 'all', label: 'All' },
-              { id: 'qaseedah', label: 'Qaseedah' },
-              { id: 'naat', label: 'Naat' },
-            ] as const).map((filter) => {
+              { id: 'all' as const, label: 'All', count: rows.length, ink: null },
+              { id: 'qaseedah' as const, label: 'Qaseedah', count: qaseedahCount, ink: Colors.qaseedahInk, inkNight: NIGHT_PALETTE.qaseedahInk },
+              { id: 'naat' as const, label: 'Naat', count: naatCount, ink: Colors.naatInk, inkNight: NIGHT_PALETTE.naatInk },
+            ]).map((filter) => {
               const active = filterMode === filter.id;
+              const inkColor = filter.ink
+                ? (N ? filter.inkNight : filter.ink)
+                : (N ? N.textSub : Colors.textSubtle);
+              const goldColor = N ? N.gold : Colors.gold;
               return (
                 <TouchableOpacity
                   key={filter.id}
                   onPress={() => setFilterMode(filter.id)}
                   style={[
-                    styles.filterChip,
-                    active && styles.filterChipActive,
-                    N && { borderColor: N.border, backgroundColor: active ? N.accent + '26' : N.surface },
+                    styles.filterPill,
+                    active && styles.filterPillActive,
+                    N && { borderColor: active ? N.gold : N.goldHairline },
                   ]}
                   activeOpacity={0.85}
                 >
-                  <Text style={[styles.filterChipText, active && styles.filterChipTextActive, N && !active && { color: N.textSub }]}>{filter.label}</Text>
+                  {active ? (
+                    <Text style={[styles.filterPillGlyph, { color: goldColor }]}>✦</Text>
+                  ) : null}
+                  <Text style={[styles.filterPillText, { color: inkColor }, active && styles.filterPillTextActive, active && N && { color: N.goldInk }]}>
+                    {filter.label}
+                  </Text>
+                  <Text style={[styles.filterPillCount, { color: goldColor }]}>
+                    {' · '}
+                  </Text>
+                  <Text style={[styles.filterPillCount, { color: inkColor }, active && styles.filterPillTextActive, active && N && { color: N.goldInk }]}>
+                    {filter.count}
+                  </Text>
                 </TouchableOpacity>
               );
             })}
+          </View>
+
+          <View style={styles.preferencesRow}>
+            <View style={styles.nightToggleCompactWrap}>
+              <NightModeToggle nightMode={nightMode} onToggle={toggleManual} size="sm" />
+            </View>
           </View>
         </View>
 
@@ -405,18 +391,27 @@ export default function QaseedahNaatScreen() {
             const railColor = N
               ? (isNaat ? N.naatInk : N.qaseedahInk)
               : (isNaat ? Colors.naatInk : Colors.qaseedahInk);
+            const goldColor = N ? N.gold : Colors.gold;
+            const goldInk = N ? N.goldInk : Colors.goldInk;
             return (
             <View
               key={section.key}
               style={[
                 styles.groupSection,
-                { borderLeftColor: railColor },
-                N && { backgroundColor: N.surfaceAlt, borderColor: N.border, borderLeftColor: railColor },
+                N && styles.groupSectionNight,
               ]}
             >
+              {/* Gold-and-type-tinted vertical accent (illuminated edge) */}
+              <LinearGradient
+                colors={[goldColor, railColor]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={styles.groupAccent}
+              />
+
               <TouchableOpacity
-                style={[styles.groupHeader, N && { borderColor: N.border }]}
-                activeOpacity={0.86}
+                style={styles.groupHeader}
+                activeOpacity={0.82}
                 onPress={() => {
                   router.push({
                     pathname: '/(tabs)/qaseedah-group',
@@ -427,55 +422,51 @@ export default function QaseedahNaatScreen() {
                   });
                 }}
               >
-                <View style={styles.groupTitleWrap}>
-                  <Text style={[styles.groupTitle, { fontSize: sized(15) }, N && { color: N.text }]}>{section.name}</Text>
-                  <Text style={[styles.groupMeta, { fontSize: sized(11) }, N && { color: N.textMuted }]}>{section.rows.length} entries</Text>
+                <View style={[styles.groupGlyphCircle, N && { borderColor: N.goldHairline, backgroundColor: 'rgba(255,253,247,0.20)' }]}>
+                  <Text style={[styles.groupGlyph, { color: goldColor }]}>۞</Text>
                 </View>
-                <View style={styles.groupHeaderRight}>
-                  <View
-                    style={[
-                      styles.typeBadge,
-                      isNaat ? styles.typeBadgeNaat : styles.typeBadgeQaseedah,
-                      N && { backgroundColor: isNaat ? N.naatChip : N.qaseedahChip },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        isNaat ? styles.typeBadgeTextNaat : styles.typeBadgeTextQaseedah,
-                        N && { color: isNaat ? N.naatInk : N.qaseedahInk },
-                      ]}
-                    >
+
+                <View style={styles.groupTitleWrap}>
+                  <View style={styles.groupTitleTopRow}>
+                    <Text style={[styles.groupKicker, { color: goldInk }]} numberOfLines={1}>
                       {entryTypeLabel(section.type)}
                     </Text>
+                    {section.description ? (
+                      <TouchableOpacity
+                        style={[
+                          styles.descriptionTabBtn,
+                          N && { borderColor: N.goldHairline, backgroundColor: 'rgba(230, 194, 112, 0.16)' },
+                        ]}
+                        activeOpacity={0.8}
+                        onPress={() => {
+                          setDetailsFor({
+                            name: section.name,
+                            description: section.description,
+                            tafsir: section.tafsir,
+                          });
+                        }}
+                      >
+                        <MaterialIcons name="menu-book" size={11} color={goldInk} />
+                        <Text style={[styles.descriptionTabText, { color: goldInk }]}>
+                          {section.tafsir ? 'Description & Notes' : 'Description'}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null}
                   </View>
-                  <MaterialIcons name="chevron-right" size={20} color={N ? N.textMuted : Colors.textSubtle} />
+                  <Text style={[styles.groupTitle, { fontSize: sized(14) }, N && { color: N.text }]} numberOfLines={2}>
+                    {section.name}
+                  </Text>
                 </View>
-              </TouchableOpacity>
 
-              {section.description ? (
-                <View style={styles.groupDetailsWrap}>
-                  <TouchableOpacity
-                    style={[styles.viewDetailsBtn, N && { backgroundColor: N.goldSoft }]}
-                    activeOpacity={0.85}
-                    onPress={() => {
-                      setDetailsFor({
-                        name: section.name,
-                        description: section.description,
-                        tafsir: section.tafsir,
-                      });
-                    }}
-                  >
-                    <MaterialIcons name="auto-stories" size={14} color={N ? NIGHT_PALETTE.gold : Colors.gold} />
-                    <Text style={[styles.viewDetailsText, { fontSize: sized(12) }, N && { color: NIGHT_PALETTE.goldInk }]}>View details</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : null}
+                <MaterialIcons name="chevron-right" size={18} color={N ? N.textMuted : Colors.textSubtle} />
+              </TouchableOpacity>
 
             </View>
             );
           })
         )}
-      </ScrollView>
+        </ScrollView>
+      </ImageBackground>
 
       <Modal
         visible={!!detailsFor}
@@ -483,11 +474,9 @@ export default function QaseedahNaatScreen() {
         animationType="fade"
         onRequestClose={() => setDetailsFor(null)}
       >
-        <Pressable style={styles.modalBackdrop} onPress={() => setDetailsFor(null)}>
-          <Pressable
-            style={[styles.modalCard, N && { backgroundColor: N.surfaceElevated, borderColor: N.border }]}
-            onPress={(e) => e.stopPropagation()}
-          >
+        <View style={styles.modalBackdrop}>
+          <Pressable style={styles.modalBackdropDismissArea} onPress={() => setDetailsFor(null)} />
+          <View style={[styles.modalCard, N && { backgroundColor: N.surfaceElevated, borderColor: N.border }]}> 
             <View style={styles.modalHeader}>
               <Text style={[styles.modalOrnament, N && { color: N.gold }]}>۞</Text>
               <Text style={[styles.modalTitle, { fontSize: sized(19) }, N && { color: N.text }]} numberOfLines={2}>
@@ -501,6 +490,8 @@ export default function QaseedahNaatScreen() {
               style={styles.modalScroll}
               contentContainerStyle={styles.modalScrollContent}
               showsVerticalScrollIndicator
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled
             >
               {detailsFor?.description ? (
                 <View style={styles.modalSection}>
@@ -526,7 +517,7 @@ export default function QaseedahNaatScreen() {
 
               {detailsFor?.tafsir ? (
                 <View style={styles.modalSection}>
-                  <Text style={[styles.modalSectionLabel, { fontSize: sized(10) }, N && { color: N.goldInk }]}>Tafsir & Notes</Text>
+                  <Text style={[styles.modalSectionLabel, { fontSize: sized(10) }, N && { color: N.goldInk }]}>Notes</Text>
                   <RichText
                     value={detailsFor.tafsir}
                     dark={!!N}
@@ -549,8 +540,8 @@ export default function QaseedahNaatScreen() {
             >
               <Text style={[styles.modalCloseText, { fontSize: sized(13) }, N && { color: N.goldInk }]}>Close</Text>
             </TouchableOpacity>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
     </View>
   );
@@ -560,6 +551,19 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  bgWrap: {
+    flex: 1,
+  },
+  bgImage: {
+    opacity: 0.58,
+  },
+  bgOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(8, 24, 20, 0.46)',
+  },
+  bgOverlayNight: {
+    backgroundColor: 'rgba(4, 10, 18, 0.84)',
   },
   content: {
     paddingHorizontal: Spacing.md,
@@ -571,114 +575,190 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: Radius.lg,
-    padding: Spacing.md,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 12,
     gap: 8,
+    position: 'relative',
   },
-  headerTopRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 10,
+  headerCardSpiritual: {
+    backgroundColor: 'rgba(252, 249, 240, 0.96)',
+    borderColor: 'rgba(150, 108, 24, 0.42)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    elevation: 3,
   },
-  headerTitleWrap: {
-    flex: 1,
-    gap: 3,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    lineHeight: 18,
-    color: Colors.textSubtle,
-  },
-  refreshBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+  refreshBtnFloating: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.goldHairline,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.surface,
+    backgroundColor: 'rgba(255, 253, 247, 0.95)',
+    zIndex: 2,
   },
-  countRow: {
+  ornamentRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 24,
+    marginBottom: 2,
+  },
+  ornamentLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: Colors.goldHairline,
+  },
+  ornamentGlyph: {
+    fontSize: 13,
+    color: Colors.gold,
+    letterSpacing: 0.5,
+  },
+  heroEyebrow: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 2.4,
+    color: Colors.goldInk,
+    textAlign: 'center',
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 0,
+    marginTop: 1,
+  },
+  heroTitleCentered: {
+    fontFamily: SERIF_FONT,
+    fontSize: 22,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    letterSpacing: 0.4,
+    textAlign: 'center',
+  },
+  heroVerse: {
+    fontFamily: SERIF_FONT,
+    fontSize: 12,
+    lineHeight: 17,
+    fontStyle: 'italic',
+    color: Colors.textPrimary,
+    textAlign: 'center',
+    paddingHorizontal: 6,
+  },
+  dividerRow: {
+    paddingHorizontal: 44,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  dividerLine: {
+    height: 1,
+    backgroundColor: Colors.goldHairline,
+    opacity: 0.65,
+  },
+  filterRowCentered: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     flexWrap: 'wrap',
     gap: 6,
   },
-  controlsCompactRow: {
+  filterPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  textSizeCompactWrap: {
-    flexDirection: 'row',
-    gap: 4,
     borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.full,
-    paddingHorizontal: 4,
-    paddingVertical: 3,
-  },
-  textSizeChip: {
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: 'rgba(212, 175, 55, 0.40)',
     borderRadius: 999,
     paddingHorizontal: 9,
     paddingVertical: 3,
-    backgroundColor: Colors.surface,
+    backgroundColor: 'transparent',
   },
-  textSizeChipActive: {
-    backgroundColor: Colors.primarySoft,
-    borderColor: Colors.primaryLight,
+  filterPillActive: {
+    borderColor: Colors.gold,
+    backgroundColor: 'rgba(255, 253, 247, 0.92)',
   },
-  textSizeChipText: {
+  filterPillGlyph: {
+    fontSize: 8,
+    color: Colors.gold,
+    marginRight: 4,
+    letterSpacing: 0.5,
+  },
+  filterPillText: {
+    fontFamily: SERIF_FONT,
     fontSize: 10,
     fontWeight: '700',
-    color: Colors.textSubtle,
+    letterSpacing: 0.4,
   },
-  textSizeChipTextActive: {
-    color: Colors.qaseedahInkDark,
+  filterPillTextActive: {
+    color: Colors.goldInk,
+  },
+  filterPillCount: {
+    fontFamily: SERIF_FONT,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  preferencesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 6,
+    marginTop: 4,
+  },
+  nightToggleCompactWrap: {
+    marginRight: 2,
   },
   countChip: {
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 9,
     backgroundColor: Colors.headerBg,
   },
+  countChipSpiritual: {
+    borderWidth: 1,
+    borderColor: Colors.goldHairline,
+    backgroundColor: 'rgba(255, 248, 226, 0.92)',
+  },
   countChipText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '700',
     color: Colors.textSubtle,
   },
   filterRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
+    gap: 5,
   },
   filterChip: {
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: 12,
-    paddingHorizontal: 11,
-    paddingVertical: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     backgroundColor: Colors.surface,
   },
+  filterChipSpiritual: {
+    borderColor: Colors.goldHairline,
+    backgroundColor: 'rgba(250, 245, 230, 0.96)',
+  },
   filterChipActive: {
-    backgroundColor: Colors.primarySoft,
-    borderColor: Colors.primaryLight,
+    backgroundColor: Colors.goldSoft,
+    borderColor: Colors.gold,
   },
   filterChipText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     color: Colors.textSubtle,
   },
   filterChipTextActive: {
-    color: Colors.qaseedahInkDark,
+    color: Colors.goldInk,
   },
   loadingWrap: {
     paddingVertical: 24,
@@ -726,45 +806,100 @@ const styles = StyleSheet.create({
     color: Colors.textSubtle,
   },
   groupSection: {
+    position: 'relative',
     borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.lg,
-    backgroundColor: Colors.surface,
+    borderColor: 'rgba(146, 102, 24, 0.50)',
+    borderRadius: Radius.md,
+    backgroundColor: 'rgba(252, 249, 240, 0.94)',
     overflow: 'hidden',
-    padding: 8,
-    // The type-tinted left rail is applied inline per section for precise
-    // token usage (qaseedahChip vs naatChip, with night overrides).
-    borderLeftWidth: 3,
+    paddingLeft: 12,
+    paddingRight: 10,
+    paddingVertical: 7,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.10,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  groupSectionNight: {
+    backgroundColor: 'rgba(8, 13, 22, 0.46)',
+    borderColor: 'rgba(170, 140, 82, 0.40)',
+  },
+  groupAccent: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: 2,
   },
   groupHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     gap: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    paddingHorizontal: 3,
+    paddingVertical: 1,
+  },
+  groupGlyphCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.55)',
+    backgroundColor: 'rgba(255, 253, 247, 0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  groupGlyph: {
+    fontSize: 10,
+    color: Colors.gold,
+    lineHeight: 11,
   },
   groupTitleWrap: {
     flex: 1,
-    gap: 2,
+    gap: 1,
+    minWidth: 0,
   },
-  groupHeaderRight: {
+  groupTitleTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
+    gap: 6,
+  },
+  groupKicker: {
+    fontFamily: SERIF_FONT,
+    fontSize: 8,
+    fontWeight: '700',
+    fontStyle: 'italic',
+    textTransform: 'uppercase',
+    letterSpacing: 1.3,
+    color: Colors.goldInk,
+    flexShrink: 1,
+  },
+  descriptionTabBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderColor: Colors.goldHairline,
+    borderRadius: Radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    backgroundColor: 'rgba(184, 134, 11, 0.08)',
+  },
+  descriptionTabText: {
+    fontFamily: SERIF_FONT,
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   groupTitle: {
     fontFamily: SERIF_FONT,
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     color: Colors.textPrimary,
-    letterSpacing: 0.2,
-  },
-  groupMeta: {
-    fontSize: 11,
-    color: Colors.textSubtle,
+    letterSpacing: 0.1,
+    lineHeight: 18,
+    flexShrink: 1,
   },
   groupDescriptionWrap: {
     marginTop: 8,
@@ -779,27 +914,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
     color: Colors.textSubtle,
-  },
-  groupDetailsWrap: {
-    paddingHorizontal: 8,
-    paddingTop: 8,
-  },
-  viewDetailsBtn: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: 999,
-    backgroundColor: Colors.goldSoft,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  viewDetailsText: {
-    fontFamily: SERIF_FONT,
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.goldInk,
-    letterSpacing: 0.3,
   },
   detailBlock: {
     gap: 3,
@@ -817,6 +931,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: Spacing.md,
+  },
+  modalBackdropDismissArea: {
+    ...StyleSheet.absoluteFillObject,
   },
   modalCard: {
     width: '100%',

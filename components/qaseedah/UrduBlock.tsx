@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 import type { NightPaletteType } from './types';
+import { addSoftWrapOpportunities } from './softWrap';
 
 type Props = {
   text: string;
@@ -34,7 +35,8 @@ function restoreCollapsedUrduLineBreaks(value: string): string {
 export function UrduBlock({ text, scale, night }: Props) {
   const normalizedText = React.useMemo(() => {
     const glyphs = normalizeUrduGlyphs(text);
-    return restoreCollapsedUrduLineBreaks(glyphs);
+    const restored = restoreCollapsedUrduLineBreaks(glyphs);
+    return addSoftWrapOpportunities(restored);
   }, [text]);
   const fontSize = Math.round(17 * scale);
   const lineHeight = Math.round(31 * scale);
@@ -56,6 +58,9 @@ export function UrduBlock({ text, scale, night }: Props) {
 
 const styles = StyleSheet.create({
   wrap: {
+    width: '100%',
+    maxWidth: '100%',
+    alignSelf: 'stretch',
     alignItems: 'center',
     gap: 4,
   },
@@ -67,14 +72,17 @@ const styles = StyleSheet.create({
     fontFamily: 'UrduNastaliq',
   },
   text: {
-    textAlign: 'right',
+    textAlign: 'center',
     color: Colors.textPrimary,
     fontFamily: 'UrduNastaliq',
     fontWeight: '400',
     fontStyle: 'normal',
     writingDirection: 'rtl',
-    maxWidth: 560,
     width: '100%',
+    maxWidth: '100%',
+    alignSelf: 'stretch',
+    paddingHorizontal: 4,
+    flexShrink: 1,
     includeFontPadding: false,
   },
 });

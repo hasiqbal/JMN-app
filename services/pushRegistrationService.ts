@@ -61,6 +61,15 @@ async function upsertDeviceToken(token: string): Promise<void> {
   const appVersion = Application.nativeApplicationVersion ?? null;
   const deviceModel = Device.modelName ?? null;
   const deviceId = await resolveDeviceId();
+  const rowPayload = {
+    token,
+    platform: Platform.OS,
+    app_version: appVersion,
+    device_model: deviceModel,
+    device_id: deviceId,
+    is_active: true,
+    last_active: nowIso,
+  };
 
   // If we know the physical device ID, deactivate any stale token rows
   // for this device before inserting the current one.  This prevents
@@ -76,22 +85,28 @@ async function upsertDeviceToken(token: string): Promise<void> {
     } catch {
       // Best-effort cleanup; continue with upsert even if this fails.
     }
+
+    // If a row for this physical device already exists, update it in place.
+    // This avoids conflicts with unique(device_id) when Expo rotates token.
+    const { data: byDeviceRows, error: byDeviceError } = await client
+      .from('device_tokens')
+      .update(rowPayload)
+      .eq('device_id', deviceId)
+      .select('id')
+      .limit(1);
+
+    if (byDeviceError) {
+      throw new Error(`device_tokens update-by-device failed: ${byDeviceError.message}`);
+    }
+
+    if (Array.isArray(byDeviceRows) && byDeviceRows.length > 0) {
+      return;
+    }
   }
 
   const { error } = await client
     .from('device_tokens')
-    .upsert(
-      {
-        token,
-        platform: Platform.OS,
-        app_version: appVersion,
-        device_model: deviceModel,
-        device_id: deviceId,
-        is_active: true,
-        last_active: nowIso,
-      },
-      { onConflict: 'token' },
-    );
+    .upsert(rowPayload, { onConflict: 'token' });
 
   if (error) {
     throw new Error(`device_tokens upsert failed: ${error.message}`);

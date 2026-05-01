@@ -30,7 +30,7 @@ type HomeQuickAccessSectionProps = {
 
 export const DEFAULT_QUICK_ACCESS_ACTIONS: QuickAccessAction[] = [
   { icon: 'campaign',      label: 'Events & News', route: '/(tabs)/events', accent: '#107C55' },
-  { icon: 'help-outline',  label: 'How to Guides',   route: '/(tabs)/howto',  accent: '#3A7C6A' },
+  { icon: 'help-outline',  label: 'How to Guides',   route: '/(tabs)/howto?entry=home',  accent: '#3A7C6A' },
   { icon: 'auto-stories',  label: 'Duas & Adhkar', route: '/(tabs)/duas',   accent: '#5E7854' },
   {
     icon: 'school',

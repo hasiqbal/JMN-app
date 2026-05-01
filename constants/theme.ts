@@ -43,7 +43,7 @@ export const Colors = {
   highlightInk: '#78350F',
 
   // Chorus / verse accents.
-  chorusBg: '#F4FAF6',
+  chorusBg: '#F8F2E2',
 
   // Type tint tokens for qaseedah vs naat badges & rails.
   qaseedahChip: '#DCFCE7',

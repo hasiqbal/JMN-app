@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 import type { NightPaletteType } from './types';
+import { addSoftWrapOpportunities } from './softWrap';
 
 type Props = {
   text: string;
@@ -14,6 +15,7 @@ type Props = {
 export function TranslationBlock({ text, scale, night, label = 'Meaning' }: Props) {
   const fontSize = Math.round(15 * scale);
   const lineHeight = Math.round(24 * scale);
+  const wrappedText = React.useMemo(() => addSoftWrapOpportunities(text), [text]);
   return (
     <View style={styles.wrap}>
       <Text style={[styles.label, night && { color: night.textMuted }]}>{label}</Text>
@@ -24,7 +26,7 @@ export function TranslationBlock({ text, scale, night, label = 'Meaning' }: Prop
           night && { color: night.textSub },
         ]}
       >
-        {text}
+        {wrappedText}
       </Text>
     </View>
   );
@@ -32,6 +34,9 @@ export function TranslationBlock({ text, scale, night, label = 'Meaning' }: Prop
 
 const styles = StyleSheet.create({
   wrap: {
+    width: '100%',
+    maxWidth: '100%',
+    alignSelf: 'stretch',
     alignItems: 'stretch',
     gap: 4,
   },
@@ -44,9 +49,11 @@ const styles = StyleSheet.create({
   },
   text: {
     textAlign: 'center',
-    color: Colors.textSecondary,
+    color: Colors.textPrimary,
     width: '100%',
-    maxWidth: 520,
-    alignSelf: 'center',
+    maxWidth: '100%',
+    alignSelf: 'stretch',
+    paddingHorizontal: 4,
+    flexShrink: 1,
   },
 });

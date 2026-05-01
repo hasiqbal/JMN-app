@@ -3,7 +3,7 @@
     "name": "JMN",
     "slug": "jmn",
     "version": "1.0.0",
-    "orientation": "default",
+    "orientation": "portrait",
     "icon": "./assets/images/favicon.png",
     "scheme": "jmn",
     "userInterfaceStyle": "light",

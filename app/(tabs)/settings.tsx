@@ -185,6 +185,7 @@ export default function SettingsScreen() {
       await Notifications.setNotificationChannelAsync(LIVE_NOTIFICATION_CHANNEL_ID, {
         name: 'JMN Live Alerts',
         importance: Notifications.AndroidImportance.HIGH,
+        enableVibrate: true,
         vibrationPattern: [0, 250, 150, 250],
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
         sound: 'default',
@@ -346,6 +347,15 @@ export default function SettingsScreen() {
             channel.id.includes('jmn-prayer-start-adhaan') || channel.id.includes('jmn-iqamah'))
           .map((channel) => ({ id: channel.id, sound: channel.sound ?? null, name: channel.name })),
       });
+
+      // Always delete the audio variant before re-creating it so any stale
+      // sound binding on the channel is discarded. Android caches the sound
+      // chosen at first creation and never updates it later, so a fresh
+      // delete + create is the only reliable way to guarantee the selected
+      // adhaan plays for the test.
+      if (!prayerAudioMuted) {
+        await Notifications.deleteNotificationChannelAsync(prayerStartChannelId).catch(() => {});
+      }
 
       await Notifications.setNotificationChannelAsync(prayerStartChannelId, {
         name: prayerAudioMuted

@@ -22,12 +22,17 @@ type Props = {
 export function ChapterIntro({ chapter, chapterUrdu, chapterArabic, entryTitle, lineCount, isOpen, onToggle, isPoem, night }: Props) {
   const accent = night ? night.accent : Colors.primary;
   const goldColor = night ? (night.gold ?? night.accent) : Colors.gold;
+  const goldInk = night ? (night.goldInk ?? night.accent) : Colors.goldInk;
   const hairlineColor = night ? (night.goldHairline ?? night.border) : Colors.goldHairline;
   const unitLabel = isPoem ? (lineCount === 1 ? 'verse' : 'verses') : (lineCount === 1 ? 'line' : 'verses');
   const actionLabel = isPoem ? (isOpen ? 'Close poem' : 'Open poem') : (isOpen ? 'Close chapter' : 'Open chapter');
   return (
     <TouchableOpacity
-      style={styles.wrap}
+      style={[
+        styles.wrap,
+        { borderBottomColor: hairlineColor },
+        night && { backgroundColor: 'rgba(255, 253, 247, 0.02)' },
+      ]}
       activeOpacity={0.85}
       onPress={onToggle}
     >
@@ -47,13 +52,14 @@ export function ChapterIntro({ chapter, chapterUrdu, chapterArabic, entryTitle, 
       {chapterUrdu ? (
         <Text style={[styles.chapterUrdu, night && { color: night.text }]}>{chapterUrdu}</Text>
       ) : null}
-      <Text style={[styles.meta, night && { color: night.textMuted }]}>
-        {entryTitle} · {lineCount} {unitLabel}
+      <Text style={[styles.meta, { color: goldInk }]}>
+        {entryTitle}  ·  {lineCount} {unitLabel}
       </Text>
 
       <View style={styles.actionRow}>
-        <Text style={[styles.action, { color: accent }]}>{actionLabel}</Text>
-        <MaterialIcons name={isOpen ? 'expand-less' : 'expand-more'} size={18} color={accent} />
+        <Text style={[styles.actionGlyph, { color: goldColor }]}>✦</Text>
+        <Text style={[styles.action, { color: goldInk }]}>{actionLabel}</Text>
+        <MaterialIcons name={isOpen ? 'expand-less' : 'expand-more'} size={14} color={goldInk} />
       </View>
     </TouchableOpacity>
   );
@@ -62,15 +68,16 @@ export function ChapterIntro({ chapter, chapterUrdu, chapterArabic, entryTitle, 
 const styles = StyleSheet.create({
   wrap: {
     alignItems: 'center',
-    paddingVertical: Spacing.lg,
+    paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.md,
-    gap: 6,
+    gap: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   ornament: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginBottom: 6,
+    marginBottom: 2,
     width: '70%',
   },
   ornamentLine: {
@@ -85,7 +92,7 @@ const styles = StyleSheet.create({
   },
   chapter: {
     fontFamily: SERIF_FONT,
-    fontSize: 21,
+    fontSize: 20,
     fontWeight: '700',
     color: Colors.textPrimary,
     letterSpacing: 0.3,
@@ -115,22 +122,31 @@ const styles = StyleSheet.create({
     writingDirection: 'rtl',
   },
   meta: {
-    fontSize: 11,
-    color: Colors.textSubtle,
-    letterSpacing: 0.4,
+    fontFamily: SERIF_FONT,
+    fontSize: 10,
+    color: Colors.goldInk,
+    letterSpacing: 1.4,
     textTransform: 'uppercase',
-    fontWeight: '600',
+    fontWeight: '700',
+    fontStyle: 'italic',
+    marginTop: 4,
   },
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
     marginTop: 6,
+  },
+  actionGlyph: {
+    fontSize: 11,
+    color: Colors.gold,
+    fontWeight: '700',
   },
   action: {
     fontFamily: SERIF_FONT,
     fontSize: 12,
     fontWeight: '700',
-    letterSpacing: 0.3,
+    letterSpacing: 0.4,
+    fontStyle: 'italic',
   },
 });

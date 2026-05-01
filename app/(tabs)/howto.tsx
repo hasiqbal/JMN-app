@@ -14,6 +14,8 @@ import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-g
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import Reanimated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import { useFocusEffect } from '@react-navigation/native';
+import { useLocalSearchParams } from 'expo-router';
 import { Colors, Spacing, Radius } from '@/constants/theme';
 import type { HowToGuide, HowToSection, HowToStep, HowToStepImage } from '@/howtoguides/types';
 import { useNightMode } from '@/hooks/useNightMode';
@@ -87,6 +89,9 @@ export default function HowToScreen() {
 function HowToContent({ nightMode }: { nightMode: boolean }) {
   const N = nightMode ? NIGHT : null;
   const { width: viewportWidth } = useWindowDimensions();
+  const isCompactWidth = viewportWidth < 390;
+  const params = useLocalSearchParams<{ entry?: string }>();
+  // Keep language picker as the default shell so Home quick access always lands here.
   const [selectedLanguage, setSelectedLanguage] = useState<'english' | 'urdu' | null>(null);
   const [selectedParentGroup, setSelectedParentGroup] = useState<string | null>(null);
   const [expandedGuide, setExpandedGuide] = useState<string | null>(null);
@@ -105,6 +110,17 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
   const imageTranslateY = useSharedValue(0);
   const imageSavedTranslateX = useSharedValue(0);
   const imageSavedTranslateY = useSharedValue(0);
+  const fromHomeQuickAction = params.entry === 'home';
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!fromHomeQuickAction) return;
+      setSelectedLanguage(null);
+      setSelectedParentGroup(null);
+      setExpandedGuide(null);
+      setExpandedSection(null);
+    }, [fromHomeQuickAction])
+  );
 
   const imageViewerVisible = activeImage !== null;
   const viewerBaseWidth = Math.max(260, viewportWidth - 28);
@@ -262,7 +278,7 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
   );
 
   const renderHowToStrip = () => (
-    <View style={[howToStyles.moduleStrip, N && { backgroundColor: N.surface, borderColor: N.border }]}>
+    <View style={howToStyles.moduleStrip}>
       <Image
         source={require('@/assets/images/masjid-logo.png')}
         style={howToStyles.moduleStripLogo}
@@ -271,8 +287,10 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
       />
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={[howToStyles.moduleStripMasjid, N && { color: N.primary }]}>JMN</Text>
-        <Text style={[howToStyles.moduleStripTitle, N && { color: N.text }]}>How To Guides</Text>
-        <Text style={[howToStyles.moduleStripMeta, N && { color: N.textMuted }]}>Updated {stripUpdatedLabel}</Text>
+        <View style={howToStyles.moduleStripTitleRow}>
+          <Text style={[howToStyles.moduleStripTitle, N && { color: N.text }]}>How To Guides</Text>
+          <Text style={[howToStyles.moduleStripMeta, N && { color: N.textMuted }]}>· Updated {stripUpdatedLabel}</Text>
+        </View>
       </View>
     </View>
   );
@@ -646,54 +664,187 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
   };
 
   if (!selectedLanguage) {
+    const featureChips: { icon: keyof typeof MaterialIcons.glyphMap; label: string }[] = [
+      { icon: 'verified', label: 'Verified Hanafi' },
+      { icon: 'checklist', label: 'Practical steps' },
+      { icon: 'image', label: 'Visual guidance' },
+    ];
     return (
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[howToStyles.container, howToStyles.languageSelectionContainer, N && { backgroundColor: N.bg }]}
-      >
-        {renderHowToStrip()}
-        <View style={howToStyles.languageOptionsArea}>
-          <TouchableOpacity
-            style={[howToStyles.languageCard, howToStyles.languageCardLarge, N && { backgroundColor: N.surface, borderColor: N.border }]}
-            onPress={() => {
-              setSelectedLanguage('english');
-              setSelectedParentGroup(null);
-              setExpandedGuide(null);
-              setExpandedSection(null);
-            }}
-            activeOpacity={0.85}
-          >
-            <View style={[howToStyles.guideIcon, howToStyles.languageCardIcon, { backgroundColor: '#4FE94822' }]}> 
-              <MaterialIcons name="menu-book" size={26} color="#4FE948" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[howToStyles.guideTitle, howToStyles.languageCardTitle, N && { color: N.text }]}>English Guides</Text>
-              <Text style={[howToStyles.guideSub, howToStyles.languageCardSub, N && { color: N.textSub }]}>Open current detailed Hanafi guides</Text>
-            </View>
-            <MaterialIcons name="arrow-forward-ios" size={18} color={N ? N.textMuted : Colors.textSubtle} />
-          </TouchableOpacity>
+      <View style={[howToStyles.languageSelectionScreen, N && { backgroundColor: N.bg }]}>
+        <Image
+          source={require('@/assets/images/background/aqsa.jpg')}
+          style={howToStyles.languageScreenBgImage}
+          contentFit="cover"
+        />
+        <View
+          style={[
+            howToStyles.languageScreenOverlay,
+            N && { backgroundColor: 'rgba(6, 9, 15, 0.76)' },
+          ]}
+        />
 
-          <TouchableOpacity
-            style={[howToStyles.languageCard, howToStyles.languageCardLarge, N && { backgroundColor: N.surface, borderColor: N.border }]}
-            onPress={() => {
-              setSelectedLanguage('urdu');
-              setSelectedParentGroup(null);
-              setExpandedGuide(null);
-              setExpandedSection(null);
-            }}
-            activeOpacity={0.85}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            howToStyles.container,
+            howToStyles.languageSelectionContainer,
+            howToStyles.languageSelectionContent,
+          ]}
+        >
+          <View
+            style={[
+              howToStyles.languageHeroCard,
+              N && { backgroundColor: 'rgba(12, 18, 32, 0.88)', borderColor: N.border },
+            ]}
           >
-            <View style={[howToStyles.guideIcon, howToStyles.languageCardIcon, { backgroundColor: '#1E88E522' }]}> 
-              <MaterialIcons name="g-translate" size={26} color="#1E88E5" />
+            <View style={howToStyles.languageHeroGlow} pointerEvents="none" />
+            <View style={howToStyles.languageHeroRow}>
+              <View style={[howToStyles.languageHeroIcon, N && { backgroundColor: N.primary }]}> 
+                <MaterialIcons name="auto-stories" size={28} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[howToStyles.languageHeroEyebrow, N && { color: N.primary }]}>JMN Learning Library</Text>
+                <Text
+                  style={[
+                    howToStyles.languageHeroTitle,
+                    isCompactWidth && howToStyles.languageHeroTitleCompact,
+                    N && { color: N.text },
+                  ]}
+                >
+                  Pick Your Guide Language
+                </Text>
+                <Text style={[howToStyles.languageHeroSub, N && { color: N.textSub }]}>Start in English or Urdu. Both include structured Hanafi guidance.</Text>
+              </View>
             </View>
-            <View style={{ flex: 1 }}>
-              <InlineArabicText text="اردو گائیڈز" nightMode={nightMode} style={[howToStyles.guideTitle, howToStyles.languageCardTitle, N && { color: N.text }]} />
-              <InlineArabicText text="موجودہ تفصیلی حنفی رہنما کھولیں" nightMode={nightMode} style={[howToStyles.guideSub, howToStyles.languageCardSub, N && { color: N.textSub }]} />
+            <View style={howToStyles.languageHeroChipRow}>
+              {featureChips.map((chip) => (
+                <View
+                  key={chip.label}
+                  style={[
+                    howToStyles.languageHeroChip,
+                    N && { backgroundColor: 'rgba(17, 28, 50, 0.92)', borderColor: N.border },
+                  ]}
+                >
+                  <MaterialIcons
+                    name={chip.icon}
+                    size={13}
+                    color={N ? N.primary : Colors.primary}
+                  />
+                  <Text style={[howToStyles.languageHeroChipText, N && { color: N.textSub }]}>{chip.label}</Text>
+                </View>
+              ))}
             </View>
-            <MaterialIcons name="arrow-forward-ios" size={18} color={N ? N.textMuted : Colors.textSubtle} />
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+          </View>
+
+          <Text style={[howToStyles.sectionLabel, howToStyles.languageSectionLabel, N && { color: N.primary }]}>
+            Select Language
+          </Text>
+
+          <View style={howToStyles.languageOptionsArea}>
+            <TouchableOpacity
+              style={[
+                howToStyles.languageChoiceCard,
+                howToStyles.languageChoiceEnglishCard,
+                N && { backgroundColor: 'rgba(12, 18, 32, 0.88)', borderColor: N.border },
+              ]}
+              onPress={() => {
+                setSelectedLanguage('english');
+                setSelectedParentGroup(null);
+                setExpandedGuide(null);
+                setExpandedSection(null);
+              }}
+              activeOpacity={0.9}
+            >
+              <View style={[howToStyles.languageChoiceAccent, { backgroundColor: '#2EA766' }]} />
+              <View style={howToStyles.languageChoiceBody}>
+                <View style={[howToStyles.languageChoiceIconWrap, { backgroundColor: '#EAF8EF' }]}>
+                  <MaterialIcons name="menu-book" size={26} color="#2EA766" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[howToStyles.languageChoiceKicker, N && { color: N.textMuted }]}>ENGLISH TRACK</Text>
+                  <Text
+                    style={[
+                      howToStyles.languageChoiceTitle,
+                      isCompactWidth && howToStyles.languageChoiceTitleCompact,
+                      N && { color: N.text },
+                    ]}
+                  >
+                    English Guides
+                  </Text>
+                  <Text style={[howToStyles.languageChoiceSub, N && { color: N.textSub }]}>Clear wording with transliteration and lesson visuals.</Text>
+                  <View style={howToStyles.languageChoiceMetaRow}>
+                    <Text style={[howToStyles.languageChoiceMetaText, N && { color: N.textMuted }]}>Fiqh</Text>
+                    <Text style={[howToStyles.languageChoiceMetaText, N && { color: N.textMuted }]}>Recitation</Text>
+                    <Text style={[howToStyles.languageChoiceMetaText, N && { color: N.textMuted }]}>Visual</Text>
+                  </View>
+                </View>
+                <View style={[howToStyles.languageChoiceArrow, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}> 
+                  <MaterialIcons name="arrow-forward" size={18} color={N ? N.textSub : Colors.primary} />
+                </View>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                howToStyles.languageChoiceCard,
+                howToStyles.languageChoiceUrduCard,
+                N && { backgroundColor: 'rgba(12, 18, 32, 0.88)', borderColor: N.border },
+              ]}
+              onPress={() => {
+                setSelectedLanguage('urdu');
+                setSelectedParentGroup(null);
+                setExpandedGuide(null);
+                setExpandedSection(null);
+              }}
+              activeOpacity={0.9}
+            >
+              <View style={[howToStyles.languageChoiceAccent, { backgroundColor: '#2B78D0' }]} />
+              <View style={howToStyles.languageChoiceBody}>
+                <View style={[howToStyles.languageChoiceIconWrap, { backgroundColor: '#E9F2FB' }]}>
+                  <MaterialIcons name="g-translate" size={26} color="#2B78D0" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[howToStyles.languageChoiceKicker, howToStyles.languageChoiceKickerUrdu, N && { color: N.textMuted }]}>اردو ٹریک</Text>
+                  <InlineArabicText
+                    text="اردو گائیڈز"
+                    nightMode={nightMode}
+                    style={[
+                      howToStyles.languageChoiceTitle,
+                      isCompactWidth && howToStyles.languageChoiceTitleCompact,
+                      howToStyles.languageChoiceUrduTitle,
+                      N && { color: N.text },
+                    ]}
+                  />
+                  <InlineArabicText
+                    text="آسان زبان میں مرحلہ وار حنفی رہنمائی"
+                    nightMode={nightMode}
+                    style={[howToStyles.languageChoiceSub, howToStyles.languageChoiceUrduSub, N && { color: N.textSub }]}
+                  />
+                  <View style={[howToStyles.languageChoiceMetaRow, howToStyles.languageChoiceMetaRowUrdu]}>
+                    <Text style={[howToStyles.languageChoiceMetaText, N && { color: N.textMuted }]}>فقہ</Text>
+                    <Text style={[howToStyles.languageChoiceMetaText, N && { color: N.textMuted }]}>تلاوت</Text>
+                    <Text style={[howToStyles.languageChoiceMetaText, N && { color: N.textMuted }]}>تصاویر</Text>
+                  </View>
+                </View>
+                <View style={[howToStyles.languageChoiceArrow, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}> 
+                  <MaterialIcons name="arrow-forward" size={18} color={N ? N.textSub : '#2B78D0'} />
+                </View>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          <View
+            style={[
+              howToStyles.knowledgeFootnote,
+              howToStyles.languageFootnote,
+              N && { borderColor: N.border, backgroundColor: 'rgba(12, 18, 32, 0.78)' },
+            ]}
+          >
+            <MaterialIcons name="info-outline" size={13} color={N ? N.textMuted : Colors.textSubtle} />
+            <Text style={[howToStyles.knowledgeFootnoteText, N && { color: N.textMuted }]}>Guides follow the Hanafi school. Consult a local scholar for personal rulings.</Text>
+          </View>
+        </ScrollView>
+      </View>
     );
   }
 
@@ -798,10 +949,12 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
           <MaterialIcons
             name={selectedParentGroup ? 'chevron-left' : 'translate'}
             size={16}
-            color={N ? N.textSub : Colors.textSecondary}
+            color={N ? N.textSub : Colors.primary}
           />
           <Text style={[howToStyles.backLinkText, N && { color: N.textSub }]}>
-            {selectedParentGroup ? 'Back to categories' : 'Change language'}
+            {selectedParentGroup
+              ? 'Back to categories'
+              : selectedLanguage === 'urdu' ? 'Change Language (English)' : 'Change Language'}
           </Text>
         </TouchableOpacity>
 
@@ -962,47 +1115,256 @@ const howToStyles = StyleSheet.create({
   languageSelectionContainer: {
     flexGrow: 1,
   },
-  languageOptionsArea: {
+  languageSelectionScreen: {
     flex: 1,
+    position: 'relative',
+    backgroundColor: '#E2E9E3',
+  },
+  languageScreenBgImage: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  languageScreenOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(231, 239, 233, 0.86)',
+  },
+  languageSelectionContent: {
+    paddingTop: Spacing.lg,
+    justifyContent: 'space-between',
+    minHeight: '100%',
+    paddingBottom: Spacing.lg,
+  },
+  languageOptionsArea: {
+    justifyContent: 'flex-start',
+    gap: Spacing.sm + 2,
+  },
+  languageSectionLabel: {
+    marginTop: Spacing.md,
+    marginBottom: 6,
+    letterSpacing: 1.4,
+  },
+  languageHeroCard: {
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: '#D8E2DC',
+    backgroundColor: 'rgba(250, 252, 251, 0.9)',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md + 2,
+    gap: Spacing.sm,
+  },
+  languageHeroGlow: {
+    position: 'absolute',
+    width: 170,
+    height: 170,
+    borderRadius: 85,
+    right: -44,
+    top: -42,
+    backgroundColor: '#D7E7DA',
+    opacity: 0.72,
+  },
+  languageHeroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  languageHeroIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.md,
+  },
+  languageHeroEyebrow: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    color: Colors.primary,
+    textTransform: 'uppercase',
+  },
+  languageHeroTitle: {
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+    marginTop: 2,
+  },
+  languageHeroTitleCompact: {
+    fontSize: 22,
+    lineHeight: 28,
+  },
+  languageHeroSub: {
+    fontSize: 12.5,
+    lineHeight: 18,
+    color: Colors.textSecondary,
+    marginTop: 4,
+  },
+  languageHeroChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  languageHeroChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#C9D8CD',
+    backgroundColor: '#EEF4EF',
+  },
+  languageHeroChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    letterSpacing: 0.2,
+  },
+  languageChoiceCard: {
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: '#D4DED8',
+    backgroundColor: 'rgba(250, 252, 251, 0.95)',
+    overflow: 'hidden',
+  },
+  languageChoiceEnglishCard: {
+    shadowColor: '#1F2D26',
+    shadowOpacity: 0.09,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+  },
+  languageChoiceUrduCard: {
+    shadowColor: '#16263A',
+    shadowOpacity: 0.09,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+  },
+  languageChoiceAccent: {
+    height: 3,
+    width: '100%',
+  },
+  languageChoiceBody: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 13,
+  },
+  languageChoiceIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  languageChoiceTitle: {
+    fontSize: 22,
+    lineHeight: 27,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+  },
+  languageChoiceTitleCompact: {
+    fontSize: 20,
+    lineHeight: 24,
+  },
+  languageChoiceKicker: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    color: Colors.textSubtle,
+    textTransform: 'uppercase',
+    marginBottom: 3,
+  },
+  languageChoiceKickerUrdu: {
+    writingDirection: 'rtl',
+    textAlign: 'right',
+  },
+  languageChoiceUrduTitle: {
+    writingDirection: 'rtl',
+  },
+  languageChoiceSub: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: Colors.textSecondary,
+    marginTop: 4,
+  },
+  languageChoiceUrduSub: {
+    writingDirection: 'rtl',
+    textAlign: 'right',
+  },
+  languageChoiceMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 14,
+    marginTop: 8,
+  },
+  languageChoiceMetaRowUrdu: {
+    justifyContent: 'flex-end',
+  },
+  languageChoiceMetaText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textSubtle,
+    letterSpacing: 0.2,
+  },
+  languageChoiceArrow: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#D2DBD5',
+    backgroundColor: '#F0F5F2',
+  },
+  languageFootnote: {
+    marginTop: Spacing.md,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    backgroundColor: 'rgba(248, 251, 248, 0.82)',
+    borderColor: '#D3DDD7',
   },
   moduleStrip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    backgroundColor: '#EEF2EF',
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: '#D8E0DA',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 10,
+    gap: 10,
+    paddingHorizontal: 2,
+    paddingVertical: 4,
   },
   moduleStripLogo: {
-    width: 44,
-    height: 44,
-    borderRadius: Radius.md,
+    width: 28,
+    height: 28,
+    borderRadius: Radius.sm,
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E3EAE5',
   },
   moduleStripMasjid: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '700',
-    color: '#2E9C57',
-    letterSpacing: 0.25,
+    color: Colors.primary,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  moduleStripTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    flexWrap: 'wrap',
+    columnGap: 6,
   },
   moduleStripTitle: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '700',
     color: Colors.textPrimary,
-    marginTop: 1,
   },
   moduleStripMeta: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '400',
-    color: Colors.textSecondary,
-    marginTop: 2,
+    color: Colors.textSubtle,
   },
   sectionLabel: {
     fontSize: 11,
@@ -1034,6 +1396,115 @@ const howToStyles = StyleSheet.create({
   languageCardSub: {
     fontSize: 12,
     marginTop: 4,
+  },
+  languageCardBullets: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    columnGap: 6,
+    rowGap: 2,
+    marginTop: 8,
+  },
+  languageCardBullet: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: Colors.textSubtle,
+  },
+  languageCardBulletDot: {
+    fontSize: 11,
+    color: Colors.textSubtle,
+  },
+  knowledgeBanner: {
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+    padding: Spacing.md,
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  knowledgeBannerGlow: {
+    position: 'absolute',
+    top: -40,
+    right: -40,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: Colors.primarySoft,
+    opacity: 0.7,
+  },
+  knowledgeBannerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  knowledgeBannerIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  knowledgeBannerEyebrow: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: Colors.primary,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  },
+  knowledgeBannerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    marginTop: 2,
+    letterSpacing: 0.1,
+  },
+  knowledgeBannerSub: {
+    fontSize: 13,
+    fontWeight: '400',
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  knowledgeChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  knowledgeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceAlt,
+  },
+  knowledgeChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    letterSpacing: 0.2,
+  },
+  knowledgeFootnote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingTop: Spacing.sm,
+    marginTop: Spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.border,
+  },
+  knowledgeFootnoteText: {
+    flex: 1,
+    fontSize: 11,
+    fontWeight: '400',
+    color: Colors.textSubtle,
+    lineHeight: 16,
   },
   languageBackBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,

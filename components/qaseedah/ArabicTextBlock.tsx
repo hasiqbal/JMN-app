@@ -3,6 +3,7 @@ import { StyleSheet, Text } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 import type { NightPaletteType } from './types';
+import { addSoftWrapOpportunities } from './softWrap';
 
 type Props = {
   text: string;
@@ -13,6 +14,7 @@ type Props = {
 export function ArabicTextBlock({ text, scale, night }: Props) {
   const fontSize = Math.round(23 * scale);
   const lineHeight = Math.round(43 * scale);
+  const wrappedText = React.useMemo(() => addSoftWrapOpportunities(text), [text]);
   return (
     <Text
       style={[
@@ -21,7 +23,7 @@ export function ArabicTextBlock({ text, scale, night }: Props) {
         night && { color: night.text },
       ]}
     >
-      {text}
+      {wrappedText}
     </Text>
   );
 }
@@ -33,7 +35,9 @@ const styles = StyleSheet.create({
     fontFamily: 'IndopakNastaleeq',
     letterSpacing: 0.2,
     width: '100%',
-    maxWidth: 560,
-    alignSelf: 'center',
+    maxWidth: '100%',
+    alignSelf: 'stretch',
+    paddingHorizontal: 4,
+    flexShrink: 1,
   },
 });
