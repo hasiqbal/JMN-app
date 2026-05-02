@@ -29,13 +29,19 @@ export function getAdhaanOptionById(value: string | null | undefined): AdhaanOpt
 
 export function getPrayerStartChannelId(optionId: AdhaanOption['id'], silent = false): string {
 	return silent
-		? `jmn-prayer-start-adhaan-${optionId}-silent-v4`
-		: `jmn-prayer-start-adhaan-${optionId}-v5`;
+		? `jmn-prayer-start-adhaan-${optionId}-silent-v5`
+		: `jmn-prayer-start-adhaan-${optionId}-v6`;
 }
 
 // Legacy channel IDs to be deleted on app launch (Android caches sound bindings per channel,
 // so when sound config changes we bump the version and clean up the old IDs).
 export const LEGACY_PRAYER_NOTIFICATION_CHANNEL_IDS: readonly string[] = [
+	'jmn-prayer-start-adhaan-1-v5',
+	'jmn-prayer-start-adhaan-2-v5',
+	'jmn-prayer-start-adhaan-3-v5',
+	'jmn-prayer-start-adhaan-1-silent-v4',
+	'jmn-prayer-start-adhaan-2-silent-v4',
+	'jmn-prayer-start-adhaan-3-silent-v4',
 	'jmn-prayer-start-adhaan-1-v4',
 	'jmn-prayer-start-adhaan-2-v4',
 	'jmn-prayer-start-adhaan-3-v4',
@@ -48,13 +54,15 @@ export const LEGACY_PRAYER_NOTIFICATION_CHANNEL_IDS: readonly string[] = [
 	'jmn-prayer-start-adhaan-1-silent-v2',
 	'jmn-prayer-start-adhaan-2-silent-v2',
 	'jmn-prayer-start-adhaan-3-silent-v2',
+	'jmn-iqamah-start-v5',
+	'jmn-iqamah-start-silent-v3',
 	'jmn-iqamah-start-v4',
 	'jmn-iqamah-start-silent-v2',
 	'jmn-prayer-alerts-v1',
 ];
 
-export const IQAMAH_NOTIFICATION_CHANNEL_ID = 'jmn-iqamah-start-v5';
-export const IQAMAH_NOTIFICATION_SILENT_CHANNEL_ID = 'jmn-iqamah-start-silent-v3';
+export const IQAMAH_NOTIFICATION_CHANNEL_ID = 'jmn-iqamah-start-v6';
+export const IQAMAH_NOTIFICATION_SILENT_CHANNEL_ID = 'jmn-iqamah-start-silent-v4';
 export const PRAYER_AUDIO_NOTIFICATION_CATEGORY_ID = 'jmnPrayerAudio';
 export const PRAYER_AUDIO_MUTE_ACTION_ID = 'jmnPrayerAudioMute';
 
