@@ -9,8 +9,8 @@
       "distribution": "internal",
       "cache": {
         "paths": [
-          "~/.gradle/caches",
-          "~/.gradle/wrapper",
+          "/home/expo/.gradle/caches",
+          "/home/expo/.gradle/wrapper",
           "node_modules/.cache"
         ]
       },
@@ -23,8 +23,8 @@
       "distribution": "internal",
       "cache": {
         "paths": [
-          "~/.gradle/caches",
-          "~/.gradle/wrapper",
+          "/home/expo/.gradle/caches",
+          "/home/expo/.gradle/wrapper",
           "node_modules/.cache"
         ]
       }
@@ -33,8 +33,8 @@
       "autoIncrement": true,
       "cache": {
         "paths": [
-          "~/.gradle/caches",
-          "~/.gradle/wrapper",
+          "/home/expo/.gradle/caches",
+          "/home/expo/.gradle/wrapper",
           "node_modules/.cache"
         ]
       }
