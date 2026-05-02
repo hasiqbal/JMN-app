@@ -7,16 +7,37 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "cache": {
+        "paths": [
+          "~/.gradle/caches",
+          "~/.gradle/wrapper",
+          "node_modules/.cache"
+        ]
+      },
       "android": {
         "buildType": "apk",
         "gradleCommand": ":app:assembleDebug"
       }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "cache": {
+        "paths": [
+          "~/.gradle/caches",
+          "~/.gradle/wrapper",
+          "node_modules/.cache"
+        ]
+      }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "cache": {
+        "paths": [
+          "~/.gradle/caches",
+          "~/.gradle/wrapper",
+          "node_modules/.cache"
+        ]
+      }
     }
   },
   "submit": {
