@@ -10,6 +10,7 @@ import { MASAH_INJURIES_WUDHU_GUIDE } from './masahInjuriesWudhu';
 import { MASAH_LEATHER_SOCKS_GUIDE } from './masahLeatherSocks';
 import { MENSTRUATION_NIFAS_GUIDE } from './menstruationNifas';
 import { MISSED_UNITS_RKAAT_GUIDE } from './missedUnitsRkaat';
+import { NAFL_FASTING_PLANNER_GUIDE } from './naflFastingPlanner';
 import { QADA_KAFFARAH_FASTING_GUIDE } from './qadaKaffarahFasting';
 import { RAMADAN_ESSENTIALS_GUIDE } from './ramadanEssentials';
 import { SALAH_CONDITIONS_FARAID_GUIDE } from './salahConditionsFaraid';
@@ -42,6 +43,7 @@ export { MASAH_INJURIES_WUDHU_GUIDE } from './masahInjuriesWudhu';
 export { MASAH_LEATHER_SOCKS_GUIDE } from './masahLeatherSocks';
 export { MENSTRUATION_NIFAS_GUIDE } from './menstruationNifas';
 export { MISSED_UNITS_RKAAT_GUIDE } from './missedUnitsRkaat';
+export { NAFL_FASTING_PLANNER_GUIDE } from './naflFastingPlanner';
 export { QADA_KAFFARAH_FASTING_GUIDE } from './qadaKaffarahFasting';
 export { RAMADAN_ESSENTIALS_GUIDE } from './ramadanEssentials';
 export { SALAH_CONDITIONS_FARAID_GUIDE } from './salahConditionsFaraid';
@@ -75,6 +77,7 @@ export const PURIFICATION_GUIDES = [
 
 export const FASTING_GUIDES = [
   FASTING_FOUNDATIONS_GUIDE,
+  NAFL_FASTING_PLANNER_GUIDE,
   RAMADAN_ESSENTIALS_GUIDE,
   QADA_KAFFARAH_FASTING_GUIDE,
 ];

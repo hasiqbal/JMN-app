@@ -7,7 +7,7 @@ export const FASTING_FOUNDATIONS_GUIDE: HowToGuide = {
   subtitle: 'Fasting · Hanafi Method',
   icon: 'restaurant',
   color: '#EF6C00',
-  intro: 'This guide covers practical Hanafi fasting fundamentals: intention timing, valid fasting window, nullifiers, exemptions, discipline that protects the fast, and key Sunnah voluntary fasts throughout the year.',
+  intro: 'This guide covers practical Hanafi fasting fundamentals: intention timing, valid fasting window, nullifiers, exemptions, and discipline that protects the fast.',
   sections: [
     {
       heading: 'Core Requirements',
@@ -33,44 +33,10 @@ export const FASTING_FOUNDATIONS_GUIDE: HowToGuide = {
         { step: 3, title: 'Menstruation and nifas', detail: 'A person in hayd or nifas does not fast and later makes up those Ramadan fasts.' },
       ],
     },
-    {
-      heading: 'Regular Sunnah Optional Fasts',
-      steps: [
-        { step: 1, title: 'Mondays and Thursdays', detail: 'Fast Monday and Thursday as a regular Sunnah pattern when possible, while keeping balance with health and responsibilities.' },
-        { step: 2, title: 'White Fasts (Ayyam al-Bid: 13th, 14th, 15th)', detail: 'Fasting the white days each lunar month is a strongly encouraged Sunnah and easy monthly rhythm for nafl fasting.' },
-        { step: 3, title: 'Fasting of Dawud (best nafl pattern)', detail: 'For advanced consistency, fast every other day if you can maintain rights of body, family, and worship balance.' },
-      ],
-    },
-    {
-      heading: 'Important Muharram and Dhul Hijjah Fasts',
-      steps: [
-        { step: 1, title: 'Muharram and Ashura', detail: 'Muharram fasting is highly virtuous (especially Ashura). Fast 10 Muharram with either 9 or 11 Muharram instead of fasting only the 10th.' },
-        { step: 2, title: 'First nine days of Dhul Hijjah', detail: 'Voluntary fasting in the first nine days of Dhul Hijjah is meritorious, with special emphasis on the Day of Arafah for non-pilgrims.' },
-        { step: 3, title: 'Day of Arafah (9 Dhul Hijjah, non-Hajj pilgrims)', detail: 'For those not on Hajj, fasting Arafah is among the most emphasized optional fasts of the year.' },
-      ],
-    },
-    {
-      heading: 'Other Highly Recommended Optional Fasts',
-      steps: [
-        { step: 1, title: 'Six days of Shawwal', detail: 'After completing Ramadan, fasting any six days of Shawwal carries great reward.' },
-        { step: 2, title: 'Frequent fasting in Shaban', detail: 'Increasing voluntary fasting in Shaban is an established Sunnah practice before Ramadan.' },
-        { step: 3, title: 'Pair Friday if you fast it nafl', detail: 'If fasting Friday as nafl, pair it with Thursday or Saturday unless it coincides with a regular routine or specific Sunnah date.' },
-      ],
-    },
-    {
-      heading: 'Days to Avoid Fasting',
-      steps: [
-        { step: 1, title: 'Eid days', detail: 'Fasting is prohibited on Eid al-Fitr and Eid al-Adha.' },
-        { step: 2, title: 'Tashriq days', detail: 'For most people, fasting is prohibited on 11, 12, and 13 Dhul Hijjah.' },
-        { step: 3, title: 'Single Friday without reason', detail: 'Avoid singling out Friday alone as a nafl fast unless paired with Thursday or Saturday, or due to a valid reason.' },
-      ],
-    },
   ],
   notes: [
     'Common mistake: ending fast by timetable without confirming local sunset.',
     'Use this as baseline before Ramadan-specific rulings.',
-    'For lunar-date fasts, confirm your local moon-calendar date before intending the fast.',
-    'If unsure about local fiqh details of a nafl day, verify with your local scholars before committing.',
     'For missed fast handling, continue to the Qada and Kaffarah guide.',
     'For menstrual-state rulings, use the Purification menstruation guide.',
   ],

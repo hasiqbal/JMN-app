@@ -1,6 +1,81 @@
-import appJson from './app.json';
-
-const base = appJson.expo;
+const base = {
+  name: 'JMN',
+  slug: 'jmn',
+  version: '1.0.0',
+  orientation: 'portrait',
+  icon: './assets/images/favicon.png',
+  scheme: 'jmn',
+  userInterfaceStyle: 'light',
+  ios: {
+    supportsTablet: true,
+    bundleIdentifier: 'com.hasiqbal.jmn',
+    infoPlist: {
+      ITSAppUsesNonExemptEncryption: false,
+    },
+  },
+  android: {
+    adaptiveIcon: {
+      foregroundImage: './assets/images/favicon.png',
+      backgroundColor: '#ffffff',
+    },
+    googleServicesFile: './google-services.json',
+    permissions: [
+      'android.permission.RECORD_AUDIO',
+      'android.permission.MODIFY_AUDIO_SETTINGS',
+      'android.permission.RECEIVE_BOOT_COMPLETED',
+      'android.permission.SCHEDULE_EXACT_ALARM',
+      'android.permission.USE_EXACT_ALARM',
+    ],
+    package: 'com.hasiqbal.jmn',
+  },
+  web: {
+    bundler: 'metro',
+    output: 'static',
+    favicon: './assets/images/favicon.png',
+  },
+  plugins: [
+    'expo-router',
+    [
+      'expo-notifications',
+      {
+        sounds: [
+          './assets/audio/adhaan_1_v2.mp3',
+          './assets/audio/adhaan_2_v2.mp3',
+          './assets/audio/adhaan_3_v2.mp3',
+          './assets/audio/iqamah_new.mp3',
+        ],
+      },
+    ],
+    [
+      'expo-splash-screen',
+      {
+        image: './assets/images/favicon.png',
+        imageWidth: 200,
+        resizeMode: 'contain',
+        backgroundColor: '#ffffff',
+      },
+    ],
+    'expo-web-browser',
+    '@react-native-community/datetimepicker',
+    'expo-asset',
+    'expo-font',
+    'expo-audio',
+    'expo-localization',
+    'expo-mail-composer',
+    'expo-secure-store',
+    'expo-sqlite',
+    'expo-video',
+  ],
+  experiments: {
+    typedRoutes: true,
+  },
+  extra: {
+    router: {},
+    eas: {
+      projectId: '699b7ea2-af04-453c-96ed-f2bb121ab43b',
+    },
+  },
+};
 
 const androidGoogleServicesFile =
   process.env.GOOGLE_SERVICES_JSON ||
