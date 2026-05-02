@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   Animated,
   Easing,
   Modal,
@@ -23,6 +24,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Asset } from 'expo-asset';
+import * as FileSystem from 'expo-file-system/legacy';
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import type { AudioPlayer } from 'expo-audio';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -170,6 +172,10 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
   const [hadrOpen, setHadrOpen] = useState(false);
   const [selectedHadrJuz, setSelectedHadrJuz] = useState<number>(1);
   const [playingHadrJuz, setPlayingHadrJuz] = useState<number | null>(null);
+  const [downloadingAllHadr, setDownloadingAllHadr] = useState(false);
+  const [downloadAllProgress, setDownloadAllProgress] = useState<{ done: number; total: number } | null>(null);
+  const [downloadingHadrJuzSet, setDownloadingHadrJuzSet] = useState<Record<number, boolean>>({});
+  const [cachedHadrJuzSet, setCachedHadrJuzSet] = useState<Record<number, boolean>>({});
   const [rewindNotice, setRewindNotice] = useState<string | null>(null);
   const [playbackPositionSec, setPlaybackPositionSec] = useState(0);
   const [playbackDurationSec, setPlaybackDurationSec] = useState(0);
@@ -184,7 +190,7 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
   const allPlayersRef = useRef<Set<AudioPlayer>>(new Set());
   const allWebAudiosRef = useRef<Set<any>>(new Set());
   const playRequestIdRef = useRef(0);
-  const playHadrJuzRef = useRef<((juz: number) => Promise<void>) | null>(null);
+  const playHadrJuzRef = useRef<((juz: number, options?: { closeSheet?: boolean; promptDownload?: boolean }) => Promise<void>) | null>(null);
   const playSurahTrackRef = useRef<((stationId: string, surah: number) => Promise<void>) | null>(null);
   const activeStationIdRef = useRef<StreamId>('masjid');
   const playingHadrJuzRef = useRef<number | null>(null);
@@ -205,6 +211,236 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
   const autoplayAttempted = useRef(false);
   const handledNotificationAutoplayIntentRef = useRef<string | null>(null);
   const revealAnim = useRef(new Animated.Value(0)).current;
+
+  const hadrCacheDir = useMemo(() => {
+    if (!FileSystem.documentDirectory) return null;
+    return `${FileSystem.documentDirectory}hadr-juz-cache`;
+  }, []);
+
+  const buildHadrCacheFileUri = useCallback((juz: number) => {
+    if (!hadrCacheDir) return null;
+    return `${hadrCacheDir}/juz-${String(juz).padStart(2, '0')}.mp3`;
+  }, [hadrCacheDir]);
+
+  const ensureHadrCacheDirectory = useCallback(async () => {
+    if (!hadrCacheDir) return false;
+
+    try {
+      await FileSystem.makeDirectoryAsync(hadrCacheDir, { intermediates: true });
+      return true;
+    } catch {
+      return false;
+    }
+  }, [hadrCacheDir]);
+
+  const getCachedHadrTrackUri = useCallback(async (juz: number) => {
+    const targetUri = buildHadrCacheFileUri(juz);
+    if (!targetUri) return null;
+
+    try {
+      const info = await FileSystem.getInfoAsync(targetUri);
+      return info.exists ? targetUri : null;
+    } catch {
+      return null;
+    }
+  }, [buildHadrCacheFileUri]);
+
+  const promptHadrDownloadChoice = useCallback((juz: number) => {
+    return new Promise<'stream' | 'download' | 'cancel'>((resolve) => {
+      Alert.alert(
+        'Hadr playback option',
+        `Play Juz ${juz} now or download it to local cache for offline playback.`,
+        [
+          { text: 'Cancel', style: 'cancel', onPress: () => resolve('cancel') },
+          { text: 'Stream now', onPress: () => resolve('stream') },
+          { text: 'Download & play', onPress: () => resolve('download') },
+        ],
+        { cancelable: true, onDismiss: () => resolve('cancel') },
+      );
+    });
+  }, []);
+
+  const promptDownloadAllChoice = useCallback(() => {
+    return new Promise<boolean>((resolve) => {
+      Alert.alert(
+        'Download full Hadr pack',
+        'Download all 30 Hadr Juz files for offline playback? This can use significant storage.',
+        [
+          { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+          { text: 'Download all', onPress: () => resolve(true) },
+        ],
+        { cancelable: true, onDismiss: () => resolve(false) },
+      );
+    });
+  }, []);
+
+  const downloadHadrTrackToCache = useCallback(async (juz: number, source: string): Promise<string | null> => {
+    const cacheReady = await ensureHadrCacheDirectory();
+    if (!cacheReady) {
+      return null;
+    }
+
+    const targetUri = buildHadrCacheFileUri(juz);
+    if (!targetUri) {
+      return null;
+    }
+
+    try {
+      const download = await FileSystem.downloadAsync(source, targetUri);
+      if (download.status >= 200 && download.status < 300) {
+        return download.uri;
+      }
+    } catch {
+      // ignore and return null so caller can fallback/continue
+    }
+
+    return null;
+  }, [buildHadrCacheFileUri, ensureHadrCacheDirectory]);
+
+  const refreshCachedHadrStatus = useCallback(async () => {
+    if (Platform.OS === 'web') {
+      setCachedHadrJuzSet({});
+      return;
+    }
+
+    const next: Record<number, boolean> = {};
+
+    for (let juz = 1; juz <= 30; juz += 1) {
+      const cached = await getCachedHadrTrackUri(juz);
+      if (cached) next[juz] = true;
+    }
+
+    setCachedHadrJuzSet(next);
+  }, [getCachedHadrTrackUri]);
+
+  const downloadSingleHadrJuz = useCallback(async (juz: number) => {
+    if (Platform.OS === 'web' || downloadingAllHadr || downloadingHadrJuzSet[juz]) return;
+
+    const source = HADR_JUZ_TRACKS[juz];
+    if (typeof source !== 'string') {
+      setRewindNotice(`Juz ${juz} audio is currently unavailable.`);
+      return;
+    }
+
+    const existing = await getCachedHadrTrackUri(juz);
+    if (existing) {
+      setCachedHadrJuzSet((prev) => ({ ...prev, [juz]: true }));
+      setRewindNotice(`Juz ${juz} is already downloaded.`);
+      return;
+    }
+
+    setDownloadingHadrJuzSet((prev) => ({ ...prev, [juz]: true }));
+    setRewindNotice(`Downloading Juz ${juz}...`);
+
+    try {
+      const savedUri = await downloadHadrTrackToCache(juz, source);
+      if (savedUri) {
+        setCachedHadrJuzSet((prev) => ({ ...prev, [juz]: true }));
+        setRewindNotice(`Downloaded Juz ${juz} for offline playback.`);
+      } else {
+        setRewindNotice(`Download failed for Juz ${juz}.`);
+      }
+    } finally {
+      setDownloadingHadrJuzSet((prev) => {
+        const copy = { ...prev };
+        delete copy[juz];
+        return copy;
+      });
+    }
+  }, [downloadHadrTrackToCache, downloadingAllHadr, downloadingHadrJuzSet, getCachedHadrTrackUri]);
+
+  const downloadAllHadrJuz = useCallback(async () => {
+    if (Platform.OS === 'web' || downloadingAllHadr) return;
+
+    const approved = await promptDownloadAllChoice();
+    if (!approved) return;
+
+    const allJuz = Array.from({ length: 30 }, (_, index) => index + 1)
+      .filter((juz) => typeof HADR_JUZ_TRACKS[juz] === 'string') as number[];
+
+    if (!allJuz.length) {
+      setRewindNotice('No Hadr tracks are currently available for download.');
+      return;
+    }
+
+    setDownloadingAllHadr(true);
+    setDownloadAllProgress({ done: 0, total: allJuz.length });
+    setRewindNotice('Starting full Hadr download...');
+
+    let completed = 0;
+
+    try {
+      for (const juz of allJuz) {
+        const source = HADR_JUZ_TRACKS[juz];
+        if (typeof source !== 'string') continue;
+
+        const existing = await getCachedHadrTrackUri(juz);
+        if (existing) {
+          completed += 1;
+          setDownloadAllProgress({ done: completed, total: allJuz.length });
+          continue;
+        }
+
+        const savedUri = await downloadHadrTrackToCache(juz, source);
+        if (savedUri) {
+          completed += 1;
+          setDownloadAllProgress({ done: completed, total: allJuz.length });
+          setRewindNotice(`Downloaded Juz ${juz}. (${completed}/${allJuz.length})`);
+        }
+      }
+
+      if (completed === allJuz.length) {
+        setRewindNotice('All Hadr Juz files downloaded for offline playback.');
+      } else {
+        setRewindNotice(`Downloaded ${completed}/${allJuz.length} Hadr Juz files. You can retry Download all later.`);
+      }
+
+      await refreshCachedHadrStatus();
+    } finally {
+      setDownloadingAllHadr(false);
+      setTimeout(() => setDownloadAllProgress(null), 1800);
+    }
+  }, [downloadHadrTrackToCache, downloadingAllHadr, getCachedHadrTrackUri, promptDownloadAllChoice, refreshCachedHadrStatus]);
+
+  const resolveHadrPlaybackSource = useCallback(async (
+    juz: number,
+    source: AudioSource,
+    options?: { promptDownload?: boolean },
+  ): Promise<AudioSource | null> => {
+    if (typeof source !== 'string' || Platform.OS === 'web') {
+      return source;
+    }
+
+    const cachedUri = await getCachedHadrTrackUri(juz);
+    if (cachedUri) {
+      setRewindNotice(`Playing downloaded Juz ${juz}.`);
+      return cachedUri;
+    }
+
+    const shouldPrompt = options?.promptDownload ?? true;
+    if (!shouldPrompt) {
+      return source;
+    }
+
+    const decision = await promptHadrDownloadChoice(juz);
+    if (decision === 'cancel') {
+      return null;
+    }
+
+    if (decision === 'stream') {
+      return source;
+    }
+
+    setRewindNotice(`Downloading Juz ${juz} for offline playback...`);
+    const savedUri = await downloadHadrTrackToCache(juz, source);
+    if (savedUri) {
+      setRewindNotice(`Downloaded Juz ${juz}. Offline playback ready.`);
+      return savedUri;
+    }
+
+    setRewindNotice('Download failed. Streaming instead.');
+    return source;
+  }, [downloadHadrTrackToCache, getCachedHadrTrackUri, promptHadrDownloadChoice]);
 
   const palette = nightMode ? NIGHT : DAY;
   const previewTheme = previewVariant ? PREVIEW_THEME[previewVariant] : null;
@@ -229,6 +465,11 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
     () => APP_CONFIG.radioStreams as Station[],
     [],
   );
+
+  useEffect(() => {
+    if (!hadrOpen) return;
+    void refreshCachedHadrStatus();
+  }, [hadrOpen, refreshCachedHadrStatus]);
 
   const masjidStation = useMemo(
     () => radioStreams.find((station) => station.id === 'masjid') ?? null,
@@ -318,7 +559,7 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
 
     warmupJuz.forEach((juz) => {
       const source = HADR_JUZ_TRACKS[juz];
-      if (!source) return;
+      if (!source || typeof source !== 'number') return;
       const asset = Asset.fromModule(source);
       if (!asset.localUri) {
         void asset.downloadAsync().catch(() => {});
@@ -739,7 +980,7 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
                 if (replayJuz) {
                   autoAdvanceLockRef.current = true;
                   setTimeout(() => {
-                    replayJuz(sameJuz)
+                    replayJuz(sameJuz, { promptDownload: false })
                       .catch(() => {})
                       .finally(() => {
                         autoAdvanceLockRef.current = false;
@@ -780,7 +1021,7 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
               if (playNextJuz) {
                 autoAdvanceLockRef.current = true;
                 setTimeout(() => {
-                  playNextJuz(nextJuz)
+                  playNextJuz(nextJuz, { promptDownload: false })
                     .catch(() => {})
                     .finally(() => {
                       autoAdvanceLockRef.current = false;
@@ -914,7 +1155,7 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
                 if (replayJuz) {
                   autoAdvanceLockRef.current = true;
                   setTimeout(() => {
-                    replayJuz(sameJuz)
+                    replayJuz(sameJuz, { promptDownload: false })
                       .catch(() => {})
                       .finally(() => {
                         autoAdvanceLockRef.current = false;
@@ -955,7 +1196,7 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
               if (playNextJuz) {
                 autoAdvanceLockRef.current = true;
                 setTimeout(() => {
-                  playNextJuz(nextJuz)
+                  playNextJuz(nextJuz, { promptDownload: false })
                     .catch(() => {})
                     .finally(() => {
                       autoAdvanceLockRef.current = false;
@@ -1129,19 +1370,27 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
   );
 
   const playHadrJuz = useCallback(
-    async (juz: number, options?: { closeSheet?: boolean }) => {
+    async (juz: number, options?: { closeSheet?: boolean; promptDownload?: boolean }) => {
       const hadr = radioStreams.find((item) => item.id === 'hadr');
       if (!hadr) return;
-
-      if (soundRef.current || webAudioRef.current || allPlayersRef.current.size || allWebAudiosRef.current.size) {
-        await stopAudio();
-      }
 
       const normalizedJuz = Math.max(1, Math.min(30, Math.round(juz)));
       const hadrTrack = HADR_JUZ_TRACKS[normalizedJuz];
       if (!hadrTrack) {
-        setRewindNotice(`Juz ${normalizedJuz} audio file is missing in assets/Quran hadr.`);
+        setRewindNotice(`Juz ${normalizedJuz} audio is currently unavailable.`);
         return;
+      }
+
+      const sourceToPlay = await resolveHadrPlaybackSource(normalizedJuz, hadrTrack, {
+        promptDownload: options?.promptDownload,
+      });
+      if (!sourceToPlay) {
+        setRewindNotice(`Playback cancelled for Juz ${normalizedJuz}.`);
+        return;
+      }
+
+      if (soundRef.current || webAudioRef.current || allPlayersRef.current.size || allWebAudiosRef.current.size) {
+        await stopAudio();
       }
 
       setActiveStationId('hadr');
@@ -1152,17 +1401,17 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
         setHadrOpen(false);
       }
 
-      await playUrl(hadrTrack, { retries: 1, connectTimeoutMs: 2200 });
+      await playUrl(sourceToPlay, { retries: 1, connectTimeoutMs: 2200 });
 
       const nextTrack = HADR_JUZ_TRACKS[getNextJuzNumber(normalizedJuz)];
-      if (nextTrack) {
+      if (typeof nextTrack === 'number') {
         const nextAsset = Asset.fromModule(nextTrack);
         if (!nextAsset.localUri) {
           void nextAsset.downloadAsync().catch(() => {});
         }
       }
     },
-    [playUrl, radioStreams, stopAudio],
+    [playUrl, radioStreams, resolveHadrPlaybackSource, stopAudio],
   );
 
   const playRandomHadrJuz = useCallback(async (options?: { closeSheet?: boolean }) => {
@@ -1170,7 +1419,7 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
       .filter((juz) => Boolean(HADR_JUZ_TRACKS[juz]));
 
     if (!availableJuz.length) {
-      setRewindNotice('No Hadr Juz audio files are available in assets/quran-hadr.');
+      setRewindNotice('No Hadr Juz audio is currently available.');
       return;
     }
 
@@ -1183,7 +1432,7 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
   }, [playHadrJuz, selectedHadrJuz]);
 
   useEffect(() => {
-    playHadrJuzRef.current = (juz: number) => playHadrJuz(juz);
+    playHadrJuzRef.current = (juz: number, options?: { closeSheet?: boolean; promptDownload?: boolean }) => playHadrJuz(juz, options);
   }, [playHadrJuz]);
 
   const playPreviousFromPlayer = useCallback(async () => {
@@ -1327,7 +1576,7 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
     if (activeStationId === 'hadr') {
       const hadrTrack = HADR_JUZ_TRACKS[playingHadrJuz ?? selectedHadrJuz];
       if (!hadrTrack) {
-        setRewindNotice(`Juz ${playingHadrJuz ?? selectedHadrJuz} audio file is missing in assets/Quran hadr.`);
+        setRewindNotice(`Juz ${playingHadrJuz ?? selectedHadrJuz} audio is currently unavailable.`);
         return;
       }
       targetSource = hadrTrack;
@@ -2418,6 +2667,12 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
             Tap any Juz row to play instantly. Auto-next is always on.
           </Text>
 
+          {downloadAllProgress ? (
+            <Text style={[styles.sheetSub, { color: palette.textSub, marginTop: 4 }]}>
+              Downloading full pack: {downloadAllProgress.done}/{downloadAllProgress.total}
+            </Text>
+          ) : null}
+
           <View style={styles.sheetActions}>
             <TouchableOpacity
               style={[styles.sheetActionBtn, { backgroundColor: accentColor }]}
@@ -2433,6 +2688,21 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
             >
               <MaterialIcons name="shuffle" size={16} color="#FFFFFF" />
               <Text style={styles.sheetActionText}>Random Juz</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.sheetActionBtn,
+                { backgroundColor: '#0F8C74' },
+                downloadingAllHadr && { opacity: 0.7 },
+              ]}
+              onPress={() => {
+                void downloadAllHadrJuz();
+              }}
+              disabled={downloadingAllHadr}
+            >
+              <MaterialIcons name={downloadingAllHadr ? 'hourglass-empty' : 'download'} size={16} color="#FFFFFF" />
+              <Text style={styles.sheetActionText}>{downloadingAllHadr ? 'Downloading...' : 'Download all'}</Text>
             </TouchableOpacity>
 
             {activeStationId === 'hadr' && !audioLoading && (audioPlaying || audioPaused) ? (
@@ -2462,6 +2732,8 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
               const isSelected = selectedHadrJuz === juz;
               const isCurrent = activeStationId === 'hadr' && playingHadrJuz === juz;
               const isAvailable = Boolean(HADR_JUZ_TRACKS[juz]);
+              const isCached = !!cachedHadrJuzSet[juz];
+              const isDownloading = !!downloadingHadrJuzSet[juz] || downloadingAllHadr;
 
               return (
                 <TouchableOpacity
@@ -2487,9 +2759,30 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
                   <View style={styles.sheetRowTextWrap}>
                     <Text style={[styles.surahName, { color: palette.text }]}>Juz {juz}</Text>
                     <Text style={[styles.sheetRowMeta, { color: palette.textSub }]}>
-                      {isAvailable ? `Starts at ${SURAH_NAMES[startSurah]}` : 'File missing'}
+                      {isAvailable
+                        ? isCached
+                          ? `Downloaded • Starts at ${SURAH_NAMES[startSurah]}`
+                          : `Starts at ${SURAH_NAMES[startSurah]}`
+                        : 'File missing'}
                     </Text>
                   </View>
+                  {isAvailable ? (
+                    <TouchableOpacity
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        void downloadSingleHadrJuz(juz);
+                      }}
+                      disabled={isCached || isDownloading}
+                      style={styles.hadrRowActionBtn}
+                      activeOpacity={0.8}
+                    >
+                      <MaterialIcons
+                        name={isCached ? 'check-circle' : isDownloading ? 'hourglass-empty' : 'download'}
+                        size={18}
+                        color={isCached ? '#20A368' : accentColor}
+                      />
+                    </TouchableOpacity>
+                  ) : null}
                   <MaterialIcons name={isCurrent ? 'graphic-eq' : 'play-circle-outline'} size={20} color={accentColor} />
                 </TouchableOpacity>
               );
@@ -3602,6 +3895,13 @@ const styles = StyleSheet.create({
   sheetRowMeta: {
     fontSize: 11,
     fontWeight: '600',
+  },
+  hadrRowActionBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyRow: {
     paddingVertical: 22,
