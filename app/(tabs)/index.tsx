@@ -422,13 +422,6 @@ function isShawwalMonth(hijriMonth: string): boolean {
   );
 }
 
-function formatVerseReference(reference: string): string {
-  const trimmed = reference.trim();
-  if (!trimmed) return '';
-  if (/^surah\s/i.test(trimmed)) return trimmed;
-  return `Surah ${trimmed}`;
-}
-
 // ── Hadith of the Day ────────────────────────────────────────────────────
 const HADITHS = [
   { text: "The best of you are those who learn the Quran and teach it.", ref: "Sahih al-Bukhari 5027" },
@@ -2334,7 +2327,7 @@ export default function HomeScreen() {
   const currentTime = useCurrentTime();
   const nextInfo = React.useMemo(
     () => (data ? getNextPrayer(data.prayers, currentTime) : null),
-    [data?.prayers, currentTime]
+    [data, currentTime]
   );
 
   const {
@@ -2380,11 +2373,14 @@ export default function HomeScreen() {
   const dhuhrPrayer = data?.prayers.find(p => p.name === 'Dhuhr');
   const asrPrayer = data?.prayers.find(p => p.name === 'Asr');
   const maghribPrayer = data?.prayers.find(p => p.name === 'Maghrib');
+  const currentYear = currentTime.getFullYear();
+  const currentMonth = currentTime.getMonth();
+  const currentDate = currentTime.getDate();
   const tomorrowPrayerTimes = React.useMemo(() => {
-    const tomorrow = new Date(currentTime);
+    const tomorrow = new Date(currentYear, currentMonth, currentDate);
     tomorrow.setDate(tomorrow.getDate() + 1);
     return getPrayerTimesFromTimetable(tomorrow);
-  }, [currentTime.getFullYear(), currentTime.getMonth(), currentTime.getDate()]);
+  }, [currentYear, currentMonth, currentDate]);
   const tomorrowHijriDayNum = tomorrowPrayerTimes
     ? Number.parseInt(getHijriDayNumber(tomorrowPrayerTimes.hijriDate) || '0', 10)
     : 0;
