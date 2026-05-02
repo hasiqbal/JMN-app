@@ -12,8 +12,7 @@
       "cache": {
         "paths": [
           "/home/expo/.gradle/caches",
-          "/home/expo/.gradle/wrapper",
-          "/home/expo/.pnpm-store"
+          "/home/expo/.gradle/wrapper"
         ]
       },
       "android": {
@@ -28,8 +27,7 @@
       "cache": {
         "paths": [
           "/home/expo/.gradle/caches",
-          "/home/expo/.gradle/wrapper",
-          "/home/expo/.pnpm-store"
+          "/home/expo/.gradle/wrapper"
         ]
       }
     },
@@ -40,8 +38,7 @@
       "cache": {
         "paths": [
           "/home/expo/.gradle/caches",
-          "/home/expo/.gradle/wrapper",
-          "/home/expo/.pnpm-store"
+          "/home/expo/.gradle/wrapper"
         ]
       }
     }
