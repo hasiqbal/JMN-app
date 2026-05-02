@@ -7,11 +7,13 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "node": "22.22.2",
+      "pnpm": "10.14.0",
       "cache": {
         "paths": [
           "/home/expo/.gradle/caches",
           "/home/expo/.gradle/wrapper",
-          "node_modules/.cache"
+          "/home/expo/.pnpm-store"
         ]
       },
       "android": {
@@ -21,21 +23,25 @@
     },
     "preview": {
       "distribution": "internal",
+      "node": "22.22.2",
+      "pnpm": "10.14.0",
       "cache": {
         "paths": [
           "/home/expo/.gradle/caches",
           "/home/expo/.gradle/wrapper",
-          "node_modules/.cache"
+          "/home/expo/.pnpm-store"
         ]
       }
     },
     "production": {
       "autoIncrement": true,
+      "node": "22.22.2",
+      "pnpm": "10.14.0",
       "cache": {
         "paths": [
           "/home/expo/.gradle/caches",
           "/home/expo/.gradle/wrapper",
-          "node_modules/.cache"
+          "/home/expo/.pnpm-store"
         ]
       }
     }

@@ -2,6 +2,7 @@
   "name": "jmn-app",
   "main": "expo-router/entry",
   "version": "1.0.0",
+  "packageManager": "pnpm@10.14.0",
   "scripts": {
     "prestart": "node ./scripts/check-node-version.js",
     "start": "expo start",
