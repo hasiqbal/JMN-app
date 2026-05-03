@@ -497,6 +497,22 @@ export function SacredReadingSheet({
                     ) : null}
                   </View>
                 </Pressable>
+
+                {!!secondaryFooterActionLabel && !!onSecondaryFooterAction && (
+                  <Pressable
+                    onPress={() => onSecondaryFooterAction(languageMode)}
+                    style={styles.sheetLanguageToggleOption}
+                  >
+                    <Text
+                      style={[
+                        styles.sheetLanguageToggleOptionText,
+                        { color: palette.segmentedText },
+                      ]}
+                    >
+                      {secondaryFooterActionLabel}
+                    </Text>
+                  </Pressable>
+                )}
               </View>
             )}
 
@@ -544,15 +560,6 @@ export function SacredReadingSheet({
             </Pressable>
           )}
 
-          {!!secondaryFooterActionLabel && !!onSecondaryFooterAction && (
-            <Pressable
-              onPress={() => onSecondaryFooterAction(languageMode)}
-              style={({ pressed }) => [styles.sheetFooterAction, pressed && styles.sheetFooterActionPressed]}
-            >
-              <Text style={[styles.sheetFooterActionText, { color: palette.sheetSubText }]}>{secondaryFooterActionLabel}</Text>
-              <MaterialIcons name="menu-book" size={15} color={palette.sheetSubText} />
-            </Pressable>
-          )}
         </View>
       </View>
     </Modal>

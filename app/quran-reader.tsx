@@ -20,6 +20,7 @@ import {
 import { QURAN_15LINE_FULL_PAGE_IMAGES } from '@/constants/quran15lineFullMap';
 import { QURAN_16LINE_FULL_PAGE_IMAGES } from '@/constants/quran16lineFullMap';
 import { getJuzEndPage, getJuzStartPage, getMushafTotalPages, getQuarterStartsInJuz } from '@/constants/mushafJuzPages';
+import { SURAH_NAMES } from '@/components/stream/streamConfig';
 
 const NIGHT = {
   bg: '#0A0F1E',
@@ -254,6 +255,7 @@ export default function QuranReaderScreen() {
   const [toggleLabelLang, setToggleLabelLang] = useState<ContentLanguage>('en');
   const [showSourcePicker, setShowSourcePicker] = useState(false);
   const [showTranslit, setShowTranslit] = useState(false);
+  const [expandedTafsirRows, setExpandedTafsirRows] = useState<Record<string, boolean>>({});
   const [isLoadingPanelContent, setIsLoadingPanelContent] = useState(false);
   const [isLoadingSources, setIsLoadingSources] = useState(false);
   const [imageRenderNonce, setImageRenderNonce] = useState(0);
@@ -456,6 +458,17 @@ export default function QuranReaderScreen() {
   }, [contentMode, contentLang]);
 
   useEffect(() => {
+    if (contentMode !== 'tafsir') {
+      setExpandedTafsirRows({});
+    }
+  }, [contentMode]);
+
+  useEffect(() => {
+    if (contentMode !== 'tafsir') return;
+    setExpandedTafsirRows({});
+  }, [contentMode, contentLang, displayPage, selectedTafsirIdsByLang]);
+
+  useEffect(() => {
     if (!showContentPanel) return;
     let cancelled = false;
 
@@ -646,11 +659,30 @@ export default function QuranReaderScreen() {
   const focusVerseRows = focusVerseKey
     ? pageVerses.filter((verse) => verse.verseKey === focusVerseKey)
     : [];
-  const visibleVerses = focusVerseRows.length > 0 ? focusVerseRows : pageVerses;
+  const pageVerseNumbers = pageVerses
+    .map((verse) => verse.verseNumber)
+    .filter((verseNumber) => Number.isInteger(verseNumber) && verseNumber > 0);
+  const pageAyahMin = pageVerseNumbers.length > 0 ? Math.min(...pageVerseNumbers) : null;
+  const pageAyahMax = pageVerseNumbers.length > 0 ? Math.max(...pageVerseNumbers) : null;
+  const visibleVerses = contentMode === 'tafsir'
+    ? pageVerses
+    : (focusVerseRows.length > 0 ? focusVerseRows : pageVerses);
   const hasTranslationRows = visibleVerses.some((verse) => !!translationByVerseKey[verse.verseKey]);
 
   const formatVerseNumber = (verseNumber: number) => {
     return contentLang === 'ur' ? toArabicIndicDigits(verseNumber) : String(verseNumber);
+  };
+
+  const getSurahName = (surahNumber: number): string => {
+    return SURAH_NAMES[surahNumber] ?? `Surah ${surahNumber}`;
+  };
+
+  const getTafsirVerseMeta = (verse: QuranPageVerse): string => {
+    const surahName = getSurahName(verse.surahNumber);
+    const ayahLabel = contentLang === 'ur'
+      ? `آیت ${formatVerseNumber(verse.verseNumber)}`
+      : `Ayah ${verse.verseNumber}`;
+    return `${surahName} • ${ayahLabel}`;
   };
 
   const translationFallback = contentLang === 'ur' ? 'ترجمہ جلد دستیاب ہوگا۔' : 'Translation coming soon.';
@@ -955,6 +987,14 @@ export default function QuranReaderScreen() {
                 <Text style={[styles.performanceHint, N && { color: N.textSub }]}>Using more than 3 tafsir sources may be slower on weak networks.</Text>
               ) : null}
 
+              {contentMode === 'tafsir' && pageAyahMin !== null && pageAyahMax !== null ? (
+                <Text style={[styles.tafsirRangeHint, N && { color: N.textSub }]}>
+                  {contentLang === 'ur'
+                    ? `اس صفحے کی آیات: ${toArabicIndicDigits(pageAyahMin)} - ${toArabicIndicDigits(pageAyahMax)}`
+                    : `This page ayah range: ${pageAyahMin} - ${pageAyahMax}`}
+                </Text>
+              ) : null}
+
               <ScrollView
                 style={styles.contentBodyScroll}
                 contentContainerStyle={styles.contentBodyWrap}
@@ -994,34 +1034,65 @@ export default function QuranReaderScreen() {
                     <Text style={[styles.fallbackText, contentLang === 'ur' && styles.fallbackTextUrdu, N && { color: N.textSub }]}>{translationFallback}</Text>
                   )
                 ) : tafsirBlocks.length > 0 ? (
-                  tafsirBlocks.map((block) => {
-                    const hasRows = visibleVerses.some((verse) => !!block.byVerseKey[verse.verseKey]);
+                  visibleVerses.length === 0 ? (
+                    <Text style={[styles.fallbackText, contentLang === 'ur' && styles.fallbackTextUrdu, N && { color: N.textSub }]}>
+                      {contentLang === 'ur' ? 'یہ آیت اس صفحے پر موجود نہیں ہے۔' : 'This ayah is not on the current page.'}
+                    </Text>
+                  ) : tafsirBlocks.map((block) => {
                     return (
                       <View key={`tf-block-${block.id}`} style={styles.tafsirBlock}>
                         <Text style={[styles.tafsirTitle, contentLang === 'ur' && styles.tafsirTitleUrdu, N && { color: N.text }]}>{block.label}</Text>
-                        {hasRows ? (
-                          visibleVerses.map((verse) => {
-                            const text = block.byVerseKey[verse.verseKey];
-                            if (!text) return null;
-                            return (
-                              <View
-                                key={`tf-row-${block.id}-${verse.verseKey}`}
-                                style={[
-                                  styles.verseRow,
-                                  contentLang === 'ur' && styles.verseRowUrdu,
-                                  N && { borderBottomColor: 'rgba(255,255,255,0.1)' },
-                                ]}
-                              >
-                                <View style={styles.verseNumberPill}>
-                                  <Text style={styles.verseNumberText}>{formatVerseNumber(verse.verseNumber)}</Text>
-                                </View>
-                                <Text style={[styles.verseText, contentLang === 'ur' && styles.verseTextUrdu, N && { color: N.text }]}>{text}</Text>
+                        {visibleVerses.map((verse) => {
+                          const text = block.byVerseKey[verse.verseKey] || tafsirFallback;
+                          const rowKey = `${block.id}:${verse.verseKey}`;
+                          const isExpanded = !!expandedTafsirRows[rowKey];
+                          return (
+                            <TouchableOpacity
+                              key={`tf-row-${block.id}-${verse.verseKey}`}
+                              onPress={() => {
+                                setExpandedTafsirRows((prev) => ({
+                                  ...prev,
+                                  [rowKey]: !prev[rowKey],
+                                }));
+                              }}
+                              activeOpacity={0.85}
+                              style={[
+                                styles.verseRow,
+                                contentLang === 'ur' && styles.verseRowUrdu,
+                                N && { borderBottomColor: 'rgba(255,255,255,0.1)' },
+                              ]}
+                            >
+                              <View style={styles.verseNumberPill}>
+                                <Text style={styles.verseNumberText}>{formatVerseNumber(verse.verseNumber)}</Text>
                               </View>
-                            );
-                          })
-                        ) : (
-                          <Text style={[styles.fallbackText, contentLang === 'ur' && styles.fallbackTextUrdu, N && { color: N.textSub }]}>{tafsirFallback}</Text>
-                        )}
+                              <View style={{ flex: 1 }}>
+                                <View style={styles.tafsirRowHeader}>
+                                  <Text
+                                    style={[
+                                      styles.tafsirVerseMeta,
+                                      contentLang === 'ur' && styles.tafsirVerseMetaUrdu,
+                                      N && { color: N.textSub },
+                                    ]}
+                                  >
+                                    {getTafsirVerseMeta(verse)}
+                                  </Text>
+                                  <View style={[styles.tafsirCollapseBadge, N && { borderColor: N.border }]}> 
+                                    <Text style={[styles.tafsirCollapseBadgeText, N && { color: N.textSub }]}>{isExpanded ? '-' : '+'}</Text>
+                                  </View>
+                                </View>
+                                <Text
+                                  numberOfLines={isExpanded ? undefined : 2}
+                                  style={[styles.verseText, contentLang === 'ur' && styles.verseTextUrdu, N && { color: N.text }]}
+                                >
+                                  {text}
+                                </Text>
+                                {!isExpanded ? (
+                                  <Text style={[styles.tafsirTapHint, N && { color: N.textSub }]}>Tap to expand</Text>
+                                ) : null}
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        })}
                       </View>
                     );
                   })
@@ -1317,6 +1388,13 @@ const styles = StyleSheet.create({
     color: '#557767',
     fontWeight: '600',
   },
+  tafsirRangeHint: {
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#557767',
+  },
   contentBodyScroll: {
     flex: 1,
   },
@@ -1415,4 +1493,47 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     letterSpacing: 0,
   } as any,
+  tafsirVerseMeta: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#4B5563',
+    marginBottom: 4,
+  },
+  tafsirVerseMetaUrdu: {
+    writingDirection: 'rtl',
+    textAlign: 'right',
+    fontFamily: 'UrduNastaliq',
+    fontSize: 17,
+    lineHeight: 26,
+    letterSpacing: 0,
+  } as any,
+  tafsirRowHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  tafsirCollapseBadge: {
+    borderWidth: 1,
+    borderColor: '#C7D8CE',
+    borderRadius: 999,
+    minWidth: 22,
+    height: 22,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FCF9',
+  },
+  tafsirCollapseBadgeText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#3E5F4D',
+    lineHeight: 16,
+  },
+  tafsirTapHint: {
+    marginTop: 4,
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
 });

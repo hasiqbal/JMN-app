@@ -2647,15 +2647,31 @@ export default function HomeScreen() {
     return translateTextToUrdu(source);
   }, [activeSheetText]);
 
-  const openQuranReminderTafsir = useCallback((languageMode: 'english' | 'urdu') => {
-    if (!dailyQuran?.verseKey) {
+  const openQuranReminderTafsir = useCallback(async (languageMode: 'english' | 'urdu') => {
+    const targetVerseKey = (dailyQuran?.contextVerseKeys?.[0] ?? dailyQuran?.verseKey ?? '').trim();
+    if (!targetVerseKey) {
       router.push('/(tabs)/quran' as any);
       return;
     }
 
-    const reminderPage = Number.isFinite(dailyQuran.pageNumber)
+    let reminderPage = Number.isFinite(dailyQuran?.pageNumber)
       ? Math.max(0, Math.floor(dailyQuran.pageNumber) - 1)
       : 0;
+
+    try {
+      const response = await fetch(
+        `https://api.quran.com/api/v4/verses/by_key/${encodeURIComponent(targetVerseKey)}?fields=page_number&language=en`
+      );
+      if (response.ok) {
+        const payload = await response.json();
+        const resolvedPage = Number(payload?.verse?.page_number);
+        if (Number.isFinite(resolvedPage) && resolvedPage >= 1) {
+          reminderPage = Math.max(0, resolvedPage - 1);
+        }
+      }
+    } catch {
+      // Use fallback reminder page when page lookup is unavailable.
+    }
 
     setActiveSacredPanel(null);
     router.push({
@@ -2666,7 +2682,7 @@ export default function HomeScreen() {
         contentMode: 'tafsir',
         contentLang: languageMode === 'urdu' ? 'ur' : 'en',
         openContentPanel: '1',
-        verseKey: dailyQuran.verseKey,
+        verseKey: targetVerseKey,
       },
     } as any);
   }, [dailyQuran, router]);
@@ -3341,7 +3357,7 @@ export default function HomeScreen() {
             }
           : undefined
       }
-      secondaryFooterActionLabel={activeSacredPanel === 'verse' ? 'Read Tafsir of this Ayah' : undefined}
+      secondaryFooterActionLabel={activeSacredPanel === 'verse' ? 'Tafsir' : undefined}
       onSecondaryFooterAction={activeSacredPanel === 'verse' ? openQuranReminderTafsir : undefined}
       onClose={() => setActiveSacredPanel(null)}
       nightMode={nightMode}
