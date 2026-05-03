@@ -2647,7 +2647,7 @@ export default function HomeScreen() {
     return translateTextToUrdu(source);
   }, [activeSheetText]);
 
-  const openQuranReminderTafsir = useCallback(() => {
+  const openQuranReminderTafsir = useCallback((languageMode: 'english' | 'urdu') => {
     if (!dailyQuran?.verseKey) {
       router.push('/(tabs)/quran' as any);
       return;
@@ -2664,6 +2664,7 @@ export default function HomeScreen() {
         startPage: String(reminderPage),
         endPage: String(reminderPage),
         contentMode: 'tafsir',
+        contentLang: languageMode === 'urdu' ? 'ur' : 'en',
         openContentPanel: '1',
         verseKey: dailyQuran.verseKey,
       },
@@ -3330,7 +3331,7 @@ export default function HomeScreen() {
       secondaryText={activeSheetArabic}
       showUrduToggle={activeSacredPanel !== null}
       onRequestUrduText={activeSacredPanel ? requestActiveSheetUrduText : undefined}
-      footerActionLabel={activeSacredPanel === 'hadith' ? 'Open full Hadith' : activeSacredPanel === 'verse' ? 'Open full Verse' : undefined}
+      footerActionLabel={activeSacredPanel === 'hadith' ? 'Open full Hadith' : undefined}
       onFooterAction={
         activeSacredPanel
           ? () => {

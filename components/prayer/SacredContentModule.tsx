@@ -46,7 +46,7 @@ export type SacredReadingSheetProps = {
   footerActionLabel?: string;
   onFooterAction?: () => void;
   secondaryFooterActionLabel?: string;
-  onSecondaryFooterAction?: () => void;
+  onSecondaryFooterAction?: (languageMode: 'english' | 'urdu') => void;
   onClose: () => void;
   nightMode?: boolean;
 };
@@ -546,7 +546,7 @@ export function SacredReadingSheet({
 
           {!!secondaryFooterActionLabel && !!onSecondaryFooterAction && (
             <Pressable
-              onPress={onSecondaryFooterAction}
+              onPress={() => onSecondaryFooterAction(languageMode)}
               style={({ pressed }) => [styles.sheetFooterAction, pressed && styles.sheetFooterActionPressed]}
             >
               <Text style={[styles.sheetFooterActionText, { color: palette.sheetSubText }]}>{secondaryFooterActionLabel}</Text>

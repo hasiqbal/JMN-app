@@ -198,6 +198,10 @@ export default function QuranReaderScreen() {
     const raw = toText(params.contentMode).toLowerCase();
     return raw === 'tafsir' || raw === 'translation' ? raw : null;
   }, [params.contentMode]);
+  const initialContentLang = useMemo<ContentLanguage | null>(() => {
+    const raw = toText(params.contentLang).toLowerCase();
+    return raw === 'ur' || raw === 'en' ? raw : null;
+  }, [params.contentLang]);
   const openContentPanelParam = useMemo(() => {
     const raw = toText(params.openContentPanel).toLowerCase();
     return raw === '1' || raw === 'true' || raw === 'yes';
@@ -435,7 +439,10 @@ export default function QuranReaderScreen() {
     if (initialContentMode) {
       setContentMode(initialContentMode);
     }
-  }, [initialContentMode, openContentPanelParam]);
+    if (initialContentLang) {
+      setContentLang(initialContentLang);
+    }
+  }, [initialContentLang, initialContentMode, openContentPanelParam]);
 
   useEffect(() => {
     const intervalId = setInterval(() => {
