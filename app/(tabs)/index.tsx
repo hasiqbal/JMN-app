@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { MaterialIcons } from '@expo/vector-icons';
+import Clipboard from '@react-native-clipboard/clipboard';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -2180,10 +2181,41 @@ export default function HomeScreen() {
   const prayerSheetRef = useRef<BottomSheet>(null);
   const [dailySunnah, setDailySunnah] = useState<DailySunnahResult | null>(null);
   const [dailyQuran, setDailyQuran] = useState<DailyQuranResult | null>(null);
+  const [dailySunnahTraceLines, setDailySunnahTraceLines] = useState<string[]>([]);
 
   const refreshDailySunnah = useCallback((forceRefresh = false) => {
-    void fetchDailySunnah({ forceRefresh }).then((result) => {
-      if (result) setDailySunnah(result);
+    setDailySunnahTraceLines([]);
+    void fetchDailySunnah({
+      forceRefresh,
+      onTrace: (event, payload) => {
+        const stamp = new Date().toLocaleTimeString();
+        let details = '';
+        if (payload) {
+          try {
+            const serialized = JSON.stringify(payload);
+            details = serialized.length > 260
+              ? ` ${serialized.slice(0, 260)}...`
+              : ` ${serialized}`;
+          } catch {
+            details = ' [payload-unserializable]';
+          }
+        }
+        const line = `${stamp} ${event}${details}`;
+        setDailySunnahTraceLines((prev) => [...prev.slice(-11), line]);
+      },
+    }).then((result) => {
+      if (__DEV__) {
+        console.log('[Home][dailySunnah][trace] refresh result', {
+          forceRefresh,
+          hasResult: !!result,
+          previewLen: result?.preview?.length ?? 0,
+          textLen: result?.text?.length ?? 0,
+          source: result?.ref ?? '',
+        });
+      }
+      if (result) {
+        setDailySunnah(result);
+      }
     });
   }, []);
 
@@ -2259,6 +2291,30 @@ export default function HomeScreen() {
       if (midnightTimer) clearTimeout(midnightTimer);
     };
   }, [refreshDailyQuran, refreshDailySunnah]);
+
+  useEffect(() => {
+    let slotTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleNextSlotRefresh = () => {
+      const now = new Date();
+      const nextSlot = new Date(now);
+      const currentUtcHour = now.getUTCHours();
+      const nextBoundaryHour = (Math.floor(currentUtcHour / 8) + 1) * 8;
+      nextSlot.setUTCHours(nextBoundaryHour, 0, 5, 0);
+      const delay = Math.max(1000, nextSlot.getTime() - now.getTime());
+
+      slotTimer = setTimeout(() => {
+        refreshDailySunnah(true);
+        scheduleNextSlotRefresh();
+      }, delay);
+    };
+
+    scheduleNextSlotRefresh();
+
+    return () => {
+      if (slotTimer) clearTimeout(slotTimer);
+    };
+  }, [refreshDailySunnah]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
@@ -2589,12 +2645,21 @@ export default function HomeScreen() {
   const hadithTitleUrdu = 'روزانہ سنت یاددہانی';
   const hadithPreview = dailySunnah?.preview ?? '';
   const hadithPreviewUrdu = '';
-  const hadithSource = dailySunnah?.ref ?? '';
+  const hadithSource = dailySunnah?.sourceUrl ?? dailySunnah?.ref ?? '';
   const hadithArabic = dailySunnah?.arabic ?? '';
+  const hadithNarrator = dailySunnah?.narrator?.trim() ?? '';
+  const hadithText = dailySunnah?.text?.trim() ?? '';
+  const textAlreadyHasNarrator = !!(
+    hadithNarrator
+    && hadithText
+    && hadithText.toLowerCase().startsWith(hadithNarrator.toLowerCase())
+  );
   const hadithFullText = dailySunnah
-    ? dailySunnah.narrator
-      ? `${dailySunnah.narrator}\n\n${dailySunnah.text}`
-      : dailySunnah.text
+    ? hadithNarrator
+      ? textAlreadyHasNarrator
+        ? hadithText
+        : `${hadithNarrator}\n\n${hadithText}`
+      : hadithText
     : 'Open full Hadith to read the reminder.';
 
   const verseTitle = 'Daily Quran Reminder';
@@ -3309,6 +3374,98 @@ export default function HomeScreen() {
                 isLoading={false}
                 nightMode={nightMode}
               />
+
+              {__DEV__ && (
+                <View
+                  style={{
+                    marginTop: 10,
+                    borderRadius: 10,
+                    borderWidth: 1,
+                    borderColor: 'rgba(60,140,110,0.35)',
+                    backgroundColor: nightMode ? 'rgba(20,40,36,0.55)' : 'rgba(231,245,238,0.9)',
+                    paddingHorizontal: 10,
+                    paddingVertical: 8,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontWeight: '700',
+                      color: nightMode ? '#DCEEE4' : '#1E5A43',
+                      marginBottom: 4,
+                    }}
+                  >
+                    Daily Sunnah Trace (DEV)
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 6 }}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        const text = dailySunnahTraceLines.join('\n').trim();
+                        if (!text) {
+                          Alert.alert('No trace yet', 'Run a refresh and try again.');
+                          return;
+                        }
+                        Clipboard.setString(text);
+                        Alert.alert('Copied', 'Daily Sunnah trace copied to clipboard.');
+                      }}
+                      style={{
+                        paddingHorizontal: 10,
+                        paddingVertical: 5,
+                        borderRadius: 7,
+                        borderWidth: 1,
+                        borderColor: nightMode ? 'rgba(220,238,228,0.35)' : 'rgba(30,90,67,0.3)',
+                        backgroundColor: nightMode ? 'rgba(220,238,228,0.08)' : 'rgba(255,255,255,0.7)',
+                      }}
+                    >
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: nightMode ? '#DCEEE4' : '#1E5A43' }}>
+                        Copy Trace
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={() => refreshDailySunnah(true)}
+                      style={{
+                        paddingHorizontal: 10,
+                        paddingVertical: 5,
+                        borderRadius: 7,
+                        borderWidth: 1,
+                        borderColor: nightMode ? 'rgba(220,238,228,0.35)' : 'rgba(30,90,67,0.3)',
+                        backgroundColor: nightMode ? 'rgba(220,238,228,0.08)' : 'rgba(255,255,255,0.7)',
+                      }}
+                    >
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: nightMode ? '#DCEEE4' : '#1E5A43' }}>
+                        Refresh Trace
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  {dailySunnahTraceLines.length === 0 ? (
+                    <Text style={{ fontSize: 10, color: nightMode ? '#BFD5C8' : '#3F6B59' }}>
+                      Waiting for trace events...
+                    </Text>
+                  ) : (
+                    <ScrollView
+                      style={{ maxHeight: 120 }}
+                      contentContainerStyle={{ paddingBottom: 2 }}
+                      nestedScrollEnabled
+                    >
+                      {dailySunnahTraceLines.map((line, idx) => (
+                        <Text
+                          key={`${idx}-${line.slice(0, 20)}`}
+                          selectable
+                          style={{
+                            fontSize: 10,
+                            lineHeight: 14,
+                            color: nightMode ? '#CDE4D8' : '#2E5D49',
+                            marginBottom: 2,
+                          }}
+                        >
+                          {line}
+                        </Text>
+                      ))}
+                    </ScrollView>
+                  )}
+                </View>
+              )}
             </View>
 
             <View style={styles.forYouFadeZone}>

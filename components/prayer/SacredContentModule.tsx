@@ -75,6 +75,8 @@ const DAY = {
   sheetArabic: '#2E614A',
   sheetHandle: 'rgba(44, 106, 80, 0.35)',
   overlay: 'rgba(0, 0, 0, 0.36)',
+  tileBadgeBg: 'rgba(44, 106, 80, 0.10)',
+  tileBadgeText: '#2E614A',
 };
 
 const NIGHT = {
@@ -101,6 +103,8 @@ const NIGHT = {
   sheetArabic: '#D8EBDD',
   sheetHandle: 'rgba(203, 221, 214, 0.4)',
   overlay: 'rgba(0, 0, 0, 0.42)',
+  tileBadgeBg: 'rgba(216, 235, 221, 0.10)',
+  tileBadgeText: '#D8EBDD',
 };
 
 function getPalette(nightMode?: boolean) {
@@ -267,13 +271,16 @@ export function SacredContentModule({
                   </Text>
                 </View>
                 {!!hadithPreviewSafe && (
-                  <Text style={[styles.tileHint, { color: palette.reference }]} numberOfLines={2}>{hadithPreviewSafe}</Text>
+                  <Text style={[styles.tileHint, { color: palette.reference }]} numberOfLines={4}>{hadithPreviewSafe}</Text>
                 )}
                 {!!hadithPreviewUrduSafe && (
-                  <Text style={[styles.tileHintUrdu, { color: palette.sheetSubText }]} numberOfLines={1}>{hadithPreviewUrduSafe}</Text>
+                  <Text style={[styles.tileHintUrdu, { color: palette.sheetSubText }]} numberOfLines={2}>{hadithPreviewUrduSafe}</Text>
                 )}
                 {!!hadithSourceSafe && (
-                  <Text style={[styles.tileSource, { color: palette.reference }]} numberOfLines={1}>{hadithSourceSafe}</Text>
+                  <View style={[styles.tileSourcePill, { backgroundColor: palette.tileBadgeBg }]}>
+                    <MaterialIcons name="link" size={12} color={palette.tileBadgeText} />
+                    <Text style={[styles.tileSource, { color: palette.tileBadgeText }]} numberOfLines={1}>{hadithSourceSafe}</Text>
+                  </View>
                 )}
                 {!!hadithDisplayHint && (
                   <Text
@@ -313,13 +320,16 @@ export function SacredContentModule({
                   </Text>
                 </View>
                 {!!versePreviewSafe && (
-                  <Text style={[styles.tileHint, { color: palette.reference }]} numberOfLines={2}>{versePreviewSafe}</Text>
+                  <Text style={[styles.tileHint, { color: palette.reference }]} numberOfLines={4}>{versePreviewSafe}</Text>
                 )}
                 {!!versePreviewUrduSafe && (
-                  <Text style={[styles.tileHintUrdu, { color: palette.sheetSubText }]} numberOfLines={1}>{versePreviewUrduSafe}</Text>
+                  <Text style={[styles.tileHintUrdu, { color: palette.sheetSubText }]} numberOfLines={2}>{versePreviewUrduSafe}</Text>
                 )}
                 {!!verseReferenceSafe && (
-                  <Text style={[styles.tileSource, { color: palette.reference }]} numberOfLines={1}>{verseReferenceSafe}</Text>
+                  <View style={[styles.tileSourcePill, { backgroundColor: palette.tileBadgeBg }]}>
+                    <MaterialIcons name="link" size={12} color={palette.tileBadgeText} />
+                    <Text style={[styles.tileSource, { color: palette.tileBadgeText }]} numberOfLines={1}>{verseReferenceSafe}</Text>
+                  </View>
                 )}
                 {!!verseDisplayHint && (
                   <Text
@@ -364,12 +374,14 @@ export function SacredReadingSheet({
   const [languageMode, setLanguageMode] = React.useState<'english' | 'urdu'>('english');
   const [resolvedUrduText, setResolvedUrduText] = React.useState('');
   const [translatingUrdu, setTranslatingUrdu] = React.useState(false);
+  const [textScale, setTextScale] = React.useState(1);
 
   React.useEffect(() => {
     if (!visible) return;
     setLanguageMode('english');
     setResolvedUrduText('');
     setTranslatingUrdu(false);
+    setTextScale(1);
   }, [visible, title, fullText]);
 
   const supportsUrduToggle = showUrduToggle === true && !!onRequestUrduText;
@@ -382,6 +394,14 @@ export function SacredReadingSheet({
     .split(/\n{2,}/)
     .map((segment) => segment.trim())
     .filter(Boolean);
+
+  const clampedTextScale = Math.max(0.9, Math.min(1.3, textScale));
+  const bodyFontSize = 16 * clampedTextScale;
+  const bodyLineHeight = 27 * clampedTextScale;
+  const urduFontSize = 24 * clampedTextScale;
+  const urduLineHeight = 40 * clampedTextScale;
+  const arabicFontSize = 23 * clampedTextScale;
+  const arabicLineHeight = 38 * clampedTextScale;
 
   const handleSelectEnglish = React.useCallback(() => {
     setLanguageMode('english');
@@ -453,7 +473,14 @@ export function SacredReadingSheet({
             nestedScrollEnabled
             keyboardShouldPersistTaps="handled"
           >
-            <Text style={[styles.sheetReference, { color: palette.sheetSubText }]}>{reference}</Text>
+            {!!reference?.trim() && (
+              <View style={[styles.sheetReferenceChip, { borderColor: palette.sheetBorder, backgroundColor: palette.segmentedBg }]}>
+                <MaterialIcons name="link" size={13} color={palette.sheetSubText} />
+                <Text style={[styles.sheetReference, { color: palette.sheetSubText }]} numberOfLines={2}>
+                  {reference}
+                </Text>
+              </View>
+            )}
 
             {supportsUrduToggle && (
               <View style={[styles.sheetLanguageToggle, { borderColor: palette.sheetBorder, backgroundColor: palette.segmentedBg }]}>
@@ -516,37 +543,112 @@ export function SacredReadingSheet({
               </View>
             )}
 
-            {sheetSegments.length > 0 ? (
-              sheetSegments.map((segment, index) => {
-                const segmentIsUrdu = hasUrduGlyphs(segment);
-                return (
-                  <Text
-                    key={`${segment.slice(0, 24)}-${index}`}
-                    style={[
-                      styles.sheetBodyText,
-                      { color: palette.sheetText },
-                      segmentIsUrdu && styles.sheetBodyTextUrdu,
-                    ]}
-                  >
-                    {segment}
-                  </Text>
-                );
-              })
-            ) : (
-              <Text style={[styles.sheetBodyText, { color: palette.sheetText }]}>{displayText}</Text>
-            )}
+            <View style={styles.sheetReaderControlsRow}>
+              <Text style={[styles.sheetReaderControlsLabel, { color: palette.sheetSubText }]}>Text size</Text>
+              <View style={styles.sheetReaderControlsButtons}>
+                <Pressable
+                  onPress={() => setTextScale((prev) => Math.max(0.9, Number((prev - 0.1).toFixed(2))))}
+                  style={[styles.sheetReaderControlBtn, { borderColor: palette.sheetBorder, backgroundColor: palette.segmentedBg }]}
+                >
+                  <Text style={[styles.sheetReaderControlBtnText, { color: palette.segmentedText }]}>A-</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setTextScale((prev) => Math.min(1.3, Number((prev + 0.1).toFixed(2))))}
+                  style={[styles.sheetReaderControlBtn, { borderColor: palette.sheetBorder, backgroundColor: palette.segmentedBg }]}
+                >
+                  <Text style={[styles.sheetReaderControlBtnText, { color: palette.segmentedText }]}>A+</Text>
+                </Pressable>
+              </View>
+            </View>
+
+            <Text style={[styles.sheetSectionLabel, { color: palette.sheetSubText }]}>Reading</Text>
+
+            <View style={[styles.sheetParagraphCard, { borderColor: palette.sheetBorder, backgroundColor: palette.segmentedBg }]}>
+              {sheetSegments.length > 0 ? (
+                sheetSegments.map((segment, index) => {
+                  const segmentIsUrdu = hasUrduGlyphs(segment);
+                  return (
+                    <Text
+                      key={`${segment.slice(0, 24)}-${index}`}
+                      style={[
+                        styles.sheetBodyText,
+                        {
+                          color: palette.sheetText,
+                          fontSize: bodyFontSize,
+                          lineHeight: bodyLineHeight,
+                          marginBottom: index === sheetSegments.length - 1 ? 0 : 12,
+                        },
+                        segmentIsUrdu && styles.sheetBodyTextUrdu,
+                        segmentIsUrdu && {
+                          fontSize: urduFontSize,
+                          lineHeight: urduLineHeight,
+                        },
+                      ]}
+                    >
+                      {segment}
+                    </Text>
+                  );
+                })
+              ) : (
+                <Text
+                  style={[
+                    styles.sheetBodyText,
+                    {
+                      color: palette.sheetText,
+                      fontSize: bodyFontSize,
+                      lineHeight: bodyLineHeight,
+                      marginBottom: 0,
+                    },
+                  ]}
+                >
+                  {displayText}
+                </Text>
+              )}
+            </View>
 
             {arabicSegments.length > 0 ? (
-              arabicSegments.map((segment, index) => (
-                <Text
-                  key={`arabic-${segment.slice(0, 24)}-${index}`}
-                  style={[styles.sheetArabicText, { color: palette.sheetArabic }]}
-                >
-                  {segment}
-                </Text>
-              ))
+              <>
+                <Text style={[styles.sheetSectionLabel, { color: palette.sheetSubText }]}>Arabic</Text>
+                <View style={[styles.sheetArabicCard, { borderColor: palette.sheetBorder, backgroundColor: palette.segmentedBg }]}>
+                  {arabicSegments.map((segment, index) => (
+                    <Text
+                      key={`arabic-${segment.slice(0, 24)}-${index}`}
+                      style={[
+                        styles.sheetArabicText,
+                        {
+                          color: palette.sheetArabic,
+                          fontSize: arabicFontSize,
+                          lineHeight: arabicLineHeight,
+                          marginTop: 0,
+                          marginBottom: index === arabicSegments.length - 1 ? 0 : 10,
+                        },
+                      ]}
+                    >
+                      {segment}
+                    </Text>
+                  ))}
+                </View>
+              </>
             ) : !!secondaryText?.trim() ? (
-              <Text style={[styles.sheetArabicText, { color: palette.sheetArabic }]}>{secondaryText.trim()}</Text>
+              <>
+                <Text style={[styles.sheetSectionLabel, { color: palette.sheetSubText }]}>Arabic</Text>
+                <View style={[styles.sheetArabicCard, { borderColor: palette.sheetBorder, backgroundColor: palette.segmentedBg }]}>
+                  <Text
+                    style={[
+                      styles.sheetArabicText,
+                      {
+                        color: palette.sheetArabic,
+                        fontSize: arabicFontSize,
+                        lineHeight: arabicLineHeight,
+                        marginTop: 0,
+                        marginBottom: 0,
+                      },
+                    ]}
+                  >
+                    {secondaryText.trim()}
+                  </Text>
+                </View>
+              </>
             ) : null}
           </ScrollView>
 
@@ -583,9 +685,9 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   moduleHeaderText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '800',
-    letterSpacing: 1.2,
+    letterSpacing: 1,
     textTransform: 'uppercase',
   },
   shell: {
@@ -608,17 +710,17 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   tileGrid: {
-    flexDirection: 'row',
-    gap: 6,
+    flexDirection: 'column',
+    gap: 10,
   },
   tile: {
-    flex: 1,
+    width: '100%',
     borderWidth: 1,
-    borderRadius: Radius.md,
-    paddingHorizontal: 10,
-    paddingTop: 9,
-    paddingBottom: 9,
-    minHeight: 112,
+    borderRadius: Radius.lg,
+    paddingHorizontal: 13,
+    paddingTop: 12,
+    paddingBottom: 12,
+    minHeight: 138,
     justifyContent: 'flex-start',
   },
   tilePressed: {
@@ -631,9 +733,9 @@ const styles = StyleSheet.create({
   },
   tileTitle: {
     flex: 1,
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '700',
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: '800',
     flexShrink: 1,
   },
   tileTitleUrdu: {
@@ -645,32 +747,43 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   tileHint: {
-    marginTop: 4,
-    fontSize: 12,
-    lineHeight: 16,
+    marginTop: 7,
+    fontSize: 14,
+    lineHeight: 21,
     fontWeight: '500',
   },
   tileHintUrdu: {
-    marginTop: 3,
-    fontSize: 15,
-    lineHeight: 20,
+    marginTop: 6,
+    fontSize: 18,
+    lineHeight: 28,
     fontFamily: 'UrduNastaliqBold',
     writingDirection: 'rtl',
     textAlign: 'right',
   },
+  tileSourcePill: {
+    marginTop: 8,
+    borderRadius: Radius.full,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+  },
   tileSource: {
-    marginTop: 4,
     fontSize: 11,
-    lineHeight: 15,
-    fontWeight: '600',
+    lineHeight: 14,
+    fontWeight: '700',
+    flexShrink: 1,
   },
   tileAction: {
     marginTop: 'auto',
-    paddingTop: 10,
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '600',
-    letterSpacing: 0.2,
+    paddingTop: 12,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   tileActionUrdu: {
     marginTop: 'auto',
@@ -730,14 +843,14 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
   sheet: {
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
     borderWidth: 1,
     borderBottomWidth: 0,
-    maxHeight: '92%',
-    minHeight: '62%',
-    paddingHorizontal: Spacing.md,
-    paddingTop: 8,
+    maxHeight: '95%',
+    minHeight: '68%',
+    paddingHorizontal: 18,
+    paddingTop: 10,
     paddingBottom: 14,
   },
   sheetHandle: {
@@ -751,13 +864,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingBottom: 10,
+    paddingBottom: 12,
   },
   sheetTitle: {
     flex: 1,
-    fontSize: 18,
-    lineHeight: 24,
-    fontWeight: '400',
+    fontSize: 21,
+    lineHeight: 28,
+    fontWeight: '700',
   },
   sheetCloseButton: {
     width: 32,
@@ -772,19 +885,29 @@ const styles = StyleSheet.create({
     minHeight: 220,
   },
   sheetBodyContent: {
-    paddingBottom: 12,
+    paddingBottom: 18,
   },
   sheetReference: {
-    fontSize: 13,
-    lineHeight: 19,
+    fontSize: 12,
+    lineHeight: 17,
     fontWeight: '400',
+    flex: 1,
+  },
+  sheetReferenceChip: {
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     marginBottom: 12,
   },
   sheetLanguageToggle: {
     borderWidth: 1,
-    borderRadius: Radius.full,
-    padding: 3,
-    marginBottom: 12,
+    borderRadius: 14,
+    padding: 4,
+    marginBottom: 14,
     flexDirection: 'row',
     gap: 4,
   },
@@ -805,6 +928,60 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  sheetReaderControlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  sheetReaderControlsLabel: {
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+    textTransform: 'uppercase',
+  },
+  sheetReaderControlsButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sheetReaderControlBtn: {
+    minWidth: 42,
+    borderWidth: 1,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  sheetReaderControlBtnText: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+  },
+  sheetSectionLabel: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 9,
+  },
+  sheetParagraphCard: {
+    borderWidth: 1,
+    borderRadius: Radius.lg,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    marginBottom: 12,
+  },
+  sheetArabicCard: {
+    borderWidth: 1,
+    borderRadius: Radius.lg,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 12,
   },
   sheetArabicText: {
     fontSize: 23,
