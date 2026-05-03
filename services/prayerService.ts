@@ -150,7 +150,7 @@ function buildPrayerTimesData(raw: DayTimetable, target: Date): PrayerTimesData 
   const tomorrowRaw = lookupTimetable(tomorrow);
 
   const ishraqTime = raw.ishraq;
-  const zawaalTime = raw.zawaal ?? subtractMinutes(raw.dhuhr, 30);
+  const zawaalTime = raw.zawaal ?? subtractMinutes(raw.dhuhr, 15);
 
   const prayers: PrayerTime[] = [
     {
@@ -181,7 +181,7 @@ function buildPrayerTimesData(raw: DayTimetable, target: Date): PrayerTimesData 
       time: zawaalTime,
       iqamah: '-',
       timeDate: parseTimeStr(zawaalTime, target),
-      tomorrowTime: tomorrowRaw ? (tomorrowRaw.zawaal ?? subtractMinutes(tomorrowRaw.dhuhr, 30)) : undefined,
+      tomorrowTime: tomorrowRaw ? (tomorrowRaw.zawaal ?? subtractMinutes(tomorrowRaw.dhuhr, 15)) : undefined,
       isSpecial: true,
     },
     {

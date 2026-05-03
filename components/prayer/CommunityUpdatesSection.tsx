@@ -1,8 +1,6 @@
 import React from 'react';
 import { MaterialIcons } from '@expo/vector-icons';
 import {
-  Animated,
-  Easing,
   Platform,
   Pressable,
   StyleSheet,
@@ -60,6 +58,8 @@ const NIGHT = {
   emptyTitle: '#DCE7F6',
   emptyBody: '#9CB0CB',
 };
+
+const ANNOUNCEMENT_ROTATE_MS = 5000;
 
 type BadgeTone = {
   bg: string;
@@ -186,43 +186,45 @@ export function AnnouncementListCard({
 }) {
   const N = nightMode ? NIGHT : null;
   const [activeIndex, setActiveIndex] = React.useState(0);
-  const [incomingIndex, setIncomingIndex] = React.useState<number | null>(null);
   const activeIndexRef = React.useRef(0);
-  const isAnimatingRef = React.useRef(false);
-  const flipAnim = React.useRef(new Animated.Value(0)).current;
+  const activeItemIdRef = React.useRef<string | null>(null);
+  const itemSignature = React.useMemo(() => items.map((item) => item.id).join('|'), [items]);
 
   React.useEffect(() => {
     activeIndexRef.current = activeIndex;
-  }, [activeIndex]);
+    const safeIndex = Math.min(activeIndex, Math.max(0, items.length - 1));
+    activeItemIdRef.current = items[safeIndex]?.id ?? null;
+  }, [activeIndex, items]);
 
   React.useEffect(() => {
-    setActiveIndex(0);
-    setIncomingIndex(null);
-    activeIndexRef.current = 0;
-    isAnimatingRef.current = false;
-    flipAnim.setValue(0);
-  }, [flipAnim, items]);
+    const currentItems = items;
 
-  const animateToIndex = React.useCallback((nextIndex: number) => {
-    if (nextIndex === activeIndexRef.current || isAnimatingRef.current) return;
+    if (currentItems.length === 0) {
+      setActiveIndex(0);
+      activeIndexRef.current = 0;
+      activeItemIdRef.current = null;
+      return;
+    }
 
-    isAnimatingRef.current = true;
-    setIncomingIndex(nextIndex);
-    flipAnim.setValue(0);
+    const activeId = activeItemIdRef.current;
+    const preservedIndex = activeId ? currentItems.findIndex((item) => item.id === activeId) : -1;
+    const nextIndex = preservedIndex >= 0 ? preservedIndex : 0;
 
-    Animated.timing(flipAnim, {
-      toValue: 1,
-      duration: 460,
-      easing: Easing.inOut(Easing.cubic),
-      useNativeDriver: true,
-    }).start(() => {
+    if (nextIndex !== activeIndexRef.current) {
       setActiveIndex(nextIndex);
       activeIndexRef.current = nextIndex;
-      setIncomingIndex(null);
-      flipAnim.setValue(0);
-      isAnimatingRef.current = false;
-    });
-  }, [flipAnim]);
+      activeItemIdRef.current = currentItems[nextIndex]?.id ?? null;
+    }
+  }, [itemSignature, items]);
+
+  const animateToIndex = React.useCallback((nextIndex: number) => {
+    if (items.length === 0) return;
+    const boundedIndex = ((nextIndex % items.length) + items.length) % items.length;
+    if (boundedIndex === activeIndexRef.current) return;
+
+    setActiveIndex(boundedIndex);
+    activeIndexRef.current = boundedIndex;
+  }, [items.length]);
 
   React.useEffect(() => {
     if (isLoading || items.length <= 1) return;
@@ -230,7 +232,7 @@ export function AnnouncementListCard({
     const interval = setInterval(() => {
       const next = (activeIndexRef.current + 1) % items.length;
       animateToIndex(next);
-    }, 4500);
+    }, ANNOUNCEMENT_ROTATE_MS);
 
     return () => clearInterval(interval);
   }, [animateToIndex, isLoading, items.length]);
@@ -263,82 +265,12 @@ export function AnnouncementListCard({
   }
 
   const activeItem = items[Math.min(activeIndex, items.length - 1)];
-  const nextItem = incomingIndex === null ? null : items[Math.min(incomingIndex, items.length - 1)];
-
-  const outgoingOpacity = flipAnim.interpolate({
-    inputRange: [0, 0.45, 1],
-    outputRange: [1, 0.35, 0],
-  });
-  const incomingOpacity = flipAnim.interpolate({
-    inputRange: [0, 0.55, 1],
-    outputRange: [0, 0.4, 1],
-  });
 
   return (
     <View style={[styles.card, N && { backgroundColor: N.cardBg, borderColor: N.cardBorder }]}> 
-      <Animated.View
-        style={[
-          styles.animatedRowWrap,
-          {
-            transform: [{ perspective: 1300 }],
-          },
-        ]}
-      >
-        <Animated.View
-          pointerEvents={nextItem ? 'none' : 'auto'}
-          style={[
-            styles.flipFace,
-            {
-              opacity: outgoingOpacity,
-              transform: [
-                {
-                  rotateY: flipAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: ['0deg', '88deg'],
-                  }),
-                },
-                {
-                  scale: flipAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [1, 0.97],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <AnnouncementRow item={activeItem} nightMode={nightMode} onPress={onPressItem} />
-        </Animated.View>
-
-        {nextItem ? (
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.flipFace,
-              styles.flipFaceOverlay,
-              {
-                opacity: incomingOpacity,
-                transform: [
-                  {
-                    rotateY: flipAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: ['-88deg', '0deg'],
-                    }),
-                  },
-                  {
-                    scale: flipAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.97, 1],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            <AnnouncementRow item={nextItem} nightMode={nightMode} onPress={onPressItem} />
-          </Animated.View>
-        ) : null}
-      </Animated.View>
+      <View style={styles.animatedRowWrap}>
+        <AnnouncementRow item={activeItem} nightMode={nightMode} onPress={onPressItem} />
+      </View>
       {items.length > 1 ? (
         <View style={styles.paginationRow}>
           {items.map((item, idx) => {

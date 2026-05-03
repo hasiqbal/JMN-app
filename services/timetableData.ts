@@ -406,15 +406,15 @@ function addMinsToTimeStr(timeStr: string, mins: number): string {
 const TIMETABLE: Record<string, DayTimetable> = {};
 for (const row of RAW) {
   const [date, fajr, sunrise, dhuhr, asr, maghrib, isha, jumuah, hijri, iqFajr, iqDhuhr, iqAsr, iqMaghrib, iqIsha] = row;
-  // Ishraq hardcoded as sunrise + 20 min; Zawaal as dhuhr - 30 min
+  // Ishraq hardcoded as sunrise + 20 min; Zawaal as dhuhr - 15 min
   // (fallback values — DB values take precedence in the app)
   const ishraq = addMinsToTimeStr(sunrise, 20);
-  const zawaal = addMinsToTimeStr(dhuhr, -30);
+  const zawaal = addMinsToTimeStr(dhuhr, -15);
   TIMETABLE[date] = {
     fajr,
     sunrise,
     ishraq,           // explicit pre-computed fallback stored in the map
-    zawaal,           // dhuhr - 29 min fallback
+    zawaal,           // dhuhr - 15 min fallback
     dhuhr,
     asr,
     maghrib,

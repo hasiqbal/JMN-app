@@ -502,8 +502,8 @@ function CalendarPrayerPanel({
   const tomorrowJumuahIqamah = tomorrowLocal?.jumuah ?? (isBST(nextDate) ? '13:30' : '12:45');
   const duhaToday = midpointClockBetween(day.fajr, day.maghrib) ?? '--:--';
   const duhaTomorrow = midpointClockBetween(tomorrowLocal?.fajr, tomorrowLocal?.maghrib);
-  const zawaalToday = day.zawaal ?? subtractMinutesFromClock(day.dhuhr, 30) ?? '--:--';
-  const zawaalTomorrow = tomorrowLocal?.zawaal ?? subtractMinutesFromClock(tomorrowLocal?.dhuhr, 30);
+  const zawaalToday = day.zawaal ?? subtractMinutesFromClock(day.dhuhr, 15) ?? '--:--';
+  const zawaalTomorrow = tomorrowLocal?.zawaal ?? subtractMinutesFromClock(tomorrowLocal?.dhuhr, 15);
 
   const baseRows: {
     label: string;

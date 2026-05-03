@@ -45,6 +45,8 @@ export type SacredReadingSheetProps = {
   onRequestUrduText?: () => Promise<string>;
   footerActionLabel?: string;
   onFooterAction?: () => void;
+  secondaryFooterActionLabel?: string;
+  onSecondaryFooterAction?: () => void;
   onClose: () => void;
   nightMode?: boolean;
 };
@@ -226,7 +228,7 @@ export function SacredContentModule({
     <View style={styles.moduleRoot}>
       <View style={styles.moduleHeaderRow}>
         <View style={[styles.moduleHeaderBar, { backgroundColor: palette.heading }]} />
-        <Text style={[styles.moduleHeaderText, { color: palette.reference }]}>Your Reminder</Text>
+        <Text style={[styles.moduleHeaderText, { color: palette.heading }]}>Your Reminder</Text>
       </View>
 
       <View
@@ -353,6 +355,8 @@ export function SacredReadingSheet({
   onRequestUrduText,
   footerActionLabel,
   onFooterAction,
+  secondaryFooterActionLabel,
+  onSecondaryFooterAction,
   onClose,
   nightMode,
 }: SacredReadingSheetProps) {
@@ -364,12 +368,17 @@ export function SacredReadingSheet({
   React.useEffect(() => {
     if (!visible) return;
     setLanguageMode('english');
+    setResolvedUrduText('');
     setTranslatingUrdu(false);
   }, [visible, title, fullText]);
 
   const supportsUrduToggle = showUrduToggle === true && !!onRequestUrduText;
   const displayText = languageMode === 'urdu' && resolvedUrduText ? resolvedUrduText : fullText;
   const sheetSegments = displayText
+    .split(/\n{2,}/)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  const arabicSegments = (secondaryText ?? '')
     .split(/\n{2,}/)
     .map((segment) => segment.trim())
     .filter(Boolean);
@@ -511,9 +520,18 @@ export function SacredReadingSheet({
               <Text style={[styles.sheetBodyText, { color: palette.sheetText }]}>{displayText}</Text>
             )}
 
-            {!!secondaryText?.trim() && (
+            {arabicSegments.length > 0 ? (
+              arabicSegments.map((segment, index) => (
+                <Text
+                  key={`arabic-${segment.slice(0, 24)}-${index}`}
+                  style={[styles.sheetArabicText, { color: palette.sheetArabic }]}
+                >
+                  {segment}
+                </Text>
+              ))
+            ) : !!secondaryText?.trim() ? (
               <Text style={[styles.sheetArabicText, { color: palette.sheetArabic }]}>{secondaryText.trim()}</Text>
-            )}
+            ) : null}
           </ScrollView>
 
           {!!footerActionLabel && !!onFooterAction && (
@@ -523,6 +541,16 @@ export function SacredReadingSheet({
             >
               <Text style={[styles.sheetFooterActionText, { color: palette.sheetSubText }]}>{footerActionLabel}</Text>
               <MaterialIcons name="arrow-forward" size={15} color={palette.sheetSubText} />
+            </Pressable>
+          )}
+
+          {!!secondaryFooterActionLabel && !!onSecondaryFooterAction && (
+            <Pressable
+              onPress={onSecondaryFooterAction}
+              style={({ pressed }) => [styles.sheetFooterAction, pressed && styles.sheetFooterActionPressed]}
+            >
+              <Text style={[styles.sheetFooterActionText, { color: palette.sheetSubText }]}>{secondaryFooterActionLabel}</Text>
+              <MaterialIcons name="menu-book" size={15} color={palette.sheetSubText} />
             </Pressable>
           )}
         </View>
@@ -548,9 +576,10 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   moduleHeaderText: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.4,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
   },
   shell: {
     borderRadius: Radius.lg,

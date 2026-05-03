@@ -61,6 +61,7 @@ export function buildPrayerNotificationsForPrayers(
   const fardRows = prayers
     .filter((row) => FARD_PRAYER_NAMES.has(row.name))
     .sort((left, right) => left.timeDate.getTime() - right.timeDate.getTime());
+  const sunriseRow = prayers.find((row) => row.name === 'Sunrise') ?? null;
 
   const planned: PlannedPrayerNotification[] = [];
 
@@ -165,8 +166,12 @@ export function buildPrayerNotificationsForPrayers(
       }
     }
 
-    if (nextPrayer) {
-      const nearEndAt = new Date(nextPrayer.timeDate.getTime() - PRAYER_NOTIFICATION_NEAR_END_MINUTES * 60 * 1000);
+    const nearEndBoundary = prayer.name === 'Fajr'
+      ? (sunriseRow?.timeDate ?? nextPrayer?.timeDate ?? null)
+      : (nextPrayer?.timeDate ?? null);
+
+    if (nearEndBoundary) {
+      const nearEndAt = new Date(nearEndBoundary.getTime() - PRAYER_NOTIFICATION_NEAR_END_MINUTES * 60 * 1000);
       if (nearEndAt.getTime() > prayerStartAt.getTime() && nearEndAt.getTime() - now.getTime() > minLeadMs) {
         planned.push({
           title: `${prayer.name} ending soon`,

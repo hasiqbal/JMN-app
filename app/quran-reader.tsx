@@ -69,6 +69,11 @@ function toNumber(value: string | string[] | undefined, fallback: number): numbe
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function toText(value: string | string[] | undefined): string {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return (raw ?? '').trim();
+}
+
 function toArabicIndicDigits(value: number): string {
   return String(value).replace(/\d/g, (digit) => '٠١٢٣٤٥٦٧٨٩'[Number(digit)]);
 }
@@ -189,6 +194,18 @@ export default function QuranReaderScreen() {
     const trimmed = raw?.trim();
     return trimmed ? trimmed : null;
   }, [params.group]);
+  const initialContentMode = useMemo<ContentMode | null>(() => {
+    const raw = toText(params.contentMode).toLowerCase();
+    return raw === 'tafsir' || raw === 'translation' ? raw : null;
+  }, [params.contentMode]);
+  const openContentPanelParam = useMemo(() => {
+    const raw = toText(params.openContentPanel).toLowerCase();
+    return raw === '1' || raw === 'true' || raw === 'yes';
+  }, [params.openContentPanel]);
+  const focusVerseKey = useMemo(() => {
+    const raw = toText(params.verseKey);
+    return raw.length > 0 ? raw : null;
+  }, [params.verseKey]);
 
   const [currentJuz, setCurrentJuz] = useState<number | null>(paramJuz);
   const [currentQuarter, setCurrentQuarter] = useState<number | null>(navMode === 'quarter' ? paramQuarter : null);
@@ -413,6 +430,14 @@ export default function QuranReaderScreen() {
   }, [showContentPanel]);
 
   useEffect(() => {
+    if (!openContentPanelParam) return;
+    setShowContentPanel(true);
+    if (initialContentMode) {
+      setContentMode(initialContentMode);
+    }
+  }, [initialContentMode, openContentPanelParam]);
+
+  useEffect(() => {
     const intervalId = setInterval(() => {
       setToggleLabelLang((prev) => (prev === 'en' ? 'ur' : 'en'));
     }, 4000);
@@ -611,7 +636,11 @@ export default function QuranReaderScreen() {
   const activeTafsirOptions = tafsirOptionsByLang[contentLang] ?? [];
   const selectedTranslationId = selectedTranslationIdByLang[contentLang] ?? null;
   const selectedTafsirIds = selectedTafsirIdsByLang[contentLang] ?? [];
-  const hasTranslationRows = pageVerses.some((verse) => !!translationByVerseKey[verse.verseKey]);
+  const focusVerseRows = focusVerseKey
+    ? pageVerses.filter((verse) => verse.verseKey === focusVerseKey)
+    : [];
+  const visibleVerses = focusVerseRows.length > 0 ? focusVerseRows : pageVerses;
+  const hasTranslationRows = visibleVerses.some((verse) => !!translationByVerseKey[verse.verseKey]);
 
   const formatVerseNumber = (verseNumber: number) => {
     return contentLang === 'ur' ? toArabicIndicDigits(verseNumber) : String(verseNumber);
@@ -932,7 +961,7 @@ export default function QuranReaderScreen() {
                   </View>
                 ) : contentMode === 'translation' ? (
                   hasTranslationRows ? (
-                    pageVerses.map((verse) => (
+                    visibleVerses.map((verse) => (
                       <View
                         key={`tr-row-${verse.verseKey}`}
                         style={[
@@ -959,12 +988,12 @@ export default function QuranReaderScreen() {
                   )
                 ) : tafsirBlocks.length > 0 ? (
                   tafsirBlocks.map((block) => {
-                    const hasRows = pageVerses.some((verse) => !!block.byVerseKey[verse.verseKey]);
+                    const hasRows = visibleVerses.some((verse) => !!block.byVerseKey[verse.verseKey]);
                     return (
                       <View key={`tf-block-${block.id}`} style={styles.tafsirBlock}>
                         <Text style={[styles.tafsirTitle, contentLang === 'ur' && styles.tafsirTitleUrdu, N && { color: N.text }]}>{block.label}</Text>
                         {hasRows ? (
-                          pageVerses.map((verse) => {
+                          visibleVerses.map((verse) => {
                             const text = block.byVerseKey[verse.verseKey];
                             if (!text) return null;
                             return (

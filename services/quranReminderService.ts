@@ -1,5 +1,5 @@
 const FETCH_TIMEOUT_MS = 10000;
-const CACHE_KEY = '@daily_quran_v5';
+const CACHE_KEY = '@daily_quran_v7';
 const CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 const BASE_URL = 'https://api.quran.com/api/v4';
 const DEFAULT_TRANSLATION_IDS = [20, 131]; // Sahih International primary, fallback to legacy id
@@ -85,7 +85,13 @@ function matchesPreferredTheme(englishText: string): boolean {
 
 function formatContextVerseBlock(rows: ChapterVerse[]): string {
   return rows
-    .map((row) => [row.verseKey, row.arabic, row.english].filter(Boolean).join('\n'))
+    .map((row) => [row.verseKey, row.english].filter(Boolean).join('\n'))
+    .join('\n\n');
+}
+
+function formatContextArabicBlock(rows: ChapterVerse[]): string {
+  return rows
+    .map((row) => [row.verseKey, row.arabic].filter(Boolean).join('\n'))
     .join('\n\n');
 }
 
@@ -374,6 +380,7 @@ export async function fetchDailyQuranReminder(): Promise<DailyQuranResult | null
       .map((n) => chapterVerseMap.get(n))
       .filter((row): row is ChapterVerse => (
         !!row
+        && row.arabic.length > 0
         && row.english.length > 0
         && matchesPreferredTheme(row.english)
       ));
@@ -386,7 +393,9 @@ export async function fetchDailyQuranReminder(): Promise<DailyQuranResult | null
       : englishTranslation;
 
     const result: DailyQuranResult = {
-      arabic: String(selected?.text_uthmani ?? '').trim(),
+      arabic: contextRows.length > 1
+        ? formatContextArabicBlock(contextRows)
+        : String(selected?.text_uthmani ?? '').trim(),
       englishTranslation,
       // Keep text for compatibility with existing consumers.
       text: contextRows.length > 1

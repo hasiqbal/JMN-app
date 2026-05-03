@@ -3,6 +3,7 @@ import { Tabs, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Platform, View, StyleSheet, Animated, AppState } from 'react-native';
 import { useRef, useEffect, useCallback } from 'react';
+import Svg, { Circle, Path } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Colors } from '@/constants/theme';
@@ -94,6 +95,44 @@ function LiveDot() {
   }, [pulse]);
   return (
     <Animated.View style={[dotStyles.dot, { opacity: pulse }]} />
+  );
+}
+
+function TasbihIcon({ color, size }: { color: string; size: number }) {
+  const beadRadius = Math.max(1.6, size * 0.11);
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      {/* Main string arc */}
+      <Path
+        d="M6 11.2C6 7.9 8.7 5.2 12 5.2C15.3 5.2 18 7.9 18 11.2"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+      />
+
+      {/* Tasbih beads */}
+      <Circle cx="7.5" cy="9.8" r={beadRadius} fill={color} />
+      <Circle cx="9.4" cy="8.1" r={beadRadius} fill={color} />
+      <Circle cx="12" cy="7.5" r={beadRadius} fill={color} />
+      <Circle cx="14.6" cy="8.1" r={beadRadius} fill={color} />
+      <Circle cx="16.5" cy="9.8" r={beadRadius} fill={color} />
+      <Circle cx="17" cy="12.4" r={beadRadius} fill={color} />
+      <Circle cx="15.9" cy="14.6" r={beadRadius} fill={color} />
+      <Circle cx="14" cy="16.2" r={beadRadius} fill={color} />
+      <Circle cx="12" cy="17" r={beadRadius} fill={color} />
+      <Circle cx="10" cy="16.2" r={beadRadius} fill={color} />
+      <Circle cx="8.1" cy="14.6" r={beadRadius} fill={color} />
+      <Circle cx="7" cy="12.4" r={beadRadius} fill={color} />
+
+      {/* Separator and tassel */}
+      <Path
+        d="M12 17.9V20.4M10.8 20.3L12 22L13.2 20.3"
+        stroke={color}
+        strokeWidth={1.6}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
   );
 }
 
@@ -782,12 +821,10 @@ export default function TabLayout() {
       <Tabs.Screen
         name="duas"
         options={{
-          title: 'Duas',
-          tabBarLabel: 'Duas',
+          title: 'Wird',
+          tabBarLabel: 'Wird',
           href: '/duas',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="menu-book" size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <TasbihIcon color={color} size={size} />,
         }}
       />
       <Tabs.Screen

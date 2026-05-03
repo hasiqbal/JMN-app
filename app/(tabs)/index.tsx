@@ -2161,6 +2161,7 @@ const toggleStyles = StyleSheet.create({
 export default function HomeScreen() {
   const [communityUpdates, setCommunityUpdates] = useState<AnnouncementRow[]>([]);
   const [communityLoading, setCommunityLoading] = useState(false);
+  const hasCommunityDataRef = useRef(false);
   const [activeSacredPanel, setActiveSacredPanel] = useState<SacredPanel | null>(null);
   const [eidUlFitrJamaats, setEidUlFitrJamaats] = useState<string[]>([]);
   const [eidUlAdhaJamaats, setEidUlAdhaJamaats] = useState<string[]>([]);
@@ -2192,15 +2193,24 @@ export default function HomeScreen() {
     });
   }, []);
 
-  const loadCommunityUpdates = useCallback(async () => {
-    setCommunityLoading(true);
+  useEffect(() => {
+    hasCommunityDataRef.current = communityUpdates.length > 0;
+  }, [communityUpdates.length]);
+
+  const loadCommunityUpdates = useCallback(async (options?: { showLoader?: boolean }) => {
+    const shouldShowLoader = (options?.showLoader ?? false) && !hasCommunityDataRef.current;
+    if (shouldShowLoader) {
+      setCommunityLoading(true);
+    }
     try {
       const rows = await fetchAnnouncements();
       setCommunityUpdates(rows);
     } catch {
-      setCommunityUpdates([]);
+      // Keep last successful rows to avoid visible blank-state jumps on transient errors.
     } finally {
-      setCommunityLoading(false);
+      if (shouldShowLoader) {
+        setCommunityLoading(false);
+      }
     }
   }, []);
 
@@ -2217,12 +2227,12 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
-    loadCommunityUpdates();
+    void loadCommunityUpdates({ showLoader: true });
     loadDonationOptions();
 
     // Yaseen images are bundled as local assets — no preload needed
   }, [loadCommunityUpdates, loadDonationOptions]);
-
+  
   useEffect(() => {
     refreshDailySunnah(true);
   }, [refreshDailySunnah]);
@@ -2636,6 +2646,29 @@ export default function HomeScreen() {
     if (!source) return '';
     return translateTextToUrdu(source);
   }, [activeSheetText]);
+
+  const openQuranReminderTafsir = useCallback(() => {
+    if (!dailyQuran?.verseKey) {
+      router.push('/(tabs)/quran' as any);
+      return;
+    }
+
+    const reminderPage = Number.isFinite(dailyQuran.pageNumber)
+      ? Math.max(0, Math.floor(dailyQuran.pageNumber) - 1)
+      : 0;
+
+    setActiveSacredPanel(null);
+    router.push({
+      pathname: '/quran-reader',
+      params: {
+        startPage: String(reminderPage),
+        endPage: String(reminderPage),
+        contentMode: 'tafsir',
+        openContentPanel: '1',
+        verseKey: dailyQuran.verseKey,
+      },
+    } as any);
+  }, [dailyQuran, router]);
 
   const bst = (() => {
     const y = currentTime.getFullYear();
@@ -3220,7 +3253,11 @@ export default function HomeScreen() {
       <View style={[styles.dayCanvas, N && { backgroundColor: N.bg, marginTop: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0 }]}>
         <View style={styles.dayCanvasContent}>
           <View style={[styles.body, N && { backgroundColor: 'transparent' }]}> 
-            <View style={{ marginTop: Spacing.xs, marginBottom: Spacing.sm }}>
+            <View style={{ marginBottom: Spacing.sm }}>
+              <HomeQuickAccessSection nightMode={nightMode} />
+            </View>
+
+            <View style={{ marginTop: Spacing.xs, marginBottom: Spacing.xs }}>
               <CommunityUpdatesSection
                 title="Community Updates"
                 items={homeCommunityItems}
@@ -3234,28 +3271,28 @@ export default function HomeScreen() {
               />
             </View>
 
-            <HomeQuickAccessSection nightMode={nightMode} />
-
-            <SacredContentModule
-              hadithLabel={hadithTitle}
-              hadithLabelUrdu={hadithTitleUrdu}
-              hadithPreview={hadithPreview}
-              hadithPreviewUrdu={hadithPreviewUrdu}
-              hadithSource={hadithSource}
-              onPressHadith={() => setActiveSacredPanel('hadith')}
-              verseLabel={verseTitle}
-              verseLabelUrdu={verseTitleUrdu}
-              versePreview={versePreview}
-              versePreviewUrdu={versePreviewUrdu}
-              verseReference={verseReference}
-              onPressVerse={() => setActiveSacredPanel('verse')}
-              hadithExpandHint={expandHintEn}
-              hadithExpandHintUrdu={expandHintUr}
-              verseExpandHint={expandHintEn}
-              verseExpandHintUrdu={expandHintUr}
-              isLoading={false}
-              nightMode={nightMode}
-            />
+            <View style={{ marginTop: Spacing.xs }}>
+              <SacredContentModule
+                hadithLabel={hadithTitle}
+                hadithLabelUrdu={hadithTitleUrdu}
+                hadithPreview={hadithPreview}
+                hadithPreviewUrdu={hadithPreviewUrdu}
+                hadithSource={hadithSource}
+                onPressHadith={() => setActiveSacredPanel('hadith')}
+                verseLabel={verseTitle}
+                verseLabelUrdu={verseTitleUrdu}
+                versePreview={versePreview}
+                versePreviewUrdu={versePreviewUrdu}
+                verseReference={verseReference}
+                onPressVerse={() => setActiveSacredPanel('verse')}
+                hadithExpandHint={expandHintEn}
+                hadithExpandHintUrdu={expandHintUr}
+                verseExpandHint={expandHintEn}
+                verseExpandHintUrdu={expandHintUr}
+                isLoading={false}
+                nightMode={nightMode}
+              />
+            </View>
 
             <View style={styles.forYouFadeZone}>
               <HomeForYouTodaySection
@@ -3303,6 +3340,8 @@ export default function HomeScreen() {
             }
           : undefined
       }
+      secondaryFooterActionLabel={activeSacredPanel === 'verse' ? 'Read Tafsir of this Ayah' : undefined}
+      onSecondaryFooterAction={activeSacredPanel === 'verse' ? openQuranReminderTafsir : undefined}
       onClose={() => setActiveSacredPanel(null)}
       nightMode={nightMode}
     />

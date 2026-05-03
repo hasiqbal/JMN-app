@@ -2894,17 +2894,13 @@ export function HomeForYouTodaySection({
           {/* Section kicker */}
           <View style={sectionStyles.kickerRow}>
             <View style={[sectionStyles.kickerBar, N && { backgroundColor: N.accent }]} />
-            <Text style={[sectionStyles.kicker, N && { color: N.textSub }]}>YOUR ADHKAR</Text>
+            <Text style={[sectionStyles.kicker, N && { color: N.textSub }]}>Your daily adhkar</Text>
           </View>
-          <Text style={[sectionStyles.title, N && { color: N.text }]}>Today&apos;s Adhkar Plan</Text>
-          <Text style={[sectionStyles.titleSub, N && { color: N.textMuted }]}>Stay consistent with your daily adhkar throughout the prayer day.</Text>
-        </View>
-        <View style={[
-          sectionStyles.countPill,
-          N && { backgroundColor: N.surfaceAlt, borderColor: N.border },
-        ]}>
-          <Text style={[sectionStyles.countPillText, N && { color: N.textMuted }]}>
-            {allDone ? 'All done ✓' : `${cards.length} reminder${cards.length !== 1 ? 's' : ''}`}
+          <Text
+            numberOfLines={2}
+            style={[sectionStyles.titleSub, N && { color: N.textMuted }]}
+          >
+            Stay consistent with adhkar throughout the prayer day.
           </Text>
         </View>
       </View>
