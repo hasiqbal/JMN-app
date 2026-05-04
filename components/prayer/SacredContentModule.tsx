@@ -1,9 +1,11 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Platform,
   Pressable,
+  Share,
   ScrollView,
   StyleSheet,
   Text,
@@ -19,6 +21,7 @@ export type SacredContentModuleProps = {
   hadithPreview: string;
   hadithPreviewUrdu?: string;
   hadithSource: string;
+  hadithSourceUrdu?: string;
   onPressHadith: () => void;
   verseLabel: string;
   verseLabelUrdu?: string;
@@ -38,8 +41,11 @@ export type SacredContentModuleProps = {
 export type SacredReadingSheetProps = {
   visible: boolean;
   title: string;
+  titleUrdu?: string;
+  narratorText?: string;
   fullText: string;
   reference: string;
+  referenceUrdu?: string;
   secondaryText?: string;
   showUrduToggle?: boolean;
   onRequestUrduText?: () => Promise<string>;
@@ -143,6 +149,7 @@ export function SacredContentModule({
   hadithPreview,
   hadithPreviewUrdu,
   hadithSource,
+  hadithSourceUrdu,
   onPressHadith,
   verseLabel,
   verseLabelUrdu,
@@ -165,6 +172,7 @@ export function SacredContentModule({
   const hadithPreviewSafe = hadithPreview.trim();
   const hadithPreviewUrduSafe = (hadithPreviewUrdu ?? '').trim();
   const hadithSourceSafe = hadithSource.trim();
+  const hadithSourceUrduSafe = (hadithSourceUrdu ?? '').trim();
   const hadithExpandHintSafe = hadithExpandHint.trim();
   const hadithExpandHintUrduSafe = (hadithExpandHintUrdu ?? '').trim();
 
@@ -222,6 +230,9 @@ export function SacredContentModule({
     || hadithPreviewSafe.length > 0
     || hadithPreviewUrduSafe.length > 0
     || hadithSourceSafe.length > 0;
+  const hadithDisplaySource = showUrduCopy && hadithSourceUrduSafe
+    ? hadithSourceUrduSafe
+    : (hadithSourceSafe || hadithSourceUrduSafe);
   const hasVerse = verseLabelSafe.length > 0
     || verseLabelUrduSafe.length > 0
     || versePreviewSafe.length > 0
@@ -276,10 +287,19 @@ export function SacredContentModule({
                 {!!hadithPreviewUrduSafe && (
                   <Text style={[styles.tileHintUrdu, { color: palette.sheetSubText }]} numberOfLines={2}>{hadithPreviewUrduSafe}</Text>
                 )}
-                {!!hadithSourceSafe && (
+                {!!hadithDisplaySource && (
                   <View style={[styles.tileSourcePill, { backgroundColor: palette.tileBadgeBg }]}>
                     <MaterialIcons name="link" size={12} color={palette.tileBadgeText} />
-                    <Text style={[styles.tileSource, { color: palette.tileBadgeText }]} numberOfLines={1}>{hadithSourceSafe}</Text>
+                    <Text
+                      style={[
+                        styles.tileSource,
+                        { color: palette.tileBadgeText },
+                        hasUrduGlyphs(hadithDisplaySource) && styles.tileSourceUrdu,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {hadithDisplaySource}
+                    </Text>
                   </View>
                 )}
                 {!!hadithDisplayHint && (
@@ -358,8 +378,11 @@ export function SacredContentModule({
 export function SacredReadingSheet({
   visible,
   title,
+  titleUrdu,
+  narratorText,
   fullText,
   reference,
+  referenceUrdu,
   secondaryText,
   showUrduToggle,
   onRequestUrduText,
@@ -385,7 +408,17 @@ export function SacredReadingSheet({
   }, [visible, title, fullText]);
 
   const supportsUrduToggle = showUrduToggle === true && !!onRequestUrduText;
+  const titleUrduSafe = (titleUrdu ?? '').trim();
+  const narratorSafe = (narratorText ?? '').trim();
+  const displayTitle = languageMode === 'urdu' && titleUrduSafe
+    ? titleUrduSafe
+    : title;
   const displayText = languageMode === 'urdu' && resolvedUrduText ? resolvedUrduText : fullText;
+  const referenceSafe = reference.trim();
+  const referenceUrduSafe = (referenceUrdu ?? '').trim();
+  const displayReference = languageMode === 'urdu' && referenceUrduSafe
+    ? referenceUrduSafe
+    : (referenceSafe || referenceUrduSafe);
   const sheetSegments = displayText
     .split(/\n{2,}/)
     .map((segment) => segment.trim())
@@ -427,6 +460,35 @@ export function SacredReadingSheet({
     }
   }, [onRequestUrduText, resolvedUrduText, translatingUrdu]);
 
+  const buildClipboardPayload = React.useCallback((segment: string, source: string) => {
+    const text = segment.trim();
+    const sourceText = source.trim();
+    if (!sourceText) return text;
+    return `${text}\n\n${sourceText}`;
+  }, []);
+
+  const handleCopyParagraph = React.useCallback(async (segment: string, source: string) => {
+    const text = segment.trim();
+    if (!text) return;
+    try {
+      const Clipboard = await import('expo-clipboard');
+      await Clipboard.setStringAsync(buildClipboardPayload(segment, source));
+      Alert.alert('Copied', 'Paragraph copied to clipboard.');
+    } catch {
+      // no-op
+    }
+  }, [buildClipboardPayload]);
+
+  const handleShareParagraph = React.useCallback(async (segment: string, source: string) => {
+    const text = segment.trim();
+    if (!text) return;
+    try {
+      await Share.share({ message: buildClipboardPayload(segment, source) });
+    } catch {
+      // no-op
+    }
+  }, [buildClipboardPayload]);
+
   return (
     <Modal
       visible={visible}
@@ -453,7 +515,7 @@ export function SacredReadingSheet({
 
           <View style={styles.sheetHeader}>
             <Text style={[styles.sheetTitle, { color: palette.sheetText }]} numberOfLines={2}>
-              {title}
+              {displayTitle}
             </Text>
 
             <Pressable
@@ -473,11 +535,18 @@ export function SacredReadingSheet({
             nestedScrollEnabled
             keyboardShouldPersistTaps="handled"
           >
-            {!!reference?.trim() && (
+            {!!displayReference && (
               <View style={[styles.sheetReferenceChip, { borderColor: palette.sheetBorder, backgroundColor: palette.segmentedBg }]}>
                 <MaterialIcons name="link" size={13} color={palette.sheetSubText} />
-                <Text style={[styles.sheetReference, { color: palette.sheetSubText }]} numberOfLines={2}>
-                  {reference}
+                <Text
+                  style={[
+                    styles.sheetReference,
+                    { color: palette.sheetSubText },
+                    hasUrduGlyphs(displayReference) && styles.sheetReferenceUrdu,
+                  ]}
+                  numberOfLines={2}
+                >
+                  {displayReference}
                 </Text>
               </View>
             )}
@@ -563,30 +632,61 @@ export function SacredReadingSheet({
 
             <Text style={[styles.sheetSectionLabel, { color: palette.sheetSubText }]}>Reading</Text>
 
+            {!!narratorSafe && (
+              <View style={[styles.sheetNarratorCard, { borderColor: palette.sheetBorder, backgroundColor: palette.segmentedBg }]}>
+                <Text style={[styles.sheetNarratorText, { color: palette.sheetSubText }]}>{narratorSafe}</Text>
+              </View>
+            )}
+
             <View style={[styles.sheetParagraphCard, { borderColor: palette.sheetBorder, backgroundColor: palette.segmentedBg }]}>
               {sheetSegments.length > 0 ? (
                 sheetSegments.map((segment, index) => {
                   const segmentIsUrdu = hasUrduGlyphs(segment);
                   return (
-                    <Text
+                    <View
                       key={`${segment.slice(0, 24)}-${index}`}
                       style={[
-                        styles.sheetBodyText,
-                        {
-                          color: palette.sheetText,
-                          fontSize: bodyFontSize,
-                          lineHeight: bodyLineHeight,
-                          marginBottom: index === sheetSegments.length - 1 ? 0 : 12,
-                        },
-                        segmentIsUrdu && styles.sheetBodyTextUrdu,
-                        segmentIsUrdu && {
-                          fontSize: urduFontSize,
-                          lineHeight: urduLineHeight,
-                        },
+                        styles.sheetParagraphRow,
+                        { marginBottom: index === sheetSegments.length - 1 ? 0 : 12 },
                       ]}
                     >
-                      {segment}
-                    </Text>
+                      <Pressable
+                        onLongPress={() => {
+                          void handleShareParagraph(segment, displayReference);
+                        }}
+                        delayLongPress={250}
+                        style={styles.sheetParagraphTextWrap}
+                      >
+                        <Text
+                          style={[
+                            styles.sheetBodyText,
+                            {
+                              color: palette.sheetText,
+                              fontSize: bodyFontSize,
+                              lineHeight: bodyLineHeight,
+                              marginBottom: 0,
+                            },
+                            segmentIsUrdu && styles.sheetBodyTextUrdu,
+                            segmentIsUrdu && {
+                              fontSize: urduFontSize,
+                              lineHeight: urduLineHeight,
+                            },
+                          ]}
+                        >
+                          {segment}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Copy paragraph"
+                        onPress={() => {
+                          void handleCopyParagraph(segment, displayReference);
+                        }}
+                        style={[styles.sheetParagraphCopyBtn, { borderColor: palette.sheetBorder, backgroundColor: palette.segmentedActiveBg }]}
+                      >
+                        <MaterialIcons name="content-copy" size={14} color={palette.sheetSubText} />
+                      </Pressable>
+                    </View>
                   );
                 })
               ) : (
@@ -777,6 +877,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     flexShrink: 1,
   },
+  tileSourceUrdu: {
+    fontFamily: 'UrduNastaliqBold',
+    writingDirection: 'rtl',
+    textAlign: 'right',
+    lineHeight: 18,
+  },
   tileAction: {
     marginTop: 'auto',
     paddingTop: 12,
@@ -893,6 +999,13 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     flex: 1,
   },
+  sheetReferenceUrdu: {
+    fontFamily: 'UrduNastaliqBold',
+    writingDirection: 'rtl',
+    textAlign: 'right',
+    lineHeight: 24,
+    fontSize: 16,
+  },
   sheetReferenceChip: {
     borderWidth: 1,
     borderRadius: Radius.md,
@@ -996,6 +1109,36 @@ const styles = StyleSheet.create({
     lineHeight: 27,
     fontWeight: '400',
     marginBottom: 12,
+  },
+  sheetNarratorCard: {
+    borderWidth: 1,
+    borderRadius: Radius.lg,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    marginBottom: 10,
+  },
+  sheetNarratorText: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '500',
+    opacity: 0.9,
+  },
+  sheetParagraphRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  sheetParagraphTextWrap: {
+    flex: 1,
+  },
+  sheetParagraphCopyBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
   },
   sheetBodyTextUrdu: {
     fontFamily: 'UrduNastaliq',

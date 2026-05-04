@@ -5,11 +5,11 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 
 import { Colors, Radius, Spacing, Typography } from '@/constants/theme';
+import { HomeTheme } from '@/constants/homeTheme';
 
 export type AnnouncementCategory =
   | 'Important'
@@ -60,12 +60,31 @@ const NIGHT = {
 };
 
 const ANNOUNCEMENT_ROTATE_MS = 5000;
+const ANNOUNCEMENT_ROTATE_PAUSE_MS = 12000;
 
 type BadgeTone = {
   bg: string;
   border: string;
   text: string;
 };
+
+function getCategoryIcon(category: string): React.ComponentProps<typeof MaterialIcons>['name'] {
+  const key = category.trim().toLowerCase();
+  const iconMap: Record<string, React.ComponentProps<typeof MaterialIcons>['name']> = {
+    important: 'campaign',
+    news: 'feed',
+    event: 'event',
+    notice: 'announcement',
+    volunteer: 'volunteer-activism',
+    class: 'menu-book',
+    reminder: 'schedule',
+    prayer: 'mosque',
+    closure: 'event-busy',
+    general: 'info-outline',
+  };
+
+  return iconMap[key] ?? iconMap.general;
+}
 
 function getBadgeTone(category: string, nightMode: boolean): BadgeTone {
   const key = category.trim().toLowerCase();
@@ -110,12 +129,16 @@ export function AnnouncementBadge({
   nightMode: boolean;
 }) {
   const tone = getBadgeTone(category, nightMode);
+  const iconName = getCategoryIcon(category);
 
   return (
     <View style={[styles.badge, { backgroundColor: tone.bg, borderColor: tone.border }]}>
-      <Text style={[styles.badgeText, { color: tone.text }]} numberOfLines={1}>
-        {category}
-      </Text>
+      <View style={styles.badgeContent}>
+        <MaterialIcons name={iconName} size={11} color={tone.text} style={styles.badgeIcon} />
+        <Text style={[styles.badgeText, { color: tone.text }]} numberOfLines={1}>
+          {category}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -134,9 +157,14 @@ export function AnnouncementRow({
   return (
     <Pressable
       onPress={() => onPress(item)}
-      style={({ pressed }) => [
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel={`${item.category}. ${item.title}. ${item.date}.${item.isPinned ? ' Pinned.' : ''}`}
+      accessibilityHint="Opens full announcement details"
+      style={({ pressed, hovered }) => [
         styles.row,
         item.isPinned && [styles.pinnedRow, N && { backgroundColor: N.pinnedRowBg }],
+        hovered && styles.rowHovered,
         pressed && [styles.rowPressed, N && { backgroundColor: N.pressed }],
       ]}
     >
@@ -188,6 +216,7 @@ export function AnnouncementListCard({
   const [activeIndex, setActiveIndex] = React.useState(0);
   const activeIndexRef = React.useRef(0);
   const activeItemIdRef = React.useRef<string | null>(null);
+  const pausedUntilRef = React.useRef(0);
   const itemSignature = React.useMemo(() => items.map((item) => item.id).join('|'), [items]);
 
   React.useEffect(() => {
@@ -226,10 +255,20 @@ export function AnnouncementListCard({
     activeIndexRef.current = boundedIndex;
   }, [items.length]);
 
+  const pauseRotation = React.useCallback(() => {
+    pausedUntilRef.current = Date.now() + ANNOUNCEMENT_ROTATE_PAUSE_MS;
+  }, []);
+
+  const handlePressActiveItem = React.useCallback((item: CommunityUpdateItem) => {
+    pauseRotation();
+    onPressItem(item);
+  }, [onPressItem, pauseRotation]);
+
   React.useEffect(() => {
     if (isLoading || items.length <= 1) return;
 
     const interval = setInterval(() => {
+      if (Date.now() < pausedUntilRef.current) return;
       const next = (activeIndexRef.current + 1) % items.length;
       animateToIndex(next);
     }, ANNOUNCEMENT_ROTATE_MS);
@@ -268,26 +307,38 @@ export function AnnouncementListCard({
 
   return (
     <View style={[styles.card, N && { backgroundColor: N.cardBg, borderColor: N.cardBorder }]}> 
+      {/* If this evolves into a stacked multi-row feed, switch rows to FlatList for virtualization. */}
       <View style={styles.animatedRowWrap}>
-        <AnnouncementRow item={activeItem} nightMode={nightMode} onPress={onPressItem} />
+        <AnnouncementRow item={activeItem} nightMode={nightMode} onPress={handlePressActiveItem} />
       </View>
       {items.length > 1 ? (
         <View style={styles.paginationRow}>
           {items.map((item, idx) => {
             const isActive = idx === activeIndex;
             return (
-              <TouchableOpacity
+              <Pressable
                 key={`dot-${item.id}`}
-                onPress={() => animateToIndex(idx)}
-                activeOpacity={0.75}
-                style={[
-                  styles.pageDot,
-                  N && { backgroundColor: N.divider },
-                  isActive && [styles.pageDotActive, N && { backgroundColor: N.seeAll }],
-                ]}
+                onPress={() => {
+                  pauseRotation();
+                  animateToIndex(idx);
+                }}
                 accessibilityRole="button"
-                accessibilityLabel={`Show update ${idx + 1}`}
-              />
+                accessibilityLabel={`Show update ${idx + 1} of ${items.length}`}
+                hitSlop={8}
+                style={({ pressed, hovered }) => [
+                  styles.pageDotTouch,
+                  hovered && styles.pageDotTouchHover,
+                  pressed && styles.pageDotTouchPressed,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.pageDot,
+                    N && { backgroundColor: N.divider },
+                    isActive && [styles.pageDotActive, N && { backgroundColor: N.seeAll }],
+                  ]}
+                />
+              </Pressable>
             );
           })}
         </View>
@@ -308,16 +359,18 @@ export function CommunityUpdatesSection({
   const N = nightMode ? NIGHT : null;
 
   const orderedItems = React.useMemo(() => {
-    const sorted = [...items]
-      .sort((a, b) => {
-        const aTime = Number.isFinite(a.sortTime) ? (a.sortTime as number) : Date.parse(a.date);
-        const bTime = Number.isFinite(b.sortTime) ? (b.sortTime as number) : Date.parse(b.date);
-        if (Number.isFinite(aTime) && Number.isFinite(bTime) && aTime !== bTime) {
-          return bTime - aTime;
-        }
-        if (!!a.isPinned !== !!b.isPinned) return a.isPinned ? -1 : 1;
-        return (b.priority ?? 0) - (a.priority ?? 0);
-      });
+    const sorted = [...items].sort((a, b) => {
+      if (!!a.isPinned !== !!b.isPinned) return a.isPinned ? -1 : 1;
+
+      const aTime = Number.isFinite(a.sortTime) ? (a.sortTime as number) : Number.NEGATIVE_INFINITY;
+      const bTime = Number.isFinite(b.sortTime) ? (b.sortTime as number) : Number.NEGATIVE_INFINITY;
+      if (aTime !== bTime) return bTime - aTime;
+
+      const priorityDiff = (b.priority ?? 0) - (a.priority ?? 0);
+      if (priorityDiff !== 0) return priorityDiff;
+
+      return a.title.localeCompare(b.title);
+    });
 
     if (typeof maxItems === 'number' && maxItems > 0) {
       return sorted.slice(0, maxItems);
@@ -333,9 +386,19 @@ export function CommunityUpdatesSection({
           <View style={styles.kickerBar} />
           <Text style={styles.kicker}>{title}</Text>
         </View>
-        <TouchableOpacity onPress={onPressSeeAll} activeOpacity={0.75}>
+        <Pressable
+          onPress={onPressSeeAll}
+          accessibilityRole="button"
+          accessibilityLabel="See all community updates"
+          hitSlop={8}
+          style={({ pressed, hovered }) => [
+            styles.seeAllPressable,
+            hovered && styles.seeAllHovered,
+            pressed && styles.seeAllPressed,
+          ]}
+        >
           <Text style={[styles.seeAllText, N && { color: N.seeAll }]}>See all</Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
 
       <AnnouncementListCard
@@ -382,21 +445,34 @@ const styles = StyleSheet.create({
   },
   seeAllText: {
     ...Typography.labelMedium,
-    color: '#2A6A47',
+    color: HomeTheme.announceBandText,
     fontWeight: '700',
+  },
+  seeAllPressable: {
+    borderRadius: Radius.md,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  seeAllHovered: {
+    backgroundColor: 'rgba(54,93,78,0.06)',
+  },
+  seeAllPressed: {
+    backgroundColor: 'rgba(54,93,78,0.12)',
   },
   card: {
     borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: '#DCE8DF',
-    backgroundColor: '#FCFBF7',
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
     overflow: 'hidden',
     ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 6px 18px rgba(20,67,44,0.07)' }
+      ? { boxShadow: `0px 6px 18px ${HomeTheme.cardShadow}` }
       : {
-          shadowColor: '#184B33',
+          shadowColor: '#354639',
           shadowOffset: { width: 0, height: 5 },
-          shadowOpacity: 0.08,
+          shadowOpacity: 0.12,
           shadowRadius: 16,
         }),
     elevation: 2,
@@ -404,20 +480,11 @@ const styles = StyleSheet.create({
   divider: {
     marginHorizontal: Spacing.md,
     height: 1,
-    backgroundColor: '#E6ECE5',
+    backgroundColor: HomeTheme.communityRowSeparator,
   },
   animatedRowWrap: {
     minHeight: 76,
     position: 'relative',
-  },
-  flipFace: {
-    backfaceVisibility: 'hidden',
-  },
-  flipFaceOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
   },
   paginationRow: {
     flexDirection: 'row',
@@ -431,12 +498,27 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#C3D4C8',
+    backgroundColor: Colors.border,
+  },
+  pageDotTouch: {
+    minWidth: 24,
+    minHeight: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  pageDotTouchHover: {
+    backgroundColor: 'rgba(54,93,78,0.06)',
+  },
+  pageDotTouchPressed: {
+    backgroundColor: 'rgba(54,93,78,0.12)',
   },
   pageDotActive: {
     width: 16,
     borderRadius: Radius.full,
-    backgroundColor: '#2A6A47',
+    backgroundColor: HomeTheme.sectionKicker,
   },
   row: {
     flexDirection: 'row',
@@ -447,7 +529,10 @@ const styles = StyleSheet.create({
     minHeight: 76,
   },
   rowPressed: {
-    backgroundColor: 'rgba(37,99,66,0.06)',
+    backgroundColor: 'rgba(44,106,80,0.08)',
+  },
+  rowHovered: {
+    backgroundColor: 'rgba(44,106,80,0.04)',
   },
   pinnedRow: {
     backgroundColor: '#FCF7EB',
@@ -462,20 +547,18 @@ const styles = StyleSheet.create({
     gap: 7,
   },
   metaDate: {
-    fontSize: 11,
-    lineHeight: 14,
+    ...Typography.bodySmall,
     fontWeight: '600',
-    color: '#5F6D65',
+    color: Colors.textSecondary,
   },
   rowTitle: {
-    fontSize: 15,
-    lineHeight: 20,
+    ...Typography.titleSmall,
     fontWeight: '700',
-    color: '#1B2B22',
+    color: Colors.textPrimary,
   },
   rowExcerpt: {
     ...Typography.bodySmall,
-    color: '#5A6A61',
+    color: Colors.textSecondary,
   },
   chevron: {
     marginRight: -2,
@@ -486,6 +569,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     minHeight: 20,
     justifyContent: 'center',
+  },
+  badgeContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  badgeIcon: {
+    opacity: 0.85,
   },
   badgeText: {
     fontSize: 10,

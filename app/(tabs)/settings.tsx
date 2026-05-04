@@ -550,16 +550,18 @@ export default function SettingsScreen() {
             hintColor={palette.sub}
           />
 
-          <TouchableOpacity
-            activeOpacity={0.85}
-            style={[styles.actionButton, { borderColor: palette.border, backgroundColor: palette.chip }]}
-            onPress={() => {
-              void runBackgroundAdhaanTest();
-            }}
-          >
-            <MaterialIcons name="alarm" size={16} color={palette.text} />
-            <Text style={[styles.actionButtonText, { color: palette.text }]}>Run 10s background adhaan test</Text>
-          </TouchableOpacity>
+          {__DEV__ && (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={[styles.actionButton, { borderColor: palette.border, backgroundColor: palette.chip }]}
+              onPress={() => {
+                void runBackgroundAdhaanTest();
+              }}
+            >
+              <MaterialIcons name="alarm" size={16} color={palette.text} />
+              <Text style={[styles.actionButtonText, { color: palette.text }]}>Run 10s background adhaan test</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
     </View>

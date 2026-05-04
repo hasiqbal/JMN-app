@@ -19,9 +19,11 @@ import {
   UIManager,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import RenderHtml from 'react-native-render-html';
 import { Colors, Spacing, Radius } from '@/constants/theme';
 import { NIGHT_PALETTE } from '@/constants/nightPalette';
+import { TAFSIR_FONT_MAX, TAFSIR_FONT_MIN, TAFSIR_FONT_SCALE_STORAGE_KEY, TAFSIR_FONT_STEP, clampTafsirScale } from '@/constants/tafsirSettings';
 import { fetchAdhkarForPrayerTime, AdhkarRow, resolveAdhkarUrduTranslation, translateTextToUrdu } from '@/services/contentService';
 import {
   ASR_GROUP_TO_SELECTION,
@@ -323,12 +325,48 @@ export function DbAdhkarScreen({
   const [urduTafsirFallbackById, setUrduTafsirFallbackById] = React.useState<Record<string, string>>({});
   const [urduTafsirLoadingById, setUrduTafsirLoadingById] = React.useState<Record<string, boolean>>({});
   const [transliterationById, setTransliterationById] = React.useState<Record<string, boolean>>({});
+  const [tafsirFontScaleByLang, setTafsirFontScaleByLang] = React.useState<{ en: number; ur: number }>({ en: 1, ur: 1 });
+  const [tafsirScaleLoaded, setTafsirScaleLoaded] = React.useState(false);
 
   React.useEffect(() => {
     if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
       UIManager.setLayoutAnimationEnabledExperimental(true);
     }
   }, []);
+
+  React.useEffect(() => {
+    let mounted = true;
+    const loadTafsirSettings = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(TAFSIR_FONT_SCALE_STORAGE_KEY);
+        if (!mounted) return;
+
+        if (raw) {
+          const parsed = JSON.parse(raw) as Partial<Record<'en' | 'ur', number>>;
+          setTafsirFontScaleByLang({
+            en: clampTafsirScale(parsed.en ?? 1),
+            ur: clampTafsirScale(parsed.ur ?? 1),
+          });
+        }
+      } catch {
+        // Keep defaults if persisted settings are unavailable.
+      } finally {
+        if (mounted) setTafsirScaleLoaded(true);
+      }
+    };
+
+    void loadTafsirSettings();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (!tafsirScaleLoaded) return;
+    void AsyncStorage.setItem(TAFSIR_FONT_SCALE_STORAGE_KEY, JSON.stringify(tafsirFontScaleByLang)).catch(() => {
+      // Best-effort persistence only.
+    });
+  }, [tafsirScaleLoaded, tafsirFontScaleByLang]);
 
   React.useEffect(() => {
     setLoading(true);
@@ -906,6 +944,19 @@ export function DbAdhkarScreen({
   const overlayTafsirUrduMode = !!(overlayItem && urduById[overlayItem.id]);
   const overlayShowUrdu = !!(overlayItem && urduById[overlayItem.id] && overlayUrduTafsir);
   const overlayIsUrduLoading = !!(overlayItem && urduTafsirLoadingById[overlayItem.id]);
+  const activeTafsirScale = overlayTafsirUrduMode ? tafsirFontScaleByLang.ur : tafsirFontScaleByLang.en;
+  const activeTafsirScaleLang: 'en' | 'ur' = overlayTafsirUrduMode ? 'ur' : 'en';
+  const canTafsirZoomOut = activeTafsirScale > TAFSIR_FONT_MIN + 0.001;
+  const canTafsirZoomIn = activeTafsirScale < TAFSIR_FONT_MAX - 0.001;
+  const scaledTafsirBodyTextStyle = overlayTafsirUrduMode
+    ? {
+        fontSize: Math.round(20 * activeTafsirScale),
+        lineHeight: Math.round(38 * activeTafsirScale),
+      }
+    : {
+        fontSize: Math.round(14 * activeTafsirScale),
+        lineHeight: Math.round(24 * activeTafsirScale),
+      };
 
   return (
     <View style={{ flex: 1 }}>
@@ -1021,25 +1072,55 @@ export function DbAdhkarScreen({
                 {overlayTafsirUrduMode ? <Text style={[styles.overlayTitleUrdu, { color: ADHKAR_TAFSIR_TEAL }]}>تفسیر</Text> : null}
                 {!overlayTafsirUrduMode ? <Text style={[styles.overlayTitleEn, N && { color: N.text }]}>Tafsir</Text> : null}
               </View>
-              <TouchableOpacity style={styles.overlayCloseBtn} onPress={handleCloseTafsirOverlay} activeOpacity={0.85}>
-                <MaterialIcons name="close" size={20} color={N ? N.text : '#334155'} />
-              </TouchableOpacity>
+              <View style={styles.overlayHeaderActions}>
+                <View style={styles.overlayZoomGroup}>
+                  <TouchableOpacity
+                    style={[styles.overlayZoomBtn, !canTafsirZoomOut && styles.overlayZoomBtnDisabled]}
+                    disabled={!canTafsirZoomOut}
+                    onPress={() => {
+                      setTafsirFontScaleByLang((prev) => ({
+                        ...prev,
+                        [activeTafsirScaleLang]: clampTafsirScale((prev[activeTafsirScaleLang] ?? 1) - TAFSIR_FONT_STEP),
+                      }));
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.overlayZoomBtnText}>−</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.overlayZoomBtn, !canTafsirZoomIn && styles.overlayZoomBtnDisabled]}
+                    disabled={!canTafsirZoomIn}
+                    onPress={() => {
+                      setTafsirFontScaleByLang((prev) => ({
+                        ...prev,
+                        [activeTafsirScaleLang]: clampTafsirScale((prev[activeTafsirScaleLang] ?? 1) + TAFSIR_FONT_STEP),
+                      }));
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.overlayZoomBtnText}>+</Text>
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity style={styles.overlayCloseBtn} onPress={handleCloseTafsirOverlay} activeOpacity={0.85}>
+                  <MaterialIcons name="close" size={20} color={N ? N.text : '#334155'} />
+                </TouchableOpacity>
+              </View>
             </View>
 
             <ScrollView nestedScrollEnabled style={styles.overlayScroll} contentContainerStyle={styles.overlayScrollContent}>
               {overlayShowUrdu ? (
-                <Text style={[styles.insightUrduText, N && { color: N.text }]}>{overlayUrduTafsir}</Text>
+                <Text style={[styles.insightUrduText, scaledTafsirBodyTextStyle, N && { color: N.text }]}>{overlayUrduTafsir}</Text>
               ) : (overlayItem && urduById[overlayItem.id] && overlayIsUrduLoading) ? (
-                <Text style={[styles.insightUrduText, N && { color: N.textMuted }]}>ترجمہ تیار کیا جا رہا ہے...</Text>
+                <Text style={[styles.insightUrduText, scaledTafsirBodyTextStyle, N && { color: N.textMuted }]}>ترجمہ تیار کیا جا رہا ہے...</Text>
               ) : overlayTafsirIsHtml ? (
                 <RenderHtml
                   contentWidth={Math.max(240, width - 64)}
                   source={{ html: overlayTafsir }}
-                  baseStyle={{ color: N ? N.textSub : ADHKAR_DESCRIPTION_TEXT, fontSize: 15, lineHeight: 24 }}
+                  baseStyle={{ color: N ? N.textSub : ADHKAR_DESCRIPTION_TEXT, ...scaledTafsirBodyTextStyle }}
                   tagsStyles={{ p: { marginTop: 0, marginBottom: 8 }, li: { marginBottom: 4 }, ul: { marginTop: 0, marginBottom: 8, paddingLeft: 18 }, ol: { marginTop: 0, marginBottom: 8, paddingLeft: 18 }, strong: { fontWeight: '700' }, em: { fontStyle: 'italic' } }}
                 />
               ) : (
-                <Text style={[styles.benefitsText, N && { color: N.textSub }]}>{overlayTafsir || 'No tafsir available.'}</Text>
+                <Text style={[styles.benefitsText, scaledTafsirBodyTextStyle, N && { color: N.textSub }]}>{overlayTafsir || 'No tafsir available.'}</Text>
               )}
             </ScrollView>
           </View>
@@ -1394,6 +1475,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
+  },
+  overlayHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  overlayZoomGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  overlayZoomBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#98BFA8',
+    backgroundColor: '#F5FBF7',
+  },
+  overlayZoomBtnDisabled: {
+    opacity: 0.35,
+  },
+  overlayZoomBtnText: {
+    fontSize: 17,
+    lineHeight: 18,
+    fontWeight: '800',
+    color: '#24573A',
   },
   overlayTitleUrdu: {
     fontFamily: 'UrduNastaliq',

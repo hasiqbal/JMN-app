@@ -4,7 +4,7 @@
  * Source data: AhmedBaset/hadith-json (Nawawi 40, pinned v1.2.0)
  */
 
-const FETCH_TIMEOUT_MS = 8000;
+const FETCH_TIMEOUT_MS = 6000;
 const CACHE_KEY = '@daily_sunnah_v5';
 const CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 
@@ -16,6 +16,9 @@ export type DailySunnahResult = {
   ref: string;
   idInBook: number;
   bookTitle: string;
+  chapterNumber?: number;
+  hadithNumber?: number;
+  sourceLabel?: string;
   sourceApi?: string;
   sourceUrl?: string;
 };
@@ -119,6 +122,10 @@ async function readLastSuccessfulCache(): Promise<DailySunnahResult | null> {
   }
 }
 
+export async function getDailySunnahCached(): Promise<DailySunnahResult | null> {
+  return readLastSuccessfulCache();
+}
+
 async function writeCache(data: DailySunnahResult): Promise<void> {
   const payload: CachePayload = {
     updatedAt: Date.now(),
@@ -136,74 +143,26 @@ async function writeCache(data: DailySunnahResult): Promise<void> {
 }
 
 export async function fetchDailySunnah(
-  options?: {
-    forceRefresh?: boolean;
-    onTrace?: (event: string, payload?: Record<string, unknown>) => void;
-  },
+  options?: { forceRefresh?: boolean },
 ): Promise<DailySunnahResult | null> {
   const forceRefresh = options?.forceRefresh === true;
-  const trace = (event: string, payload?: Record<string, unknown>) => {
-    if (options?.onTrace) {
-      options.onTrace(event, payload);
-    }
-  };
   const fallbackCached = await readLastSuccessfulCache();
-  trace('start', {
-    forceRefresh,
-    hasMemoryCache: !!memoryCache?.data,
-    hasFallbackCached: !!fallbackCached,
-  });
-  if (__DEV__) {
-    console.log('[sunnahReminderService][trace] start', {
-      forceRefresh,
-      hasMemoryCache: !!memoryCache?.data,
-      hasFallbackCached: !!fallbackCached,
-    });
-  }
 
   if (!forceRefresh) {
     const cached = await readCache();
     if (cached) {
-      trace('hit-today-cache', {
-        previewLen: cached.preview?.length ?? 0,
-        textLen: cached.text?.length ?? 0,
-        source: cached.ref,
-      });
-      if (__DEV__) {
-        console.log('[sunnahReminderService][trace] hit-today-cache', {
-          previewLen: cached.preview?.length ?? 0,
-          textLen: cached.text?.length ?? 0,
-          source: cached.ref,
-        });
-      }
       return cached;
     }
   }
 
   const { url, publishableKey, anonKey } = getSupabaseEnv();
   if (!url) {
-    trace('missing-url');
-    if (__DEV__) {
-      console.warn('[sunnahReminderService][trace] missing EXPO_PUBLIC_SUPABASE_URL');
-    }
     return fallbackCached;
   }
 
   const apiKey = publishableKey || anonKey;
   const authToken = anonKey || (apiKey && isLikelyJwt(apiKey) ? apiKey : undefined);
   if (!apiKey || !authToken) {
-    trace('missing-auth-credentials', {
-      hasApiKey: !!apiKey,
-      hasAuthToken: !!authToken,
-      authTokenLooksJwt: !!authToken && isLikelyJwt(authToken),
-    });
-    if (__DEV__) {
-      console.warn('[sunnahReminderService][trace] missing auth credentials', {
-        hasApiKey: !!apiKey,
-        hasAuthToken: !!authToken,
-        authTokenLooksJwt: !!authToken && isLikelyJwt(authToken),
-      });
-    }
     return fallbackCached;
   }
 
@@ -215,7 +174,6 @@ export async function fetchDailySunnah(
       ? `${getUtcSlotStamp()}-${Date.now()}`
       : getUtcSlotStamp();
     const requestUrl = `${url}/functions/v1/daily-sunnah?cache_bust=${encodeURIComponent(cacheKey)}`;
-    trace('request', { requestUrl, method: 'POST' });
 
     const response = await fetch(requestUrl, {
       method: 'POST',
@@ -234,32 +192,17 @@ export async function fetchDailySunnah(
 
     if (!response.ok) {
       console.warn('[sunnahReminderService] edge function error:', response.status);
-      if (__DEV__) {
-        const body = await response.text().catch(() => '');
-        trace('non-200-response', { status: response.status, body });
-        console.warn('[sunnahReminderService][trace] non-200 response body:', body);
-      }
       return fallbackCached;
     }
 
     const parsed = await response.json() as DailySunnahResult | { noCandidate?: boolean };
     if ('noCandidate' in parsed && parsed.noCandidate) {
-      trace('noCandidate', parsed as Record<string, unknown>);
-      if (__DEV__) {
-        console.warn('[sunnahReminderService][trace] noCandidate payload', parsed);
-      }
       const lastSuccessful = await readLastSuccessfulCache();
       return lastSuccessful;
     }
 
     const data: DailySunnahResult = parsed as DailySunnahResult;
     if (!isSunnahScrapePayload(data)) {
-      trace('rejected-non-scrape-payload', {
-        sourceApi: data.sourceApi ?? null,
-        sourceUrl: data.sourceUrl ?? null,
-        ref: data.ref,
-        bookTitle: data.bookTitle,
-      });
       if (__DEV__) {
         console.warn('[sunnahReminderService][trace] rejected non-scrape payload', {
           sourceApi: data.sourceApi ?? null,
@@ -271,36 +214,13 @@ export async function fetchDailySunnah(
       return fallbackCached;
     }
 
-    trace('fetch-success', {
-      previewLen: data.preview?.length ?? 0,
-      textLen: data.text?.length ?? 0,
-      source: data.ref,
-      bookTitle: data.bookTitle,
-      sourceApi: data.sourceApi ?? null,
-      sourceUrl: data.sourceUrl ?? null,
-    });
-    if (__DEV__) {
-      console.log('[sunnahReminderService][trace] fetch-success', {
-        previewLen: data.preview?.length ?? 0,
-        textLen: data.text?.length ?? 0,
-        source: data.ref,
-        bookTitle: data.bookTitle,
-      });
-    }
     await writeCache(data);
     return data;
   } catch (err) {
     clearTimeout(timeoutId);
     if (isAbortError(err)) {
-      trace('request-aborted-timeout');
-      if (__DEV__) {
-        console.warn('[sunnahReminderService][trace] request aborted (timeout)');
-      }
       return fallbackCached;
     }
-    trace('fetch-exception', {
-      message: err instanceof Error ? err.message : String(err),
-    });
     console.warn('[sunnahReminderService] fetch failed:', err);
     return fallbackCached;
   }

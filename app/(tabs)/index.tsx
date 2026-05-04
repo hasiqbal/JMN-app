@@ -17,7 +17,6 @@ import {
 } from 'react-native';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { MaterialIcons } from '@expo/vector-icons';
-import Clipboard from '@react-native-clipboard/clipboard';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,7 +30,7 @@ import {
   type AnnouncementRow,
 } from '@/services/contentService';
 import { fetchEidUlAdha, fetchEidUlFitr } from '@/services/eidService';
-import { getInterpolatedPrayerGradient, PRAYER_SKY_DEPTH_OVERLAY } from '@/components/prayer/heroConfig';
+import { getContinuousDaySkyGradient, getInterpolatedPrayerGradient, PRAYER_SKY_DEPTH_OVERLAY } from '@/components/prayer/heroConfig';
 import { buildHeroState } from '@/components/prayer/heroState';
 import { buildActivePrayerState } from '@/components/prayer/activePrayerState';
 import PrayerDrawerTrigger from '@/components/prayer/PrayerDrawerTrigger';
@@ -50,7 +49,11 @@ import {
   fetchDonationOptionsForApp,
   type AppDonationOption,
 } from '@/services/donationService';
-import { fetchDailySunnah, type DailySunnahResult } from '@/services/sunnahReminderService';
+import {
+  fetchDailySunnah,
+  getDailySunnahCached,
+  type DailySunnahResult,
+} from '@/services/sunnahReminderService';
 import { fetchDailyQuranReminder, type DailyQuranResult } from '@/services/quranReminderService';
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
 
@@ -2181,38 +2184,9 @@ export default function HomeScreen() {
   const prayerSheetRef = useRef<BottomSheet>(null);
   const [dailySunnah, setDailySunnah] = useState<DailySunnahResult | null>(null);
   const [dailyQuran, setDailyQuran] = useState<DailyQuranResult | null>(null);
-  const [dailySunnahTraceLines, setDailySunnahTraceLines] = useState<string[]>([]);
 
   const refreshDailySunnah = useCallback((forceRefresh = false) => {
-    setDailySunnahTraceLines([]);
-    void fetchDailySunnah({
-      forceRefresh,
-      onTrace: (event, payload) => {
-        const stamp = new Date().toLocaleTimeString();
-        let details = '';
-        if (payload) {
-          try {
-            const serialized = JSON.stringify(payload);
-            details = serialized.length > 260
-              ? ` ${serialized.slice(0, 260)}...`
-              : ` ${serialized}`;
-          } catch {
-            details = ' [payload-unserializable]';
-          }
-        }
-        const line = `${stamp} ${event}${details}`;
-        setDailySunnahTraceLines((prev) => [...prev.slice(-11), line]);
-      },
-    }).then((result) => {
-      if (__DEV__) {
-        console.log('[Home][dailySunnah][trace] refresh result', {
-          forceRefresh,
-          hasResult: !!result,
-          previewLen: result?.preview?.length ?? 0,
-          textLen: result?.text?.length ?? 0,
-          source: result?.ref ?? '',
-        });
-      }
+    void fetchDailySunnah({ forceRefresh }).then((result) => {
       if (result) {
         setDailySunnah(result);
       }
@@ -2266,7 +2240,19 @@ export default function HomeScreen() {
   }, [loadCommunityUpdates, loadDonationOptions]);
   
   useEffect(() => {
+    let mounted = true;
+
+    void getDailySunnahCached().then((cached) => {
+      if (mounted && cached) {
+        setDailySunnah(cached);
+      }
+    });
+
     refreshDailySunnah(true);
+
+    return () => {
+      mounted = false;
+    };
   }, [refreshDailySunnah]);
 
   useEffect(() => {
@@ -2645,7 +2631,35 @@ export default function HomeScreen() {
   const hadithTitleUrdu = 'روزانہ سنت یاددہانی';
   const hadithPreview = dailySunnah?.preview ?? '';
   const hadithPreviewUrdu = '';
-  const hadithSource = dailySunnah?.sourceUrl ?? dailySunnah?.ref ?? '';
+  const sourcePathParts = dailySunnah?.sourceUrl
+    ? dailySunnah.sourceUrl.replace(/^https?:\/\/[^/]+/i, '').split('/').filter(Boolean)
+    : [];
+  const parsedChapterFromUrl = sourcePathParts.length >= 3 ? Number(sourcePathParts[1]) : NaN;
+  const parsedHadithFromUrl = sourcePathParts.length >= 3 ? Number(sourcePathParts[2]) : NaN;
+  const hadithChapterNumber = dailySunnah?.chapterNumber
+    ?? (Number.isInteger(parsedChapterFromUrl) ? parsedChapterFromUrl : null);
+  const hadithNumber = dailySunnah?.hadithNumber
+    ?? (Number.isInteger(parsedHadithFromUrl) ? parsedHadithFromUrl : null)
+    ?? dailySunnah?.idInBook
+    ?? null;
+  const hadithSource = dailySunnah
+    ? dailySunnah.sourceLabel
+      ?? `${dailySunnah.bookTitle}${hadithChapterNumber ? ` - Chapter ${hadithChapterNumber}` : ''}${hadithNumber ? ` - Hadith ${hadithNumber}` : ''}`
+    : '';
+  const toUrduDigits = (value: number | string) => String(value).replace(/\d/g, (digit) => {
+    const digits = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+    return digits[Number(digit)] ?? digit;
+  });
+  const hadithBookTitleUrdu = dailySunnah?.bookTitle?.includes('Riyad')
+    ? 'ریاض الصالحین'
+    : dailySunnah?.bookTitle?.includes('Adab')
+      ? 'الادب المفرد'
+      : dailySunnah?.bookTitle?.includes('Shama')
+        ? 'الشمائل المحمدیہ'
+        : (dailySunnah?.bookTitle ?? '');
+  const hadithSourceUrdu = dailySunnah
+    ? `${hadithBookTitleUrdu}${hadithChapterNumber ? ` - باب ${toUrduDigits(hadithChapterNumber)}` : ''}${hadithNumber ? ` - حدیث ${toUrduDigits(hadithNumber)}` : ''}`
+    : '';
   const hadithArabic = dailySunnah?.arabic ?? '';
   const hadithNarrator = dailySunnah?.narrator?.trim() ?? '';
   const hadithText = dailySunnah?.text?.trim() ?? '';
@@ -2654,12 +2668,11 @@ export default function HomeScreen() {
     && hadithText
     && hadithText.toLowerCase().startsWith(hadithNarrator.toLowerCase())
   );
+  const hadithBodyText = textAlreadyHasNarrator && hadithNarrator
+    ? hadithText.slice(hadithNarrator.length).replace(/^\s*[:,-]?\s*/, '').trimStart()
+    : hadithText;
   const hadithFullText = dailySunnah
-    ? hadithNarrator
-      ? textAlreadyHasNarrator
-        ? hadithText
-        : `${hadithNarrator}\n\n${hadithText}`
-      : hadithText
+    ? (hadithBodyText || hadithText)
     : 'Open full Hadith to read the reminder.';
 
   const verseTitle = 'Daily Quran Reminder';
@@ -2675,7 +2688,9 @@ export default function HomeScreen() {
   const expandedSacredContent = {
     hadithFullText,
     hadithSource,
+    hadithSourceUrdu,
     hadithTitle,
+    hadithTitleUrdu: `${hadithTitleUrdu}${hadithBookTitleUrdu ? ` - ${hadithBookTitleUrdu}` : ''}`,
     verseFullText,
     verseReference,
     verseTitle,
@@ -2687,6 +2702,10 @@ export default function HomeScreen() {
       : activeSacredPanel === 'verse'
         ? expandedSacredContent.verseTitle
         : '';
+  const activeSheetTitleUrdu =
+    activeSacredPanel === 'hadith'
+      ? expandedSacredContent.hadithTitleUrdu
+      : '';
   const activeSheetText =
     activeSacredPanel === 'hadith'
       ? expandedSacredContent.hadithFullText
@@ -2699,6 +2718,14 @@ export default function HomeScreen() {
       : activeSacredPanel === 'verse'
         ? expandedSacredContent.verseReference
         : '';
+  const activeSheetReferenceUrdu =
+    activeSacredPanel === 'hadith'
+      ? expandedSacredContent.hadithSourceUrdu
+      : '';
+  const activeSheetNarrator =
+    activeSacredPanel === 'hadith'
+      ? hadithNarrator
+      : '';
   const activeSheetArabic =
     activeSacredPanel === 'hadith'
       ? hadithArabic
@@ -2713,14 +2740,20 @@ export default function HomeScreen() {
   }, [activeSheetText]);
 
   const openQuranReminderTafsir = useCallback(async (languageMode: 'english' | 'urdu') => {
-    const targetVerseKey = (dailyQuran?.contextVerseKeys?.[0] ?? dailyQuran?.verseKey ?? '').trim();
+    if (!dailyQuran) {
+      router.push('/(tabs)/quran' as any);
+      return;
+    }
+    const reminder = dailyQuran;
+
+    const targetVerseKey = (reminder.contextVerseKeys?.[0] ?? reminder.verseKey ?? '').trim();
     if (!targetVerseKey) {
       router.push('/(tabs)/quran' as any);
       return;
     }
 
-    let reminderPage = Number.isFinite(dailyQuran?.pageNumber)
-      ? Math.max(0, Math.floor(dailyQuran.pageNumber) - 1)
+    let reminderPage = Number.isFinite(reminder.pageNumber)
+      ? Math.max(0, Math.floor(reminder.pageNumber) - 1)
       : 0;
 
     try {
@@ -2747,7 +2780,6 @@ export default function HomeScreen() {
         contentMode: 'tafsir',
         contentLang: languageMode === 'urdu' ? 'ur' : 'en',
         openContentPanel: '1',
-        verseKey: targetVerseKey,
       },
     } as any);
   }, [dailyQuran, router]);
@@ -2947,10 +2979,9 @@ export default function HomeScreen() {
   const effectiveHeroJamaatMarker = isEidHeroWindow ? null : heroJamaatMarker;
   const effectiveHeroEndMarker = isEidHeroWindow ? null : heroEndMarker;
   const effectiveHeroMidMarker = isEidHeroWindow ? null : heroMidMarker;
-  const effectiveHeroSkyGradientColors = getInterpolatedPrayerGradient(
-    effectiveHeroPrayerName,
-    effectiveHeroProgress
-  );
+  const effectiveHeroSkyGradientColors = fullDayTimelineProgress != null
+    ? getContinuousDaySkyGradient(fullDayTimelineProgress, effectiveHeroPrayerName)
+    : getInterpolatedPrayerGradient(effectiveHeroPrayerName, effectiveHeroProgress);
   const effectiveHeroGradientColors: readonly [string, string] = nightMode
     ? [HERO_DESIGN_TOKENS.heroTopNight, HERO_DESIGN_TOKENS.heroBottomNight]
     : [HERO_DESIGN_TOKENS.heroTop, HERO_DESIGN_TOKENS.heroBottom];
@@ -3360,6 +3391,7 @@ export default function HomeScreen() {
                 hadithPreview={hadithPreview}
                 hadithPreviewUrdu={hadithPreviewUrdu}
                 hadithSource={hadithSource}
+                hadithSourceUrdu={hadithSourceUrdu}
                 onPressHadith={() => setActiveSacredPanel('hadith')}
                 verseLabel={verseTitle}
                 verseLabelUrdu={verseTitleUrdu}
@@ -3374,98 +3406,6 @@ export default function HomeScreen() {
                 isLoading={false}
                 nightMode={nightMode}
               />
-
-              {__DEV__ && (
-                <View
-                  style={{
-                    marginTop: 10,
-                    borderRadius: 10,
-                    borderWidth: 1,
-                    borderColor: 'rgba(60,140,110,0.35)',
-                    backgroundColor: nightMode ? 'rgba(20,40,36,0.55)' : 'rgba(231,245,238,0.9)',
-                    paddingHorizontal: 10,
-                    paddingVertical: 8,
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: 11,
-                      fontWeight: '700',
-                      color: nightMode ? '#DCEEE4' : '#1E5A43',
-                      marginBottom: 4,
-                    }}
-                  >
-                    Daily Sunnah Trace (DEV)
-                  </Text>
-                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 6 }}>
-                    <TouchableOpacity
-                      onPress={() => {
-                        const text = dailySunnahTraceLines.join('\n').trim();
-                        if (!text) {
-                          Alert.alert('No trace yet', 'Run a refresh and try again.');
-                          return;
-                        }
-                        Clipboard.setString(text);
-                        Alert.alert('Copied', 'Daily Sunnah trace copied to clipboard.');
-                      }}
-                      style={{
-                        paddingHorizontal: 10,
-                        paddingVertical: 5,
-                        borderRadius: 7,
-                        borderWidth: 1,
-                        borderColor: nightMode ? 'rgba(220,238,228,0.35)' : 'rgba(30,90,67,0.3)',
-                        backgroundColor: nightMode ? 'rgba(220,238,228,0.08)' : 'rgba(255,255,255,0.7)',
-                      }}
-                    >
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: nightMode ? '#DCEEE4' : '#1E5A43' }}>
-                        Copy Trace
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      onPress={() => refreshDailySunnah(true)}
-                      style={{
-                        paddingHorizontal: 10,
-                        paddingVertical: 5,
-                        borderRadius: 7,
-                        borderWidth: 1,
-                        borderColor: nightMode ? 'rgba(220,238,228,0.35)' : 'rgba(30,90,67,0.3)',
-                        backgroundColor: nightMode ? 'rgba(220,238,228,0.08)' : 'rgba(255,255,255,0.7)',
-                      }}
-                    >
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: nightMode ? '#DCEEE4' : '#1E5A43' }}>
-                        Refresh Trace
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                  {dailySunnahTraceLines.length === 0 ? (
-                    <Text style={{ fontSize: 10, color: nightMode ? '#BFD5C8' : '#3F6B59' }}>
-                      Waiting for trace events...
-                    </Text>
-                  ) : (
-                    <ScrollView
-                      style={{ maxHeight: 120 }}
-                      contentContainerStyle={{ paddingBottom: 2 }}
-                      nestedScrollEnabled
-                    >
-                      {dailySunnahTraceLines.map((line, idx) => (
-                        <Text
-                          key={`${idx}-${line.slice(0, 20)}`}
-                          selectable
-                          style={{
-                            fontSize: 10,
-                            lineHeight: 14,
-                            color: nightMode ? '#CDE4D8' : '#2E5D49',
-                            marginBottom: 2,
-                          }}
-                        >
-                          {line}
-                        </Text>
-                      ))}
-                    </ScrollView>
-                  )}
-                </View>
-              )}
             </View>
 
             <View style={styles.forYouFadeZone}>
@@ -3499,8 +3439,11 @@ export default function HomeScreen() {
     <SacredReadingSheet
       visible={activeSacredPanel !== null}
       title={activeSheetTitle}
+      titleUrdu={activeSheetTitleUrdu}
+      narratorText={activeSheetNarrator}
       fullText={activeSheetText}
       reference={activeSheetReference}
+      referenceUrdu={activeSheetReferenceUrdu}
       secondaryText={activeSheetArabic}
       showUrduToggle={activeSacredPanel !== null}
       onRequestUrduText={activeSacredPanel ? requestActiveSheetUrduText : undefined}

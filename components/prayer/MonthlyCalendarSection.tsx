@@ -672,11 +672,11 @@ function CalendarPrayerPanel({
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[panelStyles.prayerName, N && { color: N.text }]}>{p.label}</Text>
-            {p.label === 'Fajr' ? <Text style={panelStyles.prayerGuidance}>Nafl forbidden after you prayed until Ishraq</Text> : null}
-            {p.label === 'Asr' ? <Text style={panelStyles.prayerGuidance}>Forbidden to delay - 20 mins before Maghrib</Text> : null}
-            {p.label === 'Ishraq' ? <Text style={panelStyles.prayerGuidance}>Nafl allowed after sunrise window ends</Text> : null}
-            {p.label === 'ad-Duha al-Kubra' ? <Text style={panelStyles.prayerGuidance}>Peak Duha window - midpoint between Fajr and Maghrib</Text> : null}
-            {p.label === 'Zawaal' ? <Text style={panelStyles.prayerGuidance}>Forbidden to pray until Dhuhr begins</Text> : null}
+            {p.label === 'Fajr' ? <Text style={panelStyles.prayerGuidance}>Nafl forbidden after Fajr until Ishraq.</Text> : null}
+            {p.label === 'Asr' ? <Text style={panelStyles.prayerGuidance}>Avoid delaying Asr; prayer time ends 20 mins before Maghrib.</Text> : null}
+            {p.label === 'Sunrise' ? <Text style={panelStyles.prayerGuidance}>Nafl forbidden until Ishraq.</Text> : null}
+            {p.label === 'ad-Duha al-Kubra' ? <Text style={panelStyles.prayerGuidance}>Islamic Midday: midpoint between Fajr and Maghrib.</Text> : null}
+            {p.label === 'Zawaal' ? <Text style={panelStyles.prayerGuidance}>Prayer forbidden until Dhuhr begins.</Text> : null}
           </View>
           <View style={{ width: 72, alignItems: 'center' }}>
             <Text style={[

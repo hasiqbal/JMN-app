@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 
 import { Colors, Radius, Spacing } from '@/constants/theme';
@@ -1000,7 +1001,9 @@ function QuranPortionCard({
 
   const lv = levelIdx !== null ? QURAN_READ_LEVELS[levelIdx] : QURAN_READ_LEVELS[0];
   const accentColor = nightMode ? FY_THEME.heroAccent : (levelIdx !== null ? lv.color : FY_THEME.primary);
-  const cardWidth = Math.max(300, windowWidth - (Spacing.md * 2));
+  // Account for track shell + horizontal ScrollView paddings so the card fits fully in view.
+  const quranCardInset = (Spacing.md * 2) + 24;
+  const cardWidth = Math.max(260, windowWidth - quranCardInset);
   const nextMissedJuz = pendingMissedDays[0] ?? null;
   const shouldRenderCatchupBanner = levelIdx === 3 && pendingMissedDays.length > 0;
 
@@ -1062,10 +1065,14 @@ function QuranPortionCard({
       ]}>
         <ImageBackground source={quranBackgroundSource} style={fyStyles.quranBgWrap} imageStyle={fyStyles.quranBgImage}>
           <View style={fyStyles.quranBgOverlay}>
-            {/* Header */}
-            <View style={fyStyles.duroodHeader}>
-              <MaterialIcons name="menu-book" size={13} color={accentColor} />
-              <Text style={[fyStyles.duroodTitle, { color: accentColor }]}>Daily Quran</Text>
+            <View style={fyStyles.quranTopRow}>
+              <View style={fyStyles.quranTitleCluster}>
+                <View style={fyStyles.quranEyebrow}>
+                  <MaterialIcons name="menu-book" size={13} color={accentColor} />
+                  <Text style={[fyStyles.quranEyebrowText, { color: accentColor }]}>Daily Quran</Text>
+                </View>
+                <Text style={fyStyles.quranHintText}>Build a steady recitation rhythm</Text>
+              </View>
               {levelIdx !== null && badge ? (
                 <View style={[fyStyles.juzBadge, { backgroundColor: accentColor }]}>
                   <Text style={fyStyles.juzBadgeText}>{badge}</Text>
@@ -1073,69 +1080,74 @@ function QuranPortionCard({
               ) : null}
             </View>
 
-            {/* Content */}
-            <View style={[fyStyles.counterPanelCompact, { backgroundColor: FY_THEME.heroPanel, paddingVertical: 10, paddingHorizontal: 10 }]}>
-              <Text style={[fyStyles.cardTitle, { textAlign: 'center', fontSize: 14, lineHeight: 18, color: FY_THEME.heroText, fontWeight: '900' }]} numberOfLines={2}>
+            <View style={fyStyles.quranHeroPanel}>
+              <View pointerEvents="none" style={fyStyles.quranHeroGlow} />
+              <Text style={fyStyles.quranHeroTitle} numberOfLines={2}>
                 {titleLine}
               </Text>
               {ayahLine ? (
-                <Text style={[fyStyles.cardSub, { textAlign: 'center', marginTop: 1, fontSize: 11, lineHeight: 14, fontWeight: '700', color: FY_THEME.heroSubText }]} numberOfLines={1}>
+                <Text style={fyStyles.quranHeroMeta} numberOfLines={1}>
                   {ayahLine}
                 </Text>
               ) : null}
               {subLine ? (
-                <Text style={[fyStyles.cardSub, { textAlign: 'center', marginTop: 2, fontWeight: '500', opacity: 1, color: FY_THEME.heroMutedText }]} numberOfLines={2}>
+                <Text style={fyStyles.quranHeroSub} numberOfLines={2}>
                   {subLine}
                 </Text>
               ) : null}
             </View>
 
-            {/* Level selector */}
-            <View style={[fyStyles.counterSegmentedCompact, { backgroundColor: FY_THEME.heroSegment }]}>
-              {QURAN_READ_LEVELS.map((ql, i) => (
-                <TouchableOpacity
-                  key={ql.level}
-                  onPress={() => switchLevel(i)}
-                  activeOpacity={0.8}
-                  style={[
-                    fyStyles.counterSegmentBtnCompact,
-                    i === levelIdx
-                      ? { backgroundColor: accentColor, borderColor: accentColor }
-                      : { backgroundColor: 'transparent', borderColor: 'transparent' },
-                  ]}
-                >
-                  <Text style={[
-                    fyStyles.counterSegmentTextCompact,
-                    { color: i === levelIdx ? '#0D2A1B' : 'rgba(236,247,240,0.78)' },
-                  ]}>{ql.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <View style={[fyStyles.counterSegmentedCompact, { backgroundColor: FY_THEME.heroSegment }]}>
-              {(['15line', '16line'] as MushafLayout[]).map((layout) => {
-                const selected = mushafLayout === layout;
-                return (
+            <View style={fyStyles.quranSectionBlock}>
+              <Text style={fyStyles.quranSectionLabel}>Recitation target</Text>
+              <View style={[fyStyles.counterSegmentedCompact, fyStyles.quranSegmentedSurface]}>
+                {QURAN_READ_LEVELS.map((ql, i) => (
                   <TouchableOpacity
-                    key={layout}
-                    onPress={() => switchMushafLayout(layout)}
+                    key={ql.level}
+                    onPress={() => switchLevel(i)}
                     activeOpacity={0.8}
                     style={[
                       fyStyles.counterSegmentBtnCompact,
-                      selected
+                      i === levelIdx
                         ? { backgroundColor: accentColor, borderColor: accentColor }
                         : { backgroundColor: 'transparent', borderColor: 'transparent' },
                     ]}
                   >
                     <Text style={[
                       fyStyles.counterSegmentTextCompact,
-                      { color: selected ? '#0D2A1B' : 'rgba(236,247,240,0.78)' },
-                    ]}>
-                      {layout === '16line' ? '16 line Quran' : '15 line Quran'}
-                    </Text>
+                      { color: i === levelIdx ? '#0D2A1B' : 'rgba(236,247,240,0.80)' },
+                    ]}>{ql.label}</Text>
                   </TouchableOpacity>
-                );
-              })}
+                ))}
+              </View>
+            </View>
+
+            <View style={fyStyles.quranSectionBlock}>
+              <Text style={fyStyles.quranSectionLabel}>Mushaf style</Text>
+              <View style={[fyStyles.counterSegmentedCompact, fyStyles.quranSegmentedSurface]}>
+                {(['15line', '16line'] as MushafLayout[]).map((layout) => {
+                  const selected = mushafLayout === layout;
+                  return (
+                    <TouchableOpacity
+                      key={layout}
+                      onPress={() => switchMushafLayout(layout)}
+                      activeOpacity={0.8}
+                      style={[
+                        fyStyles.counterSegmentBtnCompact,
+                        selected
+                          ? { backgroundColor: accentColor, borderColor: accentColor }
+                          : { backgroundColor: 'transparent', borderColor: 'transparent' },
+                      ]}
+                    >
+                      <Text style={[
+                        fyStyles.counterSegmentTextCompact,
+                        { color: selected ? '#0D2A1B' : 'rgba(236,247,240,0.80)' },
+                      ]}>
+                        {layout === '16line' ? '16 line Quran' : '15 line Quran'}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </View>
 
             {shouldRenderCatchupBanner && nextMissedJuz ? (
@@ -1173,28 +1185,21 @@ function QuranPortionCard({
 
             {/* Action buttons — hidden until user picks a level */}
             {levelIdx !== null ? (
-              <View style={{ flexDirection: 'row', gap: 10 }}>
+              <View style={fyStyles.quranActionsRow}>
                 <TouchableOpacity
                   onPress={openInQuran}
-                  style={[fyStyles.openRow, { flex: 1, backgroundColor: accentColor, justifyContent: 'center', marginTop: 0 }]}
+                  style={[fyStyles.openRow, fyStyles.quranPrimaryAction, { backgroundColor: accentColor }]}
                 >
                   <MaterialIcons name="auto-stories" size={11} color="#0A2417" />
-                  <Text style={[fyStyles.openText, { color: '#0A2417' }]}>Read in App</Text>
+                  <Text style={fyStyles.quranPrimaryActionText}>Read in App</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   onPress={handleMarkAsRead}
-                  style={[fyStyles.openRow, {
-                    flex: 1,
-                    backgroundColor: 'rgba(255,255,255,0.12)',
-                    borderWidth: 1,
-                    borderColor: 'rgba(255,255,255,0.30)',
-                    justifyContent: 'center',
-                    marginTop: 0,
-                  }]}
+                  style={[fyStyles.openRow, fyStyles.quranSecondaryAction]}
                 >
                   <MaterialIcons name="check-circle" size={11} color={FY_THEME.heroText} />
-                  <Text style={[fyStyles.openText, { color: FY_THEME.heroText }]}>Mark as Read</Text>
+                  <Text style={fyStyles.quranSecondaryActionText}>Mark as Read</Text>
                 </TouchableOpacity>
               </View>
             ) : null}
@@ -2123,7 +2128,7 @@ const sectionStyles = StyleSheet.create({
   titleSub: {
     fontSize: 12,
     lineHeight: 16,
-    color: '#5E7C6B',
+    color: '#66786D',
     fontWeight: '500',
   },
   countPill: {
@@ -2141,19 +2146,63 @@ const sectionStyles = StyleSheet.create({
     color: '#385647',
     letterSpacing: 0.2,
   },
-  trackShell: {
+  moduleShellGradient: {
     marginHorizontal: Spacing.md,
-    marginBottom: 10,
+    marginTop: 2,
     borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: 'rgba(31,125,80,0.11)',
-    backgroundColor: '#F8FCF9',
+    borderColor: 'rgba(35,92,65,0.12)',
+    overflow: 'hidden',
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 6px 18px rgba(20,67,44,0.06)' }
+      : {
+          shadowColor: '#184B33',
+          shadowOffset: { width: 0, height: 5 },
+          shadowOpacity: 0.08,
+          shadowRadius: 16,
+        }),
+    elevation: 2,
+  },
+  moduleShellGradientNight: {
+    borderColor: NIGHT.border,
+  },
+  moduleShell: {
+    padding: 8,
+    gap: 0,
+  },
+  moduleShellNight: {
+    backgroundColor: 'rgba(255,255,255,0.01)',
+  },
+  trackShell: {
+    marginHorizontal: 0,
+    marginBottom: 0,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(35,92,65,0.10)',
+    backgroundColor: '#FCFEFD',
     paddingTop: 6,
     paddingBottom: 2,
+  },
+  trackShellFirst: {
+    borderTopLeftRadius: Radius.lg,
+    borderTopRightRadius: Radius.lg,
+  },
+  trackShellLast: {
+    borderBottomLeftRadius: Radius.lg,
+    borderBottomRightRadius: Radius.lg,
   },
   trackShellNight: {
     borderColor: NIGHT.border,
     backgroundColor: NIGHT.surface,
+  },
+  trackGroupDivider: {
+    height: 1,
+    marginHorizontal: 8,
+    marginVertical: 7,
+    backgroundColor: 'rgba(60,99,80,0.10)',
+  },
+  trackGroupDividerNight: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
   },
   trackHeaderRow: {
     flexDirection: 'row',
@@ -2172,16 +2221,16 @@ const sectionStyles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     letterSpacing: 0.2,
-    color: '#256A4A',
+    color: '#2F6348',
   },
   trackHint: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#5E7C6B',
+    color: '#62766A',
   },
   trackDivider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(37,106,74,0.14)',
+    backgroundColor: 'rgba(60,99,80,0.14)',
     marginHorizontal: 12,
     marginBottom: 2,
   },
@@ -2505,6 +2554,91 @@ const fyStyles = StyleSheet.create({
     padding: 12,
     gap: 10,
   },
+  quranTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  quranTitleCluster: {
+    flex: 1,
+    gap: 2,
+  },
+  quranEyebrow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  quranEyebrowText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  quranHintText: {
+    fontSize: 9.5,
+    lineHeight: 12,
+    fontWeight: '500',
+    color: 'rgba(230,242,235,0.76)',
+  },
+  quranHeroPanel: {
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(200,244,218,0.26)',
+    backgroundColor: 'rgba(246,255,251,0.12)',
+    paddingVertical: 11,
+    paddingHorizontal: 10,
+    gap: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  quranHeroGlow: {
+    position: 'absolute',
+    width: 170,
+    height: 170,
+    borderRadius: 85,
+    backgroundColor: 'rgba(121,226,168,0.18)',
+    top: -100,
+    right: -48,
+  },
+  quranHeroTitle: {
+    textAlign: 'center',
+    fontSize: 16,
+    lineHeight: 20,
+    color: FY_THEME.heroText,
+    fontWeight: '800',
+    letterSpacing: 0.1,
+  },
+  quranHeroMeta: {
+    textAlign: 'center',
+    marginTop: 2,
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '700',
+    color: FY_THEME.heroSubText,
+  },
+  quranHeroSub: {
+    textAlign: 'center',
+    marginTop: 2,
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '500',
+    color: FY_THEME.heroMutedText,
+  },
+  quranSectionBlock: {
+    gap: 5,
+  },
+  quranSectionLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.25,
+    textTransform: 'uppercase',
+    color: 'rgba(206,236,220,0.78)',
+    paddingHorizontal: 2,
+  },
+  quranSegmentedSurface: {
+    backgroundColor: FY_THEME.heroSegment,
+  },
   catchupBannerWrap: {
     borderRadius: Radius.md,
     borderWidth: 1,
@@ -2621,6 +2755,37 @@ const fyStyles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 3,
     alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5,
     borderRadius: Radius.full, marginTop: 3,
+  },
+  quranActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  quranPrimaryAction: {
+    flex: 1,
+    justifyContent: 'center',
+    marginTop: 0,
+    minHeight: 34,
+  },
+  quranPrimaryActionText: {
+    color: '#0A2417',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.1,
+  },
+  quranSecondaryAction: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.30)',
+    justifyContent: 'center',
+    marginTop: 0,
+    minHeight: 34,
+  },
+  quranSecondaryActionText: {
+    color: FY_THEME.heroText,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.1,
   },
   openText: { fontSize: 10, fontWeight: '700' },
   openPrimary: {
@@ -2880,6 +3045,9 @@ export function HomeForYouTodaySection({
   const istighfarCardId = `istighfar-${todayKey}`;
   const showQuranRow = Platform.OS === 'web' ? true : !dismissed.has(quranCardId);
   const showCountersRow = !dismissed.has(duroodCardId) || !dismissed.has(istighfarCardId);
+  const adhkarWindowsIsFirst = !showQuranRow;
+  const adhkarWindowsIsLast = !showCountersRow;
+  const trackHeaderIconColor = N ? '#AFC6E6' : '#2F7E59';
 
   // Keep this as the current row: prayer cards with utility follow-ups.
   const currentRowExtraSlots: React.ReactNode[] = [
@@ -2905,11 +3073,22 @@ export function HomeForYouTodaySection({
         </View>
       </View>
 
+      <LinearGradient
+        colors={
+          nightMode
+            ? ['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.01)']
+            : ['#FBFEFC', '#F1F7F2']
+        }
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={[sectionStyles.moduleShellGradient, N && sectionStyles.moduleShellGradientNight]}
+      >
+      <View style={[sectionStyles.moduleShell, N && sectionStyles.moduleShellNight]}>
       {showQuranRow ? (
-        <View style={[sectionStyles.trackShell, N && sectionStyles.trackShellNight]}>
+        <View style={[sectionStyles.trackShell, sectionStyles.trackShellFirst, N && sectionStyles.trackShellNight]}>
           <View style={sectionStyles.trackHeaderRow}>
             <View style={sectionStyles.trackHeaderTitleRow}>
-              <MaterialIcons name="menu-book" size={14} color={N ? N.textSub : '#2F7E59'} />
+              <MaterialIcons name="menu-book" size={14} color={trackHeaderIconColor} />
               <Text style={[sectionStyles.trackTitle, N && { color: N.textSub }]}>Quran Track</Text>
             </View>
             <Text style={[sectionStyles.trackHint, N && { color: N.textMuted }]}>Daily reading plan</Text>
@@ -2932,10 +3111,19 @@ export function HomeForYouTodaySection({
         </View>
       ) : null}
 
-      <View style={[sectionStyles.trackShell, N && sectionStyles.trackShellNight]}>
+      {showQuranRow ? (
+        <View style={[sectionStyles.trackGroupDivider, N && sectionStyles.trackGroupDividerNight]} />
+      ) : null}
+
+      <View style={[
+        sectionStyles.trackShell,
+        adhkarWindowsIsFirst && sectionStyles.trackShellFirst,
+        adhkarWindowsIsLast && sectionStyles.trackShellLast,
+        N && sectionStyles.trackShellNight,
+      ]}>
         <View style={sectionStyles.trackHeaderRow}>
           <View style={sectionStyles.trackHeaderTitleRow}>
-            <MaterialIcons name="schedule" size={14} color={N ? N.textSub : '#2F7E59'} />
+            <MaterialIcons name="schedule" size={14} color={trackHeaderIconColor} />
             <Text style={[sectionStyles.trackTitle, N && { color: N.textSub }]}>Adhkar Windows</Text>
           </View>
           <Text style={[sectionStyles.trackHint, N && { color: N.textMuted }]}>
@@ -2990,10 +3178,14 @@ export function HomeForYouTodaySection({
       </View>
 
       {showCountersRow ? (
-        <View style={[sectionStyles.trackShell, N && sectionStyles.trackShellNight]}>
+        <View style={[sectionStyles.trackGroupDivider, N && sectionStyles.trackGroupDividerNight]} />
+      ) : null}
+
+      {showCountersRow ? (
+        <View style={[sectionStyles.trackShell, sectionStyles.trackShellLast, N && sectionStyles.trackShellNight]}>
           <View style={sectionStyles.trackHeaderRow}>
             <View style={sectionStyles.trackHeaderTitleRow}>
-              <MaterialIcons name="timelapse" size={14} color={N ? N.textSub : '#2F7E59'} />
+              <MaterialIcons name="timelapse" size={14} color={trackHeaderIconColor} />
               <Text style={[sectionStyles.trackTitle, N && { color: N.textSub }]}>Daily Counters</Text>
             </View>
             <Text style={[sectionStyles.trackHint, N && { color: N.textMuted }]}>Tap to progress</Text>
@@ -3025,6 +3217,8 @@ export function HomeForYouTodaySection({
           </ScrollView>
         </View>
       ) : null}
+      </View>
+      </LinearGradient>
     </View>
   );
 }

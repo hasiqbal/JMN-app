@@ -40,8 +40,11 @@
         "expo-notifications",
         {
           "sounds": [
+            "./assets/audio/adhaan_1.mp3",
             "./assets/audio/adhaan_1_v2.mp3",
+            "./assets/audio/adhaan_2.mp3",
             "./assets/audio/adhaan_2_v2.mp3",
+            "./assets/audio/adhaan_3.mp3",
             "./assets/audio/adhaan_3_v2.mp3",
             "./assets/audio/iqamah_new.mp3"
           ]

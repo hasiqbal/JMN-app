@@ -3,6 +3,8 @@ import { BackHandler, View, Text, StyleSheet, TouchableOpacity, ScrollView, Acti
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Reanimated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { Colors } from '@/constants/theme';
@@ -20,6 +22,7 @@ import {
 import { QURAN_15LINE_FULL_PAGE_IMAGES } from '@/constants/quran15lineFullMap';
 import { QURAN_16LINE_FULL_PAGE_IMAGES } from '@/constants/quran16lineFullMap';
 import { getJuzEndPage, getJuzStartPage, getMushafTotalPages, getQuarterStartsInJuz } from '@/constants/mushafJuzPages';
+import { TAFSIR_FONT_MAX, TAFSIR_FONT_MIN, TAFSIR_FONT_SCALE_STORAGE_KEY, TAFSIR_FONT_STEP, clampTafsirScale } from '@/constants/tafsirSettings';
 import { SURAH_NAMES } from '@/components/stream/streamConfig';
 
 const NIGHT = {
@@ -156,6 +159,76 @@ function pickDefaultTafsirId(language: ContentLanguage, options: QuranTafsirReso
   return fallback?.id ?? normalized[0].id;
 }
 
+function buildTafsirPreviewSnippet(text: string, language: ContentLanguage): string {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized) return '';
+
+  const maxChars = language === 'ur' ? 170 : 140;
+  if (normalized.length <= maxChars) return normalized;
+
+  const slice = normalized.slice(0, maxChars);
+  const boundaryChars = language === 'ur' ? ['۔', '!', '?', '.'] : ['.', '!', '?'];
+  let lastBoundary = -1;
+  for (const char of boundaryChars) {
+    const idx = slice.lastIndexOf(char);
+    if (idx > lastBoundary) lastBoundary = idx;
+  }
+
+  if (lastBoundary >= Math.floor(maxChars * 0.55)) {
+    return slice.slice(0, lastBoundary + 1).trim();
+  }
+
+  const lastSpace = slice.lastIndexOf(' ');
+  const clipped = lastSpace >= Math.floor(maxChars * 0.45)
+    ? slice.slice(0, lastSpace)
+    : slice;
+  return `${clipped.trim()}…`;
+}
+
+function buildTafsirParagraphs(text: string, language: ContentLanguage): string[] {
+  const normalized = text.replace(/\r/g, '\n').replace(/\u00A0/g, ' ').trim();
+  if (!normalized) return [];
+
+  const withStructuralBreaks = normalized
+    .replace(/\s+([0-9]{1,2}[\.)])\s+/g, '\n$1 ')
+    .replace(/\s+([٠-٩]{1,2}[\.)])\s+/g, '\n$1 ')
+    .replace(/\s+[•▪◦]\s+/g, '\n• ');
+
+  const explicitBlocks = withStructuralBreaks
+    .split(/\n{2,}/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (explicitBlocks.length > 1) return explicitBlocks;
+
+  const sentenceRegex = language === 'ur'
+    ? /[^.!?۔\n]+[.!?۔]?/g
+    : /[^.!?\n]+[.!?]?/g;
+  const sentenceCandidates = withStructuralBreaks.match(sentenceRegex) ?? [];
+  const sentences = sentenceCandidates.map((part) => part.trim()).filter(Boolean);
+
+  if (sentences.length < 3) return [withStructuralBreaks];
+
+  const grouped: string[] = [];
+  const targetChars = language === 'ur' ? 220 : 180;
+  let chunk = '';
+
+  for (const sentence of sentences) {
+    const candidate = chunk ? `${chunk} ${sentence}` : sentence;
+    if (chunk && candidate.length > targetChars) {
+      grouped.push(chunk.trim());
+      chunk = sentence;
+      continue;
+    }
+    chunk = candidate;
+  }
+
+  if (chunk.trim()) {
+    grouped.push(chunk.trim());
+  }
+
+  return grouped;
+}
+
 export default function QuranReaderScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -268,6 +341,8 @@ export default function QuranReaderScreen() {
     en: [DEFAULT_TAFSIR_ID_BY_LANG.en],
     ur: [DEFAULT_TAFSIR_ID_BY_LANG.ur],
   });
+  const [expandedTafsirAyahByKey, setExpandedTafsirAyahByKey] = useState<Record<string, boolean>>({});
+  const [tafsirFontScaleByLang, setTafsirFontScaleByLang] = useState<Record<ContentLanguage, number>>({ en: 1, ur: 1 });
 
   const goBackFromReader = React.useCallback(() => {
     if (source === ADHKAR_QURAN_SOURCE) {
@@ -314,6 +389,8 @@ export default function QuranReaderScreen() {
   const pageVersesCacheRef = useRef<Record<number, QuranPageVerse[]>>({});
   const pageTranslationCacheRef = useRef<Record<string, Record<string, string>>>({});
   const pageTafsirCacheRef = useRef<Record<string, TafsirBlock>>({});
+  const contentBodyScrollRef = useRef<ScrollView | null>(null);
+  const tafsirAyahOffsetRef = useRef<Record<string, number>>({});
 
   const zoomScale = useSharedValue(1);
   const savedZoomScale = useSharedValue(1);
@@ -433,6 +510,39 @@ export default function QuranReaderScreen() {
       setImageRenderNonce((prev) => prev + 1);
     }
   }, [showContentPanel]);
+
+  useEffect(() => {
+    if (!showContentPanel || contentMode !== 'tafsir') return;
+    setExpandedTafsirAyahByKey({});
+  }, [showContentPanel, contentMode, contentLang, displayPage, selectedTafsirIdsByLang]);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadSavedTafsirScale = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(TAFSIR_FONT_SCALE_STORAGE_KEY);
+        if (!raw || !mounted) return;
+        const parsed = JSON.parse(raw) as Partial<Record<ContentLanguage, number>>;
+        setTafsirFontScaleByLang({
+          en: clampTafsirScale(parsed.en ?? 1),
+          ur: clampTafsirScale(parsed.ur ?? 1),
+        });
+      } catch {
+        // Ignore malformed persisted value and keep defaults.
+      }
+    };
+
+    void loadSavedTafsirScale();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    void AsyncStorage.setItem(TAFSIR_FONT_SCALE_STORAGE_KEY, JSON.stringify(tafsirFontScaleByLang)).catch(() => {
+      // Best-effort persistence only.
+    });
+  }, [tafsirFontScaleByLang]);
 
   useEffect(() => {
     if (!openContentPanelParam) return;
@@ -606,7 +716,16 @@ export default function QuranReaderScreen() {
           return;
         }
 
-        setTranslationByVerseKey({});
+        const tafsirTranslationId = selectedTranslationIdByLang[contentLang] ?? DEFAULT_TRANSLATION_ID_BY_LANG[contentLang];
+        const tafsirTranslationCacheKey = `${displayPage}:${contentLang}:${tafsirTranslationId}`;
+        let tafsirTranslationMap = pageTranslationCacheRef.current[tafsirTranslationCacheKey];
+        if (!tafsirTranslationMap) {
+          tafsirTranslationMap = await fetchPageTranslationById(displayPage, tafsirTranslationId, contentLang);
+          pageTranslationCacheRef.current[tafsirTranslationCacheKey] = tafsirTranslationMap;
+        }
+        if (cancelled) return;
+        setTranslationByVerseKey(tafsirTranslationMap);
+
         if (selectedTafsirIds.length === 0) {
           setTafsirBlocks([]);
           return;
@@ -659,11 +778,13 @@ export default function QuranReaderScreen() {
   };
 
   const getTafsirVerseMeta = (verse: QuranPageVerse): string => {
-    const surahName = getSurahName(verse.surahNumber);
+    const surahLabel = contentLang === 'ur'
+      ? `سورۃ ${toArabicIndicDigits(verse.surahNumber)}`
+      : getSurahName(verse.surahNumber);
     const ayahLabel = contentLang === 'ur'
       ? `آیت ${formatVerseNumber(verse.verseNumber)}`
       : `Ayah ${verse.verseNumber}`;
-    return `${surahName} • ${ayahLabel}`;
+    return `${surahLabel} • ${ayahLabel}`;
   };
 
   const translationFallback = contentLang === 'ur' ? 'ترجمہ جلد دستیاب ہوگا۔' : 'Translation coming soon.';
@@ -679,6 +800,24 @@ export default function QuranReaderScreen() {
     contentLang === 'ur'
       ? (option.translatedName || option.name)
       : option.name;
+  const tafsirFontScale = tafsirFontScaleByLang[contentLang] ?? 1;
+  const previewLineCount = contentLang === 'ur' ? 3 : 2;
+  const nextAyahLabel = contentLang === 'ur' ? 'اگلی آیت' : 'Next ayah';
+  const textSizeLabel = contentLang === 'ur' ? 'متن' : 'Text';
+  const canZoomOut = tafsirFontScale > TAFSIR_FONT_MIN + 0.001;
+  const canZoomIn = tafsirFontScale < TAFSIR_FONT_MAX - 0.001;
+  const previewFadeColors: readonly [string, string] = N
+    ? ['rgba(16,24,41,0)', 'rgba(16,24,41,0.96)']
+    : ['rgba(255,255,255,0)', 'rgba(255,255,255,0.96)'];
+  const scaledPreviewTextStyle = contentLang === 'ur'
+    ? { fontSize: Math.round(19 * tafsirFontScale), lineHeight: Math.round(32 * tafsirFontScale) }
+    : { fontSize: Math.round(13 * tafsirFontScale), lineHeight: Math.round(22 * tafsirFontScale) };
+  const scaledTafsirTextStyle = contentLang === 'ur'
+    ? { fontSize: Math.round(22 * tafsirFontScale), lineHeight: Math.round(42 * tafsirFontScale) }
+    : { fontSize: Math.round(15 * tafsirFontScale), lineHeight: Math.round(27 * tafsirFontScale) };
+  const scaledTafsirMetaStyle = contentLang === 'ur'
+    ? { fontSize: Math.round(18 * Math.max(0.9, tafsirFontScale * 0.95)), lineHeight: Math.round(30 * Math.max(0.9, tafsirFontScale * 0.95)) }
+    : { fontSize: Math.round(12 * Math.max(0.92, tafsirFontScale * 0.95)), lineHeight: Math.round(17 * Math.max(0.92, tafsirFontScale * 0.95)) };
 
   const imageGestures = useMemo(
     () => Gesture.Simultaneous(
@@ -895,6 +1034,35 @@ export default function QuranReaderScreen() {
                       : (contentLang === 'ur' ? 'تفسیر منتخب کریں' : 'Select Tafsir')}
                   </Text>
                 </TouchableOpacity>
+                {contentMode === 'tafsir' ? (
+                  <View style={styles.tafsirZoomGroup}>
+                    <Text style={[styles.tafsirZoomLabel, N && { color: N.textSub }]}>{textSizeLabel}</Text>
+                    <TouchableOpacity
+                      style={[styles.tafsirZoomBtn, !canZoomOut && styles.tafsirZoomBtnDisabled]}
+                      disabled={!canZoomOut}
+                      onPress={() => {
+                        setTafsirFontScaleByLang((prev) => ({
+                          ...prev,
+                          [contentLang]: clampTafsirScale((prev[contentLang] ?? 1) - TAFSIR_FONT_STEP),
+                        }));
+                      }}
+                    >
+                      <Text style={styles.tafsirZoomBtnText}>−</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.tafsirZoomBtn, !canZoomIn && styles.tafsirZoomBtnDisabled]}
+                      disabled={!canZoomIn}
+                      onPress={() => {
+                        setTafsirFontScaleByLang((prev) => ({
+                          ...prev,
+                          [contentLang]: clampTafsirScale((prev[contentLang] ?? 1) + TAFSIR_FONT_STEP),
+                        }));
+                      }}
+                    >
+                      <Text style={styles.tafsirZoomBtnText}>+</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
                 {isLoadingSources ? <ActivityIndicator size="small" color="#3FAE5A" /> : null}
               </View>
 
@@ -969,8 +1137,9 @@ export default function QuranReaderScreen() {
               ) : null}
 
               <ScrollView
+                ref={contentBodyScrollRef}
                 style={styles.contentBodyScroll}
-                contentContainerStyle={styles.contentBodyWrap}
+                contentContainerStyle={[styles.contentBodyWrap, contentMode === 'tafsir' && styles.contentBodyWrapTafsir]}
                 showsVerticalScrollIndicator={false}
                 nestedScrollEnabled
               >
@@ -1008,38 +1177,131 @@ export default function QuranReaderScreen() {
                   )
                 ) : tafsirBlocks.length > 0 ? (
                   tafsirBlocks.map((block) => {
-                    const hasRows = visibleVerses.some((verse) => !!block.byVerseKey[verse.verseKey]);
+                    const blockRows = visibleVerses.filter((verse) => !!block.byVerseKey[verse.verseKey]);
+                    const hasRows = blockRows.length > 0;
                     return (
                       <View key={`tf-block-${block.id}`} style={styles.tafsirBlock}>
                         <Text style={[styles.tafsirTitle, contentLang === 'ur' && styles.tafsirTitleUrdu, N && { color: N.text }]}>{block.label}</Text>
                         {hasRows ? (
-                          visibleVerses.map((verse) => {
+                          blockRows.map((verse, verseIdx) => {
                             const text = block.byVerseKey[verse.verseKey];
                             if (!text) return null;
+                            const nextVerse = blockRows[verseIdx + 1] ?? null;
+                            const rowKey = `${block.id}:${verse.verseKey}`;
+                            const isExpanded = !!expandedTafsirAyahByKey[rowKey];
+                            const preview = buildTafsirPreviewSnippet(text, contentLang);
                             return (
                               <View
                                 key={`tf-row-${block.id}-${verse.verseKey}`}
+                                onLayout={(event) => {
+                                  tafsirAyahOffsetRef.current[rowKey] = event.nativeEvent.layout.y;
+                                }}
                                 style={[
-                                  styles.verseRow,
-                                  contentLang === 'ur' && styles.verseRowUrdu,
-                                  N && { borderBottomColor: 'rgba(255,255,255,0.1)' },
+                                  styles.tafsirAyahCard,
+                                  N && { borderColor: 'rgba(255,255,255,0.12)', backgroundColor: 'rgba(255,255,255,0.03)' },
                                 ]}
                               >
-                                <View style={styles.verseNumberPill}>
-                                  <Text style={styles.verseNumberText}>{formatVerseNumber(verse.verseNumber)}</Text>
-                                </View>
-                                <View style={{ flex: 1 }}>
-                                  <Text
-                                    style={[
-                                      styles.tafsirVerseMeta,
-                                      contentLang === 'ur' && styles.tafsirVerseMetaUrdu,
-                                      N && { color: N.textSub },
-                                    ]}
-                                  >
-                                    {getTafsirVerseMeta(verse)}
-                                  </Text>
-                                  <Text style={[styles.verseText, contentLang === 'ur' && styles.verseTextUrdu, N && { color: N.text }]}>{text}</Text>
-                                </View>
+                                <TouchableOpacity
+                                  style={[styles.tafsirAyahHeader, contentLang === 'ur' && styles.tafsirAyahHeaderUrdu]}
+                                  onPress={() => {
+                                    setExpandedTafsirAyahByKey((prev) => ({ ...prev, [rowKey]: !prev[rowKey] }));
+                                  }}
+                                  activeOpacity={0.85}
+                                >
+                                  <View style={styles.verseNumberPill}>
+                                    <Text style={styles.verseNumberText}>{formatVerseNumber(verse.verseNumber)}</Text>
+                                  </View>
+                                  <View style={styles.tafsirAyahHeaderTextWrap}>
+                                    <Text
+                                      style={[
+                                        styles.tafsirVerseMeta,
+                                        contentLang === 'ur' && styles.tafsirVerseMetaUrdu,
+                                        scaledTafsirMetaStyle,
+                                        N && { color: N.textSub },
+                                      ]}
+                                    >
+                                      {getTafsirVerseMeta(verse)}
+                                    </Text>
+                                  </View>
+                                  <Text style={[styles.tafsirAyahToggleIcon, N && { color: N.textSub }]}>{isExpanded ? '−' : '+'}</Text>
+                                </TouchableOpacity>
+                                {!isExpanded ? (
+                                  <View style={styles.tafsirPreviewWrap}>
+                                    <Text
+                                      numberOfLines={previewLineCount}
+                                      style={[
+                                        styles.tafsirPreviewText,
+                                        contentLang === 'ur' && styles.tafsirPreviewTextUrdu,
+                                        scaledPreviewTextStyle,
+                                        N && { color: N.textSub },
+                                      ]}
+                                    >
+                                      {preview}
+                                    </Text>
+                                    <LinearGradient
+                                      pointerEvents="none"
+                                      colors={previewFadeColors}
+                                      style={styles.tafsirPreviewFade}
+                                    />
+                                  </View>
+                                ) : null}
+                                {isExpanded ? (
+                                  <>
+                                    {verse.arabicText ? (
+                                      <View style={[styles.tafsirAyahArabicQuoteWrap, N && { borderColor: 'rgba(255,255,255,0.2)', backgroundColor: 'rgba(255,255,255,0.04)' }]}>
+                                        <Text style={[styles.tafsirAyahArabicQuoteText, N && { color: N.text }]}>
+                                          {verse.arabicText}
+                                        </Text>
+                                        {translationByVerseKey[verse.verseKey] ? (
+                                          <Text
+                                            style={[
+                                              styles.tafsirAyahQuoteTranslation,
+                                              contentLang === 'ur' && styles.tafsirAyahQuoteTranslationUrdu,
+                                              N && { color: N.textSub },
+                                            ]}
+                                          >
+                                            {translationByVerseKey[verse.verseKey]}
+                                          </Text>
+                                        ) : null}
+                                      </View>
+                                    ) : null}
+                                    <View style={styles.tafsirExpandedWrap}>
+                                      {buildTafsirParagraphs(text, contentLang).map((paragraph, idx) => (
+                                        <Text
+                                          key={`tf-para-${rowKey}-${idx}`}
+                                          style={[
+                                            styles.tafsirParagraph,
+                                            styles.tafsirBodyText,
+                                            contentLang === 'ur' && styles.tafsirBodyTextUrdu,
+                                            scaledTafsirTextStyle,
+                                            idx > 0 && styles.tafsirParagraphSpaced,
+                                            N && { color: N.text },
+                                          ]}
+                                        >
+                                          {paragraph}
+                                        </Text>
+                                      ))}
+                                    </View>
+                                    {nextVerse ? (
+                                      <TouchableOpacity
+                                        style={[styles.nextAyahBtn, contentLang === 'ur' && styles.nextAyahBtnUrdu]}
+                                        onPress={() => {
+                                          const nextKey = `${block.id}:${nextVerse.verseKey}`;
+                                          setExpandedTafsirAyahByKey({ [nextKey]: true });
+                                          requestAnimationFrame(() => {
+                                            const y = tafsirAyahOffsetRef.current[nextKey];
+                                            if (typeof y !== 'number') return;
+                                            contentBodyScrollRef.current?.scrollTo({ y: Math.max(0, y - 10), animated: true });
+                                          });
+                                        }}
+                                        activeOpacity={0.82}
+                                      >
+                                        <Text style={styles.nextAyahBtnText}>{nextAyahLabel}</Text>
+                                        <Text style={styles.nextAyahBtnArrow}>{contentLang === 'ur' ? '‹' : '›'}</Text>
+                                      </TouchableOpacity>
+                                    ) : null}
+                                  </>
+                                ) : null}
                               </View>
                             );
                           })
@@ -1296,6 +1558,36 @@ const styles = StyleSheet.create({
   sourcePickerBtnTextActive: {
     color: '#0B2817',
   },
+  tafsirZoomGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  tafsirZoomLabel: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '700',
+    color: '#5A6F63',
+  },
+  tafsirZoomBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#8DB79B',
+    backgroundColor: '#F5FBF7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tafsirZoomBtnDisabled: {
+    opacity: 0.35,
+  },
+  tafsirZoomBtnText: {
+    fontSize: 16,
+    lineHeight: 18,
+    fontWeight: '800',
+    color: '#24573A',
+  },
   sourceListRow: {
     gap: 8,
     paddingHorizontal: 12,
@@ -1348,6 +1640,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingTop: 8,
     paddingBottom: 22,
+  },
+  contentBodyWrapTafsir: {
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 28,
   },
   loadingWrap: {
     flexDirection: 'row',
@@ -1453,4 +1750,151 @@ const styles = StyleSheet.create({
     lineHeight: 26,
     letterSpacing: 0,
   } as any,
+  tafsirAyahCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 8,
+  },
+  tafsirAyahHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  tafsirAyahHeaderUrdu: {
+    flexDirection: 'row-reverse',
+  },
+  tafsirAyahHeaderTextWrap: {
+    flex: 1,
+  },
+  tafsirAyahToggleIcon: {
+    width: 18,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#4B5563',
+    lineHeight: 20,
+  },
+  tafsirPreviewText: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 22,
+    color: '#6B7280',
+    fontWeight: '500',
+    textAlign: 'left',
+  },
+  tafsirPreviewWrap: {
+    marginTop: 2,
+    position: 'relative',
+    minHeight: 56,
+    justifyContent: 'flex-end',
+  },
+  tafsirPreviewFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 18,
+  },
+  tafsirPreviewTextUrdu: {
+    writingDirection: 'rtl',
+    textAlign: 'right',
+    fontFamily: 'UrduNastaliq',
+    fontSize: 19,
+    lineHeight: 32,
+    letterSpacing: 0,
+  } as any,
+  tafsirExpandedWrap: {
+    marginTop: 4,
+  },
+  tafsirAyahArabicQuoteWrap: {
+    marginTop: 4,
+    marginBottom: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(12,74,110,0.2)',
+    backgroundColor: 'rgba(236,253,245,0.85)',
+  },
+  tafsirAyahArabicQuoteText: {
+    textAlign: 'right',
+    writingDirection: 'rtl',
+    fontFamily: 'MarwanIndoPak',
+    fontSize: 24,
+    lineHeight: 44,
+    color: '#0F172A',
+    letterSpacing: 0,
+  } as any,
+  tafsirAyahQuoteTranslation: {
+    marginTop: 8,
+    fontSize: 13,
+    lineHeight: 21,
+    color: '#4B5563',
+    fontWeight: '500',
+    textAlign: 'left',
+  },
+  tafsirAyahQuoteTranslationUrdu: {
+    writingDirection: 'rtl',
+    textAlign: 'right',
+    fontFamily: 'UrduNastaliq',
+    fontSize: 19,
+    lineHeight: 31,
+    letterSpacing: 0,
+  } as any,
+  tafsirBodyText: {
+    fontSize: 15,
+    lineHeight: 27,
+    color: '#1F2937',
+    fontWeight: '400',
+    letterSpacing: 0.12,
+    textAlign: 'left',
+  },
+  tafsirBodyTextUrdu: {
+    writingDirection: 'rtl',
+    textAlign: 'right',
+    fontFamily: 'UrduNastaliq',
+    fontSize: 22,
+    lineHeight: 42,
+    letterSpacing: 0,
+    fontWeight: '400',
+  } as any,
+  tafsirParagraph: {
+    textAlignVertical: 'top',
+  },
+  tafsirParagraphSpaced: {
+    marginTop: 12,
+  },
+  nextAyahBtn: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(44,106,80,0.35)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: 'rgba(44,106,80,0.08)',
+  },
+  nextAyahBtnUrdu: {
+    alignSelf: 'flex-end',
+    flexDirection: 'row-reverse',
+  },
+  nextAyahBtnText: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '700',
+    color: '#2C6A50',
+  },
+  nextAyahBtnArrow: {
+    fontSize: 15,
+    lineHeight: 15,
+    fontWeight: '800',
+    color: '#2C6A50',
+  },
 });

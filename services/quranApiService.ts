@@ -62,6 +62,7 @@ export interface QuranPageVerse {
   verseKey: string;
   surahNumber: number;
   verseNumber: number;
+  arabicText?: string;
   transliteration?: string;
 }
 
@@ -291,7 +292,7 @@ async function fetchVersesByPageRaw(pageNumber: number): Promise<any[]> {
       `${BASE_URL}/verses/by_page/${pageNumber}` +
       `?per_page=${PER_PAGE}` +
       `&page=${page}` +
-      `&fields=verse_key,verse_number` +
+      `&fields=verse_key,verse_number,text_indopak,text_uthmani` +
       `&words=true` +
       `&word_fields=transliteration` +
       `&language=en`;
@@ -317,6 +318,7 @@ export async function fetchPageVerses(pageNumber: number): Promise<QuranPageVers
     const mapped = verses.map((v) => {
       const verseKey = String(v?.verse_key ?? '');
       const [surahRaw, verseRaw] = verseKey.split(':');
+      const arabicText = String(v?.text_indopak ?? v?.text_uthmani ?? '').trim();
       const transliteration = (v?.words ?? [])
         .map((w: any) => w?.transliteration?.text ?? '')
         .filter(Boolean)
@@ -326,6 +328,7 @@ export async function fetchPageVerses(pageNumber: number): Promise<QuranPageVers
         verseKey,
         surahNumber: Number(surahRaw),
         verseNumber: Number(verseRaw),
+        arabicText: arabicText || undefined,
         transliteration: transliteration || undefined,
       } as QuranPageVerse;
     }).filter((v) => v.verseKey && Number.isFinite(v.surahNumber) && Number.isFinite(v.verseNumber));

@@ -16,8 +16,8 @@ export type AdhaanOption = {
 };
 
 export const ADHAAN_OPTIONS: AdhaanOption[] = [
-	{ id: '1', label: 'Adhaan 1', soundFile: 'adhaan_1_v2.mp3' },
-	{ id: '2', label: 'Adhaan 2', soundFile: 'adhaan_2_v2.mp3' },
+	{ id: '1', label: 'Adhaan 1', soundFile: 'adhaan_1.mp3' },
+	{ id: '2', label: 'Adhaan 2', soundFile: 'adhaan_2.mp3' },
 	{ id: '3', label: 'Adhaan 3', soundFile: 'adhaan_3_v2.mp3' },
 ];
 

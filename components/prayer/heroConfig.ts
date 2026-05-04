@@ -149,6 +149,50 @@ export function getInterpolatedPrayerGradient(
   return lerpGradient(current, next, t);
 }
 
+type SkyCycleStop = {
+  at: number;
+  key: PrayerSkyKey;
+};
+
+// Continuous day-cycle stops (0=fajr start, 1=next fajr start).
+// Repeating `fajr` at both ends guarantees seamless wrap-around.
+const SKY_DAY_CYCLE_STOPS: readonly SkyCycleStop[] = [
+  { at: 0.00, key: 'fajr' },
+  { at: 0.08, key: 'ishraq' },
+  { at: 0.22, key: 'zuhr' },
+  { at: 0.42, key: 'asr' },
+  { at: 0.62, key: 'maghrib' },
+  { at: 0.80, key: 'isha' },
+  { at: 0.92, key: 'tahajjud' },
+  { at: 1.00, key: 'fajr' },
+] as const;
+
+/**
+ * Day-driven sky blend that fades continuously across the full day, rather
+ * than snapping when prayer labels change.
+ */
+export function getContinuousDaySkyGradient(
+  dayProgress: number | null | undefined,
+  fallbackPrayerName?: string | null | undefined,
+): PrayerSkyGradient {
+  if (dayProgress == null || !Number.isFinite(dayProgress)) {
+    return getPrayerGradient(fallbackPrayerName ?? 'Dhuhr');
+  }
+
+  const t = Math.max(0, Math.min(1, dayProgress));
+  for (let i = 0; i < SKY_DAY_CYCLE_STOPS.length - 1; i++) {
+    const start = SKY_DAY_CYCLE_STOPS[i];
+    const end = SKY_DAY_CYCLE_STOPS[i + 1];
+    if (t >= start.at && t <= end.at) {
+      const span = Math.max(0.0001, end.at - start.at);
+      const localT = (t - start.at) / span;
+      return lerpGradient(prayerSkyGradients[start.key], prayerSkyGradients[end.key], localT);
+    }
+  }
+
+  return getPrayerGradient(fallbackPrayerName ?? 'Dhuhr');
+}
+
 // ─── rgba overlay interpolation (PRAYER_GRADIENTS) ──────────────────────
 // Natural next key for the rgba overlay used above the hero background image.
 const PRAYER_OVERLAY_SEQUENCE: Record<string, string> = {
