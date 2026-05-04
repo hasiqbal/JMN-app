@@ -35,17 +35,24 @@
       "autoIncrement": true,
       "node": "22.22.2",
       "pnpm": "10.14.0",
+      "android": {
+        "buildType": "app-bundle"
+      },
       "cache": {
         "paths": [
           "/home/expo/.gradle/caches",
           "/home/expo/.gradle/wrapper",
-          "/Users/expo/Library/Caches/CocoaPods",
-          "/Users/expo/.pnpm-store"
+          "/Users/expo/Library/Caches/CocoaPods"
         ]
       }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "android": {
+        "track": "internal",
+        "releaseStatus": "draft"
+      }
+    }
   }
 }
