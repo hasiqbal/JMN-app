@@ -29,31 +29,80 @@ import {
   transliterationFromText,
 } from '@/components/howto';
 
-const PARENT_TILE_BACKGROUND_BY_GROUP: Partial<Record<string, any>> = {
-  Purification: require('@/assets/images/background/wudhu.jpg'),
-  طہارت: require('@/assets/images/background/wudhu.jpg'),
-  Salah: require('@/assets/images/background/salah.jpg'),
-  نماز: require('@/assets/images/background/salah.jpg'),
-  Fasting: require('@/assets/images/background/kiswahkaabah.jpg'),
-  روزہ: require('@/assets/images/background/kiswahkaabah.jpg'),
-  'Hajj & Umrah': require('@/assets/images/sky/arafat.jpeg'),
-  'حج و عمرہ': require('@/assets/images/sky/arafat.jpeg'),
-  Zakaat: require('@/assets/images/background/zakaat.jpg'),
-  زکوٰۃ: require('@/assets/images/background/zakaat.jpg'),
+type ParentTileVisualKey = 'purification' | 'salah' | 'fasting' | 'zakaat' | 'hajj';
+
+const PARENT_TILE_BACKGROUND_BY_KEY: Record<ParentTileVisualKey, any> = {
+  purification: require('@/assets/images/background/wudhu.jpg'),
+  salah: require('@/assets/images/background/salah.jpg'),
+  fasting: require('@/assets/images/background/kiswahkaabah.jpg'),
+  zakaat: require('@/assets/images/background/zakaat.jpg'),
+  hajj: require('@/assets/images/sky/arafat.jpeg'),
 };
 
-const PARENT_TILE_ICON_BY_GROUP: Partial<Record<string, keyof typeof MaterialIcons.glyphMap>> = {
-  Purification: 'water-drop',
-  طہارت: 'water-drop',
-  Salah: 'self-improvement',
-  نماز: 'self-improvement',
-  Fasting: 'nights-stay',
-  روزہ: 'nights-stay',
-  Zakaat: 'volunteer-activism',
-  زکوٰۃ: 'volunteer-activism',
-  'Hajj & Umrah': 'travel-explore',
-  'حج و عمرہ': 'travel-explore',
+const DEFAULT_PARENT_TILE_BACKGROUND = require('@/assets/images/background/salah.jpg');
+
+const PARENT_TILE_ICON_BY_KEY: Record<ParentTileVisualKey, keyof typeof MaterialIcons.glyphMap> = {
+  purification: 'water-drop',
+  salah: 'self-improvement',
+  fasting: 'nights-stay',
+  zakaat: 'volunteer-activism',
+  hajj: 'travel-explore',
 };
+
+function resolveParentTileVisualKey(groupName: string): ParentTileVisualKey | null {
+  const label = groupName.trim();
+  const normalized = label.toLowerCase();
+
+  if (
+    /purification|wudhu|wudu/.test(normalized)
+    || label.includes('طہارت')
+    || label.includes('وضو')
+  ) {
+    return 'purification';
+  }
+
+  if (
+    /salah|salat|namaz/.test(normalized)
+    || label.includes('نماز')
+    || label.includes('صلا')
+  ) {
+    return 'salah';
+  }
+
+  if (
+    /fasting|roza|sawm/.test(normalized)
+    || label.includes('روز')
+  ) {
+    return 'fasting';
+  }
+
+  if (
+    /zakaat|zakat/.test(normalized)
+    || label.includes('زکو')
+  ) {
+    return 'zakaat';
+  }
+
+  if (
+    /hajj|umrah/.test(normalized)
+    || label.includes('حج')
+    || label.includes('عمر')
+  ) {
+    return 'hajj';
+  }
+
+  return null;
+}
+
+function getParentTileBackground(groupName: string) {
+  const visualKey = resolveParentTileVisualKey(groupName);
+  return visualKey ? PARENT_TILE_BACKGROUND_BY_KEY[visualKey] : DEFAULT_PARENT_TILE_BACKGROUND;
+}
+
+function getParentTileIcon(groupName: string): keyof typeof MaterialIcons.glyphMap {
+  const visualKey = resolveParentTileVisualKey(groupName);
+  return visualKey ? PARENT_TILE_ICON_BY_KEY[visualKey] : 'menu-book';
+}
 
 // Night palette used by the screen shell (parent tiles, guide cards, image viewer).
 // Content-level components import their own palette via `pickPalette(nightMode)`.
@@ -272,6 +321,7 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
   }));
 
   const selectedLanguageCode = selectedLanguage === 'urdu' ? 'ur' : 'en';
+  const isUrduUi = selectedLanguageCode === 'ur';
   const stripUpdatedLabel = useMemo(
     () => new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
     []
@@ -498,13 +548,15 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
                   : { backgroundColor: guide.color + '12', borderColor: guide.color + '4A' },
               ]}>
                 <View style={howToStyles.salahPilotHeroHeader}>
-                  <Text style={[howToStyles.salahPilotEyebrow, { color: N ? N.accent : guide.color }]}>GUIDED LESSON MODE</Text>
+                  <Text style={[howToStyles.salahPilotEyebrow, { color: N ? N.accent : guide.color }]}>{isUrduUi ? 'رہنمائی سبق موڈ' : 'GUIDED LESSON MODE'}</Text>
                   <View style={[howToStyles.salahPilotBadge, { borderColor: guide.color + '66', backgroundColor: guide.color + '18' }]}>
-                    <Text style={[howToStyles.salahPilotBadgeText, { color: guide.color }]}>Focused learning</Text>
+                    <Text style={[howToStyles.salahPilotBadgeText, { color: guide.color }]}>{isUrduUi ? 'توجہ کے ساتھ سیکھیں' : 'Focused learning'}</Text>
                   </View>
                 </View>
                 <Text style={[howToStyles.salahPilotMeta, N && { color: N.textSub }]}> 
-                  {guide.sections.length} sections · {totalSteps} steps · {recitationBlocks} recitations{totalImages > 0 ? ` · ${totalImages} visuals` : ''}
+                  {isUrduUi
+                    ? `${guide.sections.length} حصے · ${totalSteps} مراحل · ${recitationBlocks} تلاوتیں${totalImages > 0 ? ` · ${totalImages} تصاویر` : ''}`
+                    : `${guide.sections.length} sections · ${totalSteps} steps · ${recitationBlocks} recitations${totalImages > 0 ? ` · ${totalImages} visuals` : ''}`}
                 </Text>
                 {guide.intro ? (
                   <View style={[
@@ -552,7 +604,9 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
                         : { backgroundColor: guide.color + '0D', borderTopColor: guide.color + '3A' },
                     ]}>
                       <Text style={[howToStyles.salahPilotSectionMeta, N && { color: N.textMuted }]}>
-                        {section.steps.length} {section.steps.length === 1 ? 'step' : 'steps'} in this section
+                        {isUrduUi
+                          ? `${section.steps.length} ${section.steps.length === 1 ? 'مرحلہ' : 'مراحل'} اس حصے میں`
+                          : `${section.steps.length} ${section.steps.length === 1 ? 'step' : 'steps'} in this section`}
                       </Text>
                       {section.steps.slice(0, 2).map((step, index) => (
                         <View key={`${secKey}-preview-${index}`} style={howToStyles.salahPilotPreviewRow}>
@@ -805,21 +859,17 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[howToStyles.languageChoiceKicker, howToStyles.languageChoiceKickerUrdu, N && { color: N.textMuted }]}>اردو ٹریک</Text>
-                  <InlineArabicText
-                    text="اردو گائیڈز"
-                    nightMode={nightMode}
+                  <Text
                     style={[
                       howToStyles.languageChoiceTitle,
                       isCompactWidth && howToStyles.languageChoiceTitleCompact,
                       howToStyles.languageChoiceUrduTitle,
                       N && { color: N.text },
                     ]}
-                  />
-                  <InlineArabicText
-                    text="آسان زبان میں مرحلہ وار حنفی رہنمائی"
-                    nightMode={nightMode}
-                    style={[howToStyles.languageChoiceSub, howToStyles.languageChoiceUrduSub, N && { color: N.textSub }]}
-                  />
+                  >
+                    اردو گائیڈز
+                  </Text>
+                  <Text style={[howToStyles.languageChoiceSub, howToStyles.languageChoiceUrduSub, N && { color: N.textSub }]}>آسان زبان میں مرحلہ وار حنفی رہنمائی</Text>
                   <View style={[howToStyles.languageChoiceMetaRow, howToStyles.languageChoiceMetaRowUrdu]}>
                     <Text style={[howToStyles.languageChoiceMetaText, N && { color: N.textMuted }]}>فقہ</Text>
                     <Text style={[howToStyles.languageChoiceMetaText, N && { color: N.textMuted }]}>تلاوت</Text>
@@ -953,8 +1003,8 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
           />
           <Text style={[howToStyles.backLinkText, N && { color: N.textSub }]}>
             {selectedParentGroup
-              ? 'Back to categories'
-              : selectedLanguage === 'urdu' ? 'Change Language (English)' : 'Change Language'}
+              ? (isUrduUi ? 'زمروں پر واپس جائیں' : 'Back to categories')
+              : selectedLanguage === 'urdu' ? (isUrduUi ? 'زبان تبدیل کریں (English)' : 'Change Language (English)') : 'Change Language'}
           </Text>
         </TouchableOpacity>
 
@@ -979,13 +1029,13 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
                 <>
                   {startHere.length > 0 ? (
                     <>
-                      <Text style={[howToStyles.sectionLabel, N && { color: N.textSub }]}>Start Here</Text>
+                      <Text style={[howToStyles.sectionLabel, N && { color: N.textSub }]}>{isUrduUi ? 'یہاں سے شروع کریں' : 'Start Here'}</Text>
                       {startHere.map(renderGuideCard)}
                     </>
                   ) : null}
                   {continueLearning.length > 0 ? (
                     <>
-                      <Text style={[howToStyles.sectionLabel, N && { color: N.textSub }]}>Continue Learning</Text>
+                      <Text style={[howToStyles.sectionLabel, N && { color: N.textSub }]}>{isUrduUi ? 'مزید سیکھیں' : 'Continue Learning'}</Text>
                       {continueLearning.map(renderGuideCard)}
                     </>
                   ) : null}
@@ -1001,9 +1051,12 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
           <>
             {parentGroupTiles.length > 0 ? (
               <>
-                <Text style={[howToStyles.sectionLabel, N && { color: N.textSub }]}>Parent Groups</Text>
+                <Text style={[howToStyles.sectionLabel, N && { color: N.textSub }]}>{isUrduUi ? 'مرکزی زمرے' : 'Parent Groups'}</Text>
                 <View style={howToStyles.parentTileGrid}>
                   {parentGroupTiles.map((group) => (
+                    (() => {
+                      const visualSourceName = group.guides[0]?.parentGroupVisualSource ?? group.name;
+                      return (
                     <TouchableOpacity
                       key={group.name}
                       style={[howToStyles.parentTile, N && { borderColor: N.border }]}
@@ -1014,20 +1067,22 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
                       }}
                       activeOpacity={0.88}
                     >
-                      {PARENT_TILE_BACKGROUND_BY_GROUP[group.name] ? (
-                        <Image
-                          source={PARENT_TILE_BACKGROUND_BY_GROUP[group.name]}
-                          style={howToStyles.parentTileBackgroundImage}
-                          contentFit="cover"
-                        />
-                      ) : null}
+                      <Image
+                        source={getParentTileBackground(visualSourceName)}
+                        style={howToStyles.parentTileBackgroundImage}
+                        contentFit="cover"
+                      />
                       <View style={[howToStyles.parentTileOverlay, N && { backgroundColor: 'rgba(6, 9, 15, 0.56)' }]} />
                       <View style={[howToStyles.parentTileIconWrap, N && { backgroundColor: 'rgba(6, 9, 15, 0.6)', borderColor: `${N.accent}66` }]}>
-                        <MaterialIcons name={PARENT_TILE_ICON_BY_GROUP[group.name] ?? 'menu-book'} size={24} color="#FFFFFF" />
+                        <MaterialIcons name={getParentTileIcon(visualSourceName)} size={24} color="#FFFFFF" />
                       </View>
                       <Text style={howToStyles.parentTileTitle}>{group.name}</Text>
-                      <Text style={howToStyles.parentTileCount}>{group.guides.length} guides</Text>
+                      <Text style={howToStyles.parentTileCount}>
+                        {isUrduUi ? `${group.guides.length} رہنما` : `${group.guides.length} guides`}
+                      </Text>
                     </TouchableOpacity>
+                      );
+                    })()
                   ))}
                 </View>
               </>
@@ -1035,7 +1090,7 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
 
             {generalGuides.length > 0 ? (
               <>
-                <Text style={[howToStyles.sectionLabel, N && { color: N.textSub }]}>Other Guides</Text>
+                <Text style={[howToStyles.sectionLabel, N && { color: N.textSub }]}>{isUrduUi ? 'دیگر رہنما' : 'Other Guides'}</Text>
                 {generalGuides.map(renderGuideCard)}
               </>
             ) : null}
@@ -1284,7 +1339,11 @@ const howToStyles = StyleSheet.create({
     textAlign: 'right',
   },
   languageChoiceUrduTitle: {
+    fontFamily: 'UrduNastaliqBold',
+    fontSize: 19,
+    lineHeight: 31,
     writingDirection: 'rtl',
+    textAlign: 'right',
   },
   languageChoiceSub: {
     fontSize: 12,
@@ -1293,6 +1352,9 @@ const howToStyles = StyleSheet.create({
     marginTop: 4,
   },
   languageChoiceUrduSub: {
+    fontFamily: 'UrduNastaliq',
+    fontSize: 14,
+    lineHeight: 22,
     writingDirection: 'rtl',
     textAlign: 'right',
   },

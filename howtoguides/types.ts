@@ -89,6 +89,7 @@ export interface HowToGuide {
   id: string;
   language?: 'en' | 'ur';
   parentGroup?: string;
+  parentGroupVisualSource?: string;
   title: string;
   subtitle: string;
   icon: string;

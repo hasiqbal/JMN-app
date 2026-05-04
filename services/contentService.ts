@@ -726,6 +726,7 @@ type HowToGroupRow = {
   id: string;
   name: string;
   urdu_name: string | null;
+  source_group_id?: string | null;
 };
 
 type HowToSectionRow = {
@@ -1354,7 +1355,7 @@ async function fetchHowToGuidesFromNetwork(language: 'en' | 'ur'): Promise<HowTo
   const [groupsResult, sectionsResult] = await Promise.all([
     supabase
       .from('howto_groups')
-      .select('id,name,urdu_name')
+      .select('id,name,urdu_name,source_group_id')
       .in('id', groupIds),
     supabase
       .from('howto_sections')
@@ -1365,6 +1366,32 @@ async function fetchHowToGuidesFromNetwork(language: 'en' | 'ur'): Promise<HowTo
 
   const groupRows = groupsResult.error ? [] : ((groupsResult.data ?? []) as HowToGroupRow[]);
   const sectionRows = sectionsResult.error ? [] : ((sectionsResult.data ?? []) as HowToSectionRow[]);
+
+  const sourceGroupIds = Array.from(
+    new Set(
+      groupRows
+        .map((group) => (typeof group.source_group_id === 'string' ? group.source_group_id : ''))
+        .filter((id) => id.length > 0),
+    ),
+  );
+
+  const sourceGroupNameById = new Map<string, string>();
+  if (sourceGroupIds.length > 0) {
+    const { data: sourceGroups, error: sourceGroupsError } = await supabase
+      .from('howto_groups')
+      .select('id,name')
+      .in('id', sourceGroupIds);
+
+    if (!sourceGroupsError) {
+      (sourceGroups ?? []).forEach((group) => {
+        const id = typeof (group as { id?: unknown }).id === 'string' ? (group as { id: string }).id : '';
+        const name = typeof (group as { name?: unknown }).name === 'string' ? (group as { name: string }).name : '';
+        if (id && name.trim()) {
+          sourceGroupNameById.set(id, name.trim());
+        }
+      });
+    }
+  }
 
   const sectionIds = sectionRows.map((section) => section.id);
 
@@ -1415,9 +1442,14 @@ async function fetchHowToGuidesFromNetwork(language: 'en' | 'ur'): Promise<HowTo
   }
 
   const groupNameById = new Map<string, string>();
+  const groupVisualSourceNameById = new Map<string, string>();
   for (const group of groupRows) {
     const urduName = typeof group.urdu_name === 'string' ? group.urdu_name.trim() : '';
     groupNameById.set(group.id, language === 'ur' ? (urduName || group.name) : group.name);
+
+    const sourceGroupId = typeof group.source_group_id === 'string' ? group.source_group_id : '';
+    const sourceName = sourceGroupId ? sourceGroupNameById.get(sourceGroupId) : undefined;
+    groupVisualSourceNameById.set(group.id, sourceName ?? group.name);
   }
 
   const sectionsByGuideId = new Map<string, HowToSectionRow[]>();
@@ -1456,6 +1488,7 @@ async function fetchHowToGuidesFromNetwork(language: 'en' | 'ur'): Promise<HowTo
     id: guide.slug || guide.id,
     language: guide.language,
     parentGroup: groupNameById.get(guide.group_id) ?? 'General',
+    parentGroupVisualSource: groupVisualSourceNameById.get(guide.group_id) ?? (groupNameById.get(guide.group_id) ?? 'General'),
     title: guide.title,
     subtitle: guide.subtitle ?? '',
     icon: guide.icon ?? 'menu-book',
