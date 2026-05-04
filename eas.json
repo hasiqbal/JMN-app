@@ -38,7 +38,9 @@
       "cache": {
         "paths": [
           "/home/expo/.gradle/caches",
-          "/home/expo/.gradle/wrapper"
+          "/home/expo/.gradle/wrapper",
+          "/Users/expo/Library/Caches/CocoaPods",
+          "/Users/expo/.pnpm-store"
         ]
       }
     }
