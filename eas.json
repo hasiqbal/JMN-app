@@ -9,12 +9,6 @@
       "distribution": "internal",
       "node": "22.22.2",
       "pnpm": "10.14.0",
-      "cache": {
-        "paths": [
-          "/home/expo/.gradle/caches",
-          "/home/expo/.gradle/wrapper"
-        ]
-      },
       "android": {
         "buildType": "apk",
         "gradleCommand": ":app:assembleDebug"
@@ -23,13 +17,7 @@
     "preview": {
       "distribution": "internal",
       "node": "22.22.2",
-      "pnpm": "10.14.0",
-      "cache": {
-        "paths": [
-          "/home/expo/.gradle/caches",
-          "/home/expo/.gradle/wrapper"
-        ]
-      }
+      "pnpm": "10.14.0"
     },
     "production": {
       "autoIncrement": true,
@@ -37,13 +25,6 @@
       "pnpm": "10.14.0",
       "android": {
         "buildType": "app-bundle"
-      },
-      "cache": {
-        "paths": [
-          "/home/expo/.gradle/caches",
-          "/home/expo/.gradle/wrapper",
-          "/Users/expo/Library/Caches/CocoaPods"
-        ]
       }
     }
   },
