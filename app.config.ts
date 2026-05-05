@@ -26,6 +26,7 @@ const base = {
       'android.permission.SCHEDULE_EXACT_ALARM',
       'android.permission.USE_EXACT_ALARM',
     ],
+    // Keep camera fully blocked to avoid Play privacy-policy gating.
     blockedPermissions: ['android.permission.CAMERA'],
     package: 'com.hasiqbal.jmnapp',
   },
