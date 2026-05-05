@@ -90,6 +90,17 @@ function isLastRukooImranGroup(groupName?: string | null): boolean {
   return hasLastRukoo && hasImran;
 }
 
+function AdhkarLoadIssueNotice({ nightMode }: { nightMode: boolean }) {
+  const N = nightMode ? NIGHT : null;
+  return (
+    <View style={{ alignItems: 'center', paddingVertical: 20, paddingHorizontal: 16 }}>
+      <Text style={{ fontSize: 12, textAlign: 'center', color: N ? N.textMuted : Colors.textSubtle }}>
+        Adhkar content is temporarily unavailable. Pull down to refresh.
+      </Text>
+    </View>
+  );
+}
+
 const GUIDED_FLOW_META: Record<PrayerTimeId, { accent: string; background: string; doneTitle: string; icon: string }> = {
   'before-fajr': { accent: DUAS_ACCENT_GREEN, background: Colors.background, doneTitle: 'Before Fajr Adhkar', icon: 'nights-stay' },
   'after-fajr': { accent: DUAS_ACCENT_GREEN, background: Colors.background, doneTitle: 'After Fajr Adhkar', icon: 'wb-twilight' },
@@ -782,7 +793,7 @@ function DhuhrSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMod
           <Text style={{ fontSize: 12, color: N ? N.textMuted : Colors.textSubtle }}>Loading adhkar…</Text>
         </View>
       ) : groups.length === 0 ? (
-        <View style={{ height: 32 }} />
+        <AdhkarLoadIssueNotice nightMode={nightMode} />
       ) : groups.map((grp) => {
         const meta = KNOWN_DHUHR_GROUPS[grp.group_name];
         const icon  = meta?.icon  ?? 'auto-awesome';
@@ -841,7 +852,7 @@ function JumuahSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMo
           <Text style={{ fontSize: 12, color: N ? N.textMuted : Colors.textSubtle }}>Loading adhkar…</Text>
         </View>
       ) : groups.length === 0 ? (
-        <View style={{ height: 32 }} />
+        <AdhkarLoadIssueNotice nightMode={nightMode} />
       ) : groups.map((grp) => {
         const meta = KNOWN_JUMUAH_GROUPS[grp.group_name];
         const icon  = meta?.icon  ?? 'auto-awesome';
@@ -977,9 +988,7 @@ function AsrSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMode:
         );
       })}
 
-      {!loading && groups.length === 0 ? (
-        <View style={{ height: 32 }} />
-      ) : null}
+      {!loading && groups.length === 0 ? <AdhkarLoadIssueNotice nightMode={nightMode} /> : null}
 
       <View style={{ height: 24 }} />
     </ScrollView>
@@ -1167,7 +1176,7 @@ function PrayerTimeSelectionScreen({
           <Text style={{ fontSize: 12, color: N ? N.textMuted : Colors.textSubtle }}>Loading adhkar…</Text>
         </View>
       ) : visibleGroups.length === 0 ? (
-        <View style={{ height: 32 }} />
+        <AdhkarLoadIssueNotice nightMode={nightMode} />
       ) : visibleGroups.map((grp, idx) => {
         const badge = (grp.card_badge ?? '').trim() || undefined;
         const subtitleText = grp.card_subtitle ?? null;
@@ -1228,6 +1237,8 @@ function FajrSelectionScreen({ nightMode, onSelect, onSelectGroup }: { nightMode
         <View style={{ alignItems: 'center', paddingVertical: 20 }}>
           <Text style={{ fontSize: 12, color: N ? N.textMuted : Colors.textSubtle }}>Loading adhkar…</Text>
         </View>
+      ) : groups.length === 0 ? (
+        <AdhkarLoadIssueNotice nightMode={nightMode} />
       ) : groups.map((grp, idx) => {
         const meta = KNOWN_FAJR_GROUPS[grp.group_name];
         const icon  = meta?.icon  ?? 'auto-awesome';

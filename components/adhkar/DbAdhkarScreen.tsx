@@ -532,7 +532,13 @@ export function DbAdhkarScreen({
 
   // ── Empty state ───────────────────────────────────────────────────────
   if (adhkar.length === 0) {
-    return <View style={styles.centred} />;
+    return (
+      <View style={styles.centred}>
+        <Text style={{ color: N ? N.textMuted : Colors.textSubtle, fontSize: 13, textAlign: 'center', paddingHorizontal: 20 }}>
+          Adhkar content is temporarily unavailable. Please try again shortly.
+        </Text>
+      </View>
+    );
   }
 
   // ── Group items by group_name, ordered by group_order then display_order ──
