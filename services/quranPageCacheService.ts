@@ -3,15 +3,10 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 import { MUSHAF_TOTAL_PAGES, MushafLayout } from '@/constants/mushafJuzPages';
 
-const DEFAULT_QURAN_15LINE_BASE_URL =
+const LEGACY_QURAN_15LINE_BASE_URL =
   'https://raw.githubusercontent.com/hasiqbal/JMN-app/main/assets/images/Quran%2015%20line%20indo-pak/Full';
-const DEFAULT_QURAN_16LINE_BASE_URL =
+const LEGACY_QURAN_16LINE_BASE_URL =
   'https://raw.githubusercontent.com/hasiqbal/JMN-app/main/assets/images/Quran%2016%20line%20indo-pak/Full';
-
-const QURAN_15LINE_BASE_URL =
-  (process.env.EXPO_PUBLIC_QURAN_15LINE_BASE_URL || DEFAULT_QURAN_15LINE_BASE_URL).replace(/\/+$/, '');
-const QURAN_16LINE_BASE_URL =
-  (process.env.EXPO_PUBLIC_QURAN_16LINE_BASE_URL || DEFAULT_QURAN_16LINE_BASE_URL).replace(/\/+$/, '');
 
 const QURAN_PRELOAD_STATE_STORAGE_KEY = '@quran_page_preload_state_v1';
 
@@ -26,6 +21,64 @@ export type QuranPreloadState = {
 };
 
 let warmupPromise: Promise<void> | null = null;
+let hasLoggedLegacySourceWarning = false;
+
+function trimTrailingSlash(value: string): string {
+  return value.replace(/\/+$/, '');
+}
+
+function normalizePublicPath(value: string): string {
+  return value
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0)
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+}
+
+function resolveStoragePrefix(mushaf: MushafLayout): string {
+  if (mushaf === '16line') {
+    return (process.env.EXPO_PUBLIC_QURAN_16LINE_STORAGE_PREFIX || '16line').trim();
+  }
+  return (process.env.EXPO_PUBLIC_QURAN_15LINE_STORAGE_PREFIX || '15line').trim();
+}
+
+function getQuranPagesBaseUrl(mushaf: MushafLayout): string {
+  const directBase =
+    mushaf === '16line'
+      ? process.env.EXPO_PUBLIC_QURAN_16LINE_BASE_URL
+      : process.env.EXPO_PUBLIC_QURAN_15LINE_BASE_URL;
+
+  if (directBase?.trim()) {
+    return trimTrailingSlash(directBase.trim());
+  }
+
+  const sharedCdnBase = process.env.EXPO_PUBLIC_QURAN_PAGES_CDN_BASE_URL?.trim();
+  if (sharedCdnBase) {
+    return `${trimTrailingSlash(sharedCdnBase)}/${mushaf}`;
+  }
+
+  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
+  if (supabaseUrl) {
+    const bucket = normalizePublicPath((process.env.EXPO_PUBLIC_QURAN_STORAGE_BUCKET || 'quran-pages').trim());
+    const prefix = normalizePublicPath(resolveStoragePrefix(mushaf));
+    return `${trimTrailingSlash(supabaseUrl)}/storage/v1/object/public/${bucket}/${prefix}`;
+  }
+
+  if (__DEV__) {
+    if (!hasLoggedLegacySourceWarning) {
+      hasLoggedLegacySourceWarning = true;
+      console.warn(
+        '[QuranPageCache] Falling back to legacy GitHub raw URLs in development. Configure EXPO_PUBLIC_QURAN_PAGES_CDN_BASE_URL or EXPO_PUBLIC_QURAN_15LINE_BASE_URL/EXPO_PUBLIC_QURAN_16LINE_BASE_URL before release.',
+      );
+    }
+    return mushaf === '16line' ? LEGACY_QURAN_16LINE_BASE_URL : LEGACY_QURAN_15LINE_BASE_URL;
+  }
+
+  throw new Error(
+    'Quran pages source is not configured. Set EXPO_PUBLIC_QURAN_PAGES_CDN_BASE_URL or EXPO_PUBLIC_QURAN_15LINE_BASE_URL/EXPO_PUBLIC_QURAN_16LINE_BASE_URL.',
+  );
+}
 
 function getMushafPageFileNumber(mushaf: MushafLayout, pageZeroBased: number): number {
   const pageOneBased = pageZeroBased + 1;
@@ -38,7 +91,7 @@ function getMushafPageFileNumber(mushaf: MushafLayout, pageZeroBased: number): n
 
 function getRemoteQuranPageUrl(mushaf: MushafLayout, pageZeroBased: number): string {
   const fileNumber = getMushafPageFileNumber(mushaf, pageZeroBased);
-  const base = mushaf === '16line' ? QURAN_16LINE_BASE_URL : QURAN_15LINE_BASE_URL;
+  const base = getQuranPagesBaseUrl(mushaf);
   return `${base}/${fileNumber}.jpg`;
 }
 

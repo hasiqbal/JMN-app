@@ -5,7 +5,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as FileSystem from 'expo-file-system/legacy';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Reanimated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { Colors } from '@/constants/theme';
@@ -23,6 +22,7 @@ import {
 import { getJuzEndPage, getJuzStartPage, getMushafTotalPages, getQuarterStartsInJuz } from '@/constants/mushafJuzPages';
 import { TAFSIR_FONT_MAX, TAFSIR_FONT_MIN, TAFSIR_FONT_SCALE_STORAGE_KEY, TAFSIR_FONT_STEP, clampTafsirScale } from '@/constants/tafsirSettings';
 import { SURAH_NAMES } from '@/components/stream/streamConfig';
+import { getCachedQuranPageUri } from '@/services/quranPageCacheService';
 
 const NIGHT = {
   bg: '#0A0F1E',
@@ -60,50 +60,6 @@ const VALID_PRAYER_TIME_IDS = new Set([
 type ContentMode = 'translation' | 'tafsir';
 type ContentLanguage = 'en' | 'ur';
 type MushafMode = '15line' | '16line';
-
-const DEFAULT_QURAN_15LINE_BASE_URL =
-  'https://raw.githubusercontent.com/hasiqbal/JMN-app/main/assets/images/Quran%2015%20line%20indo-pak/Full';
-const DEFAULT_QURAN_16LINE_BASE_URL =
-  'https://raw.githubusercontent.com/hasiqbal/JMN-app/main/assets/images/Quran%2016%20line%20indo-pak/Full';
-
-const QURAN_15LINE_BASE_URL =
-  (process.env.EXPO_PUBLIC_QURAN_15LINE_BASE_URL || DEFAULT_QURAN_15LINE_BASE_URL).replace(/\/+$/, '');
-const QURAN_16LINE_BASE_URL =
-  (process.env.EXPO_PUBLIC_QURAN_16LINE_BASE_URL || DEFAULT_QURAN_16LINE_BASE_URL).replace(/\/+$/, '');
-
-function getMushafPageFileNumber(mushaf: MushafMode, pageZeroBased: number): number {
-  const pageOneBased = pageZeroBased + 1;
-  if (mushaf === '15line' && pageOneBased <= 2) {
-    // Preserve existing mapping where pages 1 and 2 both point to file 2.jpg.
-    return 2;
-  }
-  return pageOneBased;
-}
-
-function getRemoteQuranPageUrl(mushaf: MushafMode, pageZeroBased: number): string {
-  const fileNumber = getMushafPageFileNumber(mushaf, pageZeroBased);
-  const base = mushaf === '16line' ? QURAN_16LINE_BASE_URL : QURAN_15LINE_BASE_URL;
-  return `${base}/${fileNumber}.jpg`;
-}
-
-async function getCachedQuranPageUri(mushaf: MushafMode, pageZeroBased: number): Promise<string> {
-  const fileNumber = getMushafPageFileNumber(mushaf, pageZeroBased);
-  const root = FileSystem.documentDirectory ?? FileSystem.cacheDirectory;
-  if (!root) {
-    throw new Error('No writable filesystem directory available for Quran page cache.');
-  }
-
-  const dir = `${root}quran-pages/${mushaf}`;
-  const target = `${dir}/${fileNumber}.jpg`;
-  const existing = await FileSystem.getInfoAsync(target);
-  if (existing.exists) {
-    return target;
-  }
-
-  await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
-  await FileSystem.downloadAsync(getRemoteQuranPageUrl(mushaf, pageZeroBased), target);
-  return target;
-}
 
 interface TafsirBlock {
   id: number;

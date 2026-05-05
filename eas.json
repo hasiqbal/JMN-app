@@ -17,12 +17,18 @@
     "preview": {
       "distribution": "internal",
       "node": "22.22.2",
-      "pnpm": "10.14.0"
+      "pnpm": "10.14.0",
+      "env": {
+        "EXPO_PUBLIC_QURAN_PAGES_CDN_BASE_URL": "https://lhaqqqatdztuijgdfdcf.supabase.co/storage/v1/object/public/quran-pages"
+      }
     },
     "production": {
       "autoIncrement": true,
       "node": "22.22.2",
       "pnpm": "10.14.0",
+      "env": {
+        "EXPO_PUBLIC_QURAN_PAGES_CDN_BASE_URL": "https://lhaqqqatdztuijgdfdcf.supabase.co/storage/v1/object/public/quran-pages"
+      },
       "android": {
         "buildType": "app-bundle"
       }
