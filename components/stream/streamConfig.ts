@@ -246,38 +246,49 @@ export const JUZ_START_SURAH: Record<number, number> = {
   30: 78,
 };
 
+const SUPABASE_PUBLIC_URL = (process.env.EXPO_PUBLIC_SUPABASE_URL ?? '').replace(/\/+$/, '');
+const HADR_REMOTE_BASE_URL =
+  SUPABASE_PUBLIC_URL.length > 0
+    ? `${SUPABASE_PUBLIC_URL}/storage/v1/object/public/quran-hadr`
+    : 'https://lhaqqqatdztuijgdfdcf.supabase.co/storage/v1/object/public/quran-hadr';
+
+function buildHadrTrackUrl(juz: number): string {
+  const paddedJuz = String(juz).padStart(2, '0');
+  return `${HADR_REMOTE_BASE_URL}/juz-${paddedJuz}.mp3`;
+}
+
 // Full Quran Hadr is Juz-based (1..30), so each row must map to a dedicated Juz file.
 export const HADR_JUZ_TRACKS: Partial<Record<number, AudioSource>> = {
-  1: require('@/assets/quran-hadr/juz-01.mp3'),
-  2: require('@/assets/quran-hadr/juz-02.mp3'),
-  3: require('@/assets/quran-hadr/juz-03.mp3'),
-  4: require('@/assets/quran-hadr/juz-04.mp3'),
-  5: require('@/assets/quran-hadr/juz-05.mp3'),
-  6: require('@/assets/quran-hadr/juz-06.mp3'),
-  7: require('@/assets/quran-hadr/juz-07.mp3'),
-  8: require('@/assets/quran-hadr/juz-08.mp3'),
-  9: require('@/assets/quran-hadr/juz-09.mp3'),
-  10: require('@/assets/quran-hadr/juz-10.mp3'),
-  11: require('@/assets/quran-hadr/juz-11.mp3'),
-  12: require('@/assets/quran-hadr/juz-12.mp3'),
-  13: require('@/assets/quran-hadr/juz-13.mp3'),
-  14: require('@/assets/quran-hadr/juz-14.mp3'),
-  15: require('@/assets/quran-hadr/juz-15.mp3'),
-  16: require('@/assets/quran-hadr/juz-16.mp3'),
-  17: require('@/assets/quran-hadr/juz-17.mp3'),
-  18: require('@/assets/quran-hadr/juz-18.mp3'),
-  19: require('@/assets/quran-hadr/juz-19.mp3'),
-  20: require('@/assets/quran-hadr/juz-20.mp3'),
-  21: require('@/assets/quran-hadr/juz-21.mp3'),
-  22: require('@/assets/quran-hadr/juz-22.mp3'),
-  23: require('@/assets/quran-hadr/juz-23.mp3'),
-  24: require('@/assets/quran-hadr/juz-24.mp3'),
-  25: require('@/assets/quran-hadr/juz-25.mp3'),
-  26: require('@/assets/quran-hadr/juz-26.mp3'),
-  27: require('@/assets/quran-hadr/juz-27.mp3'),
-  28: require('@/assets/quran-hadr/juz-28.mp3'),
-  29: require('@/assets/quran-hadr/juz-29.mp3'),
-  30: require('@/assets/quran-hadr/juz-30.mp3'),
+  1: buildHadrTrackUrl(1),
+  2: buildHadrTrackUrl(2),
+  3: buildHadrTrackUrl(3),
+  4: buildHadrTrackUrl(4),
+  5: buildHadrTrackUrl(5),
+  6: buildHadrTrackUrl(6),
+  7: buildHadrTrackUrl(7),
+  8: buildHadrTrackUrl(8),
+  9: buildHadrTrackUrl(9),
+  10: buildHadrTrackUrl(10),
+  11: buildHadrTrackUrl(11),
+  12: buildHadrTrackUrl(12),
+  13: buildHadrTrackUrl(13),
+  14: buildHadrTrackUrl(14),
+  15: buildHadrTrackUrl(15),
+  16: buildHadrTrackUrl(16),
+  17: buildHadrTrackUrl(17),
+  18: buildHadrTrackUrl(18),
+  19: buildHadrTrackUrl(19),
+  20: buildHadrTrackUrl(20),
+  21: buildHadrTrackUrl(21),
+  22: buildHadrTrackUrl(22),
+  23: buildHadrTrackUrl(23),
+  24: buildHadrTrackUrl(24),
+  25: buildHadrTrackUrl(25),
+  26: buildHadrTrackUrl(26),
+  27: buildHadrTrackUrl(27),
+  28: buildHadrTrackUrl(28),
+  29: buildHadrTrackUrl(29),
+  30: buildHadrTrackUrl(30),
 };
 
 export const NOTIF_KEY = 'jmn_radio_notify';
