@@ -19,7 +19,6 @@ ios/build
 # Local artifacts and docs not needed in build context
 tomorrow-work-plan.txt
 quran.py
-assets/quran-hadr
 
 # Firebase native config must stay local-only (gitignored) but still be uploaded for EAS builds.
 !google-services.json

@@ -217,6 +217,11 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
     return `${FileSystem.documentDirectory}hadr-juz-cache`;
   }, []);
 
+  const hadrUsesRemoteTracks = useMemo(
+    () => Array.from({ length: 30 }, (_, index) => index + 1).some((juz) => typeof HADR_JUZ_TRACKS[juz] === 'string'),
+    [],
+  );
+
   const buildHadrCacheFileUri = useCallback((juz: number) => {
     if (!hadrCacheDir) return null;
     return `${hadrCacheDir}/juz-${String(juz).padStart(2, '0')}.mp3`;
@@ -298,7 +303,7 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
   }, [buildHadrCacheFileUri, ensureHadrCacheDirectory]);
 
   const refreshCachedHadrStatus = useCallback(async () => {
-    if (Platform.OS === 'web') {
+    if (Platform.OS === 'web' || !hadrUsesRemoteTracks) {
       setCachedHadrJuzSet({});
       return;
     }
@@ -311,10 +316,22 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
     }
 
     setCachedHadrJuzSet(next);
-  }, [getCachedHadrTrackUri]);
+  }, [getCachedHadrTrackUri, hadrUsesRemoteTracks]);
+
+  useEffect(() => {
+    if (Platform.OS === 'web' || hadrUsesRemoteTracks || !hadrCacheDir) return;
+
+    // Remove stale remote-cache files so Hadr always plays bundled juz-* assets.
+    void FileSystem.deleteAsync(hadrCacheDir, { idempotent: true }).catch(() => {});
+  }, [hadrCacheDir, hadrUsesRemoteTracks]);
 
   const downloadSingleHadrJuz = useCallback(async (juz: number) => {
     if (Platform.OS === 'web' || downloadingAllHadr || downloadingHadrJuzSet[juz]) return;
+
+    if (!hadrUsesRemoteTracks) {
+      setRewindNotice('Hadr uses built-in local files. Download is not required.');
+      return;
+    }
 
     const source = HADR_JUZ_TRACKS[juz];
     if (typeof source !== 'string') {
@@ -347,10 +364,15 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
         return copy;
       });
     }
-  }, [downloadHadrTrackToCache, downloadingAllHadr, downloadingHadrJuzSet, getCachedHadrTrackUri]);
+  }, [downloadHadrTrackToCache, downloadingAllHadr, downloadingHadrJuzSet, getCachedHadrTrackUri, hadrUsesRemoteTracks]);
 
   const downloadAllHadrJuz = useCallback(async () => {
     if (Platform.OS === 'web' || downloadingAllHadr) return;
+
+    if (!hadrUsesRemoteTracks) {
+      setRewindNotice('Hadr uses built-in local files. Full pack download is not required.');
+      return;
+    }
 
     const approved = await promptDownloadAllChoice();
     if (!approved) return;
@@ -400,14 +422,14 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
       setDownloadingAllHadr(false);
       setTimeout(() => setDownloadAllProgress(null), 1800);
     }
-  }, [downloadHadrTrackToCache, downloadingAllHadr, getCachedHadrTrackUri, promptDownloadAllChoice, refreshCachedHadrStatus]);
+  }, [downloadHadrTrackToCache, downloadingAllHadr, getCachedHadrTrackUri, hadrUsesRemoteTracks, promptDownloadAllChoice, refreshCachedHadrStatus]);
 
   const resolveHadrPlaybackSource = useCallback(async (
     juz: number,
     source: AudioSource,
     options?: { promptDownload?: boolean },
   ): Promise<AudioSource | null> => {
-    if (typeof source !== 'string' || Platform.OS === 'web') {
+    if (typeof source !== 'string' || Platform.OS === 'web' || !hadrUsesRemoteTracks) {
       return source;
     }
 
@@ -440,7 +462,7 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
 
     setRewindNotice('Download failed. Streaming instead.');
     return source;
-  }, [downloadHadrTrackToCache, getCachedHadrTrackUri, promptHadrDownloadChoice]);
+  }, [downloadHadrTrackToCache, getCachedHadrTrackUri, hadrUsesRemoteTracks, promptHadrDownloadChoice]);
 
   const palette = nightMode ? NIGHT : DAY;
   const previewTheme = previewVariant ? PREVIEW_THEME[previewVariant] : null;

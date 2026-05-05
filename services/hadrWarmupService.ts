@@ -16,5 +16,5 @@ export async function runInitialHadrWarmup(): Promise<void> {
     interruptionModeAndroid: 'doNotMix',
   }).catch(() => {});
 
-  // Hadr uses remote URLs, so there are no bundled local Juz assets to warm here.
+  // Hadr uses bundled local Juz assets; stream screen prewarms those on demand.
 }

@@ -246,15 +246,39 @@ export const JUZ_START_SURAH: Record<number, number> = {
   30: 78,
 };
 
-const HADR_REMOTE_TRACK_TEMPLATE = 'https://server8.mp3quran.net/afs/{SURAH_PADDED}.mp3';
-
-export const HADR_JUZ_TRACKS: Partial<Record<number, AudioSource>> = Object.fromEntries(
-  Array.from({ length: 30 }, (_, index) => {
-    const juz = index + 1;
-    const surahStart = JUZ_START_SURAH[juz] ?? 1;
-    return [juz, buildSurahTrackUrl(HADR_REMOTE_TRACK_TEMPLATE, surahStart)];
-  }),
-) as Partial<Record<number, AudioSource>>;
+// Full Quran Hadr is Juz-based (1..30), so each row must map to a dedicated Juz file.
+export const HADR_JUZ_TRACKS: Partial<Record<number, AudioSource>> = {
+  1: require('@/assets/quran-hadr/juz-01.mp3'),
+  2: require('@/assets/quran-hadr/juz-02.mp3'),
+  3: require('@/assets/quran-hadr/juz-03.mp3'),
+  4: require('@/assets/quran-hadr/juz-04.mp3'),
+  5: require('@/assets/quran-hadr/juz-05.mp3'),
+  6: require('@/assets/quran-hadr/juz-06.mp3'),
+  7: require('@/assets/quran-hadr/juz-07.mp3'),
+  8: require('@/assets/quran-hadr/juz-08.mp3'),
+  9: require('@/assets/quran-hadr/juz-09.mp3'),
+  10: require('@/assets/quran-hadr/juz-10.mp3'),
+  11: require('@/assets/quran-hadr/juz-11.mp3'),
+  12: require('@/assets/quran-hadr/juz-12.mp3'),
+  13: require('@/assets/quran-hadr/juz-13.mp3'),
+  14: require('@/assets/quran-hadr/juz-14.mp3'),
+  15: require('@/assets/quran-hadr/juz-15.mp3'),
+  16: require('@/assets/quran-hadr/juz-16.mp3'),
+  17: require('@/assets/quran-hadr/juz-17.mp3'),
+  18: require('@/assets/quran-hadr/juz-18.mp3'),
+  19: require('@/assets/quran-hadr/juz-19.mp3'),
+  20: require('@/assets/quran-hadr/juz-20.mp3'),
+  21: require('@/assets/quran-hadr/juz-21.mp3'),
+  22: require('@/assets/quran-hadr/juz-22.mp3'),
+  23: require('@/assets/quran-hadr/juz-23.mp3'),
+  24: require('@/assets/quran-hadr/juz-24.mp3'),
+  25: require('@/assets/quran-hadr/juz-25.mp3'),
+  26: require('@/assets/quran-hadr/juz-26.mp3'),
+  27: require('@/assets/quran-hadr/juz-27.mp3'),
+  28: require('@/assets/quran-hadr/juz-28.mp3'),
+  29: require('@/assets/quran-hadr/juz-29.mp3'),
+  30: require('@/assets/quran-hadr/juz-30.mp3'),
+};
 
 export const NOTIF_KEY = 'jmn_radio_notify';
 export const LIVE_NOTIFICATION_CHANNEL_ID = 'jmn-live-v3';
