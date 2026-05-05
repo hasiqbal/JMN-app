@@ -1,4 +1,4 @@
-package com.hasiqbal.jmn
+package com.hasiqbal.jmnapp
 
 import android.app.Application
 import android.content.res.Configuration

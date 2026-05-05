@@ -26,7 +26,7 @@ const base = {
       'android.permission.SCHEDULE_EXACT_ALARM',
       'android.permission.USE_EXACT_ALARM',
     ],
-    package: 'com.hasiqbal.jmn',
+    package: 'com.hasiqbal.jmnapp',
   },
   web: {
     bundler: 'metro',

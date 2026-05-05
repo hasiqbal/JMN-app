@@ -1,4 +1,4 @@
-package com.hasiqbal.jmn
+package com.hasiqbal.jmnapp
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build
