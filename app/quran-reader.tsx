@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Reanimated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { Colors } from '@/constants/theme';
@@ -19,8 +20,6 @@ import {
   QuranTafsirResource,
   QuranTranslationResource,
 } from '@/services/quranApiService';
-import { QURAN_15LINE_FULL_PAGE_IMAGES } from '@/constants/quran15lineFullMap';
-import { QURAN_16LINE_FULL_PAGE_IMAGES } from '@/constants/quran16lineFullMap';
 import { getJuzEndPage, getJuzStartPage, getMushafTotalPages, getQuarterStartsInJuz } from '@/constants/mushafJuzPages';
 import { TAFSIR_FONT_MAX, TAFSIR_FONT_MIN, TAFSIR_FONT_SCALE_STORAGE_KEY, TAFSIR_FONT_STEP, clampTafsirScale } from '@/constants/tafsirSettings';
 import { SURAH_NAMES } from '@/components/stream/streamConfig';
@@ -60,6 +59,51 @@ const VALID_PRAYER_TIME_IDS = new Set([
 
 type ContentMode = 'translation' | 'tafsir';
 type ContentLanguage = 'en' | 'ur';
+type MushafMode = '15line' | '16line';
+
+const DEFAULT_QURAN_15LINE_BASE_URL =
+  'https://raw.githubusercontent.com/hasiqbal/JMN-app/main/assets/images/Quran%2015%20line%20indo-pak/Full';
+const DEFAULT_QURAN_16LINE_BASE_URL =
+  'https://raw.githubusercontent.com/hasiqbal/JMN-app/main/assets/images/Quran%2016%20line%20indo-pak/Full';
+
+const QURAN_15LINE_BASE_URL =
+  (process.env.EXPO_PUBLIC_QURAN_15LINE_BASE_URL || DEFAULT_QURAN_15LINE_BASE_URL).replace(/\/+$/, '');
+const QURAN_16LINE_BASE_URL =
+  (process.env.EXPO_PUBLIC_QURAN_16LINE_BASE_URL || DEFAULT_QURAN_16LINE_BASE_URL).replace(/\/+$/, '');
+
+function getMushafPageFileNumber(mushaf: MushafMode, pageZeroBased: number): number {
+  const pageOneBased = pageZeroBased + 1;
+  if (mushaf === '15line' && pageOneBased <= 2) {
+    // Preserve existing mapping where pages 1 and 2 both point to file 2.jpg.
+    return 2;
+  }
+  return pageOneBased;
+}
+
+function getRemoteQuranPageUrl(mushaf: MushafMode, pageZeroBased: number): string {
+  const fileNumber = getMushafPageFileNumber(mushaf, pageZeroBased);
+  const base = mushaf === '16line' ? QURAN_16LINE_BASE_URL : QURAN_15LINE_BASE_URL;
+  return `${base}/${fileNumber}.jpg`;
+}
+
+async function getCachedQuranPageUri(mushaf: MushafMode, pageZeroBased: number): Promise<string> {
+  const fileNumber = getMushafPageFileNumber(mushaf, pageZeroBased);
+  const root = FileSystem.documentDirectory ?? FileSystem.cacheDirectory;
+  if (!root) {
+    throw new Error('No writable filesystem directory available for Quran page cache.');
+  }
+
+  const dir = `${root}quran-pages/${mushaf}`;
+  const target = `${dir}/${fileNumber}.jpg`;
+  const existing = await FileSystem.getInfoAsync(target);
+  if (existing.exists) {
+    return target;
+  }
+
+  await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+  await FileSystem.downloadAsync(getRemoteQuranPageUrl(mushaf, pageZeroBased), target);
+  return target;
+}
 
 interface TafsirBlock {
   id: number;
@@ -329,6 +373,9 @@ export default function QuranReaderScreen() {
   const [showSourcePicker, setShowSourcePicker] = useState(false);
   const [showTranslit, setShowTranslit] = useState(false);
   const [isLoadingPanelContent, setIsLoadingPanelContent] = useState(false);
+  const [isLoadingPageImage, setIsLoadingPageImage] = useState(false);
+  const [pageImageUri, setPageImageUri] = useState<string | null>(null);
+  const [pageImageError, setPageImageError] = useState<string | null>(null);
   const [isLoadingSources, setIsLoadingSources] = useState(false);
   const [imageRenderNonce, setImageRenderNonce] = useState(0);
   const [translationOptionsByLang, setTranslationOptionsByLang] = useState<Record<ContentLanguage, QuranTranslationResource[]>>({ en: [], ur: [] });
@@ -515,6 +562,34 @@ export default function QuranReaderScreen() {
     if (!showContentPanel || contentMode !== 'tafsir') return;
     setExpandedTafsirAyahByKey({});
   }, [showContentPanel, contentMode, contentLang, displayPage, selectedTafsirIdsByLang]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const resolvePageImage = async () => {
+      setIsLoadingPageImage(true);
+      setPageImageError(null);
+
+      try {
+        const cachedUri = await getCachedQuranPageUri(mushaf as MushafMode, page);
+        if (cancelled) return;
+        setPageImageUri(cachedUri);
+      } catch {
+        if (cancelled) return;
+        setPageImageUri(null);
+        setPageImageError('Unable to download this Quran page. Check internet once to cache it.');
+      } finally {
+        if (!cancelled) {
+          setIsLoadingPageImage(false);
+        }
+      }
+    };
+
+    void resolvePageImage();
+    return () => {
+      cancelled = true;
+    };
+  }, [mushaf, page, imageRenderNonce]);
 
   useEffect(() => {
     let mounted = true;
@@ -886,11 +961,6 @@ export default function QuranReaderScreen() {
     transform: [{ translateX: translateX.value }, { translateY: translateY.value }, { scale: zoomScale.value }],
   }));
 
-  const localSource =
-    mushaf === '16line'
-      ? (QURAN_16LINE_FULL_PAGE_IMAGES[page] ?? null)
-      : (QURAN_15LINE_FULL_PAGE_IMAGES[page + 1] ?? null);
-
   return (
     <GestureHandlerRootView style={styles.container}>
     <View style={[styles.container, { backgroundColor: N ? N.bg : '#000' }]}>
@@ -930,21 +1000,27 @@ export default function QuranReaderScreen() {
         </TouchableOpacity>
       </View>
 
-        {localSource ? (
+        {pageImageUri ? (
           <Reanimated.View style={[styles.imageWrap, zoomStyle]}>
             <Image
               key={`quran-image-${mushaf}-${page}-${imageRenderNonce}`}
-              source={localSource}
+              source={{ uri: pageImageUri }}
               style={styles.image}
               contentFit="contain"
               transition={80}
             />
             <View pointerEvents="none" style={[styles.quranTintOverlay, { backgroundColor: quranTintOverlay }]} />
           </Reanimated.View>
+        ) : isLoadingPageImage ? (
+          <View style={styles.emptyWrap}>
+            <ActivityIndicator size="large" color={N ? '#9FC8FF' : '#4B7BE5'} />
+            <Text style={[styles.emptyTitle, N && { color: N.text }]}>Downloading Quran page...</Text>
+            <Text style={[styles.emptySub, N && { color: N.textSub }]}>Page: {displayPage}</Text>
+          </View>
         ) : (
           <View style={styles.emptyWrap}>
-            <Text style={[styles.emptyTitle, N && { color: N.text }]}>Image not mapped on this test reader</Text>
-            <Text style={[styles.emptySub, N && { color: N.textSub }]}>No local image mapped for this page in {mushaf === '16line' ? '16-Line' : '15-Line'} Full folder.</Text>
+            <Text style={[styles.emptyTitle, N && { color: N.text }]}>Unable to load Quran page</Text>
+            <Text style={[styles.emptySub, N && { color: N.textSub }]}>{pageImageError ?? 'Please check your internet and try again.'}</Text>
             <Text style={[styles.emptySub, N && { color: N.textSub }]}>Requested page: {displayPage}</Text>
           </View>
         )}

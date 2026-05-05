@@ -26,6 +26,7 @@ const base = {
       'android.permission.SCHEDULE_EXACT_ALARM',
       'android.permission.USE_EXACT_ALARM',
     ],
+    blockedPermissions: ['android.permission.CAMERA'],
     package: 'com.hasiqbal.jmnapp',
   },
   web: {

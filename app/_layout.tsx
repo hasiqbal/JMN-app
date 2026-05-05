@@ -8,6 +8,7 @@ import { AlertProvider, InAppBannerProvider } from '@/template';
 import { runInitialTranslationWarmup } from '@/services/translationWarmupService';
 import { prewarmQaseedahAndHowToCaches } from '@/services/contentService';
 import { runInitialHadrWarmup } from '@/services/hadrWarmupService';
+import { runInitialQuranPageWarmup } from '@/services/quranPageCacheService';
 import { NightModeProvider } from '@/contexts/NightModeContext';
 import { AppThemeProvider } from '@/contexts/AppThemeContext';
 import { PRAYER_NOTIFICATION_SCOPE } from '@/constants/prayerNotifications';
@@ -53,6 +54,7 @@ export default function RootLayout() {
     void runInitialTranslationWarmup();
     void prewarmQaseedahAndHowToCaches();
     void runInitialHadrWarmup();
+    void runInitialQuranPageWarmup();
   }, []);
 
   React.useEffect(() => {
