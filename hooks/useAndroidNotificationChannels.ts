@@ -19,6 +19,42 @@ const LIVE_NOTIFICATION_CHANNEL_ID = 'jmn-live-v3';
 
 let notificationsModulePromise: Promise<ExpoNotificationsModule | null> | null = null;
 
+async function deleteStalePrayerAudioChannels(
+  Notifications: ExpoNotificationsModule,
+  keepIds: ReadonlySet<string>,
+): Promise<void> {
+  if (Platform.OS !== 'android') return;
+
+  const getChannels = (Notifications as {
+    getNotificationChannelsAsync?: () => Promise<Array<{ id?: unknown }> | null | undefined>;
+  }).getNotificationChannelsAsync;
+
+  if (typeof getChannels !== 'function') return;
+
+  let channels: Array<{ id?: unknown }> | null | undefined;
+  try {
+    channels = await getChannels.call(Notifications);
+  } catch {
+    return;
+  }
+
+  if (!Array.isArray(channels)) return;
+
+  for (const channel of channels) {
+    const id = typeof channel?.id === 'string' ? channel.id : '';
+    if (!id) continue;
+
+    const isPrayerAudioChannel = id.startsWith('jmn-prayer-start-adhaan-') || id.startsWith('jmn-iqamah-start-');
+    if (!isPrayerAudioChannel || keepIds.has(id)) continue;
+
+    try {
+      await Notifications.deleteNotificationChannelAsync(id);
+    } catch {
+      // ignore - channel may not exist or be in use
+    }
+  }
+}
+
 export async function getNotificationsModule(): Promise<ExpoNotificationsModule | null> {
   if (Platform.OS === 'web') return null;
   if (!notificationsModulePromise) {
@@ -76,8 +112,16 @@ export async function ensureAndroidPrayerNotificationChannel(selectedAdhaanOptio
   const selectedOption = getAdhaanOptionById(selectedAdhaanOptionId);
   const prayerStartChannelId = getPrayerStartChannelId(selectedOption.id, false);
   const prayerStartSilentChannelId = getPrayerStartChannelId(selectedOption.id, true);
+  const keepIds = new Set<string>([
+    prayerStartChannelId,
+    prayerStartSilentChannelId,
+    IQAMAH_NOTIFICATION_CHANNEL_ID,
+    IQAMAH_NOTIFICATION_SILENT_CHANNEL_ID,
+  ]);
 
   try {
+    await deleteStalePrayerAudioChannels(Notifications, keepIds);
+
     // Force a clean rebind of audio channels so any stale Android sound cache
     // (which is keyed per channel and never updated after first creation) is discarded.
     try {
