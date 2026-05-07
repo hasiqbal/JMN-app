@@ -51,7 +51,7 @@ const QUARTER_OVERRIDES_15LINE: Record<number, Partial<Record<2 | 3 | 4, number>
 };
 
 const QUARTER_OVERRIDES_16LINE: Record<number, Partial<Record<2 | 3 | 4, number>>> = {
-  1: { 2: 7, 4: 15 },
+  1: { 2: 7, 3: 11, 4: 15 },
   2: { 3: 29, 4: 34 },
   3: { 3: 47, 4: 51 },
   4: { 3: 65, 4: 69 },
@@ -62,6 +62,7 @@ const QUARTER_OVERRIDES_16LINE: Record<number, Partial<Record<2 | 3 | 4, number>
   9: { 3: 154 },
   10: { 3: 173, 4: 177 },
   11: { 3: 191, 4: 195 },
+  12: { 3: 208 },
   13: { 3: 208 },
   14: { 3: 244 },
   15: { 2: 258, 3: 263, 4: 267 },
@@ -71,13 +72,13 @@ const QUARTER_OVERRIDES_16LINE: Record<number, Partial<Record<2 | 3 | 4, number>
   19: { 3: 335, 4: 339 },
   20: { 3: 353, 4: 357 },
   21: { 3: 371, 4: 376 },
-  22: { 3: 389, 4: 393 },
+  22: { 3: 388, 4: 393 },
   23: { 3: 406, 4: 411 },
   24: { 3: 424, 4: 429 },
   25: { 3: 442, 4: 447 },
-  26: { 4: 465 },
+  26: { 3: 462, 4: 465 },
   27: { 3: 479, 4: 483 },
-  28: { 3: 497, 4: 502 },
+  28: { 3: 497, 4: 503 },
   29: { 2: 512, 3: 518, 4: 523 },
   30: { 2: 533, 3: 538, 4: 543 },
 };
@@ -88,7 +89,7 @@ export function getMushafTotalPages(layout: MushafLayout): number {
 
 export function getJuzStartPage(layout: MushafLayout, juz: number): number {
   if (layout === '16line') {
-    return JUZ_START_PAGE_16LINE[juz] ?? 1;
+    return Math.max(0, (JUZ_START_PAGE_16LINE[juz] ?? 1) - 1);
   }
   return JUZ_START_PAGE_15LINE[juz] ?? 1;
 }
@@ -96,10 +97,11 @@ export function getJuzStartPage(layout: MushafLayout, juz: number): number {
 export function getJuzEndPage(layout: MushafLayout, juz: number): number {
   const totalPages = getMushafTotalPages(layout);
   if (layout === '16line') {
-    if (juz >= 30) return totalPages;
+    if (juz >= 30) return Math.max(0, totalPages - 1);
+    const nextStart = getJuzStartPage(layout, juz + 1);
     return Math.max(
       getJuzStartPage(layout, juz),
-      (getJuzStartPage(layout, juz + 1) ?? (totalPages + 1)) - 1
+      nextStart > 0 ? (nextStart - 1) : (totalPages - 1)
     );
   }
 
@@ -123,7 +125,7 @@ export function getQuarterStartsInJuz(layout: MushafLayout, juz: number): Array<
 
     return quarterStarts.map((item) => {
       const page = overrides[item.quarter as 2 | 3 | 4];
-      return page ? { ...item, page } : item;
+      return page ? { ...item, page: Math.max(0, page - 1) } : item;
     });
   }
 

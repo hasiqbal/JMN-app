@@ -318,9 +318,11 @@ export default function QuranReaderScreen() {
   const N = nightMode ? NIGHT : null;
   const quranTintOverlay = nightMode ? 'rgba(255, 239, 196, 0.06)' : 'rgba(255, 239, 196, 0.14)';
   const mushafTotalPages = useMemo(() => getMushafTotalPages(mushaf), [mushaf]);
-  const displayPage = page + 1;
-  const displayStart = activeRange.start + 1;
-  const displayEnd = activeRange.end + 1;
+  const apiPageNumber = page + 1;
+  const displayOffset = mushaf === '16line' ? 1 : 0;
+  const displayPage = apiPageNumber + displayOffset;
+  const displayStart = activeRange.start + 1 + displayOffset;
+  const displayEnd = activeRange.end + 1 + displayOffset;
 
   const [showContentPanel, setShowContentPanel] = useState(false);
   const [contentMode, setContentMode] = useState<ContentMode>('translation');
@@ -721,10 +723,10 @@ export default function QuranReaderScreen() {
     const loadPanelContent = async () => {
       setIsLoadingPanelContent(true);
       try {
-        let verses = pageVersesCacheRef.current[displayPage];
+        let verses = pageVersesCacheRef.current[apiPageNumber];
         if (!verses) {
-          verses = await fetchPageVerses(displayPage);
-          pageVersesCacheRef.current[displayPage] = verses;
+          verses = await fetchPageVerses(apiPageNumber);
+          pageVersesCacheRef.current[apiPageNumber] = verses;
         }
         if (cancelled) return;
         setPageVerses(verses);
@@ -736,10 +738,10 @@ export default function QuranReaderScreen() {
             return;
           }
 
-          const cacheKey = `${displayPage}:${contentLang}:${selectedTranslationId}`;
+          const cacheKey = `${apiPageNumber}:${contentLang}:${selectedTranslationId}`;
           let nextMap = pageTranslationCacheRef.current[cacheKey];
           if (!nextMap) {
-            nextMap = await fetchPageTranslationById(displayPage, selectedTranslationId, contentLang);
+            nextMap = await fetchPageTranslationById(apiPageNumber, selectedTranslationId, contentLang);
             pageTranslationCacheRef.current[cacheKey] = nextMap;
           }
           if (cancelled) return;
@@ -748,10 +750,10 @@ export default function QuranReaderScreen() {
         }
 
         const tafsirTranslationId = selectedTranslationIdByLang[contentLang] ?? DEFAULT_TRANSLATION_ID_BY_LANG[contentLang];
-        const tafsirTranslationCacheKey = `${displayPage}:${contentLang}:${tafsirTranslationId}`;
+        const tafsirTranslationCacheKey = `${apiPageNumber}:${contentLang}:${tafsirTranslationId}`;
         let tafsirTranslationMap = pageTranslationCacheRef.current[tafsirTranslationCacheKey];
         if (!tafsirTranslationMap) {
-          tafsirTranslationMap = await fetchPageTranslationById(displayPage, tafsirTranslationId, contentLang);
+          tafsirTranslationMap = await fetchPageTranslationById(apiPageNumber, tafsirTranslationId, contentLang);
           pageTranslationCacheRef.current[tafsirTranslationCacheKey] = tafsirTranslationMap;
         }
         if (cancelled) return;
@@ -764,10 +766,10 @@ export default function QuranReaderScreen() {
 
         const blocks: TafsirBlock[] = [];
         for (const tafsirId of selectedTafsirIds) {
-          const cacheKey = `${displayPage}:${contentLang}:${tafsirId}`;
+          const cacheKey = `${apiPageNumber}:${contentLang}:${tafsirId}`;
           let cachedBlock = pageTafsirCacheRef.current[cacheKey];
           if (!cachedBlock) {
-            const payload = await fetchPageTafsirById(displayPage, tafsirId, contentLang);
+            const payload = await fetchPageTafsirById(apiPageNumber, tafsirId, contentLang);
             cachedBlock = {
               id: tafsirId,
               label: payload.label || `Tafsir ${tafsirId}`,
@@ -788,7 +790,7 @@ export default function QuranReaderScreen() {
     return () => {
       cancelled = true;
     };
-  }, [contentLang, contentMode, displayPage, selectedTafsirIdsByLang, selectedTranslationIdByLang, showContentPanel]);
+  }, [apiPageNumber, contentLang, contentMode, selectedTafsirIdsByLang, selectedTranslationIdByLang, showContentPanel]);
 
   const activeTranslationOptions = translationOptionsByLang[contentLang] ?? [];
   const activeTafsirOptions = tafsirOptionsByLang[contentLang] ?? [];

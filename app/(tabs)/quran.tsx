@@ -8,6 +8,7 @@ import { Colors } from '@/constants/theme';
 import { useNightMode } from '@/hooks/useNightMode';
 import { getJuzEndPage, getJuzStartPage, getMushafTotalPages, getQuarterStartsInJuz } from '@/constants/mushafJuzPages';
 import { StarField } from '@/components/adhkar/StarField';
+import { getQuranPreloadState, runInitialQuranPageWarmup, type QuranPreloadState } from '@/services/quranPageCacheService';
 
 const NIGHT = {
   bg: '#0A0F1E',
@@ -142,9 +143,10 @@ const JUZ_SURAH_MAP: Record<number, number[]> = {
 };
 
 function chapterForMushafPage(targetPage: number): number {
+  const oneBasedPage = targetPage + 1;
   let chapter = 1;
   for (let s = 1; s <= 114; s += 1) {
-    if ((SURAH_START_PAGE[s] ?? 999) <= targetPage) {
+    if ((SURAH_START_PAGE[s] ?? 999) <= oneBasedPage) {
       chapter = s;
     } else {
       break;
@@ -159,8 +161,7 @@ function getSurahsInJuz(layout: MushafLayout, juz: number): number[] {
 }
 
 function getDisplayedJuzPage(layout: MushafLayout, page: number): number {
-  void layout;
-  return page + 1;
+  return layout === '16line' ? page + 2 : page + 1;
 }
 
 function pickParamValue(value: string | string[] | undefined): string | undefined {
@@ -173,6 +174,11 @@ function normalizePrayerTimeParam(value: string | undefined): string | undefined
   return value === 'after-dhuhr' ? 'after-zuhr' : value;
 }
 
+function toProgressPercent(completed: number, total: number): number {
+  if (total <= 0) return 0;
+  return Math.min(100, Math.max(0, Math.round((completed / total) * 100)));
+}
+
 function getSurahPageRange(layout: MushafLayout, chapter: number): { startPage: number; endPage: number } {
   const startMap = layout === '15line'
     ? SURAH_START_PAGE_15LINE_BUTTONS
@@ -183,7 +189,7 @@ function getSurahPageRange(layout: MushafLayout, chapter: number): { startPage: 
   const surahOpenOffset = layout === '15line'
     ? -1
     : layout === '16line'
-      ? (chapter === 1 ? -2 : -1)
+      ? (chapter === 1 ? -3 : -2)
       : 0;
 
   const startPage = Math.max(1, (startMap[chapter] ?? 1) + surahOpenOffset);
@@ -220,6 +226,8 @@ export default function QuranScreen() {
   const [selectedSurah, setSelectedSurah] = useState<number | null>(null);
   const [, setPendingOpenLabel] = useState('None');
   const [isStateHydrated, setIsStateHydrated] = useState(false);
+  const [preloadState, setPreloadState] = useState<QuranPreloadState | null>(null);
+  const [isStartingDownload, setIsStartingDownload] = useState(false);
   const processedAdhkarAutoOpenRef = React.useRef<string | null>(null);
   const N = nightMode ? NIGHT : null;
 
@@ -279,6 +287,40 @@ export default function QuranScreen() {
       setPendingOpenLabel('None');
     });
   }, [loadQuranState]);
+
+  const loadPreloadState = useCallback(async () => {
+    try {
+      const next = await getQuranPreloadState();
+      setPreloadState(next);
+    } catch {
+      setPreloadState(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadPreloadState();
+  }, [loadPreloadState]);
+
+  useEffect(() => {
+    if (!preloadState?.inProgress && !isStartingDownload) return;
+
+    const intervalId = setInterval(() => {
+      void loadPreloadState();
+    }, 1600);
+
+    return () => clearInterval(intervalId);
+  }, [isStartingDownload, loadPreloadState, preloadState?.inProgress]);
+
+  const handleDownloadPages = useCallback(async () => {
+    setIsStartingDownload(true);
+    try {
+      await runInitialQuranPageWarmup();
+    } finally {
+      setIsStartingDownload(false);
+      setLastUpdated(new Date());
+      await loadPreloadState();
+    }
+  }, [loadPreloadState]);
 
   const chooseMushaf = useCallback(async (nextLayout: MushafLayout) => {
     setMushafLayout(nextLayout);
@@ -379,12 +421,27 @@ export default function QuranScreen() {
   const onPullRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await loadQuranState();
+      await Promise.all([loadQuranState(), loadPreloadState()]);
       setLastUpdated(new Date());
     } finally {
       setRefreshing(false);
     }
-  }, [loadQuranState]);
+  }, [loadPreloadState, loadQuranState]);
+
+  const totalPages = preloadState?.totalPages ?? 0;
+  const processedPages = preloadState?.processedPages ?? 0;
+  const completedPages = preloadState?.completedPages ?? 0;
+  const isDownloadComplete = totalPages > 0 && completedPages >= totalPages;
+  const isDownloadInProgress = Boolean(preloadState?.inProgress) || isStartingDownload;
+  const progressPercent = toProgressPercent(completedPages, totalPages);
+  const hasUncachedPages = totalPages > 0 && completedPages < totalPages;
+  const downloadButtonLabel = isDownloadInProgress
+    ? `Downloading... ${progressPercent}%`
+    : isDownloadComplete
+      ? 'Pages Downloaded - Download Again'
+      : hasUncachedPages
+        ? 'Download Remaining Pages'
+        : 'Download Quran Pages';
 
   return (
     <View style={styles.screen}>
@@ -427,6 +484,33 @@ export default function QuranScreen() {
               <Text style={styles.titleDividerStar}>✦</Text>
               <View style={styles.titleDividerLine} />
             </View>
+
+            <View style={styles.downloadCard}>
+              <TouchableOpacity
+                onPress={() => {
+                  void handleDownloadPages();
+                }}
+                style={[styles.downloadBtn, isDownloadInProgress && styles.downloadBtnBusy]}
+                activeOpacity={0.86}
+                disabled={isDownloadInProgress}
+              >
+                <Text style={styles.downloadBtnText}>{downloadButtonLabel}</Text>
+              </TouchableOpacity>
+              <Text style={styles.downloadSubText}>
+                {totalPages > 0
+                  ? `${completedPages}/${totalPages} pages cached${processedPages > completedPages ? ` (${processedPages} checked)` : ''}`
+                  : 'Download all Quran pages for faster offline opening.'}
+              </Text>
+              {totalPages > 0 && (
+                <View style={styles.progressWrap}>
+                  <View style={styles.progressTrack}>
+                    <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
+                  </View>
+                  <Text style={styles.progressLabel}>{progressPercent}%</Text>
+                </View>
+              )}
+            </View>
+
             {!selectedMushaf ? (
               <>
                 <Text style={[styles.sub, styles.sectionTitle]}>Choose Quran First</Text>
@@ -671,6 +755,66 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#D4A853',
     opacity: 0.9,
+  },
+  downloadCard: {
+    width: '100%',
+    borderWidth: 1,
+    borderColor: 'rgba(212,172,90,0.35)',
+    backgroundColor: 'rgba(9,16,38,0.74)',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 10,
+    marginBottom: 14,
+    gap: 6,
+  },
+  downloadBtn: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#D4A848',
+    backgroundColor: 'rgba(196,148,46,0.92)',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+  },
+  downloadBtnBusy: {
+    opacity: 0.7,
+  },
+  downloadBtnText: {
+    color: '#170F02',
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  downloadSubText: {
+    fontSize: 11,
+    lineHeight: 16,
+    color: '#9AB8D4',
+    textAlign: 'center',
+  },
+  progressWrap: {
+    marginTop: 2,
+    gap: 4,
+  },
+  progressTrack: {
+    width: '100%',
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(140,168,199,0.28)',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: '#D4A848',
+  },
+  progressLabel: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '700',
+    color: '#E6D49F',
+    textAlign: 'right',
   },
   sectionTitle: {
     marginTop: 2,

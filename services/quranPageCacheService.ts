@@ -162,13 +162,14 @@ export function runInitialQuranPageWarmup(): Promise<void> {
   warmupPromise = (async () => {
     const totalPages = MUSHAF_TOTAL_PAGES['15line'] + MUSHAF_TOTAL_PAGES['16line'];
     const state = await getQuranPreloadState();
-    if (state?.completedAt) {
+    const isAlreadyComplete = Boolean(state?.completedAt) && (state?.completedPages ?? 0) >= totalPages;
+    if (isAlreadyComplete) {
       return;
     }
 
     const startedAt = state?.startedAt ?? new Date().toISOString();
-    let processedPages = state?.processedPages ?? 0;
-    let completedPages = state?.completedPages ?? 0;
+    let processedPages = 0;
+    let completedPages = 0;
 
     await savePreloadState({
       totalPages,
@@ -208,11 +209,12 @@ export function runInitialQuranPageWarmup(): Promise<void> {
         }
       }
 
+      const completedAt = completedPages >= totalPages ? new Date().toISOString() : null;
       await savePreloadState({
         totalPages,
         startedAt,
         inProgress: false,
-        completedAt: new Date().toISOString(),
+        completedAt,
         processedPages,
         completedPages,
       });
