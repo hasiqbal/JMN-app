@@ -5,11 +5,9 @@ import {
   StyleSheet,
   TouchableOpacity,
   Pressable as RNPressable,
-  Platform,
   ScrollView,
   useWindowDimensions,
 } from 'react-native';
-import { Pressable as GHPressable, ScrollView as GestureScrollView } from 'react-native-gesture-handler';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
@@ -93,8 +91,8 @@ const STRIP_TEXT_HIJRI = '#C59B2D';
 const STRIP_TEXT_HIJRI_SOFT = '#D9BC6A';
 const STRIP_FRIDAY_DOT = '#D39C2F';
 
-const CalendarPressable = Platform.OS === 'web' ? RNPressable : GHPressable;
-const CalendarStripScrollView = Platform.OS === 'web' ? ScrollView : GestureScrollView;
+const CalendarPressable = RNPressable;
+const CalendarStripScrollView = ScrollView;
 
 function extractIsoDateFromLinkedGregorianDate(value: string | null | undefined): string | null {
   const text = (value ?? '').trim();

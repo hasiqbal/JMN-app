@@ -415,15 +415,26 @@ export default function TabLayout() {
       if (!Notifications || cancelled) return;
 
       const youtubeLiveNotifyEnabled = (await AsyncStorage.getItem(YOUTUBE_LIVE_NOTIFY_KEY).catch(() => null)) === 'true';
-      await syncPushTokenWithBackend(Notifications, { youtubeLiveEnabled: youtubeLiveNotifyEnabled }).catch(() => {
+      const result = await syncPushTokenWithBackend(Notifications, { youtubeLiveEnabled: youtubeLiveNotifyEnabled }).catch(() => {
         return { synced: false, reason: 'exception' } as const;
       });
+
+      if (__DEV__ && (!result || !result.synced)) {
+        console.log('[push-sync]', result?.reason ?? 'unknown-reason');
+      }
     };
 
     void syncPushPreferences();
 
+    const appStateSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void syncPushPreferences();
+      }
+    });
+
     return () => {
       cancelled = true;
+      appStateSub.remove();
     };
   }, []);
 
