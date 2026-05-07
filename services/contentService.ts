@@ -58,6 +58,11 @@ function chunkItems<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
+function isMissingColumnErrorMessage(message: string | null | undefined): boolean {
+  const value = (message ?? '').toLowerCase();
+  return value.includes('could not find the') && value.includes('column');
+}
+
 function isCacheFresh(updatedAt: number, ttlMs: number): boolean {
   return Date.now() - updatedAt <= ttlMs;
 }
@@ -1147,18 +1152,76 @@ async function seedQaseedahGroupCaches(rows: AdhkarRow[]): Promise<void> {
 
 async function fetchQaseedahNaatEntriesFromNetwork(): Promise<AdhkarRow[]> {
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase
+  const fullSelect = 'id,group_id,content_type,title,arabic_title,arabic,transliteration,translation,urdu_translation,reference,count,prayer_time,display_order,is_active,sections,file_url,tafsir,description,qaseedah_naat_groups(name,description,display_order)';
+  const minimalSelect = 'id,group_id,content_type,title,arabic_title,arabic,transliteration,translation,urdu_translation,reference,count,prayer_time,display_order,is_active,file_url';
+
+  let queryResult: any = await supabase
     .from('qaseedah_naat_entries')
-    .select('id,content_type,title,arabic_title,arabic,transliteration,translation,urdu_translation,reference,count,prayer_time,display_order,is_active,sections,file_url,tafsir,description,qaseedah_naat_groups(name,description,display_order)')
+    .select(fullSelect)
     .eq('is_active', true)
     .in('content_type', ['qaseedah', 'naat'])
     .order('content_type', { ascending: true })
     .order('group_id', { ascending: true })
     .order('display_order', { ascending: true });
 
+  if (queryResult.error && isMissingColumnErrorMessage(queryResult.error.message)) {
+    queryResult = await supabase
+      .from('qaseedah_naat_entries')
+      .select(minimalSelect)
+      .eq('is_active', true)
+      .in('content_type', ['qaseedah', 'naat'])
+      .order('content_type', { ascending: true })
+      .order('group_id', { ascending: true })
+      .order('display_order', { ascending: true });
+  }
+
+  const { data, error } = queryResult;
   if (error || !data) return [];
 
-  const mapped = mapQaseedahNaatRows(data as Array<Record<string, unknown>>);
+  const rowsWithGroups = data as Array<Record<string, unknown>>;
+  const hasNestedGroups = rowsWithGroups.some((row) => Object.prototype.hasOwnProperty.call(row, 'qaseedah_naat_groups'));
+
+  if (!hasNestedGroups) {
+    const groupIds = Array.from(new Set(
+      rowsWithGroups
+        .map((row) => (typeof row.group_id === 'string' ? row.group_id : ''))
+        .filter((value) => value.length > 0),
+    ));
+
+    if (groupIds.length > 0) {
+      const fullGroups = await supabase
+        .from('qaseedah_naat_groups')
+        .select('id,name,description,display_order')
+        .in('id', groupIds);
+
+      let groupsData = fullGroups.data as Array<Record<string, unknown>> | null;
+      if (fullGroups.error && isMissingColumnErrorMessage(fullGroups.error.message)) {
+        const minimalGroups = await supabase
+          .from('qaseedah_naat_groups')
+          .select('id,name')
+          .in('id', groupIds);
+        groupsData = (minimalGroups.data ?? null) as Array<Record<string, unknown>> | null;
+      }
+
+      if (groupsData && groupsData.length > 0) {
+        const groupById = new Map<string, Record<string, unknown>>();
+        for (const group of groupsData) {
+          const id = typeof group.id === 'string' ? group.id : '';
+          if (id) groupById.set(id, group);
+        }
+
+        rowsWithGroups.forEach((row) => {
+          const groupId = typeof row.group_id === 'string' ? row.group_id : '';
+          const group = groupById.get(groupId);
+          if (group) {
+            row.qaseedah_naat_groups = group;
+          }
+        });
+      }
+    }
+  }
+
+  const mapped = mapQaseedahNaatRows(rowsWithGroups);
 
   if (mapped.length > 0) {
     await writeCachedQaseedahNaatEntries(mapped);
@@ -1189,17 +1252,41 @@ async function fetchQaseedahNaatEntriesForGroupFromNetwork(
   const groupId = typeof groups[0].id === 'string' ? groups[0].id : '';
   if (!groupId) return [];
 
-  const { data, error } = await supabase
+  const fullSelect = 'id,group_id,content_type,title,arabic_title,arabic,transliteration,translation,urdu_translation,reference,count,prayer_time,display_order,is_active,sections,file_url,tafsir,description,qaseedah_naat_groups(name,description,display_order)';
+  const minimalSelect = 'id,group_id,content_type,title,arabic_title,arabic,transliteration,translation,urdu_translation,reference,count,prayer_time,display_order,is_active,file_url';
+
+  let queryResult: any = await supabase
     .from('qaseedah_naat_entries')
-    .select('id,content_type,title,arabic_title,arabic,transliteration,translation,urdu_translation,reference,count,prayer_time,display_order,is_active,sections,file_url,tafsir,description,qaseedah_naat_groups(name,description,display_order)')
+    .select(fullSelect)
     .eq('is_active', true)
     .eq('content_type', contentType)
     .eq('group_id', groupId)
     .order('display_order', { ascending: true });
 
+  if (queryResult.error && isMissingColumnErrorMessage(queryResult.error.message)) {
+    queryResult = await supabase
+      .from('qaseedah_naat_entries')
+      .select(minimalSelect)
+      .eq('is_active', true)
+      .eq('content_type', contentType)
+      .eq('group_id', groupId)
+      .order('display_order', { ascending: true });
+  }
+
+  const { data, error } = queryResult;
   if (error || !data) return [];
 
-  const mapped = mapQaseedahNaatRows(data as Array<Record<string, unknown>>);
+  const rowsWithGroups = data as Array<Record<string, unknown>>;
+  const hasNestedGroups = rowsWithGroups.some((row) => Object.prototype.hasOwnProperty.call(row, 'qaseedah_naat_groups'));
+  if (!hasNestedGroups) {
+    rowsWithGroups.forEach((row) => {
+      row.qaseedah_naat_groups = {
+        name: normalizedGroupName,
+      };
+    });
+  }
+
+  const mapped = mapQaseedahNaatRows(rowsWithGroups);
 
   if (mapped.length > 0) {
     await writeCachedQaseedahNaatGroupEntries(normalizedGroupName, contentType, mapped);
@@ -1328,20 +1415,58 @@ export async function fetchQaseedahNaatEntriesForGroup(
 async function fetchHowToGuidesFromNetwork(language: 'en' | 'ur'): Promise<HowToGuide[]> {
   const supabase = getSupabaseClient();
 
-  const { data: guides, error: guidesError } = await supabase
-    .from('howto_guides')
-    .select('id,group_id,slug,title,subtitle,intro,notes,language,icon,color,display_order,publish_start_at,publish_end_at')
-    .eq('is_active', true)
-    .eq('language', language)
-    .order('display_order', { ascending: true })
-    .order('title', { ascending: true });
+  const fullGuideSelect = 'id,group_id,slug,title,subtitle,intro,notes,language,icon,color,display_order,publish_start_at,publish_end_at';
+  const minimalGuideSelect = 'id,group_id,slug,title,subtitle,intro,language,icon,display_order';
+  const languageCandidates = language === 'en'
+    ? ['en', 'english', 'EN', 'English']
+    : ['ur', 'urdu', 'UR', 'Urdu'];
 
-  if (guidesError || !guides || guides.length === 0) return [];
+  let guides: Record<string, unknown>[] | null = null;
+  let guidesErrorMessage: string | null = null;
+
+  for (const languageCandidate of languageCandidates) {
+    let queryResult: any = await supabase
+      .from('howto_guides')
+      .select(fullGuideSelect)
+      .eq('is_active', true)
+      .eq('language', languageCandidate)
+      .order('display_order', { ascending: true })
+      .order('title', { ascending: true });
+
+    if (queryResult.error && isMissingColumnErrorMessage(queryResult.error.message)) {
+      queryResult = await supabase
+        .from('howto_guides')
+        .select(minimalGuideSelect)
+        .eq('is_active', true)
+        .eq('language', languageCandidate)
+        .order('display_order', { ascending: true })
+        .order('title', { ascending: true });
+    }
+
+    if (queryResult.error) {
+      guidesErrorMessage = queryResult.error.message;
+      continue;
+    }
+
+    const rows = (queryResult.data ?? []) as Record<string, unknown>[];
+    if (rows.length > 0) {
+      guides = rows;
+      break;
+    }
+  }
+
+  if (guidesErrorMessage && !guides) {
+    console.warn('[howto] Network fetch failed', { language, error: guidesErrorMessage });
+  }
+
+  if (!guides || guides.length === 0) return [];
 
   const now = Date.now();
-  const guidesFiltered = guides.filter((g: { publish_start_at: string | null; publish_end_at: string | null }) => {
-    const start = g.publish_start_at ? new Date(g.publish_start_at).getTime() : null;
-    const end = g.publish_end_at ? new Date(g.publish_end_at).getTime() : null;
+  const guidesFiltered = guides.filter((guideRaw) => {
+    const startRaw = typeof guideRaw.publish_start_at === 'string' ? guideRaw.publish_start_at : null;
+    const endRaw = typeof guideRaw.publish_end_at === 'string' ? guideRaw.publish_end_at : null;
+    const start = startRaw ? new Date(startRaw).getTime() : null;
+    const end = endRaw ? new Date(endRaw).getTime() : null;
     if (start !== null && start > now) return false;
     if (end !== null && end <= now) return false;
     return true;
@@ -1429,15 +1554,25 @@ async function fetchHowToGuidesFromNetwork(language: 'en' | 'ur'): Promise<HowTo
       ]);
 
       if (blocksResult.error) {
-        throw new Error(`Failed to load how-to step blocks: ${blocksResult.error.message}`);
+        console.warn('[howto] Failed to load step blocks, continuing with step text', {
+          language,
+          error: blocksResult.error.message,
+        });
       }
 
       if (imagesResult.error) {
-        throw new Error(`Failed to load how-to step images: ${imagesResult.error.message}`);
+        console.warn('[howto] Failed to load step images, continuing without gallery', {
+          language,
+          error: imagesResult.error.message,
+        });
       }
 
-      blockRows.push(...((blocksResult.data ?? []) as HowToStepBlockRow[]));
-      imageRows.push(...((imagesResult.data ?? []) as HowToStepImageRow[]));
+      if (!blocksResult.error) {
+        blockRows.push(...((blocksResult.data ?? []) as HowToStepBlockRow[]));
+      }
+      if (!imagesResult.error) {
+        imageRows.push(...((imagesResult.data ?? []) as HowToStepImageRow[]));
+      }
     }
   }
 
@@ -2614,10 +2749,18 @@ async function invokeAnnouncementsFeed(typeFilter?: string | null): Promise<Anno
 async function fetchAnnouncementsDirect(): Promise<AnnouncementRow[] | null> {
   try {
     const supabase = getSupabaseClient();
-    const { data, error } = await supabase
+    let queryResult = await supabase
       .from('announcements')
       .select('*')
       .eq('is_active', true);
+
+    if (queryResult.error && isMissingColumnErrorMessage(queryResult.error.message)) {
+      queryResult = await supabase
+        .from('announcements')
+        .select('*');
+    }
+
+    const { data, error } = queryResult;
 
     if (error || !Array.isArray(data)) return null;
 

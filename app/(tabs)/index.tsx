@@ -14,6 +14,7 @@ import {
   Platform,
   Animated,
   Dimensions,
+  Linking,
 } from 'react-native';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -56,8 +57,10 @@ import {
 } from '@/services/sunnahReminderService';
 import { fetchDailyQuranReminder, type DailyQuranResult } from '@/services/quranReminderService';
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
+import { APP_CONFIG } from '@/constants/config';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+const DONATION_EXTERNAL_URL = process.env.EXPO_PUBLIC_DONATION_EXTERNAL_URL || APP_CONFIG.website;
 const DONATION_SUCCESS_SENTINEL = 'example.com/jmn-donation-success';
 const DONATION_CANCEL_SENTINEL = 'example.com/jmn-donation-cancel';
 
@@ -3211,6 +3214,25 @@ export default function HomeScreen() {
   }, [closeDonationModal, resetDonationFlowToSelection, showDonationOptions]);
 
   const openDonationCheckout = useCallback(() => {
+    if (Platform.OS === 'ios') {
+      Alert.alert(
+        'Donate via website',
+        'Donations open in your browser where you can complete payment securely.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Open website',
+            onPress: () => {
+              void Linking.openURL(DONATION_EXTERNAL_URL).catch(() => {
+                Alert.alert('Unable to open link', 'Please visit the masjid website directly to donate.');
+              });
+            },
+          },
+        ],
+      );
+      return;
+    }
+
     setDonationConfirmation(null);
     resetDonationFlowToSelection();
     void loadDonationOptions();
