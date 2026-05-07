@@ -4,6 +4,8 @@ import {
   type DonationFrequency,
   type DonationPriceSlot,
 } from '@/constants/donationTypes';
+import { APP_CONFIG } from '@/constants/config';
+import { Platform } from 'react-native';
 
 interface DonationCheckoutResponse {
   url?: string;
@@ -63,6 +65,19 @@ export type DonationCheckoutInput =
       optionId?: string | null;
       frequency?: DonationFrequency | null;
     };
+
+function normalizeExternalUrl(value: string | null | undefined): string | null {
+  const trimmed = (value ?? '').trim();
+  if (!trimmed) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
+function getFallbackDonationUrl(): string {
+  return normalizeExternalUrl(process.env.EXPO_PUBLIC_DONATION_EXTERNAL_URL)
+    ?? normalizeExternalUrl(APP_CONFIG.website)
+    ?? 'https://noorani-masjid.org';
+}
 
 function normalizePriceSlot(value: unknown): DonationPriceSlot | null {
   const slot = Number(value);
@@ -168,11 +183,16 @@ export async function fetchDonationOptionsForApp(): Promise<AppDonationOption[]>
 export async function createDonationCheckoutUrl(
   input: DonationCheckoutInput = 1,
 ): Promise<string> {
+  if (Platform.OS === 'ios') {
+    return getFallbackDonationUrl();
+  }
+
   const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   if (!supabaseUrl || !anonKey) {
-    throw new Error('Supabase configuration missing');
+    // Keep checkout usable in release builds even if edge-function env is absent.
+    return getFallbackDonationUrl();
   }
 
   const functionUrl = `${supabaseUrl}/functions/v1/create-donation-checkout`;
