@@ -583,8 +583,10 @@ function QuranPortionCard({
       safeStartPage,
       clampMushafPage(targetEndPage ?? targetPage, mushafLayout)
     );
-    const readerStartPage = safeStartPage;
-    const readerEndPage = safeEndPage;
+    // Quran reader consumes page indices, while this card stores display pages.
+    const readerPageOffset = mushafLayout === '16line' ? 2 : 1;
+    const readerStartPage = Math.max(0, safeStartPage - readerPageOffset);
+    const readerEndPage = Math.max(readerStartPage, safeEndPage - readerPageOffset);
     const chapterId = chapterForLayoutPage(safeStartPage, mushafLayout);
     AsyncStorage.setItem(PENDING_OPEN_KEY, `${chapterId}|${safeStartPage}`).catch(() => {});
     AsyncStorage.setItem(QURAN_MUSHAF_LAYOUT_KEY, mushafLayout).catch(() => {});
