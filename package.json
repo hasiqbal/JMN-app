@@ -20,7 +20,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "validate": "pnpm lint && pnpm typecheck",
+    "check:notification-sounds": "node ./scripts/verify-notification-sounds.mjs",
+    "validate": "pnpm lint && pnpm typecheck && pnpm check:notification-sounds",
     "validate:deploy": "pnpm validate && expo export --platform web"
   },
   "engines": {

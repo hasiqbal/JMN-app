@@ -86,7 +86,17 @@ export async function ensureAndroidPrayerNotificationChannel(selectedAdhaanOptio
       // ignore
     }
     try {
+      await Notifications.deleteNotificationChannelAsync(prayerStartSilentChannelId);
+    } catch {
+      // ignore
+    }
+    try {
       await Notifications.deleteNotificationChannelAsync(IQAMAH_NOTIFICATION_CHANNEL_ID);
+    } catch {
+      // ignore
+    }
+    try {
+      await Notifications.deleteNotificationChannelAsync(IQAMAH_NOTIFICATION_SILENT_CHANNEL_ID);
     } catch {
       // ignore
     }
