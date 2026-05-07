@@ -159,7 +159,11 @@ export async function syncPushTokenWithBackend(
 
     const youtubeLiveEnabled = options.youtubeLiveEnabled === true;
 
-    const permissions = await notificationsModule.getPermissionsAsync();
+    let permissions = await notificationsModule.getPermissionsAsync();
+    if (permissions.status !== 'granted' && permissions.canAskAgain !== false) {
+      permissions = await notificationsModule.requestPermissionsAsync();
+    }
+
     if (permissions.status !== 'granted') {
       return {
         synced: false,
