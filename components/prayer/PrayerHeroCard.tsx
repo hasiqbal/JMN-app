@@ -81,124 +81,303 @@ export default function PrayerHeroCard({
 	eidTomorrowJamaats,
 	eidTomorrowLabel,
 }: Props) {
+	const timerParts = splitCountdownValue(countdownInfo?.value);
+
 	return (
 		<ImageBackground source={backgroundSource} style={styles.card} imageStyle={styles.bgImage}>
 			<View style={styles.overlay}>
-				{!!kicker && <Text style={styles.kicker}>{kicker}</Text>}
+				<View style={styles.topRow}>
+					{!!kicker && <Text style={styles.kicker}>{kicker}</Text>}
+					{!!countdownInfo?.flash && <Text style={styles.liveBadge}>LIVE</Text>}
+				</View>
 				<Text style={styles.title}>{title || 'Prayer'}</Text>
 
-				<View style={styles.metaRow}>
-					<Text style={styles.metaLabel}>{startLabel || 'Start'}</Text>
-					<Text style={styles.metaValue}>{startTime || '--:--'}</Text>
-					<Text style={styles.metaSeparator}>|</Text>
-					<Text style={styles.metaLabel}>{endLabel || 'End'}</Text>
-					<Text style={styles.metaValue}>{endTime || '--:--'}</Text>
+				<View style={styles.metaPillsRow}>
+					<View style={styles.metaPill}>
+						<Text style={styles.metaLabel}>{startLabel || 'Start'}</Text>
+						<Text style={styles.metaValue}>{startTime || '--:--'}</Text>
+					</View>
+					<View style={styles.metaPill}>
+						<Text style={styles.metaLabel}>{endLabel || 'End'}</Text>
+						<Text style={styles.metaValue}>{endTime || '--:--'}</Text>
+					</View>
+					{!!showJamaat && (
+						<View style={styles.metaPillJamaat}>
+							<Text style={styles.jamaatLabel}>Jamaat</Text>
+							<Text style={styles.jamaatValue}>{jamaatValue || '--:--'}</Text>
+						</View>
+					)}
 				</View>
 
-				{!!showJamaat && (
-					<Text style={styles.jamaat}>Jamaat {jamaatValue || '--:--'}</Text>
-				)}
-
 				{!!countdownInfo && (
-					<View style={styles.countdownWrap}>
+					<View style={[styles.countdownWrap, countdownInfo.flash && styles.countdownWrapFlash]}>
 						<Text style={styles.countdownLabel}>{countdownInfo.label}</Text>
-						<Text style={styles.countdownValue}>{countdownInfo.value}</Text>
+						<View style={styles.timerRow}>
+							{timerParts ? (
+								timerParts.map((part, index) => (
+									<React.Fragment key={part.unit}>
+										<View style={[styles.timerTile, countdownInfo.flash && styles.timerTileFlash]}>
+											<Text style={[styles.timerDigits, countdownInfo.flash && styles.timerDigitsFlash]}>{part.value}</Text>
+											<Text style={styles.timerUnit}>{part.unit}</Text>
+										</View>
+										{index < timerParts.length - 1 && (
+											<View style={styles.timerSeparator}>
+												<View style={styles.timerSeparatorDot} />
+												<View style={styles.timerSeparatorDot} />
+											</View>
+										)}
+									</React.Fragment>
+								))
+							) : (
+								<Text style={[styles.countdownValue, countdownInfo.flash && styles.countdownValueFlash]}>{countdownInfo.value}</Text>
+							)}
+						</View>
 						{!!countdownInfo.note && <Text style={styles.note}>{countdownInfo.note}</Text>}
 					</View>
 				)}
 
-				{!!eidTomorrowJamaats?.length && (
-					<Text style={styles.next}>
-						{eidTomorrowLabel || 'Tomorrow'}: {eidTomorrowJamaats.join(' · ')}
-					</Text>
-				)}
+				<View style={styles.bottomRow}>
+					{!!eidTomorrowJamaats?.length && (
+						<Text style={styles.nextPill}>
+							{eidTomorrowLabel || 'Tomorrow'}: {eidTomorrowJamaats.join(' · ')}
+						</Text>
+					)}
 
-				{!!hasNext && (
-					<Text style={styles.next}>Next: {nextPrayerName || '--'} {nextPrayerTime || '--:--'}</Text>
-				)}
+					{!!hasNext && (
+						<Text style={styles.nextPill}>Next: {nextPrayerName || '--'} {nextPrayerTime || '--:--'}</Text>
+					)}
+				</View>
 			</View>
 		</ImageBackground>
 	);
+}
+
+function splitCountdownValue(value?: string): { value: string; unit: string }[] | null {
+	if (!value) return null;
+	const match = value.match(/^(\d{2}):(\d{2}):(\d{2})$/);
+	if (!match) return null;
+
+	const [, hours, minutes, seconds] = match;
+	return [
+		{ value: hours, unit: 'HRS' },
+		{ value: minutes, unit: 'MIN' },
+		{ value: seconds, unit: 'SEC' },
+	];
 }
 
 const styles = StyleSheet.create({
 	card: {
 		borderRadius: 16,
 		overflow: 'hidden',
-		minHeight: 188,
+		minHeight: 235,
 	},
 	bgImage: {
 		resizeMode: 'cover',
 	},
 	overlay: {
 		flex: 1,
-		backgroundColor: 'rgba(3,15,32,0.58)',
+		backgroundColor: 'rgba(2,12,28,0.64)',
 		paddingHorizontal: 14,
-		paddingVertical: 12,
-		gap: 6,
+		paddingVertical: 14,
+		gap: 8,
+	},
+	topRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
 	},
 	kicker: {
-		color: '#D4E9FF',
-		fontSize: 11,
+		color: '#EAF5FF',
+		fontSize: 10,
 		fontWeight: '700',
-		letterSpacing: 0.3,
+		letterSpacing: 0.9,
 		textTransform: 'uppercase',
+		backgroundColor: 'rgba(12,36,64,0.65)',
+		paddingHorizontal: 9,
+		paddingVertical: 4,
+		borderRadius: 999,
+		overflow: 'hidden',
+		borderWidth: 1,
+		borderColor: 'rgba(198,223,242,0.28)',
+	},
+	liveBadge: {
+		color: '#FFE7C5',
+		fontSize: 10,
+		fontWeight: '900',
+		letterSpacing: 0.9,
+		textTransform: 'uppercase',
+		backgroundColor: 'rgba(84,33,9,0.82)',
+		paddingHorizontal: 10,
+		paddingVertical: 4,
+		borderRadius: 999,
+		borderWidth: 1,
+		borderColor: 'rgba(255,196,124,0.58)',
 	},
 	title: {
 		color: '#FFFFFF',
-		fontSize: 22,
+		fontSize: 28,
 		fontWeight: '900',
+		lineHeight: 31,
 	},
-	metaRow: {
+	metaPillsRow: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		gap: 5,
+		gap: 6,
+		flexWrap: 'wrap',
+	},
+	metaPill: {
+		borderRadius: 10,
+		backgroundColor: 'rgba(8,29,53,0.58)',
+		borderWidth: 1,
+		borderColor: 'rgba(176,210,238,0.24)',
+		paddingHorizontal: 10,
+		paddingVertical: 7,
 	},
 	metaLabel: {
-		color: '#B8D2E8',
-		fontSize: 11,
+		color: '#AFC9DF',
+		fontSize: 10,
 		fontWeight: '700',
+		textTransform: 'uppercase',
+		letterSpacing: 0.45,
 	},
 	metaValue: {
 		color: '#FFFFFF',
-		fontSize: 13,
+		fontSize: 15,
 		fontWeight: '800',
 	},
-	metaSeparator: {
-		color: 'rgba(255,255,255,0.55)',
+	metaPillJamaat: {
+		borderRadius: 10,
+		backgroundColor: 'rgba(78,60,15,0.66)',
+		borderWidth: 1,
+		borderColor: 'rgba(255,224,148,0.5)',
+		paddingHorizontal: 10,
+		paddingVertical: 7,
 	},
-	jamaat: {
-		color: '#FFE8A4',
-		fontSize: 12,
+	jamaatLabel: {
+		color: '#FFE3A3',
+		fontSize: 10,
+		fontWeight: '700',
+		textTransform: 'uppercase',
+		letterSpacing: 0.45,
+	},
+	jamaatValue: {
+		color: '#FFF3D6',
+		fontSize: 15,
 		fontWeight: '800',
 	},
 	countdownWrap: {
 		marginTop: 2,
-		borderRadius: 10,
-		paddingHorizontal: 10,
-		paddingVertical: 8,
-		backgroundColor: 'rgba(0,0,0,0.25)',
+		borderRadius: 16,
+		paddingHorizontal: 13,
+		paddingTop: 12,
+		paddingBottom: 11,
+		backgroundColor: 'rgba(7,22,46,0.53)',
+		borderWidth: 1,
+		borderColor: 'rgba(188,221,248,0.24)',
+	},
+	countdownWrapFlash: {
+		backgroundColor: 'rgba(59,25,10,0.6)',
+		borderColor: 'rgba(255,196,124,0.58)',
 	},
 	countdownLabel: {
-		color: '#B8D2E8',
+		color: '#D5E7F8',
+		fontSize: 11,
+		fontWeight: '700',
+		letterSpacing: 0.8,
+		textTransform: 'uppercase',
+	},
+	timerRow: {
+		marginTop: 9,
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+	},
+	timerTile: {
+		flex: 1,
+		minHeight: 72,
+		borderRadius: 13,
+		backgroundColor: 'rgba(3,12,31,0.74)',
+		borderWidth: 1,
+		borderColor: 'rgba(193,229,255,0.28)',
+		alignItems: 'center',
+		justifyContent: 'center',
+		paddingVertical: 8,
+		shadowColor: '#011425',
+		shadowOpacity: 0.3,
+		shadowRadius: 10,
+		shadowOffset: { width: 0, height: 6 },
+		elevation: 3,
+	},
+	timerTileFlash: {
+		backgroundColor: 'rgba(68,30,12,0.78)',
+		borderColor: 'rgba(255,205,134,0.74)',
+	},
+	timerDigits: {
+		color: '#FFFFFF',
+		fontSize: 30,
+		lineHeight: 34,
+		fontWeight: '900',
+		letterSpacing: 1.1,
+		fontVariant: ['tabular-nums'],
+	},
+	timerDigitsFlash: {
+		color: '#FFF0D3',
+	},
+	timerUnit: {
+		marginTop: 2,
+		color: '#C2DAEF',
 		fontSize: 10,
 		fontWeight: '700',
-		textTransform: 'uppercase',
+		letterSpacing: 0.8,
+	},
+	timerSeparator: {
+		width: 10,
+		alignItems: 'center',
+		justifyContent: 'center',
+		gap: 5,
+	},
+	timerSeparatorDot: {
+		width: 5,
+		height: 5,
+		borderRadius: 3,
+		backgroundColor: 'rgba(215,235,255,0.8)',
 	},
 	countdownValue: {
 		color: '#FFFFFF',
-		fontSize: 20,
+		fontSize: 25,
 		fontWeight: '900',
+		marginTop: 6,
+		letterSpacing: 1,
+		fontVariant: ['tabular-nums'],
+	},
+	countdownValueFlash: {
+		color: '#FFE1B5',
 	},
 	note: {
-		color: '#DCEAF7',
+		color: '#EAF3FB',
 		fontSize: 11,
-		marginTop: 2,
+		lineHeight: 16,
+		marginTop: 9,
+		paddingTop: 7,
+		borderTopWidth: 1,
+		borderTopColor: 'rgba(191,222,248,0.2)',
 	},
-	next: {
+	bottomRow: {
+		marginTop: 2,
+		flexDirection: 'row',
+		flexWrap: 'wrap',
+		gap: 6,
+	},
+	nextPill: {
 		marginTop: 4,
-		color: '#DCEAF7',
+		color: '#E5F2FC',
 		fontSize: 11,
 		fontWeight: '700',
+		backgroundColor: 'rgba(8,30,53,0.56)',
+		paddingHorizontal: 9,
+		paddingVertical: 5,
+		borderRadius: 999,
+		borderWidth: 1,
+		borderColor: 'rgba(191,222,248,0.22)',
 	},
 });
