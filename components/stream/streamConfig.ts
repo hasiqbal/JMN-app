@@ -246,11 +246,7 @@ export const JUZ_START_SURAH: Record<number, number> = {
   30: 78,
 };
 
-const SUPABASE_PUBLIC_URL = (process.env.EXPO_PUBLIC_SUPABASE_URL ?? '').replace(/\/+$/, '');
-const HADR_REMOTE_BASE_URL =
-  SUPABASE_PUBLIC_URL.length > 0
-    ? `${SUPABASE_PUBLIC_URL}/storage/v1/object/public/quran-hadr`
-    : 'https://lhaqqqatdztuijgdfdcf.supabase.co/storage/v1/object/public/quran-hadr';
+const HADR_REMOTE_BASE_URL = 'https://archive.org/download/hadr-quran';
 
 function buildHadrTrackUrl(juz: number): string {
   const paddedJuz = String(juz).padStart(2, '0');

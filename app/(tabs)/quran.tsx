@@ -314,7 +314,7 @@ export default function QuranScreen() {
   const handleDownloadPages = useCallback(async () => {
     setIsStartingDownload(true);
     try {
-      await runInitialQuranPageWarmup();
+      await runInitialQuranPageWarmup('manual');
     } finally {
       setIsStartingDownload(false);
       setLastUpdated(new Date());

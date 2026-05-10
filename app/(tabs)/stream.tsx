@@ -2695,26 +2695,30 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
             </Text>
           ) : null}
 
-          <View style={styles.sheetActions}>
+          <View style={styles.hadrPrimaryActionRow}>
             <TouchableOpacity
-              style={[styles.sheetActionBtn, { backgroundColor: accentColor }]}
+              style={[styles.hadrPrimaryActionBtn, { backgroundColor: accentColor }]}
               onPress={() => playHadrJuz(selectedHadrJuz, { closeSheet: true }).catch(() => {})}
+              activeOpacity={0.85}
             >
-              <MaterialIcons name="play-arrow" size={16} color="#FFFFFF" />
-              <Text style={styles.sheetActionText}>Play Juz {selectedHadrJuz}</Text>
+              <MaterialIcons name="play-arrow" size={20} color="#FFFFFF" />
+              <Text style={styles.hadrPrimaryActionText}>Play Juz {selectedHadrJuz}</Text>
             </TouchableOpacity>
+          </View>
 
+          <View style={styles.hadrSecondaryActionGrid}>
             <TouchableOpacity
-              style={[styles.sheetActionBtn, { backgroundColor: '#2F6DB6' }]}
+              style={[styles.hadrSecondaryActionBtn, { backgroundColor: '#2F6DB6' }]}
               onPress={() => playRandomHadrJuz({ closeSheet: true }).catch(() => {})}
+              activeOpacity={0.85}
             >
-              <MaterialIcons name="shuffle" size={16} color="#FFFFFF" />
-              <Text style={styles.sheetActionText}>Random Juz</Text>
+              <MaterialIcons name="shuffle" size={18} color="#FFFFFF" />
+              <Text style={styles.hadrSecondaryActionText}>Random Juz</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[
-                styles.sheetActionBtn,
+                styles.hadrSecondaryActionBtn,
                 { backgroundColor: '#0F8C74' },
                 downloadingAllHadr && { opacity: 0.7 },
               ]}
@@ -2722,28 +2726,31 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
                 void downloadAllHadrJuz();
               }}
               disabled={downloadingAllHadr}
+              activeOpacity={0.85}
             >
-              <MaterialIcons name={downloadingAllHadr ? 'hourglass-empty' : 'download'} size={16} color="#FFFFFF" />
-              <Text style={styles.sheetActionText}>{downloadingAllHadr ? 'Downloading...' : 'Download all'}</Text>
+              <MaterialIcons name={downloadingAllHadr ? 'hourglass-empty' : 'download'} size={18} color="#FFFFFF" />
+              <Text style={styles.hadrSecondaryActionText}>{downloadingAllHadr ? 'Downloading...' : 'Download all'}</Text>
             </TouchableOpacity>
 
             {activeStationId === 'hadr' && !audioLoading && (audioPlaying || audioPaused) ? (
               <TouchableOpacity
-                style={[styles.sheetActionBtn, { backgroundColor: '#5B6B82' }]}
+                style={[styles.hadrSecondaryActionBtn, { backgroundColor: '#5B6B82' }]}
                 onPress={() => (audioPaused ? resumeActiveAudio() : pauseActiveAudio()).catch(() => {})}
+                activeOpacity={0.85}
               >
-                <MaterialIcons name={audioPaused ? 'play-arrow' : 'pause'} size={16} color="#FFFFFF" />
-                <Text style={styles.sheetActionText}>{audioPaused ? 'Resume' : 'Pause'}</Text>
+                <MaterialIcons name={audioPaused ? 'play-arrow' : 'pause'} size={18} color="#FFFFFF" />
+                <Text style={styles.hadrSecondaryActionText}>{audioPaused ? 'Resume' : 'Pause'}</Text>
               </TouchableOpacity>
             ) : null}
 
             {activeStationId === 'hadr' && (audioPlaying || audioLoading || audioPaused) ? (
               <TouchableOpacity
-                style={[styles.sheetActionBtn, { backgroundColor: '#BC2F2F' }]}
+                style={[styles.hadrSecondaryActionBtn, { backgroundColor: '#BC2F2F' }]}
                 onPress={() => stopAudio().catch(() => {})}
+                activeOpacity={0.85}
               >
-                <MaterialIcons name="stop" size={16} color="#FFFFFF" />
-                <Text style={styles.sheetActionText}>Stop</Text>
+                <MaterialIcons name="stop" size={18} color="#FFFFFF" />
+                <Text style={styles.hadrSecondaryActionText}>Stop</Text>
               </TouchableOpacity>
             ) : null}
           </View>
@@ -3878,6 +3885,47 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   sheetActionText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  hadrPrimaryActionRow: {
+    marginTop: 10,
+  },
+  hadrPrimaryActionBtn: {
+    borderRadius: Radius.md,
+    minHeight: 50,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  hadrPrimaryActionText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  hadrSecondaryActionGrid: {
+    marginTop: 8,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  hadrSecondaryActionBtn: {
+    borderRadius: Radius.md,
+    minHeight: 46,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    flexBasis: '48%',
+    flexGrow: 1,
+  },
+  hadrSecondaryActionText: {
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '800',

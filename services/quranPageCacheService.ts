@@ -9,12 +9,15 @@ const LEGACY_QURAN_16LINE_BASE_URL =
   'https://raw.githubusercontent.com/hasiqbal/JMN-app/main/assets/images/Quran%2016%20line%20indo-pak/Full';
 
 const QURAN_PRELOAD_STATE_STORAGE_KEY = '@quran_page_preload_state_v1';
+type WarmupMode = 'auto' | 'manual';
 
 export type QuranPreloadState = {
   totalPages: number;
   processedPages: number;
   completedPages: number;
   inProgress: boolean;
+  autoWarmupAttempted: boolean;
+  autoWarmupAttemptedAt: string | null;
   startedAt: string | null;
   completedAt: string | null;
   updatedAt: string;
@@ -22,6 +25,8 @@ export type QuranPreloadState = {
 
 let warmupPromise: Promise<void> | null = null;
 let hasLoggedLegacySourceWarning = false;
+const inFlightPageDownloads = new Map<string, Promise<string>>();
+const ensuredCacheDirectories = new Set<string>();
 
 function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, '');
@@ -109,6 +114,16 @@ function getCachedPagePath(mushaf: MushafLayout, pageZeroBased: number): string 
   return `${root}quran-pages/${mushaf}/${fileNumber}.jpg`;
 }
 
+function getPageDownloadKey(mushaf: MushafLayout, pageZeroBased: number): string {
+  return `${mushaf}:${getMushafPageFileNumber(mushaf, pageZeroBased)}`;
+}
+
+async function ensureCacheDirectory(dirPath: string): Promise<void> {
+  if (ensuredCacheDirectories.has(dirPath)) return;
+  await FileSystem.makeDirectoryAsync(dirPath, { intermediates: true });
+  ensuredCacheDirectories.add(dirPath);
+}
+
 async function savePreloadState(partial: Partial<QuranPreloadState>): Promise<void> {
   const existing = await getQuranPreloadState();
   const next: QuranPreloadState = {
@@ -116,6 +131,8 @@ async function savePreloadState(partial: Partial<QuranPreloadState>): Promise<vo
     processedPages: existing?.processedPages ?? 0,
     completedPages: existing?.completedPages ?? 0,
     inProgress: existing?.inProgress ?? false,
+    autoWarmupAttempted: existing?.autoWarmupAttempted ?? false,
+    autoWarmupAttemptedAt: existing?.autoWarmupAttemptedAt ?? null,
     startedAt: existing?.startedAt ?? null,
     completedAt: existing?.completedAt ?? null,
     updatedAt: new Date().toISOString(),
@@ -140,17 +157,45 @@ export async function getQuranPreloadState(): Promise<QuranPreloadState | null> 
 export async function getCachedQuranPageUri(mushaf: MushafLayout, pageZeroBased: number): Promise<string> {
   const dirPath = `${getRootDirectory()}quran-pages/${mushaf}`;
   const target = getCachedPagePath(mushaf, pageZeroBased);
+  const downloadKey = getPageDownloadKey(mushaf, pageZeroBased);
+
   const existing = await FileSystem.getInfoAsync(target);
   if (existing.exists) {
+    ensuredCacheDirectories.add(dirPath);
     return target;
   }
 
-  await FileSystem.makeDirectoryAsync(dirPath, { intermediates: true });
-  await FileSystem.downloadAsync(getRemoteQuranPageUrl(mushaf, pageZeroBased), target);
-  return target;
+  const activeDownload = inFlightPageDownloads.get(downloadKey);
+  if (activeDownload) {
+    return activeDownload;
+  }
+
+  const nextDownload = (async () => {
+    await ensureCacheDirectory(dirPath);
+
+    // Re-check after awaiting directory setup to avoid duplicate downloads when
+    // another caller completed the same file while this request was waiting.
+    const latest = await FileSystem.getInfoAsync(target);
+    if (latest.exists) {
+      return target;
+    }
+
+    await FileSystem.downloadAsync(getRemoteQuranPageUrl(mushaf, pageZeroBased), target);
+    return target;
+  })();
+
+  inFlightPageDownloads.set(downloadKey, nextDownload);
+
+  try {
+    return await nextDownload;
+  } finally {
+    if (inFlightPageDownloads.get(downloadKey) === nextDownload) {
+      inFlightPageDownloads.delete(downloadKey);
+    }
+  }
 }
 
-export function runInitialQuranPageWarmup(): Promise<void> {
+export function runInitialQuranPageWarmup(mode: WarmupMode = 'manual'): Promise<void> {
   if (Platform.OS === 'web') {
     return Promise.resolve();
   }
@@ -167,7 +212,12 @@ export function runInitialQuranPageWarmup(): Promise<void> {
       return;
     }
 
-    const startedAt = state?.startedAt ?? new Date().toISOString();
+    // Auto-warmup should run only once after install to avoid repeated startup network load.
+    if (mode === 'auto' && state?.autoWarmupAttempted) {
+      return;
+    }
+
+    const startedAt = new Date().toISOString();
     let processedPages = 0;
     let completedPages = 0;
 
@@ -175,6 +225,8 @@ export function runInitialQuranPageWarmup(): Promise<void> {
       totalPages,
       startedAt,
       inProgress: true,
+      autoWarmupAttempted: mode === 'auto' ? true : (state?.autoWarmupAttempted ?? false),
+      autoWarmupAttemptedAt: mode === 'auto' ? startedAt : (state?.autoWarmupAttemptedAt ?? null),
       completedAt: null,
       processedPages,
       completedPages,
@@ -185,6 +237,8 @@ export function runInitialQuranPageWarmup(): Promise<void> {
         totalPages,
         startedAt,
         inProgress: true,
+        autoWarmupAttempted: mode === 'auto' ? true : (state?.autoWarmupAttempted ?? false),
+        autoWarmupAttemptedAt: mode === 'auto' ? startedAt : (state?.autoWarmupAttemptedAt ?? null),
         completedAt: null,
         processedPages,
         completedPages,
@@ -193,6 +247,7 @@ export function runInitialQuranPageWarmup(): Promise<void> {
 
     try {
       const layouts: MushafLayout[] = ['15line', '16line'];
+
       for (const layout of layouts) {
         for (let page = 0; page < MUSHAF_TOTAL_PAGES[layout]; page += 1) {
           try {
@@ -214,6 +269,8 @@ export function runInitialQuranPageWarmup(): Promise<void> {
         totalPages,
         startedAt,
         inProgress: false,
+        autoWarmupAttempted: mode === 'auto' ? true : (state?.autoWarmupAttempted ?? false),
+        autoWarmupAttemptedAt: mode === 'auto' ? startedAt : (state?.autoWarmupAttemptedAt ?? null),
         completedAt,
         processedPages,
         completedPages,
@@ -223,6 +280,8 @@ export function runInitialQuranPageWarmup(): Promise<void> {
         totalPages,
         startedAt,
         inProgress: false,
+        autoWarmupAttempted: mode === 'auto' ? true : (state?.autoWarmupAttempted ?? false),
+        autoWarmupAttemptedAt: mode === 'auto' ? startedAt : (state?.autoWarmupAttemptedAt ?? null),
         completedAt: null,
         processedPages,
         completedPages,

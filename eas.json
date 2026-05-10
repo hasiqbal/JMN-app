@@ -9,12 +9,6 @@
       "distribution": "internal",
       "node": "22.22.2",
       "pnpm": "10.14.0",
-      "env": {
-        "EXPO_PUBLIC_SUPABASE_URL": "https://lhaqqqatdztuijgdfdcf.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_3EtehPeghMbEV86SEPpU1w_e3bRXpGo",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxoYXFxcWF0ZHp0dWlqZ2RmZGNmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1OTkxMTksImV4cCI6MjA5MTE3NTExOX0.Z3MV96PflYqwoexwsoi7ma4yAO3og1juWWu9YWviLbU",
-        "EXPO_PUBLIC_QURAN_PAGES_CDN_BASE_URL": "https://lhaqqqatdztuijgdfdcf.supabase.co/storage/v1/object/public/quran-pages"
-      },
       "android": {
         "buildType": "apk",
         "gradleCommand": ":app:assembleDebug"
@@ -23,24 +17,12 @@
     "preview": {
       "distribution": "internal",
       "node": "22.22.2",
-      "pnpm": "10.14.0",
-      "env": {
-        "EXPO_PUBLIC_SUPABASE_URL": "https://lhaqqqatdztuijgdfdcf.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_3EtehPeghMbEV86SEPpU1w_e3bRXpGo",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxoYXFxcWF0ZHp0dWlqZ2RmZGNmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1OTkxMTksImV4cCI6MjA5MTE3NTExOX0.Z3MV96PflYqwoexwsoi7ma4yAO3og1juWWu9YWviLbU",
-        "EXPO_PUBLIC_QURAN_PAGES_CDN_BASE_URL": "https://lhaqqqatdztuijgdfdcf.supabase.co/storage/v1/object/public/quran-pages"
-      }
+      "pnpm": "10.14.0"
     },
     "production": {
       "autoIncrement": true,
       "node": "22.22.2",
       "pnpm": "10.14.0",
-      "env": {
-        "EXPO_PUBLIC_SUPABASE_URL": "https://lhaqqqatdztuijgdfdcf.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_3EtehPeghMbEV86SEPpU1w_e3bRXpGo",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxoYXFxcWF0ZHp0dWlqZ2RmZGNmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1OTkxMTksImV4cCI6MjA5MTE3NTExOX0.Z3MV96PflYqwoexwsoi7ma4yAO3og1juWWu9YWviLbU",
-        "EXPO_PUBLIC_QURAN_PAGES_CDN_BASE_URL": "https://lhaqqqatdztuijgdfdcf.supabase.co/storage/v1/object/public/quran-pages"
-      },
       "android": {
         "buildType": "app-bundle"
       }
@@ -48,12 +30,9 @@
   },
   "submit": {
     "production": {
-      "ios": {
-        "ascAppId": "6764321900"
-      },
       "android": {
-        "track": "production",
-        "releaseStatus": "completed"
+        "track": "internal",
+        "releaseStatus": "draft"
       }
     }
   }

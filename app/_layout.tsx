@@ -54,7 +54,7 @@ export default function RootLayout() {
     void runInitialTranslationWarmup();
     void prewarmQaseedahAndHowToCaches();
     void runInitialHadrWarmup();
-    void runInitialQuranPageWarmup();
+    void runInitialQuranPageWarmup('auto');
   }, []);
 
   React.useEffect(() => {
