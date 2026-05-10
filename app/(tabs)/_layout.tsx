@@ -410,25 +410,28 @@ export default function TabLayout() {
 
     let cancelled = false;
 
-    const syncPushPreferences = async () => {
+    const syncPushPreferences = async (source: string) => {
       const Notifications = await getNotificationsModule();
       if (!Notifications || cancelled) return;
 
       const youtubeLiveNotifyEnabled = (await AsyncStorage.getItem(YOUTUBE_LIVE_NOTIFY_KEY).catch(() => null)) === 'true';
-      const result = await syncPushTokenWithBackend(Notifications, { youtubeLiveEnabled: youtubeLiveNotifyEnabled }).catch(() => {
+      const result = await syncPushTokenWithBackend(Notifications, {
+        youtubeLiveEnabled: youtubeLiveNotifyEnabled,
+        source,
+      }).catch(() => {
         return { synced: false, reason: 'exception' } as const;
       });
 
       if (__DEV__ && (!result || !result.synced)) {
-        console.log('[push-sync]', result?.reason ?? 'unknown-reason');
+        console.log(`[push-sync:${source}]`, result?.reason ?? 'unknown-reason');
       }
     };
 
-    void syncPushPreferences();
+    void syncPushPreferences('tabs-layout-mount');
 
     const appStateSub = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
-        void syncPushPreferences();
+        void syncPushPreferences('appstate-active');
       }
     });
 

@@ -32,22 +32,6 @@ function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, '');
 }
 
-function normalizePublicPath(value: string): string {
-  return value
-    .split('/')
-    .map((segment) => segment.trim())
-    .filter((segment) => segment.length > 0)
-    .map((segment) => encodeURIComponent(segment))
-    .join('/');
-}
-
-function resolveStoragePrefix(mushaf: MushafLayout): string {
-  if (mushaf === '16line') {
-    return (process.env.EXPO_PUBLIC_QURAN_16LINE_STORAGE_PREFIX || '16line').trim();
-  }
-  return (process.env.EXPO_PUBLIC_QURAN_15LINE_STORAGE_PREFIX || '15line').trim();
-}
-
 function getQuranPagesBaseUrl(mushaf: MushafLayout): string {
   const directBase =
     mushaf === '16line'
@@ -61,13 +45,6 @@ function getQuranPagesBaseUrl(mushaf: MushafLayout): string {
   const sharedCdnBase = process.env.EXPO_PUBLIC_QURAN_PAGES_CDN_BASE_URL?.trim();
   if (sharedCdnBase) {
     return `${trimTrailingSlash(sharedCdnBase)}/${mushaf}`;
-  }
-
-  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
-  if (supabaseUrl) {
-    const bucket = normalizePublicPath((process.env.EXPO_PUBLIC_QURAN_STORAGE_BUCKET || 'quran-pages').trim());
-    const prefix = normalizePublicPath(resolveStoragePrefix(mushaf));
-    return `${trimTrailingSlash(supabaseUrl)}/storage/v1/object/public/${bucket}/${prefix}`;
   }
 
   if (__DEV__) {
@@ -116,6 +93,28 @@ function getCachedPagePath(mushaf: MushafLayout, pageZeroBased: number): string 
 
 function getPageDownloadKey(mushaf: MushafLayout, pageZeroBased: number): string {
   return `${mushaf}:${getMushafPageFileNumber(mushaf, pageZeroBased)}`;
+}
+
+async function getLocalCachedPageCount(): Promise<{ totalPages: number; cachedPages: number }> {
+  let cachedPages = 0;
+  const layouts: MushafLayout[] = ['15line', '16line'];
+  const totalPages = MUSHAF_TOTAL_PAGES['15line'] + MUSHAF_TOTAL_PAGES['16line'];
+
+  for (const layout of layouts) {
+    for (let page = 0; page < MUSHAF_TOTAL_PAGES[layout]; page += 1) {
+      const target = getCachedPagePath(layout, page);
+      try {
+        const info = await FileSystem.getInfoAsync(target);
+        if (info.exists) {
+          cachedPages += 1;
+        }
+      } catch {
+        // Ignore per-file filesystem errors and continue counting.
+      }
+    }
+  }
+
+  return { totalPages, cachedPages };
 }
 
 async function ensureCacheDirectory(dirPath: string): Promise<void> {
@@ -209,6 +208,26 @@ export function runInitialQuranPageWarmup(mode: WarmupMode = 'manual'): Promise<
     const state = await getQuranPreloadState();
     const isAlreadyComplete = Boolean(state?.completedAt) && (state?.completedPages ?? 0) >= totalPages;
     if (isAlreadyComplete) {
+      return;
+    }
+
+    // If all files already exist locally, mark warmup complete without entering
+    // in-progress download mode.
+    const local = await getLocalCachedPageCount();
+    if (local.cachedPages >= local.totalPages) {
+      const completedAt = new Date().toISOString();
+      await savePreloadState({
+        totalPages: local.totalPages,
+        processedPages: local.totalPages,
+        completedPages: local.totalPages,
+        inProgress: false,
+        autoWarmupAttempted: mode === 'auto' ? true : (state?.autoWarmupAttempted ?? false),
+        autoWarmupAttemptedAt: mode === 'auto'
+          ? (state?.autoWarmupAttemptedAt ?? completedAt)
+          : (state?.autoWarmupAttemptedAt ?? null),
+        startedAt: state?.startedAt ?? completedAt,
+        completedAt,
+      });
       return;
     }
 

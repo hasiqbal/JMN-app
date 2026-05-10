@@ -13,15 +13,33 @@ type SyncResult = {
 
 type SyncPushTokenOptions = {
   youtubeLiveEnabled?: boolean;
+  source?: string;
 };
 
 export const YOUTUBE_LIVE_NOTIFY_KEY = 'jmn_youtube_live_notify';
 
 const TOKEN_SYNC_THROTTLE_MS = 10 * 60 * 1000;
+const PUSH_SYNC_DEBUG_TAG = '[PUSH_SYNC]';
 
 let lastSyncedToken: string | null = null;
 let lastSyncedAtMs = 0;
 let lastSyncedYoutubeLiveEnabled: boolean | null = null;
+
+function logPushSync(stage: string, payload: Record<string, unknown> = {}): void {
+  if (!__DEV__) return;
+
+  const event = {
+    ts: new Date().toISOString(),
+    stage,
+    ...payload,
+  };
+
+  try {
+    console.log(`${PUSH_SYNC_DEBUG_TAG} ${JSON.stringify(event)}`);
+  } catch {
+    console.log(PUSH_SYNC_DEBUG_TAG, stage);
+  }
+}
 
 function resolveProjectId(): string | null {
   const easProjectId = Constants.easConfig?.projectId;
@@ -138,9 +156,28 @@ export async function syncPushTokenWithBackend(
   notificationsModule: ExpoNotificationsModule,
   options: SyncPushTokenOptions = {},
 ): Promise<SyncResult> {
+  const source = options.source ?? 'unknown';
+  const youtubeLiveEnabled = options.youtubeLiveEnabled === true;
+  const finish = (result: SyncResult, extra: Record<string, unknown> = {}): SyncResult => {
+    logPushSync(result.synced ? 'sync-success' : 'sync-skip', {
+      source,
+      reason: result.reason ?? null,
+      platform: Platform.OS,
+      youtubeLiveEnabled,
+      ...extra,
+    });
+    return result;
+  };
+
+  logPushSync('sync-attempt', {
+    source,
+    platform: Platform.OS,
+    youtubeLiveEnabled,
+  });
+
   try {
     if (Platform.OS === 'web') {
-      return { synced: false, reason: 'web-platform' };
+      return finish({ synced: false, reason: 'web-platform' });
     }
 
     const maybeStorage = (globalThis as { localStorage?: unknown }).localStorage;
@@ -149,15 +186,18 @@ export async function syncPushTokenWithBackend(
       typeof maybeStorage === 'object' &&
       typeof (maybeStorage as { getItem?: unknown }).getItem !== 'function'
     ) {
-      return { synced: false, reason: 'unsupported-localstorage-runtime' };
+      return finish({ synced: false, reason: 'unsupported-localstorage-runtime' });
     }
 
     const projectId = resolveProjectId();
     if (!projectId) {
-      return { synced: false, reason: 'missing-project-id' };
+      return finish({ synced: false, reason: 'missing-project-id' });
     }
 
-    const youtubeLiveEnabled = options.youtubeLiveEnabled === true;
+    logPushSync('project-id-resolved', {
+      source,
+      projectId,
+    });
 
     let permissions = await notificationsModule.getPermissionsAsync();
     if (permissions.status !== 'granted' && permissions.canAskAgain !== false) {
@@ -165,12 +205,15 @@ export async function syncPushTokenWithBackend(
     }
 
     if (permissions.status !== 'granted') {
-      return {
+      return finish({
         synced: false,
         reason: permissions.canAskAgain === false
           ? 'permission-blocked-open-settings'
           : 'permission-not-granted',
-      };
+      }, {
+        permissionStatus: permissions.status,
+        canAskAgain: permissions.canAskAgain,
+      });
     }
 
     const tokenResponse = await notificationsModule
@@ -192,12 +235,12 @@ export async function syncPushTokenWithBackend(
       });
 
     if ('__tokenError' in tokenResponse) {
-      return { synced: false, reason: tokenResponse.__tokenError };
+      return finish({ synced: false, reason: tokenResponse.__tokenError });
     }
 
     const token = normalizeToken(tokenResponse.data);
     if (!token) {
-      return { synced: false, reason: 'empty-token' };
+      return finish({ synced: false, reason: 'empty-token' });
     }
 
     const nowMs = Date.now();
@@ -206,14 +249,19 @@ export async function syncPushTokenWithBackend(
       && lastSyncedYoutubeLiveEnabled === youtubeLiveEnabled
       && nowMs - lastSyncedAtMs < TOKEN_SYNC_THROTTLE_MS
     ) {
-      return { synced: false, reason: 'throttled' };
+      return finish({ synced: false, reason: 'throttled' }, {
+        tokenSuffix: token.slice(-8),
+        msSinceLastSync: nowMs - lastSyncedAtMs,
+      });
     }
 
     try {
       await upsertDeviceToken(token);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return { synced: false, reason: `device-upsert-failed:${message.slice(0, 120)}` };
+      return finish({ synced: false, reason: `device-upsert-failed:${message.slice(0, 120)}` }, {
+        tokenSuffix: token.slice(-8),
+      });
     }
 
     try {
@@ -226,9 +274,11 @@ export async function syncPushTokenWithBackend(
     lastSyncedAtMs = nowMs;
     lastSyncedYoutubeLiveEnabled = youtubeLiveEnabled;
 
-    return { synced: true };
+    return finish({ synced: true }, {
+      tokenSuffix: token.slice(-8),
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return { synced: false, reason: `unexpected-sync-error:${message.slice(0, 120)}` };
+    return finish({ synced: false, reason: `unexpected-sync-error:${message.slice(0, 120)}` });
   }
 }
