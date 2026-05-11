@@ -8,17 +8,21 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import {
   ADHAAN_OPTIONS,
   ADHAAN_SELECTION_STORAGE_KEY,
+  BACKGROUND_PRAYER_NOTIFICATION_MODE_STORAGE_KEY,
   DEFAULT_IQAMAH_EXACT_SOUND_ENABLED,
   DEFAULT_PRAYER_AUDIO_MUTED,
   DEFAULT_ADHAAN_OPTION_ID,
+  DEFAULT_BACKGROUND_PRAYER_NOTIFICATION_MODE,
   IQAMAH_EXACT_SOUND_ENABLED_STORAGE_KEY,
   PRAYER_AUDIO_MUTED_STORAGE_KEY,
   PRAYER_AUDIO_NOTIFICATION_CATEGORY_ID,
   PRAYER_NOTIFICATION_SCOPE,
   getAdhaanOptionById,
   getPrayerStartChannelId,
+  type BackgroundPrayerNotificationMode,
 } from '@/constants/prayerNotifications';
 import { previewAdhaanOption } from '@/hooks/usePrayerAdhaanPlayer';
+import { requestPrayerNotificationRefresh } from '@/services/prayerNotificationRefreshBus';
 import { syncPushTokenWithBackend, YOUTUBE_LIVE_NOTIFY_KEY } from '@/services/pushRegistrationService';
 import { useInAppBanner } from '@/template';
 
@@ -106,6 +110,9 @@ export default function SettingsScreen() {
   const [selectedAdhaanOptionId, setSelectedAdhaanOptionId] = useState<typeof DEFAULT_ADHAAN_OPTION_ID>(DEFAULT_ADHAAN_OPTION_ID);
   const [prayerAudioMuted, setPrayerAudioMuted] = useState(DEFAULT_PRAYER_AUDIO_MUTED);
   const [iqamahExactSoundEnabled, setIqamahExactSoundEnabled] = useState(DEFAULT_IQAMAH_EXACT_SOUND_ENABLED);
+  const [backgroundPrayerNotificationMode, setBackgroundPrayerNotificationMode] = useState<BackgroundPrayerNotificationMode>(
+    DEFAULT_BACKGROUND_PRAYER_NOTIFICATION_MODE,
+  );
 
   const palette = useMemo(
     () =>
@@ -141,12 +148,14 @@ export default function SettingsScreen() {
         adhaanOptionRaw,
         prayerAudioMutedRaw,
         iqamahExactSoundRaw,
+        backgroundPrayerNotificationModeRaw,
       ] = await Promise.all([
         AsyncStorage.getItem(LIVE_NOTIFY_KEY).catch(() => null),
         AsyncStorage.getItem(YOUTUBE_LIVE_NOTIFY_KEY).catch(() => null),
         AsyncStorage.getItem(ADHAAN_SELECTION_STORAGE_KEY).catch(() => null),
         AsyncStorage.getItem(PRAYER_AUDIO_MUTED_STORAGE_KEY).catch(() => null),
         AsyncStorage.getItem(IQAMAH_EXACT_SOUND_ENABLED_STORAGE_KEY).catch(() => null),
+        AsyncStorage.getItem(BACKGROUND_PRAYER_NOTIFICATION_MODE_STORAGE_KEY).catch(() => null),
       ]);
 
       if (cancelled) return;
@@ -156,6 +165,11 @@ export default function SettingsScreen() {
       setSelectedAdhaanOptionId(getAdhaanOptionById(adhaanOptionRaw).id);
       setPrayerAudioMuted(prayerAudioMutedRaw == null ? DEFAULT_PRAYER_AUDIO_MUTED : prayerAudioMutedRaw === 'true');
       setIqamahExactSoundEnabled(iqamahExactSoundRaw == null ? DEFAULT_IQAMAH_EXACT_SOUND_ENABLED : iqamahExactSoundRaw === 'true');
+      setBackgroundPrayerNotificationMode(
+        backgroundPrayerNotificationModeRaw === 'vibration-only'
+          ? 'vibration-only'
+          : DEFAULT_BACKGROUND_PRAYER_NOTIFICATION_MODE,
+      );
     };
 
     void loadSettings();
@@ -297,21 +311,36 @@ export default function SettingsScreen() {
   const onTogglePrayerAudioMuted = useCallback(async (value: boolean) => {
     setPrayerAudioMuted(value);
     await AsyncStorage.setItem(PRAYER_AUDIO_MUTED_STORAGE_KEY, String(value)).catch(() => {});
+    requestPrayerNotificationRefresh();
     if (value) {
-      showBanner('Prayer audio muted', 'Adhaan and iqamah notifications are now vibration-only.', 6000);
+      showBanner('Prayer audio muted', 'All adhaan and iqamah sounds are off (foreground and background).', 6000);
       return;
     }
-    showBanner('Prayer audio unmuted', 'Adhaan and iqamah sounds are enabled again.', 5000);
+    showBanner('Prayer audio unmuted', 'Adhaan and iqamah sounds are enabled again (based on your background mode).', 5000);
   }, [showBanner]);
 
   const onToggleIqamahExactSoundEnabled = useCallback(async (value: boolean) => {
     setIqamahExactSoundEnabled(value);
     await AsyncStorage.setItem(IQAMAH_EXACT_SOUND_ENABLED_STORAGE_KEY, String(value)).catch(() => {});
+    requestPrayerNotificationRefresh();
     if (value) {
       showBanner('Exact iqamah sound enabled', 'Iqamah sound will play at exact iqamah time.', 5000);
       return;
     }
     showBanner('Exact iqamah set to vibration', 'At exact iqamah time, notification will vibrate only.', 6000);
+  }, [showBanner]);
+
+  const onSelectBackgroundPrayerNotificationMode = useCallback(async (nextMode: BackgroundPrayerNotificationMode) => {
+    setBackgroundPrayerNotificationMode(nextMode);
+    await AsyncStorage.setItem(BACKGROUND_PRAYER_NOTIFICATION_MODE_STORAGE_KEY, nextMode).catch(() => {});
+    requestPrayerNotificationRefresh();
+
+    if (nextMode === 'vibration-only') {
+      showBanner('Background mode set', 'Prayer notifications in background will vibrate only.', 5500);
+      return;
+    }
+
+    showBanner('Background mode set', 'Prayer notifications in background will use sound + vibration.', 5500);
   }, [showBanner]);
 
   const runBackgroundAdhaanTest = useCallback(async () => {
@@ -330,12 +359,15 @@ export default function SettingsScreen() {
     }
 
     const selectedAdhaanOption = getAdhaanOptionById(selectedAdhaanOptionId);
-    const prayerStartChannelId = getPrayerStartChannelId(selectedAdhaanOption.id, prayerAudioMuted);
+    const backgroundSilent = backgroundPrayerNotificationMode === 'vibration-only';
+    const prayerStartSilent = prayerAudioMuted || backgroundSilent;
+    const prayerStartChannelId = getPrayerStartChannelId(selectedAdhaanOption.id, prayerStartSilent);
 
     logAdhaanDebug('test-start', {
       selectedAdhaanOptionId: selectedAdhaanOption.id,
       selectedSoundFile: selectedAdhaanOption.soundFile,
       prayerAudioMuted,
+      backgroundPrayerNotificationMode,
       prayerStartChannelId,
     });
 
@@ -352,19 +384,19 @@ export default function SettingsScreen() {
       // chosen at first creation and never updates it later, so a fresh
       // delete + create is the only reliable way to guarantee the selected
       // adhaan plays for the test.
-      if (!prayerAudioMuted) {
+      if (!prayerStartSilent) {
         await Notifications.deleteNotificationChannelAsync(prayerStartChannelId).catch(() => {});
       }
 
       await Notifications.setNotificationChannelAsync(prayerStartChannelId, {
-        name: prayerAudioMuted
+        name: prayerStartSilent
           ? `Prayer Start Adhaan ${selectedAdhaanOption.id} (Vibration Only)`
           : `Prayer Start Adhaan ${selectedAdhaanOption.id}`,
         importance: Notifications.AndroidImportance.HIGH,
         enableVibrate: true,
         vibrationPattern: [0, 220, 140, 220],
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-        sound: prayerAudioMuted ? null : selectedAdhaanOption.soundFile,
+        sound: prayerStartSilent ? null : selectedAdhaanOption.soundFile,
       }).catch(() => {});
 
       const channelsAfter = await Notifications.getNotificationChannelsAsync().catch(() => []);
@@ -384,10 +416,10 @@ export default function SettingsScreen() {
     const scheduled = await Notifications.scheduleNotificationAsync({
       content: {
         title: 'Adhaan test (10s)',
-        body: prayerAudioMuted
+        body: prayerStartSilent
           ? 'Background test for vibration-only prayer-start notification.'
           : 'Background test for prayer-start adhaan sound.',
-        sound: prayerAudioMuted ? false : selectedAdhaanOption.soundFile,
+        sound: prayerStartSilent ? false : selectedAdhaanOption.soundFile,
         categoryIdentifier: PRAYER_AUDIO_NOTIFICATION_CATEGORY_ID,
         data: {
           scope: PRAYER_NOTIFICATION_SCOPE,
@@ -396,7 +428,7 @@ export default function SettingsScreen() {
           route: '/prayer',
           testRunId,
           expectedChannelId: prayerStartChannelId,
-          expectedSoundFile: prayerAudioMuted ? null : selectedAdhaanOption.soundFile,
+          expectedSoundFile: prayerStartSilent ? null : selectedAdhaanOption.soundFile,
         },
       },
       trigger,
@@ -418,13 +450,20 @@ export default function SettingsScreen() {
       selectedAdhaanOptionId: selectedAdhaanOption.id,
       selectedSoundFile: selectedAdhaanOption.soundFile,
       prayerAudioMuted,
+      backgroundPrayerNotificationMode,
       prayerStartChannelId,
-      contentSound: prayerAudioMuted ? false : selectedAdhaanOption.soundFile,
+      contentSound: prayerStartSilent ? false : selectedAdhaanOption.soundFile,
       testRunId,
     });
 
     showBanner('Adhaan test scheduled', 'Notification will fire in ~10 seconds. Lock the phone now to test background adhaan.', 9000);
-  }, [ensureLiveNotificationPermission, prayerAudioMuted, selectedAdhaanOptionId, showBanner]);
+  }, [
+    backgroundPrayerNotificationMode,
+    ensureLiveNotificationPermission,
+    prayerAudioMuted,
+    selectedAdhaanOptionId,
+    showBanner,
+  ]);
 
   return (
     <View style={[styles.container, { backgroundColor: palette.bg, paddingTop: insets.top + 8 }]}> 
@@ -465,6 +504,7 @@ export default function SettingsScreen() {
           </View>
 
           <Text style={[styles.switchHint, { color: palette.sub }]}>Choose one of 3 adhaan options and preview before selecting.</Text>
+          <Text style={[styles.switchHint, { color: palette.sub }]}>Current background mode: {backgroundPrayerNotificationMode === 'vibration-only' ? '2. Vibration only' : '1. Sound + vibration'}</Text>
 
           <View style={styles.optionList}>
             {ADHAAN_OPTIONS.map((option) => {
@@ -506,8 +546,8 @@ export default function SettingsScreen() {
           </View>
 
           <SwitchRow
-            label="Mute adhaan and iqamah sounds"
-            hint="Vibration-only mode for prayer-start and iqamah notifications."
+            label="Mute all adhaan and iqamah sounds"
+            hint="Applies everywhere: foreground and background."
             value={prayerAudioMuted}
             onValueChange={onTogglePrayerAudioMuted}
             accentColor={palette.accent}
@@ -515,6 +555,45 @@ export default function SettingsScreen() {
             textColor={palette.text}
             hintColor={palette.sub}
           />
+
+          <View style={[styles.optionRow, { borderColor: palette.border }]}> 
+            <View style={styles.switchTextWrap}>
+              <Text style={[styles.switchLabel, { color: palette.text }]}>Background prayer notification mode</Text>
+              <Text style={[styles.switchHint, { color: palette.sub }]}>1. Sound + vibration  2. Vibration only</Text>
+            </View>
+            <View style={styles.optionActions}>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={[
+                  styles.smallButton,
+                  {
+                    borderColor: backgroundPrayerNotificationMode === 'sound' ? palette.accent : palette.border,
+                    backgroundColor: backgroundPrayerNotificationMode === 'sound' ? `${palette.accent}20` : palette.chip,
+                  },
+                ]}
+                onPress={() => {
+                  void onSelectBackgroundPrayerNotificationMode('sound');
+                }}
+              >
+                <Text style={[styles.smallButtonText, { color: palette.text }]}>1. Sound + vibe</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={[
+                  styles.smallButton,
+                  {
+                    borderColor: backgroundPrayerNotificationMode === 'vibration-only' ? palette.accent : palette.border,
+                    backgroundColor: backgroundPrayerNotificationMode === 'vibration-only' ? `${palette.accent}20` : palette.chip,
+                  },
+                ]}
+                onPress={() => {
+                  void onSelectBackgroundPrayerNotificationMode('vibration-only');
+                }}
+              >
+                <Text style={[styles.smallButtonText, { color: palette.text }]}>2. Vibration only</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
 
           <SwitchRow
             label="Exact iqamah: play sound"

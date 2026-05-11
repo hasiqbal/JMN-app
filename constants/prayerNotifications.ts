@@ -5,8 +5,10 @@ export const ADHKAR_REMINDER_SOUND_MODE_STORAGE_KEY = 'jmn_adhkar_reminder_sound
 export const ADHAAN_SELECTION_STORAGE_KEY = 'jmn_selected_adhaan_option_v1';
 export const PRAYER_AUDIO_MUTED_STORAGE_KEY = 'jmn_prayer_audio_muted_v1';
 export const IQAMAH_EXACT_SOUND_ENABLED_STORAGE_KEY = 'jmn_iqamah_exact_sound_enabled_v1';
+export const BACKGROUND_PRAYER_NOTIFICATION_MODE_STORAGE_KEY = 'jmn_background_prayer_notification_mode_v1';
 
 export type AdhkarReminderSoundMode = 'sound' | 'silent';
+export type BackgroundPrayerNotificationMode = 'sound' | 'vibration-only';
 export type NotificationLanguagePreference = 'english-first' | 'urdu-first' | 'urdu-only';
 
 export type AdhaanOption = {
@@ -29,8 +31,8 @@ export function getAdhaanOptionById(value: string | null | undefined): AdhaanOpt
 
 export function getPrayerStartChannelId(optionId: AdhaanOption['id'], silent = false): string {
 	return silent
-		? `jmn-prayer-start-adhaan-${optionId}-silent-v6`
-		: `jmn-prayer-start-adhaan-${optionId}-v7`;
+		? `jmn-prayer-start-adhaan-${optionId}-silent-v7`
+		: `jmn-prayer-start-adhaan-${optionId}-v8`;
 }
 
 // Legacy channel IDs to be deleted on app launch (Android caches sound bindings per channel,
@@ -39,9 +41,15 @@ export const LEGACY_PRAYER_NOTIFICATION_CHANNEL_IDS: readonly string[] = [
 	'jmn-prayer-start-adhaan-1-v6',
 	'jmn-prayer-start-adhaan-2-v6',
 	'jmn-prayer-start-adhaan-3-v6',
+	'jmn-prayer-start-adhaan-1-v7',
+	'jmn-prayer-start-adhaan-2-v7',
+	'jmn-prayer-start-adhaan-3-v7',
 	'jmn-prayer-start-adhaan-1-silent-v5',
 	'jmn-prayer-start-adhaan-2-silent-v5',
 	'jmn-prayer-start-adhaan-3-silent-v5',
+	'jmn-prayer-start-adhaan-1-silent-v6',
+	'jmn-prayer-start-adhaan-2-silent-v6',
+	'jmn-prayer-start-adhaan-3-silent-v6',
 	'jmn-prayer-start-adhaan-1-v5',
 	'jmn-prayer-start-adhaan-2-v5',
 	'jmn-prayer-start-adhaan-3-v5',
@@ -61,7 +69,9 @@ export const LEGACY_PRAYER_NOTIFICATION_CHANNEL_IDS: readonly string[] = [
 	'jmn-prayer-start-adhaan-2-silent-v2',
 	'jmn-prayer-start-adhaan-3-silent-v2',
 	'jmn-iqamah-start-v6',
+	'jmn-iqamah-start-v7',
 	'jmn-iqamah-start-silent-v4',
+	'jmn-iqamah-start-silent-v5',
 	'jmn-iqamah-start-v5',
 	'jmn-iqamah-start-silent-v3',
 	'jmn-iqamah-start-v4',
@@ -69,8 +79,8 @@ export const LEGACY_PRAYER_NOTIFICATION_CHANNEL_IDS: readonly string[] = [
 	'jmn-prayer-alerts-v1',
 ];
 
-export const IQAMAH_NOTIFICATION_CHANNEL_ID = 'jmn-iqamah-start-v7';
-export const IQAMAH_NOTIFICATION_SILENT_CHANNEL_ID = 'jmn-iqamah-start-silent-v5';
+export const IQAMAH_NOTIFICATION_CHANNEL_ID = 'jmn-iqamah-start-v8';
+export const IQAMAH_NOTIFICATION_SILENT_CHANNEL_ID = 'jmn-iqamah-start-silent-v6';
 export const PRAYER_AUDIO_NOTIFICATION_CATEGORY_ID = 'jmnPrayerAudio';
 export const PRAYER_AUDIO_MUTE_ACTION_ID = 'jmnPrayerAudioMute';
 
@@ -94,5 +104,6 @@ export const DEFAULT_ADHKAR_REMINDERS_ENABLED = true;
 export const DEFAULT_ADHKAR_REMINDER_SOUND_MODE: AdhkarReminderSoundMode = 'sound';
 export const DEFAULT_PRAYER_AUDIO_MUTED = false;
 export const DEFAULT_IQAMAH_EXACT_SOUND_ENABLED = true;
+export const DEFAULT_BACKGROUND_PRAYER_NOTIFICATION_MODE: BackgroundPrayerNotificationMode = 'sound';
 export const DEFAULT_NOTIFICATION_LANGUAGE_PREFERENCE: NotificationLanguagePreference = 'english-first';
 export const DEFAULT_SIMPLE_URDU_MODE = false;
