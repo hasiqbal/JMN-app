@@ -50,7 +50,7 @@ const base = {
       'android.permission.FOREGROUND_SERVICE',
       'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK',
     ],
-    package: 'com.hasiqbal.jmnapp',
+    package: 'com.jmnapp',
   },
   web: {
     bundler: 'metro',
