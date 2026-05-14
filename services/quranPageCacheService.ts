@@ -47,19 +47,14 @@ function getQuranPagesBaseUrl(mushaf: MushafLayout): string {
     return `${trimTrailingSlash(sharedCdnBase)}/${mushaf}`;
   }
 
-  if (__DEV__) {
-    if (!hasLoggedLegacySourceWarning) {
-      hasLoggedLegacySourceWarning = true;
-      console.warn(
-        '[QuranPageCache] Falling back to legacy GitHub raw URLs in development. Configure EXPO_PUBLIC_QURAN_PAGES_CDN_BASE_URL or EXPO_PUBLIC_QURAN_15LINE_BASE_URL/EXPO_PUBLIC_QURAN_16LINE_BASE_URL before release.',
-      );
-    }
-    return mushaf === '16line' ? LEGACY_QURAN_16LINE_BASE_URL : LEGACY_QURAN_15LINE_BASE_URL;
+  if (!hasLoggedLegacySourceWarning) {
+    hasLoggedLegacySourceWarning = true;
+    console.warn(
+      '[QuranPageCache] Falling back to legacy GitHub raw URLs. Configure EXPO_PUBLIC_QURAN_PAGES_CDN_BASE_URL or EXPO_PUBLIC_QURAN_15LINE_BASE_URL/EXPO_PUBLIC_QURAN_16LINE_BASE_URL for best performance.',
+    );
   }
 
-  throw new Error(
-    'Quran pages source is not configured. Set EXPO_PUBLIC_QURAN_PAGES_CDN_BASE_URL or EXPO_PUBLIC_QURAN_15LINE_BASE_URL/EXPO_PUBLIC_QURAN_16LINE_BASE_URL.',
-  );
+  return mushaf === '16line' ? LEGACY_QURAN_16LINE_BASE_URL : LEGACY_QURAN_15LINE_BASE_URL;
 }
 
 function getMushafPageFileNumber(mushaf: MushafLayout, pageZeroBased: number): number {
@@ -71,10 +66,24 @@ function getMushafPageFileNumber(mushaf: MushafLayout, pageZeroBased: number): n
   return pageOneBased;
 }
 
-function getRemoteQuranPageUrl(mushaf: MushafLayout, pageZeroBased: number): string {
+function getRemoteQuranPageUrls(mushaf: MushafLayout, pageZeroBased: number): string[] {
   const fileNumber = getMushafPageFileNumber(mushaf, pageZeroBased);
-  const base = getQuranPagesBaseUrl(mushaf);
-  return `${base}/${fileNumber}.jpg`;
+  const base = trimTrailingSlash(getQuranPagesBaseUrl(mushaf));
+  const urls: string[] = [`${base}/${fileNumber}.jpg`];
+
+  // Some production buckets keep Quran pages under a nested "Full" folder.
+  if (!base.toLowerCase().endsWith('/full')) {
+    urls.push(`${base}/Full/${fileNumber}.jpg`);
+  }
+
+  const legacyBase =
+    mushaf === '16line' ? LEGACY_QURAN_16LINE_BASE_URL : LEGACY_QURAN_15LINE_BASE_URL;
+  const legacyUrl = `${legacyBase}/${fileNumber}.jpg`;
+  if (!urls.includes(legacyUrl)) {
+    urls.push(legacyUrl);
+  }
+
+  return urls;
 }
 
 function getRootDirectory(): string {
@@ -179,8 +188,27 @@ export async function getCachedQuranPageUri(mushaf: MushafLayout, pageZeroBased:
       return target;
     }
 
-    await FileSystem.downloadAsync(getRemoteQuranPageUrl(mushaf, pageZeroBased), target);
-    return target;
+    const remoteUrls = getRemoteQuranPageUrls(mushaf, pageZeroBased);
+    const tempTarget = `${target}.download`;
+    let lastError: unknown = null;
+
+    for (const remoteUrl of remoteUrls) {
+      try {
+        await FileSystem.deleteAsync(tempTarget, { idempotent: true });
+        await FileSystem.downloadAsync(remoteUrl, tempTarget);
+        await FileSystem.deleteAsync(target, { idempotent: true });
+        await FileSystem.moveAsync({ from: tempTarget, to: target });
+        return target;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    const fileNumber = getMushafPageFileNumber(mushaf, pageZeroBased);
+    const message = lastError instanceof Error ? lastError.message : String(lastError ?? 'Unknown error');
+    throw new Error(
+      `Unable to download Quran page ${fileNumber} (${mushaf}). Tried sources: ${remoteUrls.join(', ')}. Last error: ${message}`,
+    );
   })();
 
   inFlightPageDownloads.set(downloadKey, nextDownload);
