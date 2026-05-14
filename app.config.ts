@@ -1,7 +1,7 @@
 const base = {
   name: 'JMN',
   slug: 'jmn',
-  version: '1.0.1',
+  version: '1.2',
   orientation: 'portrait',
   icon: './assets/images/favicon.png',
   scheme: 'jmn',
