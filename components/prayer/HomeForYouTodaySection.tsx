@@ -312,6 +312,7 @@ function CounterExpandModal({
   nightMode,
   title,
   icon,
+  backgroundSource,
   count,
   target,
   done,
@@ -329,6 +330,7 @@ function CounterExpandModal({
   nightMode: boolean;
   title: string;
   icon: React.ReactNode;
+  backgroundSource?: any;
   count: number;
   target: number;
   done: boolean;
@@ -343,6 +345,75 @@ function CounterExpandModal({
   caption: string;
 }) {
   const N = nightMode ? NIGHT : null;
+  const hasBackground = !!backgroundSource;
+
+  const modalContent = (
+    <>
+      <View style={fyStyles.counterModalHeaderRow}>
+        <View style={fyStyles.counterModalTitleRow}>
+          <Text style={fyStyles.counterModalTitle}>{title}</Text>
+          {icon}
+        </View>
+        <TouchableOpacity onPress={onClose} style={fyStyles.counterModalCloseBtn}>
+          <MaterialIcons name="close" size={14} color="#D5E1DA" />
+        </TouchableOpacity>
+      </View>
+
+      <TouchableOpacity onPress={onTap} activeOpacity={done ? 1 : 0.75} disabled={done}>
+        <Animated.View
+          style={[
+            fyStyles.counterModalTapBox,
+            { borderColor: `${accentColor}55`, backgroundColor: 'rgba(255,255,255,0.14)' },
+            { transform: [{ scale: scaleAnim }] },
+          ]}
+        >
+          <Text style={fyStyles.counterModalCount}>{count}</Text>
+          <Text style={fyStyles.counterModalTarget}>of {target} today</Text>
+          <Text style={fyStyles.counterModalHint}>tap</Text>
+        </Animated.View>
+      </TouchableOpacity>
+
+      <View style={[fyStyles.counterSegmentedCompact, { backgroundColor: 'rgba(0,0,0,0.28)' }]}>
+        {levels.map((lv, i) => (
+          <TouchableOpacity
+            key={lv.level}
+            onPress={() => onSwitchLevel(i)}
+            activeOpacity={0.85}
+            style={[
+              fyStyles.counterSegmentBtnCompact,
+              i === levelIdx
+                ? { backgroundColor: accentColor, borderColor: accentColor }
+                : { backgroundColor: 'transparent', borderColor: 'transparent' },
+            ]}
+          >
+            <Text
+              style={[
+                fyStyles.counterSegmentTextCompact,
+                { color: i === levelIdx ? '#05210F' : 'rgba(255,255,255,0.78)' },
+              ]}
+            >
+              {lv.target >= 1000 ? '1k' : lv.target}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <View style={fyStyles.counterActionRowCompact}>
+        <TouchableOpacity onPress={onComplete} style={[fyStyles.counterActionCompact, { borderColor: '#A8E8CC66' }]}>
+          <MaterialIcons name="check-circle-outline" size={10} color="#A8E8CC" />
+          <Text style={[fyStyles.counterActionTextCompact, { color: '#A8E8CC' }]}>Complete</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onClose} style={[fyStyles.counterActionCompact, { borderColor: 'rgba(255,255,255,0.26)' }]}>
+          <MaterialIcons name="close" size={10} color="#E6F2EA" />
+          <Text style={[fyStyles.counterActionTextCompact, { color: '#E6F2EA' }]}>Close</Text>
+        </TouchableOpacity>
+      </View>
+
+      <Text numberOfLines={2} style={[fyStyles.counterCaption, { color: 'rgba(255,255,255,0.80)' }]}>
+        {caption}
+      </Text>
+    </>
+  );
 
   return (
     <Modal
@@ -357,71 +428,19 @@ function CounterExpandModal({
           activeOpacity={1}
           onPress={onClose}
         />
-        <View style={[fyStyles.counterModalBox, N && { backgroundColor: N.surface, borderColor: N.border }]}> 
-          <View style={fyStyles.counterModalHeaderRow}>
-            <View style={fyStyles.counterModalTitleRow}>
-              <Text style={fyStyles.counterModalTitle}>{title}</Text>
-              {icon}
-            </View>
-            <TouchableOpacity onPress={onClose} style={fyStyles.counterModalCloseBtn}>
-              <MaterialIcons name="close" size={14} color="#D5E1DA" />
-            </TouchableOpacity>
+        {hasBackground ? (
+          <ImageBackground
+            source={backgroundSource}
+            imageStyle={fyStyles.counterModalBoxImage}
+            style={[fyStyles.counterModalBox, N && { borderColor: N.border }]}
+          >
+            <View style={fyStyles.counterModalImageOverlay}>{modalContent}</View>
+          </ImageBackground>
+        ) : (
+          <View style={[fyStyles.counterModalBox, N && { backgroundColor: N.surface, borderColor: N.border }]}> 
+            {modalContent}
           </View>
-
-          <TouchableOpacity onPress={onTap} activeOpacity={done ? 1 : 0.75} disabled={done}>
-            <Animated.View
-              style={[
-                fyStyles.counterModalTapBox,
-                { borderColor: `${accentColor}55`, backgroundColor: 'rgba(255,255,255,0.14)' },
-                { transform: [{ scale: scaleAnim }] },
-              ]}
-            >
-              <Text style={fyStyles.counterModalCount}>{count}</Text>
-              <Text style={fyStyles.counterModalTarget}>of {target} today</Text>
-              <Text style={fyStyles.counterModalHint}>tap</Text>
-            </Animated.View>
-          </TouchableOpacity>
-
-          <View style={[fyStyles.counterSegmentedCompact, { backgroundColor: 'rgba(0,0,0,0.28)' }]}>
-            {levels.map((lv, i) => (
-              <TouchableOpacity
-                key={lv.level}
-                onPress={() => onSwitchLevel(i)}
-                activeOpacity={0.85}
-                style={[
-                  fyStyles.counterSegmentBtnCompact,
-                  i === levelIdx
-                    ? { backgroundColor: accentColor, borderColor: accentColor }
-                    : { backgroundColor: 'transparent', borderColor: 'transparent' },
-                ]}
-              >
-                <Text
-                  style={[
-                    fyStyles.counterSegmentTextCompact,
-                    { color: i === levelIdx ? '#05210F' : 'rgba(255,255,255,0.78)' },
-                  ]}
-                >
-                  {lv.target >= 1000 ? '1k' : lv.target}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <View style={fyStyles.counterActionRowCompact}>
-            <TouchableOpacity onPress={onComplete} style={[fyStyles.counterActionCompact, { borderColor: '#A8E8CC66' }]}> 
-              <MaterialIcons name="check-circle-outline" size={10} color="#A8E8CC" />
-              <Text style={[fyStyles.counterActionTextCompact, { color: '#A8E8CC' }]}>Complete</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={onClose} style={[fyStyles.counterActionCompact, { borderColor: 'rgba(255,255,255,0.26)' }]}> 
-              <MaterialIcons name="close" size={10} color="#E6F2EA" />
-              <Text style={[fyStyles.counterActionTextCompact, { color: '#E6F2EA' }]}>Close</Text>
-            </TouchableOpacity>
-          </View>
-
-          <Text numberOfLines={2} style={[fyStyles.counterCaption, { color: 'rgba(255,255,255,0.80)' }]}>
-            {caption}
-          </Text>
-        </View>
+        )}
       </View>
     </Modal>
   );
@@ -1386,6 +1405,7 @@ function IstighfarCounterCard({
         nightMode={nightMode}
         title="Astaghfirullah"
         icon={<MaterialIcons name="replay" size={16} color="#A8E8CC" />}
+        backgroundSource={TAWBAH_BG}
         count={count}
         target={currentLevel.target}
         done={done}
@@ -1579,6 +1599,7 @@ function TawhidCounterCard({
         nightMode={nightMode}
         title="La ilaha illallah"
         icon={<MaterialIcons name="auto-awesome" size={16} color="#A8E8CC" />}
+        backgroundSource={TAWHID_BG}
         count={count}
         target={currentLevel.target}
         done={done}
@@ -1852,6 +1873,7 @@ function DuroodCounterCard({
         nightMode={nightMode}
         title="Daily Durood"
         icon={<Text style={{ fontSize: 16, color: '#A8E8CC' }}>ﷺ</Text>}
+        backgroundSource={GATES_BG}
         count={count}
         target={currentLevel.target}
         done={done}
@@ -2419,9 +2441,16 @@ const fyStyles = StyleSheet.create({
     width: '100%',
     maxWidth: 360,
     borderRadius: Radius.xl,
+    overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(168,232,204,0.35)',
     backgroundColor: '#16251D',
+  },
+  counterModalBoxImage: {
+    borderRadius: Radius.xl,
+  },
+  counterModalImageOverlay: {
+    backgroundColor: 'rgba(6,12,10,0.34)',
     padding: 12,
     gap: 8,
   },
