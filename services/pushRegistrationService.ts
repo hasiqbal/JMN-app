@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as Application from 'expo-application';
 import * as Device from 'expo-device';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSupabaseClient } from '@/template';
 
 type ExpoNotificationsModule = typeof import('expo-notifications');
@@ -17,6 +18,7 @@ type SyncPushTokenOptions = {
 };
 
 export const YOUTUBE_LIVE_NOTIFY_KEY = 'jmn_youtube_live_notify';
+const INSTALLATION_ID_STORAGE_KEY = 'jmn_push_installation_id_v1';
 
 const TOKEN_SYNC_THROTTLE_MS = 10 * 60 * 1000;
 const PUSH_SYNC_DEBUG_TAG = '[PUSH_SYNC]';
@@ -59,6 +61,26 @@ function normalizeToken(value: string | null | undefined): string {
   return (value ?? '').trim();
 }
 
+function createInstallationId(): string {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `install_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+async function resolveInstallationId(): Promise<string> {
+  const existing = await AsyncStorage.getItem(INSTALLATION_ID_STORAGE_KEY).catch(() => null);
+  const trimmed = existing?.trim() ?? '';
+  if (trimmed.length > 0) {
+    return trimmed;
+  }
+
+  const installationId = createInstallationId();
+  await AsyncStorage.setItem(INSTALLATION_ID_STORAGE_KEY, installationId).catch(() => {});
+  return installationId;
+}
+
 async function resolveDeviceId(): Promise<string | null> {
   try {
     if (Platform.OS === 'android') {
@@ -73,7 +95,7 @@ async function resolveDeviceId(): Promise<string | null> {
   return null;
 }
 
-async function upsertDeviceToken(token: string): Promise<void> {
+async function upsertDeviceToken(token: string, installationId: string): Promise<void> {
   const client = getSupabaseClient();
   const nowIso = new Date().toISOString();
   const appVersion = Application.nativeApplicationVersion ?? null;
@@ -85,6 +107,7 @@ async function upsertDeviceToken(token: string): Promise<void> {
     app_version: appVersion,
     device_model: deviceModel,
     device_id: deviceId,
+    installation_id: installationId,
     is_active: true,
     last_active: nowIso,
   };
@@ -94,6 +117,28 @@ async function upsertDeviceToken(token: string): Promise<void> {
   // the same phone from accumulating multiple active rows when the
   // Expo push token rotates (e.g. after app reload or channel change).
   if (deviceId) {
+    const { data: existingRows, error: existingError } = await client
+      .from('device_tokens')
+      .select('id, token, installation_id, is_active')
+      .eq('device_id', deviceId)
+      .limit(1);
+
+    if (existingError) {
+      throw new Error(`device_tokens lookup failed: ${existingError.message}`);
+    }
+
+    const existingRow = Array.isArray(existingRows) && existingRows.length > 0
+      ? existingRows[0]
+      : null;
+    const shouldRefreshRegisteredAt =
+      !existingRow
+      || existingRow.token !== token
+      || existingRow.installation_id !== installationId
+      || existingRow.is_active === false;
+    const deviceRowPayload = shouldRefreshRegisteredAt
+      ? { ...rowPayload, registered_at: nowIso }
+      : rowPayload;
+
     try {
       await client
         .from('device_tokens')
@@ -108,7 +153,7 @@ async function upsertDeviceToken(token: string): Promise<void> {
     // This avoids conflicts with unique(device_id) when Expo rotates token.
     const { data: byDeviceRows, error: byDeviceError } = await client
       .from('device_tokens')
-      .update(rowPayload)
+      .update(deviceRowPayload)
       .eq('device_id', deviceId)
       .select('id')
       .limit(1);
@@ -124,7 +169,7 @@ async function upsertDeviceToken(token: string): Promise<void> {
 
   const { error } = await client
     .from('device_tokens')
-    .upsert(rowPayload, { onConflict: 'token' });
+    .upsert({ ...rowPayload, registered_at: nowIso }, { onConflict: 'token' });
 
   if (error) {
     throw new Error(`device_tokens upsert failed: ${error.message}`);
@@ -243,6 +288,8 @@ export async function syncPushTokenWithBackend(
       return finish({ synced: false, reason: 'empty-token' });
     }
 
+    const installationId = await resolveInstallationId();
+
     const nowMs = Date.now();
     if (
       token === lastSyncedToken
@@ -256,7 +303,7 @@ export async function syncPushTokenWithBackend(
     }
 
     try {
-      await upsertDeviceToken(token);
+      await upsertDeviceToken(token, installationId);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return finish({ synced: false, reason: `device-upsert-failed:${message.slice(0, 120)}` }, {
