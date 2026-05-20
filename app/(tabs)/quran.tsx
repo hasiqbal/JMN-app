@@ -2,18 +2,19 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, ImageBackground } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '@/constants/theme';
 import { useNightMode } from '@/hooks/useNightMode';
 import { getJuzEndPage, getJuzStartPage, getMushafTotalPages, getQuarterStartsInJuz } from '@/constants/mushafJuzPages';
 import { StarField } from '@/components/adhkar/StarField';
 import { getQuranPreloadState, runInitialQuranPageWarmup, type QuranPreloadState } from '@/services/quranPageCacheService';
+import { setTabBarHidden } from '@/services/tabBarVisibility';
 
 const NIGHT = {
-  bg: '#0A0F1E',
-  text: '#EEF3FC',
-  textSub: '#93B4D8',
+  bg: '#13261E',
+  text: '#F1F6F2',
+  textSub: '#A8C7B6',
 };
 
 const QURAN_MUSHAF_LAYOUT_KEY = 'quran_mushaf_layout_v1';
@@ -230,6 +231,15 @@ export default function QuranScreen() {
   const [isStartingDownload, setIsStartingDownload] = useState(false);
   const processedAdhkarAutoOpenRef = React.useRef<string | null>(null);
   const N = nightMode ? NIGHT : null;
+
+  useFocusEffect(
+    useCallback(() => {
+      setTabBarHidden(false);
+      return () => {
+        setTabBarHidden(false);
+      };
+    }, [])
+  );
 
   const sourceParam = pickParamValue(params.source);
   const autoOpenParam = pickParamValue(params.autoOpen);
@@ -448,13 +458,13 @@ export default function QuranScreen() {
       <ImageBackground source={QURAN_BG_IMAGE} resizeMode="cover" style={styles.backgroundImage}>
         {/* Base veil — lighter so the tahjjud sky is visible */}
         <LinearGradient
-          colors={['rgba(4,8,20,0.36)', 'rgba(6,12,28,0.58)']}
+          colors={['rgba(7,18,14,0.34)', 'rgba(11,26,20,0.56)']}
           locations={[0, 1]}
           style={styles.backgroundVeil}
         />
-        {/* Sacred gold bloom at top, cool indigo at bottom */}
+        {/* Sacred gold bloom at top, deep emerald at bottom */}
         <LinearGradient
-          colors={['rgba(220,172,84,0.28)', 'rgba(10,18,46,0.18)', 'rgba(4,8,20,0.0)']}
+          colors={['rgba(220,172,84,0.28)', 'rgba(18,44,34,0.24)', 'rgba(8,18,14,0.0)']}
           locations={[0, 0.45, 1]}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
@@ -472,7 +482,7 @@ export default function QuranScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onPullRefresh}
-              tintColor={N ? N.text : '#F5F8F5'}
+              tintColor="#D4A848"
             />
           }
         >
@@ -643,7 +653,7 @@ export default function QuranScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#050C1C',
+    backgroundColor: '#13261E',
   },
   backgroundImage: {
     flex: 1,
@@ -673,7 +683,7 @@ const styles = StyleSheet.create({
     height: 400,
     bottom: -200,
     left: -140,
-    backgroundColor: 'rgba(44, 74, 152, 0.22)',
+    backgroundColor: 'rgba(82, 160, 122, 0.24)',
   },
   container: {
     flex: 1,
@@ -760,7 +770,7 @@ const styles = StyleSheet.create({
     width: '100%',
     borderWidth: 1,
     borderColor: 'rgba(212,172,90,0.35)',
-    backgroundColor: 'rgba(9,16,38,0.74)',
+    backgroundColor: 'rgba(20,51,39,0.74)',
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingTop: 12,
@@ -790,7 +800,7 @@ const styles = StyleSheet.create({
   downloadSubText: {
     fontSize: 11,
     lineHeight: 16,
-    color: '#9AB8D4',
+    color: '#9BBCAB',
     textAlign: 'center',
   },
   progressWrap: {
@@ -801,7 +811,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 8,
     borderRadius: 999,
-    backgroundColor: 'rgba(140,168,199,0.28)',
+    backgroundColor: 'rgba(124,166,143,0.32)',
     overflow: 'hidden',
   },
   progressFill: {
@@ -821,7 +831,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     fontWeight: '700',
     letterSpacing: 0.5,
-    color: '#C8D8EE',
+    color: '#D6E7DD',
   },
   layoutChoiceWrap: {
     width: '100%',
@@ -831,7 +841,7 @@ const styles = StyleSheet.create({
   layoutChoice: {
     borderWidth: 1,
     borderColor: 'rgba(212,172,90,0.55)',
-    backgroundColor: 'rgba(8,14,34,0.72)',
+    backgroundColor: 'rgba(24,57,42,0.72)',
     borderRadius: 18,
     paddingHorizontal: 20,
     paddingVertical: 18,
@@ -850,14 +860,14 @@ const styles = StyleSheet.create({
   layoutChoiceSub: {
     marginTop: 5,
     fontSize: 13,
-    color: '#94B8D4',
+    color: '#94BCA5',
     lineHeight: 18,
     letterSpacing: 0.2,
   },
   backBtn: {
     borderWidth: 1,
     borderColor: 'rgba(212,172,90,0.65)',
-    backgroundColor: 'rgba(10,18,42,0.60)',
+    backgroundColor: 'rgba(27,62,46,0.60)',
     borderRadius: 999,
     paddingHorizontal: 18,
     paddingVertical: 9,
@@ -877,7 +887,7 @@ const styles = StyleSheet.create({
   juzGroup: {
     borderWidth: 1,
     borderColor: 'rgba(212,172,90,0.28)',
-    backgroundColor: 'rgba(8,14,32,0.70)',
+    backgroundColor: 'rgba(22,51,39,0.70)',
     borderRadius: 16,
     paddingVertical: 10,
     paddingHorizontal: 10,
@@ -888,7 +898,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     alignItems: 'center',
     width: '100%',
-    backgroundColor: 'rgba(16,26,56,0.78)',
+    backgroundColor: 'rgba(32,70,53,0.78)',
     borderWidth: 1,
     borderColor: 'rgba(212,172,90,0.22)',
   },
@@ -900,7 +910,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 22,
     fontWeight: '700',
-    color: '#F0E8D0',
+    color: '#F4EBD3',
     letterSpacing: 0.6,
     textAlign: 'center',
   },
@@ -911,7 +921,7 @@ const styles = StyleSheet.create({
     marginTop: 3,
     fontSize: 12,
     lineHeight: 16,
-    color: '#84A4C0',
+    color: '#C4DED0',
     letterSpacing: 0.2,
     textAlign: 'center',
   },
@@ -957,7 +967,7 @@ const styles = StyleSheet.create({
   quarterChip: {
     borderWidth: 1,
     borderColor: 'rgba(212,172,90,0.50)',
-    backgroundColor: 'rgba(12,20,48,0.86)',
+    backgroundColor: 'rgba(27,68,50,0.82)',
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 8,
@@ -972,7 +982,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 15,
     fontWeight: '600',
-    color: '#EAE2D0',
+    color: '#F1EBDD',
     letterSpacing: 0.1,
     textAlign: 'center',
     width: '100%',
@@ -982,8 +992,8 @@ const styles = StyleSheet.create({
   },
   surahChip: {
     borderWidth: 1,
-    borderColor: 'rgba(160,192,228,0.32)',
-    backgroundColor: 'rgba(10,18,44,0.80)',
+    borderColor: 'rgba(156,190,169,0.44)',
+    backgroundColor: 'rgba(24,59,45,0.80)',
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 7,
@@ -996,7 +1006,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     fontWeight: '700',
-    color: '#C8DCEA',
+    color: '#E1EEE6',
     letterSpacing: 0.15,
   },
   surahChipTextActive: {
@@ -1005,14 +1015,14 @@ const styles = StyleSheet.create({
   sub: {
     fontSize: 14,
     lineHeight: 20,
-    color: '#A0BACE',
+    color: '#C2DACB',
     marginTop: 4,
     letterSpacing: 0.3,
   },
   updatedLabel: {
     fontSize: 12,
     lineHeight: 16,
-    color: 'rgba(180,196,216,0.55)',
+    color: 'rgba(210,226,216,0.72)',
     marginTop: 16,
     letterSpacing: 0.3,
   },

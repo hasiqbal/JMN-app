@@ -1,6 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Platform, PanResponder } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, PanResponder } from 'react-native';
 import { Colors, Spacing } from '@/constants/theme';
 
 type PrayerDrawerTriggerProps = {
@@ -30,9 +29,6 @@ const DRAG_OPEN_THRESHOLD_DY = -18;
 
 export default function PrayerDrawerTrigger({ nightMode, onPress, attached }: PrayerDrawerTriggerProps) {
   const textColor  = attached ? ATTACHED.text  : nightMode ? NIGHT.text  : undefined;
-  const hintColor  = attached ? ATTACHED.sub   : nightMode ? NIGHT.sub   : undefined;
-  const arrowColor = attached ? ATTACHED.sub   : nightMode ? NIGHT.sub   : '#6C8C7A';
-  const iconBadgeStyle = attached ? styles.iconBadgeAttached : nightMode ? styles.iconBadgeNight : styles.iconBadgeDay;
   const handleStyle = attached
     ? { backgroundColor: ATTACHED.handle }
     : nightMode ? { backgroundColor: NIGHT.handle } : undefined;
@@ -72,23 +68,9 @@ export default function PrayerDrawerTrigger({ nightMode, onPress, attached }: Pr
         <View style={[styles.handle, handleStyle]} />
         <View style={styles.row}>
           <View style={styles.leftMeta}>
-            <View style={[styles.iconBadge, iconBadgeStyle]}>
-              <Image
-                source={require('../../assets/images/masjid-building.jpg')}
-                style={styles.iconImage}
-                resizeMode="cover"
-              />
-            </View>
-            <Text style={[styles.title, textColor ? { color: textColor } : undefined]}>Today&apos;s Salah</Text>
-          </View>
-          <View style={styles.rightMeta}>
-            <Text
-              style={[styles.hint, hintColor ? { color: hintColor } : undefined]}
-              numberOfLines={1}
-            >
-              View prayer times
+            <Text style={[styles.title, textColor ? { color: textColor } : undefined]} numberOfLines={1}>
+              View todays prayer times
             </Text>
-            <MaterialIcons name="keyboard-arrow-up" size={17} color={arrowColor} />
           </View>
         </View>
       </TouchableOpacity>
@@ -114,9 +96,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     paddingHorizontal: Spacing.md,
-    paddingTop: 9,
-    paddingBottom: 11,
-    minHeight: 62,
+    paddingTop: 6,
+    paddingBottom: 7,
+    minHeight: 52,
   },
   panelDay: {
     backgroundColor: 'rgba(236, 246, 239, 0.98)',
@@ -154,22 +136,23 @@ const styles = StyleSheet.create({
   },
   handle: {
     alignSelf: 'center',
-    width: 38,
-    height: 4,
+    width: 30,
+    height: 3,
     borderRadius: 999,
     backgroundColor: 'rgba(43, 117, 76, 0.26)',
-    marginBottom: 10,
+    marginBottom: 5,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    minHeight: 30,
+    justifyContent: 'center',
+    minHeight: 24,
   },
   leftMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    justifyContent: 'center',
+    width: '100%',
   },
   iconBadge: {
     width: 20,
@@ -192,15 +175,11 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   title: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
     color: Colors.textPrimary,
-    letterSpacing: 0.15,
-  },
-  rightMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
+    letterSpacing: 0.1,
+    textAlign: 'center',
   },
   hint: {
     fontSize: 12,

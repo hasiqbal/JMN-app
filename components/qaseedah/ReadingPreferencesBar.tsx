@@ -1,12 +1,9 @@
 import React from 'react';
-import { Modal, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 
 import { Colors, Radius, Spacing } from '@/constants/theme';
-import { NightModeToggle } from '@/components/adhkar/NightModeToggle';
 import type { LanguageFontScales, LayerVisibility, NightPaletteType, ReadingMode } from './types';
-
-const SERIF_FONT = Platform.select({ ios: 'Georgia', android: 'serif', default: 'Georgia' });
 
 type Props = {
   mode: ReadingMode;
@@ -43,9 +40,9 @@ export function ReadingPreferencesBar({
   night,
 }: Props) {
   const [scalesOpen, setScalesOpen] = React.useState(false);
-  const goldHairline = night ? night.goldHairline : Colors.goldHairline;
-  const goldColor = night ? night.gold : Colors.gold;
-  const goldInk = night ? night.goldInk : Colors.goldInk;
+  const borderColor = night ? night.border : 'rgba(36, 50, 61, 0.16)';
+  const accentColor = night ? '#cfd9e5' : '#2f4153';
+  const activeChipFill = night ? 'rgba(255,255,255,0.10)' : 'rgba(36, 50, 61, 0.09)';
 
   const allOn = layers.arabic && layers.transliteration && layers.english && layers.urdu;
 
@@ -65,15 +62,15 @@ export function ReadingPreferencesBar({
             onPress={() => onSelect(preset)}
             style={[
               styles.presetChip,
-              { borderColor: goldHairline },
-              active && { borderColor: goldColor, backgroundColor: `${goldColor}18` },
+              { borderColor },
+              active && { borderColor: accentColor, backgroundColor: activeChipFill },
             ]}
           >
             <Text
               style={[
                 styles.presetChipText,
                 night && { color: night.textMuted },
-                active && { color: goldInk, fontWeight: '700' },
+                active && { color: accentColor, fontWeight: '700' },
               ]}
             >
               {Math.round(preset * 100)}%
@@ -91,16 +88,15 @@ export function ReadingPreferencesBar({
       onPress={onPress}
       style={[
         styles.chip,
-        { borderColor: goldHairline },
-        active && { borderColor: goldColor },
+        { borderColor },
+        active && { borderColor: accentColor, backgroundColor: activeChipFill },
       ]}
     >
-      {active ? <Text style={[styles.chipGlyph, { color: goldColor }]}>✦</Text> : null}
       <Text
         style={[
           styles.chipText,
           night && { color: night.textMuted },
-          active && { color: goldInk, fontWeight: '700' },
+          active && { color: accentColor, fontWeight: '700' },
         ]}
       >
         {label}
@@ -112,7 +108,7 @@ export function ReadingPreferencesBar({
     <View
       style={[
         styles.wrap,
-        night && { backgroundColor: 'rgba(10, 16, 28, 0.88)', borderBottomColor: goldHairline },
+        night && { backgroundColor: 'rgba(10, 16, 28, 0.88)', borderBottomColor: borderColor },
       ]}
     >
       <View style={styles.chipsRow}>
@@ -129,20 +125,41 @@ export function ReadingPreferencesBar({
           else onLayersChange({ arabic: true, transliteration: true, english: true, urdu: true });
         }, 'all')}
 
-        <View style={styles.spacer} />
-
         <TouchableOpacity
           activeOpacity={0.85}
           onPress={() => setScalesOpen(true)}
-          style={[styles.gearBtn, { borderColor: goldHairline }]}
+          style={[styles.gearBtn, { borderColor }]}
           hitSlop={6}
           accessibilityLabel="Reading sizes"
         >
           <MaterialIcons name="format-size" size={14} color={night ? night.textMuted : Colors.textSecondary} />
-          <Text style={[styles.gearLabel, { color: goldInk }]}>Sizes</Text>
+          <Text style={[styles.gearLabel, night && { color: night.textMuted }]}>Sizes</Text>
         </TouchableOpacity>
 
-        <NightModeToggle nightMode={nightMode} onToggle={onNightToggle} size="sm" />
+        <View style={[styles.themeToggle, { borderColor }]}>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={nightMode ? onNightToggle : undefined}
+            disabled={!nightMode}
+            style={[
+              styles.themeOption,
+              !nightMode && { backgroundColor: activeChipFill },
+            ]}
+          >
+            <Text style={[styles.themeText, !nightMode && { color: accentColor, fontWeight: '700' }]}>Day</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={nightMode ? undefined : onNightToggle}
+            disabled={nightMode}
+            style={[
+              styles.themeOption,
+              nightMode && { backgroundColor: activeChipFill },
+            ]}
+          >
+            <Text style={[styles.themeText, nightMode && { color: accentColor, fontWeight: '700' }]}>Night</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <Modal
@@ -155,25 +172,21 @@ export function ReadingPreferencesBar({
           <Pressable
             style={[
               styles.modalSheet,
-              night && { backgroundColor: 'rgba(10, 16, 28, 0.92)', borderColor: goldHairline },
+              night && { backgroundColor: 'rgba(10, 16, 28, 0.92)', borderColor },
             ]}
             onPress={(e) => e.stopPropagation?.()}
           >
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalKicker, { color: goldInk }]}>Reading sizes</Text>
-              <View style={styles.modalTitleRow}>
-                <Text style={[styles.modalTitleGlyph, { color: goldColor }]}>﹏</Text>
-                <Text style={[styles.modalTitle, night && { color: night.text }]}>Language Font Sizes</Text>
-                <Text style={[styles.modalTitleGlyph, { color: goldColor }]}>﹏</Text>
-              </View>
+              <Text style={[styles.modalKicker, night && { color: night.textMuted }]}>Reading sizes</Text>
+              <Text style={[styles.modalTitle, night && { color: night.text }]}>Language Font Sizes</Text>
             </View>
 
             <View style={styles.modalGrid}>
-              <View style={[styles.languageScaleCard, styles.masterScaleCard, { borderColor: goldHairline }]}>
+              <View style={[styles.languageScaleCard, styles.masterScaleCard, { borderColor }]}>
                 <Text style={[styles.languageScaleLabel, night && { color: night.textMuted }]}>
                   Master
                 </Text>
-                <View style={[styles.languageScaleControl, { borderColor: goldHairline }]}>
+                <View style={[styles.languageScaleControl, { borderColor }]}> 
                   <TouchableOpacity
                     style={styles.scaleBtn}
                     activeOpacity={0.8}
@@ -197,11 +210,11 @@ export function ReadingPreferencesBar({
                 {renderScalePresets(textScale, onTextScaleChange)}
               </View>
               {LAYER_OPTIONS.map((item) => (
-                <View key={`scale-${item.key}`} style={[styles.languageScaleCard, { borderColor: goldHairline }]}>
+                <View key={`scale-${item.key}`} style={[styles.languageScaleCard, { borderColor }]}>
                   <Text style={[styles.languageScaleLabel, night && { color: night.textMuted }]}>
                     {item.label}
                   </Text>
-                  <View style={[styles.languageScaleControl, { borderColor: goldHairline }]}>
+                  <View style={[styles.languageScaleControl, { borderColor }]}> 
                     <TouchableOpacity
                       style={styles.scaleBtn}
                       activeOpacity={0.8}
@@ -232,9 +245,9 @@ export function ReadingPreferencesBar({
             <TouchableOpacity
               activeOpacity={0.85}
               onPress={() => setScalesOpen(false)}
-              style={[styles.modalCloseBtn, { borderColor: goldHairline }]}
+              style={[styles.modalCloseBtn, { borderColor }]}
             >
-              <Text style={[styles.modalCloseText, { color: goldInk }]}>✦  Done</Text>
+              <Text style={[styles.modalCloseText, { color: accentColor }]}>Done</Text>
             </TouchableOpacity>
           </Pressable>
         </Pressable>
@@ -246,41 +259,32 @@ export function ReadingPreferencesBar({
 const styles = StyleSheet.create({
   wrap: {
     paddingHorizontal: Spacing.md,
-    paddingTop: 9,
-    paddingBottom: 9,
-    gap: 7,
-    backgroundColor: 'rgba(252, 249, 240, 0.92)',
+    paddingTop: 8,
+    paddingBottom: 8,
+    gap: 6,
+    backgroundColor: 'rgba(252, 252, 250, 0.94)',
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(184, 134, 11, 0.32)',
+    borderBottomColor: 'rgba(36, 50, 61, 0.16)',
   },
   chipsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: 5,
-  },
-  spacer: {
-    flex: 1,
-    minWidth: 4,
+    gap: 6,
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: Radius.full,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  chipGlyph: {
-    fontSize: 9,
-    fontWeight: '700',
+    paddingHorizontal: 11,
+    paddingVertical: 5,
   },
   chipText: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.textSecondary,
-    fontWeight: '600',
-    fontFamily: SERIF_FONT,
+    fontWeight: '500',
   },
   controlsRow: {
     flexDirection: 'row',
@@ -309,7 +313,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: Colors.textPrimary,
-    fontFamily: SERIF_FONT,
   },
   gearBtn: {
     flexDirection: 'row',
@@ -317,16 +320,33 @@ const styles = StyleSheet.create({
     gap: 4,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: Radius.full,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
   gearLabel: {
-    fontSize: 10,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    fontWeight: '700',
-    fontFamily: SERIF_FONT,
-    fontStyle: 'italic',
+    fontSize: 11,
+    letterSpacing: 0.2,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  themeToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.full,
+    overflow: 'hidden',
+  },
+  themeOption: {
+    minWidth: 58,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  themeText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    fontWeight: '500',
   },
   modalBackdrop: {
     flex: 1,
@@ -338,9 +358,9 @@ const styles = StyleSheet.create({
   modalSheet: {
     width: '100%',
     maxWidth: 420,
-    backgroundColor: 'rgba(252, 249, 240, 0.97)',
+    backgroundColor: 'rgba(250, 251, 252, 0.98)',
     borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.55)',
+    borderColor: 'rgba(36, 50, 61, 0.16)',
     borderRadius: Radius.lg,
     padding: Spacing.md,
     gap: Spacing.md,
@@ -350,27 +370,17 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   modalKicker: {
-    fontSize: 9,
-    letterSpacing: 1.8,
+    fontSize: 10,
+    letterSpacing: 0.6,
     textTransform: 'uppercase',
-    fontWeight: '700',
-    fontFamily: SERIF_FONT,
-    fontStyle: 'italic',
-  },
-  modalTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  modalTitleGlyph: {
-    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.textSubtle,
   },
   modalTitle: {
     fontSize: 16,
     fontWeight: '700',
-    fontFamily: SERIF_FONT,
     color: Colors.textPrimary,
-    letterSpacing: 0.3,
+    letterSpacing: 0.1,
   },
   modalGrid: {
     flexDirection: 'row',
@@ -388,13 +398,12 @@ const styles = StyleSheet.create({
   },
   masterScaleCard: {
     minWidth: '100%',
-    backgroundColor: 'rgba(184, 134, 11, 0.06)',
+    backgroundColor: 'rgba(36, 50, 61, 0.05)',
   },
   languageScaleLabel: {
     fontSize: 10,
     fontWeight: '700',
     color: Colors.textSecondary,
-    fontFamily: SERIF_FONT,
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
@@ -423,7 +432,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: Colors.textSecondary,
     fontWeight: '600',
-    fontFamily: SERIF_FONT,
   },
   modalCloseBtn: {
     alignSelf: 'center',
@@ -435,7 +443,6 @@ const styles = StyleSheet.create({
   modalCloseText: {
     fontSize: 12,
     fontWeight: '700',
-    fontFamily: SERIF_FONT,
-    letterSpacing: 1,
+    letterSpacing: 0.1,
   },
 });

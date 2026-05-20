@@ -1,7 +1,6 @@
 import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useNavigation } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import WebView from 'react-native-webview';
 
@@ -40,7 +39,6 @@ true;
 
 export default function QaseedahViewerScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
   const { nightMode } = useQaseedahNightMode();
   const N = nightMode ? NIGHT_PALETTE : null;
   const params = useLocalSearchParams<ViewerParams>();
@@ -48,14 +46,6 @@ export default function QaseedahViewerScreen() {
   const rawUrl = normalizeParam(params.url).trim();
   const title = normalizeParam(params.title).trim() || 'Attachment';
   const safeUrl = /^https?:\/\//i.test(rawUrl) ? rawUrl : '';
-
-  React.useEffect(() => {
-    navigation.setOptions({ tabBarStyle: { display: 'none' } });
-
-    return () => {
-      navigation.setOptions({ tabBarStyle: undefined });
-    };
-  }, [navigation]);
 
   return (
     <View style={[styles.screen, N && { backgroundColor: N.bg }]}>

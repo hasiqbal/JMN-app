@@ -1,11 +1,9 @@
 import React from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 
 import { Colors, Spacing } from '@/constants/theme';
 import type { NightPaletteType } from './types';
-
-const SERIF_FONT = Platform.select({ ios: 'Georgia', android: 'serif', default: 'Georgia' });
 
 type Props = {
   chapter: string;
@@ -13,52 +11,63 @@ type Props = {
   chapterArabic?: string;
   entryTitle: string;
   lineCount: number;
+  contentType?: 'naat' | 'qaseedah';
   isOpen: boolean;
   onToggle: () => void;
   isPoem?: boolean;
   night: NightPaletteType | null;
 };
 
-export function ChapterIntro({ chapter, chapterUrdu, chapterArabic, entryTitle, lineCount, isOpen, onToggle, isPoem, night }: Props) {
-  const goldColor = night ? (night.gold ?? night.accent) : Colors.gold;
-  const goldInk = night ? (night.goldInk ?? night.accent) : Colors.goldInk;
-  const hairlineColor = night ? (night.goldHairline ?? night.border) : Colors.goldHairline;
+export function ChapterIntro({ chapter, chapterUrdu, chapterArabic, entryTitle, lineCount, contentType = 'qaseedah', isOpen, onToggle, isPoem, night }: Props) {
+  const isNaat = contentType === 'naat';
+  const accent = night
+    ? (isNaat ? 'rgba(130, 189, 237, 0.88)' : 'rgba(133, 204, 165, 0.88)')
+    : (isNaat ? 'rgba(33, 102, 153, 0.74)' : 'rgba(40, 122, 77, 0.72)');
+  const typeInk = night ? (isNaat ? '#cfe9ff' : '#d2f5de') : (isNaat ? '#1c5d8d' : '#1f6a43');
+  const subtleText = night ? night.textMuted : Colors.textSubtle;
   const unitLabel = isPoem ? (lineCount === 1 ? 'verse' : 'verses') : (lineCount === 1 ? 'line' : 'verses');
   const actionLabel = isPoem ? (isOpen ? 'Close poem' : 'Open poem') : (isOpen ? 'Close chapter' : 'Open chapter');
+  const normalizeLabel = (value: string) => value.trim().replace(/\s+/g, ' ').toLowerCase();
+  const showEntryTitleInMeta = normalizeLabel(chapter) !== normalizeLabel(entryTitle);
+  const metaLabel = showEntryTitleInMeta
+    ? `${entryTitle}  ·  ${lineCount} ${unitLabel}`
+    : `${lineCount} ${unitLabel}`;
   return (
     <TouchableOpacity
       style={[
         styles.wrap,
-        { borderBottomColor: hairlineColor },
         night && { backgroundColor: 'rgba(255, 253, 247, 0.02)' },
       ]}
       activeOpacity={0.85}
       onPress={onToggle}
     >
-      <View style={styles.ornament}>
-        <View style={[styles.ornamentLine, { backgroundColor: hairlineColor }]} />
-        <Text style={[styles.ornamentCluster, { color: goldColor }]}>﹏ ۞ ﹏</Text>
-        <View style={[styles.ornamentLine, { backgroundColor: hairlineColor }]} />
-      </View>
+      <View style={styles.rowMain}>
+        <View style={[styles.rowAccent, { backgroundColor: accent }]} />
 
-      <Text style={[styles.chapter, night && { color: night.text }]}>{chapter}</Text>
-      {isOpen ? (
-        <View style={[styles.chapterUnderline, { backgroundColor: hairlineColor }]} />
-      ) : null}
-      {chapterArabic ? (
-        <Text style={[styles.chapterArabic, night && { color: night.text }]}>{chapterArabic}</Text>
-      ) : null}
-      {chapterUrdu ? (
-        <Text style={[styles.chapterUrdu, night && { color: night.text }]}>{chapterUrdu}</Text>
-      ) : null}
-      <Text style={[styles.meta, { color: goldInk }]}>
-        {entryTitle}  ·  {lineCount} {unitLabel}
-      </Text>
+        <View style={styles.contentWrap}>
+          <View style={styles.metaRow}>
+            <Text style={[styles.metaType, { color: typeInk }]}>{isNaat ? 'NAAT' : 'QASEEDAH'}</Text>
+            <Text style={[styles.metaDot, { color: subtleText }]}>•</Text>
+            <Text style={[styles.metaCount, { color: subtleText }]}>{lineCount} {unitLabel}</Text>
+          </View>
 
-      <View style={styles.actionRow}>
-        <Text style={[styles.actionGlyph, { color: goldColor }]}>✦</Text>
-        <Text style={[styles.action, { color: goldInk }]}>{actionLabel}</Text>
-        <MaterialIcons name={isOpen ? 'expand-less' : 'expand-more'} size={14} color={goldInk} />
+          <View style={styles.titleRow}>
+            <Text style={[styles.chapter, night && { color: night.text }]}>{chapter}</Text>
+            <MaterialIcons name={isOpen ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} size={21} color={subtleText} />
+          </View>
+
+          {chapterArabic ? (
+            <Text style={[styles.chapterArabic, night && { color: night.text }]}>{chapterArabic}</Text>
+          ) : null}
+          {chapterUrdu ? (
+            <Text style={[styles.chapterUrdu, night && { color: night.text }]}>{chapterUrdu}</Text>
+          ) : null}
+
+          <Text style={[styles.meta, { color: subtleText }]}>{metaLabel}</Text>
+          <View style={styles.actionRow}>
+            <Text style={[styles.action, { color: accent }]}>{actionLabel}</Text>
+          </View>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -66,86 +75,85 @@ export function ChapterIntro({ chapter, chapterUrdu, chapterArabic, entryTitle, 
 
 const styles = StyleSheet.create({
   wrap: {
-    alignItems: 'center',
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.md,
-    gap: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  ornament: {
+  rowMain: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  rowAccent: {
+    width: 5,
+    borderRadius: 999,
+    minHeight: 58,
+    marginTop: 2,
+  },
+  contentWrap: {
+    flex: 1,
+    gap: 5,
+  },
+  metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 7,
+  },
+  metaType: {
+    fontSize: 10,
+    letterSpacing: 1.4,
+    fontWeight: '800',
+  },
+  metaDot: {
+    fontSize: 13,
+    lineHeight: 14,
+  },
+  metaCount: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 10,
-    marginBottom: 2,
-    width: '70%',
-  },
-  ornamentLine: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: Colors.goldHairline,
-  },
-  ornamentCluster: {
-    fontSize: 15,
-    color: Colors.gold,
-    letterSpacing: 3,
   },
   chapter: {
-    fontFamily: SERIF_FONT,
-    fontSize: 20,
+    flex: 1,
+    fontSize: 18,
     fontWeight: '700',
     color: Colors.textPrimary,
-    letterSpacing: 0.3,
-    textAlign: 'center',
-  },
-  chapterUnderline: {
-    height: StyleSheet.hairlineWidth,
-    width: 56,
-    backgroundColor: Colors.goldHairline,
-    marginTop: 2,
-    marginBottom: 4,
+    letterSpacing: 0.1,
+    textAlign: 'left',
   },
   chapterUrdu: {
     fontFamily: 'UrduNastaliq',
-    fontSize: 22,
+    fontSize: 20,
     color: Colors.textPrimary,
-    textAlign: 'center',
-    marginTop: 2,
+    textAlign: 'left',
+    marginTop: 1,
     writingDirection: 'rtl',
   },
   chapterArabic: {
     fontFamily: 'IndopakNastaleeq',
-    fontSize: 22,
+    fontSize: 21,
     color: Colors.textPrimary,
-    textAlign: 'center',
-    marginTop: 2,
+    textAlign: 'left',
+    marginTop: 1,
     writingDirection: 'rtl',
   },
   meta: {
-    fontFamily: SERIF_FONT,
-    fontSize: 10,
-    color: Colors.goldInk,
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
-    fontWeight: '700',
-    fontStyle: 'italic',
-    marginTop: 4,
+    fontSize: 11,
+    color: Colors.textSubtle,
+    letterSpacing: 0.15,
+    fontWeight: '500',
+    marginTop: 1,
   },
   actionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginTop: 6,
-  },
-  actionGlyph: {
-    fontSize: 11,
-    color: Colors.gold,
-    fontWeight: '700',
+    marginTop: 3,
   },
   action: {
-    fontFamily: SERIF_FONT,
     fontSize: 12,
     fontWeight: '700',
-    letterSpacing: 0.4,
-    fontStyle: 'italic',
+    letterSpacing: 0.1,
   },
 });

@@ -2,11 +2,10 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Tabs, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Platform, View, StyleSheet, Animated, AppState } from 'react-native';
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import Svg, { Circle, Path } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
-import { Colors } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useJmnLiveStatus } from '@/hooks/useJmnLiveStatus';
 import { playIqamah, playPrayerStartAdhaan, stopPrayerStartAdhaan } from '@/hooks/usePrayerAdhaanPlayer';
@@ -48,6 +47,7 @@ import {
 import { routeFromPushNotificationData } from '@/services/pushNotificationRouting';
 import { subscribePrayerNotificationRefresh } from '@/services/prayerNotificationRefreshBus';
 import { syncPushTokenWithBackend, YOUTUBE_LIVE_NOTIFY_KEY } from '@/services/pushRegistrationService';
+import { subscribeTabBarHidden } from '@/services/tabBarVisibility';
 import {
   deleteLegacyPrayerNotificationChannels,
   ensureAndroidAdhkarNotificationChannels,
@@ -148,12 +148,46 @@ const dotStyles = StyleSheet.create({
   },
 });
 
+const tabStyles = StyleSheet.create({
+  iconFrame: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconFrameActiveLight: {
+    backgroundColor: 'rgba(63, 174, 90, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(63, 174, 90, 0.35)',
+    shadowColor: '#1D7D43',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  iconFrameActiveDark: {
+    backgroundColor: 'rgba(140, 192, 255, 0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(140, 192, 255, 0.45)',
+    shadowColor: '#8CC0FF',
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 5,
+  },
+  liveIconWrap: {
+    position: 'relative',
+  },
+});
+
 export default function TabLayout() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { darkMode } = useAppTheme();
   const { showBanner } = useInAppBanner();
   const { isLive, transitionedToLive } = useJmnLiveStatus();
+  const [tabBarHidden, setTabBarHidden] = useState(false);
   const schedulingPrayerNotificationsRef = useRef(false);
   const schedulingAdhkarNotificationsRef = useRef(false);
   const prayerPermissionRequestedRef = useRef(false);
@@ -169,6 +203,11 @@ export default function TabLayout() {
       'warning',
     );
   }, [showBanner]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeTabBarHidden(setTabBarHidden);
+    return unsubscribe;
+  }, []);
 
   const openLiveStreamFromIntent = useCallback(() => {
     router.push({
@@ -820,22 +859,70 @@ export default function TabLayout() {
   }, [maybeNotifyLiveStart, transitionedToLive]);
 
   const tabBarStyle = {
+    display: (tabBarHidden ? 'none' : 'flex') as 'none' | 'flex',
     height: Platform.select({
-      ios: insets.bottom + 60,
-      android: insets.bottom + 60,
-      default: 70,
+      ios: insets.bottom + 64,
+      android: insets.bottom + 68,
+      default: 74,
     }),
-    paddingTop: 8,
+    paddingTop: 6,
     paddingBottom: Platform.select({
-      ios: insets.bottom + 8,
+      ios: insets.bottom > 0 ? insets.bottom + 2 : 10,
       android: insets.bottom + 8,
-      default: 8,
+      default: 10,
     }),
-    paddingHorizontal: 16,
-    backgroundColor: darkMode ? '#0A0F1E' : Colors.navBackground,
-    borderTopWidth: 1,
-    borderTopColor: darkMode ? '#1E2D47' : Colors.border,
+    paddingHorizontal: 12,
+    backgroundColor: darkMode ? 'rgba(14, 24, 40, 0.94)' : 'rgba(252, 255, 253, 0.94)',
+    borderTopWidth: 0,
+    borderWidth: 1,
+    borderRadius: 24,
+    position: 'absolute' as const,
+    left: 12,
+    right: 12,
+    bottom: Platform.select({
+      ios: insets.bottom > 0 ? 8 : 12,
+      android: 10,
+      default: 10,
+    }),
+    borderColor: darkMode ? 'rgba(126, 167, 211, 0.28)' : 'rgba(148, 177, 159, 0.5)',
+    shadowColor: '#000',
+    shadowOpacity: darkMode ? 0.34 : 0.14,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 9 },
+    elevation: 14,
   };
+
+  const getTabIconFrameStyle = (focused: boolean) => {
+    if (!focused) return tabStyles.iconFrame;
+    return [
+      tabStyles.iconFrame,
+      darkMode ? tabStyles.iconFrameActiveDark : tabStyles.iconFrameActiveLight,
+    ];
+  };
+
+  const renderTabIcon = (
+    iconName: React.ComponentProps<typeof MaterialIcons>['name'],
+    color: string,
+    size: number,
+    focused: boolean
+  ) => (
+    <View style={getTabIconFrameStyle(focused)}>
+      <MaterialIcons name={iconName} size={size} color={color} />
+    </View>
+  );
+
+  const renderTasbihIcon = (color: string, size: number, focused: boolean) => (
+    <View style={getTabIconFrameStyle(focused)}>
+      <TasbihIcon color={color} size={size} />
+    </View>
+  );
+
+  const renderLiveIcon = (color: string, size: number, focused: boolean) => (
+    <View style={[getTabIconFrameStyle(focused), tabStyles.liveIconWrap]}>
+      <MaterialIcons name="live-tv" size={size} color={color} />
+      {isLive ? <LiveDot /> : null}
+    </View>
+  );
 
   const hiddenRoutes = ['howto', 'events', 'youtube-live', 'qaseedah-naat', 'qaseedah-viewer', 'qaseedah-group', 'settings', 'push-notification', 'donation-confirmation'] as const;
 
@@ -843,14 +930,21 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        tabBarHideOnKeyboard: true,
         tabBarStyle,
-        tabBarActiveTintColor: darkMode ? '#69A8FF' : Colors.primary,
-        tabBarInactiveTintColor: darkMode ? '#415870' : Colors.textSubtle,
+        tabBarItemStyle: {
+          borderRadius: 16,
+          paddingVertical: 2,
+        },
+        tabBarActiveTintColor: darkMode ? '#B2D5FF' : '#176A39',
+        tabBarInactiveTintColor: darkMode ? '#7B93B0' : '#70847A',
         tabBarActiveBackgroundColor: 'transparent',
         tabBarInactiveBackgroundColor: 'transparent',
         tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
+          fontSize: 10.5,
+          fontWeight: '700',
+          letterSpacing: 0.2,
+          marginTop: 2,
         },
       }}
     >
@@ -858,16 +952,14 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color, size }) => <MaterialIcons name="home" size={size} color={color} />,
+          tabBarIcon: ({ color, size, focused }) => renderTabIcon('home', color, size, focused),
         }}
       />
       <Tabs.Screen
         name="prayer"
         options={{
           title: 'Prayer',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="access-time" size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size, focused }) => renderTabIcon('access-time', color, size, focused),
         }}
       />
       <Tabs.Screen
@@ -876,16 +968,14 @@ export default function TabLayout() {
           title: 'Wird',
           tabBarLabel: 'Wird',
           href: '/duas',
-          tabBarIcon: ({ color, size }) => <TasbihIcon color={color} size={size} />,
+          tabBarIcon: ({ color, size, focused }) => renderTasbihIcon(color, size, focused),
         }}
       />
       <Tabs.Screen
         name="quran"
         options={{
           title: 'Quran',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="auto-stories" size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size, focused }) => renderTabIcon('auto-stories', color, size, focused),
         }}
       />
       {hiddenRoutes.map((name) => (
@@ -895,12 +985,7 @@ export default function TabLayout() {
         name="stream"
         options={{
           title: 'Live',
-          tabBarIcon: ({ color, size }) => (
-            <View>
-              <MaterialIcons name="live-tv" size={size} color={color} />
-              {isLive ? <LiveDot /> : null}
-            </View>
-          ),
+          tabBarIcon: ({ color, size, focused }) => renderLiveIcon(color, size, focused),
         }}
       />
     </Tabs>

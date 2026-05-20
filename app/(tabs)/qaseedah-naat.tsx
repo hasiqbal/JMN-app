@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Colors, Radius, Spacing } from '@/constants/theme';
@@ -229,6 +228,14 @@ export default function QaseedahNaatScreen() {
     return Array.from(grouped.entries())
       .map(([key, sectionRows]) => {
         const lead = sectionRows[0];
+        const groupOrder = sectionRows.reduce((min, row) => {
+          const next = typeof row.group_order === 'number' ? row.group_order : 0;
+          return Math.min(min, next);
+        }, typeof lead.group_order === 'number' ? lead.group_order : 0);
+        const minEntryOrder = sectionRows.reduce((min, row) => {
+          const next = typeof row.display_order === 'number' ? row.display_order : 0;
+          return Math.min(min, next);
+        }, typeof lead.display_order === 'number' ? lead.display_order : 0);
         const description = (
           lead.group_description
           ?? sectionRows.find((row) => (row.group_description ?? '').trim())?.group_description
@@ -245,6 +252,8 @@ export default function QaseedahNaatScreen() {
           key,
           name: lead.group_name || 'General',
           type: lead.content_type,
+          groupOrder,
+          minEntryOrder,
           description,
           tafsir,
           rows: sectionRows,
@@ -253,6 +262,10 @@ export default function QaseedahNaatScreen() {
       .sort((a, b) => {
         const typeSort = (a.type ?? '').localeCompare(b.type ?? '');
         if (typeSort !== 0) return typeSort;
+        const groupOrderSort = a.groupOrder - b.groupOrder;
+        if (groupOrderSort !== 0) return groupOrderSort;
+        const entrySort = a.minEntryOrder - b.minEntryOrder;
+        if (entrySort !== 0) return entrySort;
         return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
       });
   }, [filteredRows]);
@@ -272,7 +285,7 @@ export default function QaseedahNaatScreen() {
           contentContainerStyle={[
             styles.content,
             { paddingBottom: 30 + Spacing.lg },
-            { paddingTop: Math.max(Spacing.md, insets.top + 8) },
+            { paddingTop: Math.max(Spacing.sm, insets.top + 4) },
           ]}
         >
         <View style={[styles.headerCard, styles.headerCardSpiritual, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}> 
@@ -290,22 +303,13 @@ export default function QaseedahNaatScreen() {
             )}
           </TouchableOpacity>
 
-          <Text style={[styles.heroEyebrow, { fontSize: sized(9) }, N && { color: N.goldInk }]}>Sacred Recitations</Text>
-
-          <View style={styles.titleRow}>
-            <Text style={[styles.heroTitleCentered, { fontSize: sized(22) }, N && { color: N.text }]}>Qaseedahs & Naats</Text>
+          <View style={styles.stripRow}>
+            <Text style={[styles.stripTitle, N && { color: N.text }]}>Qaseedahs & Naats</Text>
+            <View style={styles.nightToggleCompactWrap}>
+              <NightModeToggle nightMode={nightMode} onToggle={toggleManual} size="sm" />
+            </View>
           </View>
 
-          <Text style={[styles.heroVerse, { fontSize: sized(11), lineHeight: sized(16) }, N && { color: N.textMuted }]}>
-            “Recite with presence and reflection — in praise, remembrance, and longing.”
-          </Text>
-
-          {/* Mid divider */}
-          <View style={styles.dividerRow}>
-            <View style={[styles.dividerLine, N && { backgroundColor: N.goldHairline }]} />
-          </View>
-
-          {/* Single combined filter row with inline counts — quiet hairline + glyph active state */}
           <View style={styles.filterRowCentered}>
             {([
               { id: 'all' as const, label: 'All', count: rows.length, ink: null },
@@ -313,10 +317,9 @@ export default function QaseedahNaatScreen() {
               { id: 'naat' as const, label: 'Naat', count: naatCount, ink: Colors.naatInk, inkNight: NIGHT_PALETTE.naatInk },
             ]).map((filter) => {
               const active = filterMode === filter.id;
-              const inkColor = filter.ink
-                ? (N ? filter.inkNight : filter.ink)
-                : (N ? N.textSub : Colors.textSubtle);
-              const goldColor = N ? N.gold : Colors.gold;
+              const inkColor = active
+                ? (N ? N.text : Colors.textPrimary)
+                : (N ? N.textMuted : Colors.textSubtle);
               return (
                 <TouchableOpacity
                   key={filter.id}
@@ -324,31 +327,22 @@ export default function QaseedahNaatScreen() {
                   style={[
                     styles.filterPill,
                     active && styles.filterPillActive,
-                    N && { borderColor: active ? N.gold : N.goldHairline },
+                    N && { borderColor: active ? N.border : N.border },
                   ]}
                   activeOpacity={0.85}
                 >
-                  {active ? (
-                    <Text style={[styles.filterPillGlyph, { color: goldColor }]}>✦</Text>
-                  ) : null}
-                  <Text style={[styles.filterPillText, { color: inkColor }, active && styles.filterPillTextActive, active && N && { color: N.goldInk }]}>
+                  <Text style={[styles.filterPillText, { color: inkColor }, active && styles.filterPillTextActive]}>
                     {filter.label}
                   </Text>
-                  <Text style={[styles.filterPillCount, { color: goldColor }]}>
+                  <Text style={[styles.filterPillCount, { color: inkColor }]}>
                     {' · '}
                   </Text>
-                  <Text style={[styles.filterPillCount, { color: inkColor }, active && styles.filterPillTextActive, active && N && { color: N.goldInk }]}>
+                  <Text style={[styles.filterPillCount, { color: inkColor }, active && styles.filterPillTextActive]}>
                     {filter.count}
                   </Text>
                 </TouchableOpacity>
               );
             })}
-          </View>
-
-          <View style={styles.preferencesRow}>
-            <View style={styles.nightToggleCompactWrap}>
-              <NightModeToggle nightMode={nightMode} onToggle={toggleManual} size="sm" />
-            </View>
           </View>
         </View>
 
@@ -386,84 +380,91 @@ export default function QaseedahNaatScreen() {
             <Text style={[styles.messageText, N && { color: N.textMuted }]}>No entries found for this filter.</Text>
           </View>
         ) : (
-          groupedRows.map((section) => {
-            const isNaat = section.type === 'naat';
-            const railColor = N
-              ? (isNaat ? N.naatInk : N.qaseedahInk)
-              : (isNaat ? Colors.naatInk : Colors.qaseedahInk);
-            const goldColor = N ? N.gold : Colors.gold;
-            const goldInk = N ? N.goldInk : Colors.goldInk;
-            return (
-            <View
-              key={section.key}
-              style={[
-                styles.groupSection,
-                N && styles.groupSectionNight,
-              ]}
-            >
-              {/* Gold-and-type-tinted vertical accent (illuminated edge) */}
-              <LinearGradient
-                colors={[goldColor, railColor]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
-                style={styles.groupAccent}
-              />
+          <View
+            style={[
+              styles.groupListContainer,
+              N
+                ? { backgroundColor: 'rgba(13, 20, 30, 0.90)', borderColor: 'rgba(255,255,255,0.14)' }
+                : { backgroundColor: 'rgba(250, 251, 252, 0.98)', borderColor: 'rgba(36, 50, 61, 0.16)' },
+            ]}
+          >
+            {groupedRows.map((section, index) => {
+              const isNaat = section.type === 'naat';
+              const accentColor = N
+                ? (isNaat ? 'rgba(130, 189, 237, 0.70)' : 'rgba(133, 204, 165, 0.70)')
+                : (isNaat ? 'rgba(33, 102, 153, 0.55)' : 'rgba(40, 122, 77, 0.55)');
+              const typeInk = N
+                ? (isNaat ? '#cfe9ff' : '#d2f5de')
+                : (isNaat ? '#1c5d8d' : '#1f6a43');
+              const titleInk = N ? '#f4f7fb' : '#1f3042';
+              const metaInk = N ? '#b7c3d1' : '#5a6a77';
+              const dividerColor = N ? 'rgba(255,255,255,0.10)' : 'rgba(36, 50, 61, 0.14)';
+              const countLabel = `${section.rows.length} ${section.rows.length === 1 ? 'entry' : 'entries'}`;
 
-              <TouchableOpacity
-                style={styles.groupHeader}
-                activeOpacity={0.82}
-                onPress={() => {
-                  router.push({
-                    pathname: '/(tabs)/qaseedah-group',
-                    params: {
-                      group: section.name,
-                      type: section.type ?? 'qaseedah',
-                    },
-                  });
-                }}
-              >
-                <View style={[styles.groupGlyphCircle, N && { borderColor: N.goldHairline, backgroundColor: 'rgba(255,253,247,0.20)' }]}>
-                  <Text style={[styles.groupGlyph, { color: goldColor }]}>۞</Text>
-                </View>
+              return (
+                <View
+                  key={section.key}
+                  style={[
+                    styles.groupListRow,
+                    index < groupedRows.length - 1 && { borderBottomWidth: 1, borderBottomColor: dividerColor },
+                  ]}
+                >
+                  <TouchableOpacity
+                    style={styles.groupHeader}
+                    activeOpacity={0.82}
+                    onPress={() => {
+                      router.push({
+                        pathname: '/(tabs)/qaseedah-group',
+                        params: {
+                          group: section.name,
+                          type: section.type ?? 'qaseedah',
+                        },
+                      });
+                    }}
+                  >
+                    <View style={[styles.groupRowAccent, { backgroundColor: accentColor }]} />
 
-                <View style={styles.groupTitleWrap}>
-                  <View style={styles.groupTitleTopRow}>
-                    <Text style={[styles.groupKicker, { color: goldInk }]} numberOfLines={1}>
-                      {entryTypeLabel(section.type)}
-                    </Text>
-                    {section.description ? (
-                      <TouchableOpacity
-                        style={[
-                          styles.descriptionTabBtn,
-                          N && { borderColor: N.goldHairline, backgroundColor: 'rgba(230, 194, 112, 0.16)' },
-                        ]}
-                        activeOpacity={0.8}
-                        onPress={() => {
-                          setDetailsFor({
-                            name: section.name,
-                            description: section.description,
-                            tafsir: section.tafsir,
-                          });
-                        }}
-                      >
-                        <MaterialIcons name="menu-book" size={11} color={goldInk} />
-                        <Text style={[styles.descriptionTabText, { color: goldInk }]}>
-                          {section.tafsir ? 'Description & Notes' : 'Description'}
+                    <View style={styles.groupTitleWrap}>
+                      <View style={styles.groupMetaRow}>
+                        <Text style={[styles.groupMetaType, { color: typeInk }]} numberOfLines={1}>
+                          {entryTypeLabel(section.type)}
                         </Text>
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
-                  <Text style={[styles.groupTitle, { fontSize: sized(14) }, N && { color: N.text }]} numberOfLines={2}>
-                    {section.name}
-                  </Text>
+                        <Text style={[styles.groupMetaDot, { color: metaInk }]}>•</Text>
+                        <Text style={[styles.groupMetaCount, { color: metaInk }]} numberOfLines={1}>
+                          {countLabel}
+                        </Text>
+                      </View>
+
+                      <Text style={[styles.groupTitle, { fontSize: sized(16), color: titleInk }]} numberOfLines={2}>
+                        {section.name}
+                      </Text>
+                    </View>
+
+                    <MaterialIcons name="chevron-right" size={22} color={metaInk} />
+                  </TouchableOpacity>
+
+                  {section.description ? (
+                    <TouchableOpacity
+                      style={styles.groupInlineLink}
+                      activeOpacity={0.72}
+                      onPress={() => {
+                        setDetailsFor({
+                          name: section.name,
+                          description: section.description,
+                          tafsir: section.tafsir,
+                        });
+                      }}
+                    >
+                      <MaterialIcons name="menu-book" size={11} color={typeInk} />
+                      <Text style={[styles.groupInlineLinkText, { color: typeInk }]}>
+                        {section.tafsir ? 'Description & Notes' : 'Description'}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
-
-                <MaterialIcons name="chevron-right" size={18} color={N ? N.textMuted : Colors.textSubtle} />
-              </TouchableOpacity>
-
-            </View>
-            );
-          })
+              );
+            })}
+          </View>
         )}
         </ScrollView>
       </ImageBackground>
@@ -568,41 +569,54 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.md,
-    gap: Spacing.md,
+    gap: Spacing.sm,
   },
   headerCard: {
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: Radius.lg,
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 12,
-    gap: 8,
+    borderRadius: Radius.md,
+    paddingHorizontal: 10,
+    paddingTop: 7,
+    paddingBottom: 6,
+    gap: 4,
     position: 'relative',
   },
   headerCardSpiritual: {
-    backgroundColor: 'rgba(252, 249, 240, 0.96)',
-    borderColor: 'rgba(150, 108, 24, 0.42)',
+    backgroundColor: 'rgba(248, 247, 238, 0.97)',
+    borderColor: 'rgba(61, 120, 90, 0.33)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
     elevation: 3,
   },
   refreshBtnFloating: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    top: 5,
+    right: 5,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     borderWidth: 1,
     borderColor: Colors.goldHairline,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255, 253, 247, 0.95)',
     zIndex: 2,
+  },
+  stripRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingRight: 28,
+    gap: 8,
+  },
+  stripTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    letterSpacing: 0.2,
   },
   ornamentRow: {
     flexDirection: 'row',
@@ -626,7 +640,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     textTransform: 'uppercase',
-    letterSpacing: 2.4,
+    letterSpacing: 2,
     color: Colors.goldInk,
     textAlign: 'center',
   },
@@ -639,25 +653,25 @@ const styles = StyleSheet.create({
   },
   heroTitleCentered: {
     fontFamily: SERIF_FONT,
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '700',
     color: Colors.textPrimary,
-    letterSpacing: 0.4,
+    letterSpacing: 0.2,
     textAlign: 'center',
   },
   heroVerse: {
     fontFamily: SERIF_FONT,
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 10,
+    lineHeight: 14,
     fontStyle: 'italic',
     color: Colors.textPrimary,
     textAlign: 'center',
-    paddingHorizontal: 6,
+    paddingHorizontal: 4,
   },
   dividerRow: {
-    paddingHorizontal: 44,
-    marginTop: 4,
-    marginBottom: 4,
+    paddingHorizontal: 52,
+    marginTop: 2,
+    marginBottom: 2,
   },
   dividerLine: {
     height: 1,
@@ -667,53 +681,37 @@ const styles = StyleSheet.create({
   filterRowCentered: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    flexWrap: 'wrap',
-    gap: 6,
+    justifyContent: 'flex-start',
+    gap: 4,
   },
   filterPill: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.40)',
+    borderColor: 'rgba(17, 39, 60, 0.18)',
     borderRadius: 999,
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    backgroundColor: 'transparent',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
   },
   filterPillActive: {
-    borderColor: Colors.gold,
-    backgroundColor: 'rgba(255, 253, 247, 0.92)',
-  },
-  filterPillGlyph: {
-    fontSize: 8,
-    color: Colors.gold,
-    marginRight: 4,
-    letterSpacing: 0.5,
+    borderColor: 'rgba(17, 39, 60, 0.24)',
+    backgroundColor: 'rgba(244, 247, 250, 0.98)',
   },
   filterPillText: {
-    fontFamily: SERIF_FONT,
-    fontSize: 10,
+    fontSize: 8,
     fontWeight: '700',
-    letterSpacing: 0.4,
+    letterSpacing: 0.3,
   },
   filterPillTextActive: {
-    color: Colors.goldInk,
+    color: Colors.textPrimary,
   },
   filterPillCount: {
-    fontFamily: SERIF_FONT,
-    fontSize: 10,
+    fontSize: 8,
     fontWeight: '700',
   },
-  preferencesRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 6,
-    marginTop: 4,
-  },
   nightToggleCompactWrap: {
-    marginRight: 2,
+    marginRight: 1,
   },
   countChip: {
     paddingHorizontal: 8,
@@ -774,9 +772,9 @@ const styles = StyleSheet.create({
   },
   skeletonCard: {
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: 'rgba(68, 121, 91, 0.22)',
     borderRadius: Radius.lg,
-    backgroundColor: Colors.surface,
+    backgroundColor: 'rgba(249, 250, 252, 0.97)',
     padding: Spacing.md,
     opacity: 0.65,
     gap: 10,
@@ -805,100 +803,74 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.textSubtle,
   },
-  groupSection: {
-    position: 'relative',
+  groupListContainer: {
     borderWidth: 1,
-    borderColor: 'rgba(146, 102, 24, 0.50)',
-    borderRadius: Radius.md,
-    backgroundColor: 'rgba(252, 249, 240, 0.94)',
+    borderColor: 'rgba(36, 50, 61, 0.16)',
+    borderRadius: Radius.lg,
     overflow: 'hidden',
-    paddingLeft: 12,
-    paddingRight: 10,
-    paddingVertical: 7,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.10,
-    shadowRadius: 10,
-    elevation: 2,
   },
-  groupSectionNight: {
-    backgroundColor: 'rgba(8, 13, 22, 0.46)',
-    borderColor: 'rgba(170, 140, 82, 0.40)',
-  },
-  groupAccent: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    width: 2,
+  groupListRow: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   groupHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingHorizontal: 3,
-    paddingVertical: 1,
+    paddingHorizontal: 2,
+    paddingVertical: 3,
   },
-  groupGlyphCircle: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.55)',
-    backgroundColor: 'rgba(255, 253, 247, 0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  groupGlyph: {
-    fontSize: 10,
-    color: Colors.gold,
-    lineHeight: 11,
+  groupRowAccent: {
+    width: 3,
+    height: '74%',
+    borderRadius: Radius.full,
   },
   groupTitleWrap: {
     flex: 1,
-    gap: 1,
+    gap: 4,
     minWidth: 0,
   },
-  groupTitleTopRow: {
+  groupMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 6,
+    gap: 5,
   },
-  groupKicker: {
-    fontFamily: SERIF_FONT,
+  groupMetaType: {
     fontSize: 8,
-    fontWeight: '700',
-    fontStyle: 'italic',
+    fontWeight: '800',
     textTransform: 'uppercase',
-    letterSpacing: 1.3,
-    color: Colors.goldInk,
-    flexShrink: 1,
+    letterSpacing: 0.9,
+    color: Colors.textSubtle,
   },
-  descriptionTabBtn: {
+  groupMetaDot: {
+    fontSize: 10,
+    lineHeight: 10,
+  },
+  groupMetaCount: {
+    fontSize: 9,
+    color: Colors.textSubtle,
+    fontWeight: '500',
+    letterSpacing: 0.2,
+  },
+  groupInlineLink: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    borderWidth: 1,
-    borderColor: Colors.goldHairline,
-    borderRadius: Radius.full,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    backgroundColor: 'rgba(184, 134, 11, 0.08)',
+    alignSelf: 'flex-start',
+    marginTop: 3,
+    marginLeft: 15,
   },
-  descriptionTabText: {
-    fontFamily: SERIF_FONT,
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 0.2,
+  groupInlineLinkText: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.1,
   },
   groupTitle: {
-    fontFamily: SERIF_FONT,
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     color: Colors.textPrimary,
-    letterSpacing: 0.1,
-    lineHeight: 18,
+    letterSpacing: 0,
+    lineHeight: 20,
     flexShrink: 1,
   },
   groupDescriptionWrap: {

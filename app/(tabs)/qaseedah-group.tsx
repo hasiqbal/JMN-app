@@ -14,7 +14,6 @@ import {
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { Colors, Radius, Spacing } from '@/constants/theme';
@@ -36,10 +35,8 @@ import {
   AdhkarRow,
   fetchQaseedahNaatEntries,
   fetchQaseedahNaatEntriesForGroup,
-  translateTextToArabic,
-  translateTextToEnglish,
-  translateTextToUrdu,
 } from '@/services/contentService';
+import { setTabBarHidden } from '@/services/tabBarVisibility';
 
 type GroupChapterItem = {
   id: string;
@@ -108,22 +105,6 @@ type ReaderEntryTarget = {
   entrySubtitle?: string;
 };
 
-function transliterateArabicToLatin(text: string): string {
-  const map: Record<string, string> = {
-    ا: 'a', أ: 'a', إ: 'i', آ: 'aa', ب: 'b', ت: 't', ث: 'th', ج: 'j', ح: 'h', خ: 'kh',
-    د: 'd', ذ: 'dh', ر: 'r', ز: 'z', س: 's', ش: 'sh', ص: 's', ض: 'd', ط: 't', ظ: 'z',
-    ع: 'a', غ: 'gh', ف: 'f', ق: 'q', ك: 'k', ل: 'l', م: 'm', ن: 'n', ه: 'h', و: 'w',
-    ي: 'y', ى: 'a', ة: 'h', ء: '\'', ئ: 'y', ؤ: 'w', ' ': ' ', '\n': '\n',
-  };
-
-  return text
-    .split('')
-    .map((ch) => map[ch] ?? '')
-    .join('')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
-}
-
 function normalizeInlineSpacing(value: string): string {
   return value
     .replace(/\s+/g, ' ')
@@ -133,16 +114,6 @@ function normalizeInlineSpacing(value: string): string {
 
 function hasLatinScript(value: string): boolean {
   return /[A-Za-z]/.test(value);
-}
-
-function hasLikelyUrduScript(value: string): boolean {
-  // Prefer Urdu fallback only when Urdu-specific letters are present.
-  // This avoids pulling Arabic-only lines into the Urdu layer.
-  return /[ٹڈڑںےھہچژگپکڑ]/.test(value);
-}
-
-function hasQuranicDiacritics(value: string): boolean {
-  return /[\u064B-\u065F\u0670\u06D6-\u06ED]/.test(value);
 }
 
 function parseScale(value: unknown): number | undefined {
@@ -156,72 +127,6 @@ function parseScale(value: unknown): number | undefined {
     }
   }
   return undefined;
-}
-
-function normalizeLineFields(line: GroupChapterItem['lines'][number]): {
-  arabic: string;
-  transliteration: string;
-  english: string;
-  urdu: string;
-} {
-  const rawArabic = line.arabic?.trim() || '';
-  const rawTranslit = line.transliteration?.trim() || '';
-  const rawEnglish = line.translation?.trim() || '';
-  const rawUrdu = line.urdu_translation?.trim() || '';
-
-  const arabicLooksUrdu = hasLikelyUrduScript(rawArabic) && !hasQuranicDiacritics(rawArabic);
-  const normalizedArabic = (!rawUrdu && arabicLooksUrdu) ? '' : rawArabic;
-
-  const english = hasLatinScript(rawEnglish)
-    ? rawEnglish
-    : (!hasLatinScript(rawEnglish) && hasLatinScript(rawUrdu) ? rawUrdu : '');
-
-  const urdu = rawUrdu
-    ? rawUrdu
-    : (arabicLooksUrdu
-      ? rawArabic
-      : (hasLikelyUrduScript(rawEnglish) ? rawEnglish : ''));
-
-  return {
-    arabic: normalizedArabic,
-    transliteration: rawTranslit,
-    english,
-    urdu,
-  };
-}
-
-function formatTransliterationText(value: string): string {
-  return value
-    .replace(/\r\n?/g, '\n')
-    .split('\n')
-    .flatMap((line) => line.split(/\s+-\s+/))
-    .map((line) => normalizeInlineSpacing(line))
-    .filter(Boolean)
-    .join('\n');
-}
-
-function formatEnglishTranslationText(value: string): string {
-  let next = value.replace(/\r\n?/g, '\n').trim();
-  if (!next) return '';
-
-  // Some auto translations return transliteration first, then numbered meaning.
-  const firstMeaningIndex = next.search(/\b1\.\s+/);
-  if (firstMeaningIndex > 0) {
-    const leadIn = next.slice(0, firstMeaningIndex).trim();
-    if (leadIn.length >= 12) {
-      next = next.slice(firstMeaningIndex);
-    }
-  }
-
-  next = next.replace(/^\d+\.\s*/, '');
-  next = next.replace(/\s+(?=\d+\.\s)/g, '\n');
-  next = next.replace(/\s+-\s+/g, '\n');
-
-  return next
-    .split('\n')
-    .map((line) => normalizeInlineSpacing(line))
-    .filter(Boolean)
-    .join('\n');
 }
 
 function isDefaultChapterLabel(value: string): boolean {
@@ -570,7 +475,6 @@ function extractReaderGroupOptions(rows: AdhkarRow[]): ReaderGroupOption[] {
 
 export default function QaseedahGroupScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const params = useLocalSearchParams<{ group?: string; type?: string }>();
@@ -589,10 +493,6 @@ export default function QaseedahGroupScreen() {
   const [layers, setLayers] = React.useState<LayerVisibility>({ arabic: true, transliteration: true, english: true, urdu: true });
   const [textScale, setTextScale] = React.useState(1);
   const [languageScales, setLanguageScales] = React.useState<LanguageFontScales>(DEFAULT_LANGUAGE_SCALES);
-  const [autoTranslatedByLine, setAutoTranslatedByLine] = React.useState<Record<string, { arabic?: string; transliteration?: string; english?: string; urdu?: string }>>({});
-  const [chapterTitleEnglish, setChapterTitleEnglish] = React.useState<Record<string, string>>({});
-  const [chapterTitleUrdu, setChapterTitleUrdu] = React.useState<Record<string, string>>({});
-  const [chapterTitleArabic, setChapterTitleArabic] = React.useState<Record<string, string>>({});
   const [activeGroupName, setActiveGroupName] = React.useState(initialGroupName);
   const [activeType, setActiveType] = React.useState<'qaseedah' | 'naat'>(initialType);
   const [stagedGroupName, setStagedGroupName] = React.useState(initialGroupName);
@@ -712,17 +612,16 @@ export default function QaseedahGroupScreen() {
   }, [focusMenuOpen, activeGroupName, activeType]);
 
   React.useEffect(() => {
-    if (focusMode) {
-      navigation.setOptions({ tabBarStyle: { display: 'none' } });
-    } else {
-      navigation.setOptions({ tabBarStyle: undefined });
+    setTabBarHidden(focusMode);
+
+    if (!focusMode) {
       setGroupPickerQuery('');
     }
 
     return () => {
-      navigation.setOptions({ tabBarStyle: undefined });
+      setTabBarHidden(false);
     };
-  }, [focusMode, navigation]);
+  }, [focusMode]);
 
   const loadGroupOptions = React.useCallback(async () => {
     try {
@@ -878,93 +777,6 @@ export default function QaseedahGroupScreen() {
     AsyncStorage.setItem(langStorageKey, JSON.stringify(next)).catch(() => {});
   }, [langStorageKey]);
 
-  React.useEffect(() => {
-    let cancelled = false;
-
-    const run = async () => {
-      const nextMap: Record<string, { arabic?: string; transliteration?: string; english?: string; urdu?: string }> = {};
-
-      for (const chapter of chapters) {
-        for (let idx = 0; idx < chapter.lines.length; idx += 1) {
-          const line = chapter.lines[idx];
-          const key = `${chapter.id}-${idx}`;
-
-          const normalized = normalizeLineFields(line);
-
-          const hasArabic = normalized.arabic.length > 0;
-          const hasEnglish = normalized.english.length > 0;
-          const hasUrdu = normalized.urdu.length > 0;
-          const hasTranslit = normalized.transliteration.length > 0;
-          const arabicDisabled = !!chapter.disableAutoArabic;
-          const translitDisabled = !!chapter.disableAutoTransliteration;
-          const englishDisabled = !!chapter.disableAutoEnglish;
-          const urduDisabled = !!chapter.disableAutoUrdu;
-
-          let arabic = '';
-          let transliteration = '';
-          let english = '';
-          let urdu = '';
-
-          if (!arabicDisabled && !hasArabic) {
-            const sourceForArabic = normalized.transliteration || normalized.english || normalized.urdu || '';
-            if (sourceForArabic) {
-              arabic = await translateTextToArabic(sourceForArabic);
-            }
-          }
-
-          const effectiveArabic = normalized.arabic || arabic;
-
-          if (!translitDisabled && !hasTranslit) {
-            const sourceArabic = effectiveArabic;
-            if (sourceArabic) {
-              transliteration = transliterateArabicToLatin(sourceArabic);
-            }
-          }
-
-          transliteration = formatTransliterationText(transliteration);
-
-          if (!englishDisabled && !hasEnglish) {
-            const source = effectiveArabic || normalized.transliteration || transliteration || normalized.urdu || '';
-            if (source) {
-              english = await translateTextToEnglish(source);
-            }
-          }
-
-          english = formatEnglishTranslationText(english);
-
-          if (!urduDisabled && !hasUrdu) {
-            const sourceForUrdu = normalized.english || english || effectiveArabic;
-            if (sourceForUrdu) {
-              urdu = await translateTextToUrdu(sourceForUrdu);
-            }
-          }
-
-          if (arabic || transliteration || english || urdu) {
-            nextMap[key] = {
-              arabic: arabic || undefined,
-              transliteration: transliteration || undefined,
-              english: english || undefined,
-              urdu: urdu || undefined,
-            };
-          }
-        }
-      }
-
-      if (!cancelled) {
-        setAutoTranslatedByLine(nextMap);
-      }
-    };
-
-    if (chapters.length > 0) {
-      void run();
-    } else {
-      setAutoTranslatedByLine({});
-    }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [chapters]);
 
   const groupsInStagedType = React.useMemo(
     () => groupOptions.filter((item) => item.type === stagedType),
@@ -1173,118 +985,6 @@ export default function QaseedahGroupScreen() {
     setPendingEntrySelection(null);
   }, [activeGroupName, activeType, chapters, pendingEntrySelection]);
 
-  React.useEffect(() => {
-    let cancelled = false;
-
-    const run = async () => {
-      const overrideTitles = new Set(
-        chapters.filter((c) => c.isPoem || c.disableAutoTitleEnglish).map((c) => c.chapter)
-      );
-      const unique = Array.from(new Set(chapters.map((c) => c.chapter).filter(Boolean)))
-        .filter((t) => !overrideTitles.has(t));
-      const next: Record<string, string> = {};
-
-      for (const title of unique) {
-        next[title] = normalizeInlineSpacing(title);
-      }
-
-      if (!cancelled) {
-        setChapterTitleEnglish(next);
-      }
-    };
-
-    if (chapters.length > 0) {
-      void run();
-    } else {
-      setChapterTitleEnglish({});
-    }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [chapters]);
-
-  React.useEffect(() => {
-    let cancelled = false;
-
-    const run = async () => {
-      const overrideTitles = new Set(
-        chapters.filter((c) => c.isPoem || c.chapterUrdu?.trim() || c.disableAutoTitleUrdu).map((c) => c.chapter)
-      );
-      const unique = Array.from(new Set(chapters.map((c) => c.chapter).filter(Boolean)))
-        .filter((t) => !overrideTitles.has(t));
-      const next: Record<string, string> = {};
-
-      for (const title of unique) {
-        // Skip titles that are already in Urdu/Arabic script.
-        if (/[\u0600-\u06FF]/.test(title)) {
-          next[title] = title;
-          continue;
-        }
-        try {
-          const translated = await translateTextToUrdu(title);
-          if (translated) next[title] = translated;
-        } catch {
-          // ignore failures; fall back to no Urdu title
-        }
-      }
-
-      if (!cancelled) {
-        setChapterTitleUrdu(next);
-      }
-    };
-
-    if (chapters.length > 0) {
-      void run();
-    } else {
-      setChapterTitleUrdu({});
-    }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [chapters]);
-
-  React.useEffect(() => {
-    let cancelled = false;
-
-    const run = async () => {
-      const overrideTitles = new Set(
-        chapters.filter((c) => c.isPoem || c.chapterArabic?.trim() || c.disableAutoTitleArabic).map((c) => c.chapter)
-      );
-      const unique = Array.from(new Set(chapters.map((c) => c.chapter).filter(Boolean)))
-        .filter((t) => !overrideTitles.has(t));
-      const next: Record<string, string> = {};
-
-      for (const title of unique) {
-        // Skip titles already in Arabic/Urdu script.
-        if (/[\u0600-\u06FF]/.test(title)) {
-          next[title] = title;
-          continue;
-        }
-        try {
-          const translated = await translateTextToArabic(title);
-          if (translated) next[title] = translated;
-        } catch {
-          // ignore
-        }
-      }
-
-      if (!cancelled) {
-        setChapterTitleArabic(next);
-      }
-    };
-
-    if (chapters.length > 0) {
-      void run();
-    } else {
-      setChapterTitleArabic({});
-    }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [chapters]);
 
   return (
     <View style={[styles.screen, N && { backgroundColor: N.bg }]}>
@@ -1301,7 +1001,6 @@ export default function QaseedahGroupScreen() {
         <>
           <QaseedahHeader
             title={activeGroupName}
-            subtitle={`${activeType === 'naat' ? 'Naat' : 'Qaseedah'} · ${chapters.length} ${chapters.every((chapter) => chapter.isPoem) ? (chapters.length === 1 ? 'poem' : 'poems') : (chapters.length === 1 ? 'chapter' : 'chapters')}`}
             onBack={() => router.replace('/(tabs)/qaseedah-naat')}
             onRefresh={() => { void load(true); }}
             refreshing={refreshing}
@@ -1351,9 +1050,9 @@ export default function QaseedahGroupScreen() {
               >
                 {!focusMode ? (
                   <ChapterIntro
-                    chapter={chapterTitleEnglish[chapter.chapter] || chapter.chapter}
-                    chapterUrdu={chapter.isPoem ? undefined : (layers.urdu ? (chapter.chapterUrdu || chapterTitleUrdu[chapter.chapter]) : undefined)}
-                    chapterArabic={chapter.isPoem ? undefined : (layers.arabic ? (chapter.chapterArabic || chapterTitleArabic[chapter.chapter]) : undefined)}
+                    chapter={chapter.chapter}
+                    chapterUrdu={chapter.isPoem ? undefined : (layers.urdu ? chapter.chapterUrdu : undefined)}
+                    chapterArabic={chapter.isPoem ? undefined : (layers.arabic ? chapter.chapterArabic : undefined)}
                     entryTitle={chapter.entryTitle}
                     lineCount={chapter.lines.length}
                     isOpen={isOpen}
@@ -1369,16 +1068,10 @@ export default function QaseedahGroupScreen() {
                       let verseCounter = 0;
                       return chapter.lines.map((line, idx) => {
                         const lineKey = `${chapter.id}-${idx}`;
-                        const auto = autoTranslatedByLine[lineKey];
-                        const normalized = normalizeLineFields(line);
-                        const effectiveArabic = normalized.arabic || auto?.arabic || '';
-                        const effectiveTranslit = formatTransliterationText(normalized.transliteration || auto?.transliteration || '');
-                        const effectiveEnglish = formatEnglishTranslationText(normalized.english || auto?.english || '');
-                        const effectiveUrdu = normalized.urdu || auto?.urdu || '';
-                        const renderedArabic = chapter.disableAutoArabic ? '' : effectiveArabic;
-                        const renderedTranslit = chapter.disableAutoTransliteration ? '' : effectiveTranslit;
-                        const renderedEnglish = chapter.disableAutoEnglish ? '' : effectiveEnglish;
-                        const renderedUrdu = chapter.disableAutoUrdu ? '' : effectiveUrdu;
+                        const renderedArabic = (line.arabic || '').trim();
+                        const renderedTranslit = (line.transliteration || '').trim();
+                        const renderedEnglish = (line.translation || '').trim();
+                        const renderedUrdu = (line.urdu_translation || '').trim();
 
                         const headingLower = (line.heading || '').toLowerCase();
                         let role: VerseRole = 'verse';
@@ -1390,10 +1083,6 @@ export default function QaseedahGroupScreen() {
                           verseCounter += 1;
                           verseNumber = verseCounter;
                         }
-
-                        const isAuto =
-                          (!normalized.transliteration || !normalized.english || !normalized.urdu) &&
-                          Boolean(auto?.transliteration || auto?.english || auto?.urdu);
 
                         return (
                           <React.Fragment key={lineKey}>
@@ -1407,7 +1096,7 @@ export default function QaseedahGroupScreen() {
                               transliteration={renderedTranslit || undefined}
                               translation={renderedEnglish || undefined}
                               urdu={renderedUrdu || undefined}
-                              isAutoTranslated={isAuto}
+                              isAutoTranslated={false}
                               layers={layers}
                               scale={textScale}
                               languageScales={languageScales}
