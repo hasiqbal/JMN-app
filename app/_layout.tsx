@@ -8,6 +8,7 @@ import { AlertProvider, InAppBannerProvider } from '@/template';
 import { runInitialTranslationWarmup } from '@/services/translationWarmupService';
 import { prewarmQaseedahAndHowToCaches } from '@/services/contentService';
 import { runInitialHadrWarmup } from '@/services/hadrWarmupService';
+import { runInitialHijriCalendarWarmup } from '@/services/hijriCalendarWarmupService';
 import { runInitialQuranPageWarmup } from '@/services/quranPageCacheService';
 import { NightModeProvider } from '@/contexts/NightModeContext';
 import { AppThemeProvider } from '@/contexts/AppThemeContext';
@@ -54,6 +55,7 @@ export default function RootLayout() {
     void runInitialTranslationWarmup();
     void prewarmQaseedahAndHowToCaches();
     void runInitialHadrWarmup();
+    void runInitialHijriCalendarWarmup();
     void runInitialQuranPageWarmup('auto');
   }, []);
 

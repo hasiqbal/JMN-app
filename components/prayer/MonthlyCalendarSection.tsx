@@ -15,12 +15,16 @@ import { Colors, Radius } from '@/constants/theme';
 import { isBST } from '@/services/prayerService';
 import { lookupTimetable, type DayTimetable } from '@/services/timetableData';
 import {
-  fetchHijriCalendarForMonth,
   fetchIslamicCalendarEventsForMonth,
   fetchPrayerTimesForMonth,
   type IslamicCalendarEventRow,
   type PrayerTimeRow,
 } from '@/services/contentService';
+import {
+  forceRefreshHijriCalendarYearCache,
+  getHijriCalendarForMonthCached,
+  getHijriCalendarForYearCached,
+} from '@/services/hijriCalendarWarmupService';
 
 interface MonthDay {
   date: Date;
@@ -988,6 +992,7 @@ export default function MonthlyCalendarSection({
     return Math.floor(usable / 3);
   }, [screenWidth]);
   const [dbLoading, setDbLoading] = useState(false);
+  const [manualRefreshing, setManualRefreshing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const [pickerStep, setPickerStep] = useState<'month' | 'day'>('month');
@@ -1182,11 +1187,16 @@ export default function MonthlyCalendarSection({
 
     let cancelled = false;
 
-    Promise.all(
-      Array.from({ length: 12 }, (_, idx) => fetchHijriCalendarForMonth(year, idx + 1))
-    )
-      .then((allMonths) => {
+    getHijriCalendarForYearCached(year)
+      .then((yearRows) => {
         if (cancelled) return;
+
+        const allMonths = Array.from({ length: 12 }, (_, idx) => {
+          const monthNumber = idx + 1;
+          return yearRows
+            .filter((row) => row.gregorian_month === monthNumber)
+            .sort((a, b) => a.gregorian_day - b.gregorian_day);
+        });
 
         const nextMonthHints = new Map(portalMonthHints);
         let firstSeen: ParsedHijriLabel | null = null;
@@ -1337,7 +1347,7 @@ export default function MonthlyCalendarSection({
     setSyncError(null);
     Promise.all([
       fetchPrayerTimesForMonth(viewMonth + 1),
-      fetchHijriCalendarForMonth(viewYear, viewMonth + 1),
+      getHijriCalendarForMonthCached(viewYear, viewMonth + 1),
       fetchIslamicCalendarEventsForMonth(viewYear, viewMonth + 1),
     ])
       .then(([rows, hijri, monthEvents]) => {
@@ -1481,6 +1491,22 @@ export default function MonthlyCalendarSection({
     resetCalendarDataAndReload();
   };
 
+  const handleManualRefresh = React.useCallback(() => {
+    if (manualRefreshing) return;
+
+    setManualRefreshing(true);
+    setSyncError(null);
+
+    void forceRefreshHijriCalendarYearCache(viewYear)
+      .catch(() => {
+        setSyncError('Refresh failed. Please try again.');
+      })
+      .finally(() => {
+        resetCalendarDataAndReload();
+        setManualRefreshing(false);
+      });
+  }, [manualRefreshing, resetCalendarDataAndReload, viewYear]);
+
   const firstWithHijri = currentGrid.find((c) => c.isCurrentMonth && c.day?.hijri);
   const viewHijriMonth = firstWithHijri?.day ? getHijriMonthName(firstWithHijri.day.hijri) : '';
   const viewHijriYear = firstWithHijri?.day
@@ -1547,6 +1573,19 @@ export default function MonthlyCalendarSection({
 
               <TouchableOpacity onPress={goForward} style={[calStyles.navArrow, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]} activeOpacity={0.7}>
                 <MaterialIcons name="chevron-right" size={20} color={N ? '#69A8FF' : Colors.primary} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleManualRefresh}
+                style={[calStyles.navArrow, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}
+                activeOpacity={0.7}
+                disabled={manualRefreshing}
+              >
+                <MaterialIcons
+                  name={manualRefreshing ? 'hourglass-empty' : 'refresh'}
+                  size={16}
+                  color={N ? '#69A8FF' : Colors.primary}
+                />
               </TouchableOpacity>
             </View>
 

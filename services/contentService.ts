@@ -294,6 +294,7 @@ export interface HijriCalendarRow {
   gregorian_year: number;
   gregorian_month: number;
   gregorian_day: number;
+  updated_at?: string | null;
 }
 
 function toIsoLocalDate(d: Date): string {
@@ -338,6 +339,40 @@ export async function fetchHijriCalendarForMonth(
     return data as HijriCalendarRow[];
   } catch {
     return [];
+  }
+}
+
+export async function fetchHijriCalendarForYear(year: number): Promise<HijriCalendarRow[]> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('hijri_calendar')
+      .select('gregorian_date,hijri_date,gregorian_year,gregorian_month,gregorian_day')
+      .eq('gregorian_year', year)
+      .order('gregorian_month', { ascending: true })
+      .order('gregorian_day', { ascending: true });
+
+    if (error || !data) return [];
+    return data as HijriCalendarRow[];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchHijriCalendarLatestUpdatedAt(): Promise<string | null> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('hijri_calendar')
+      .select('updated_at')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data) return null;
+    return typeof data.updated_at === 'string' ? data.updated_at : null;
+  } catch {
+    return null;
   }
 }
 
