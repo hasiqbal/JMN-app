@@ -858,38 +858,38 @@ export default function TabLayout() {
     void maybeNotifyLiveStart();
   }, [maybeNotifyLiveStart, transitionedToLive]);
 
+  const tabBarSafeBottom = Platform.OS === 'ios'
+    ? Math.max(insets.bottom, 8)
+    : (
+      Platform.OS === 'android'
+        // Some Android devices/runtimes can report 0 even with gesture/nav bars visible.
+        ? (insets.bottom > 0 ? insets.bottom + 2 : 16)
+        : Math.max(insets.bottom, 8)
+    );
+
+  const tabBarBaseHeight = Platform.OS === 'ios' ? 56 : (Platform.OS === 'android' ? 54 : 70);
+
   const tabBarStyle = {
     display: (tabBarHidden ? 'none' : 'flex') as 'none' | 'flex',
-    height: Platform.select({
-      ios: insets.bottom + 64,
-      android: insets.bottom + 68,
-      default: 74,
-    }),
-    paddingTop: 6,
-    paddingBottom: Platform.select({
-      ios: insets.bottom > 0 ? insets.bottom + 2 : 10,
-      android: insets.bottom + 8,
-      default: 10,
-    }),
-    paddingHorizontal: 12,
+    height: tabBarBaseHeight + tabBarSafeBottom,
+    paddingTop: Platform.OS === 'android' ? 2 : 3,
+    paddingBottom: tabBarSafeBottom,
+    paddingHorizontal: Platform.OS === 'android' ? 6 : 10,
     backgroundColor: darkMode ? 'rgba(14, 24, 40, 0.94)' : 'rgba(252, 255, 253, 0.94)',
-    borderTopWidth: 0,
-    borderWidth: 1,
-    borderRadius: 24,
-    position: 'absolute' as const,
-    left: 12,
-    right: 12,
-    bottom: Platform.select({
-      ios: insets.bottom > 0 ? 8 : 12,
-      android: 10,
-      default: 10,
-    }),
+    borderTopWidth: 1,
+    borderWidth: 0,
+    borderRadius: 0,
+    overflow: 'visible' as const,
+    position: 'relative' as const,
+    left: 0,
+    right: 0,
+    bottom: 0,
     borderColor: darkMode ? 'rgba(126, 167, 211, 0.28)' : 'rgba(148, 177, 159, 0.5)',
     shadowColor: '#000',
-    shadowOpacity: darkMode ? 0.34 : 0.14,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 9 },
-    elevation: 14,
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 0,
   };
 
   const getTabIconFrameStyle = (focused: boolean) => {
@@ -934,7 +934,11 @@ export default function TabLayout() {
         tabBarStyle,
         tabBarItemStyle: {
           borderRadius: 16,
-          paddingVertical: 2,
+          paddingVertical: Platform.OS === 'android' ? 1 : 1,
+          paddingBottom: Platform.OS === 'android' ? 1 : undefined,
+        },
+        tabBarIconStyle: {
+          marginBottom: 0,
         },
         tabBarActiveTintColor: darkMode ? '#B2D5FF' : '#176A39',
         tabBarInactiveTintColor: darkMode ? '#7B93B0' : '#70847A',
@@ -944,7 +948,8 @@ export default function TabLayout() {
           fontSize: 10.5,
           fontWeight: '700',
           letterSpacing: 0.2,
-          marginTop: 2,
+          marginTop: Platform.OS === 'android' ? 1 : 2,
+          marginBottom: 0,
         },
       }}
     >

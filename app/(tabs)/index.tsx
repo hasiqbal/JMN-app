@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'expo-router';
 import {
   AppState,
@@ -15,7 +15,6 @@ import {
   Animated,
   Dimensions,
   Linking,
-  Easing,
 } from 'react-native';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -1655,7 +1654,6 @@ function HeroPrayerStatus({
   showJamaatAnchor: boolean;
 }) {
   const jamaatPillFlashAnim = useRef(new Animated.Value(1)).current;
-  const countdownOrbitAnim = useRef(new Animated.Value(0)).current;
   const isJamaatNow = stateLabel === 'JAMAAT NOW';
   const isJamaatStartingNow = stateLabel === 'JAMAAT STARTING NOW';
   const isJamaatInProgress = stateLabel === 'JAMAAT NOW';
@@ -1697,34 +1695,6 @@ function HeroPrayerStatus({
     };
   }, [isJamaatInProgress, showContextPill, jamaatPillFlashAnim]);
 
-  useEffect(() => {
-    let loop: Animated.CompositeAnimation | null = null;
-
-    if (!isJamaatInProgress) {
-      loop = Animated.loop(
-        Animated.timing(countdownOrbitAnim, {
-          toValue: 1,
-          duration: 6200,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        })
-      );
-      loop.start();
-    } else {
-      countdownOrbitAnim.stopAnimation();
-      countdownOrbitAnim.setValue(0);
-    }
-
-    return () => {
-      loop?.stop();
-    };
-  }, [countdownOrbitAnim, isJamaatInProgress]);
-
-  const orbitRotate = countdownOrbitAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
-  });
-
   const jamaatPillScale = jamaatPillFlashAnim.interpolate({
     inputRange: [0.52, 1],
     outputRange: [0.985, 1],
@@ -1763,12 +1733,47 @@ function HeroPrayerStatus({
       : 'schedule'
     : 'schedule';
 
-  const countdownPartsRaw = countdownText.split(':').map((seg) => seg.trim()).filter(Boolean);
-  const countdownParts = countdownPartsRaw.length === 3
-    ? countdownPartsRaw
-    : countdownPartsRaw.length === 2
-      ? ['00', countdownPartsRaw[0], countdownPartsRaw[1]]
-      : [countdownText, '', ''];
+  const countdownParts = useMemo(() => {
+    const countdownPartsRaw = countdownText.split(':').map((seg) => seg.trim()).filter(Boolean);
+    return countdownPartsRaw.length === 3
+      ? countdownPartsRaw
+      : countdownPartsRaw.length === 2
+        ? ['00', countdownPartsRaw[0], countdownPartsRaw[1]]
+        : [countdownText, '', ''];
+  }, [countdownText]);
+
+  const countdownOutlineMax = 84;
+  const outlineProgressAnims = useRef([
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0),
+  ]).current;
+  const outlineReadyRef = useRef(false);
+
+  useEffect(() => {
+    const targets = [0, 1, 2].map((index) => getCountdownSegmentProgress(countdownParts, index));
+
+    if (!outlineReadyRef.current) {
+      targets.forEach((target, index) => {
+        outlineProgressAnims[index].setValue(target);
+      });
+      outlineReadyRef.current = true;
+      return;
+    }
+
+    const animation = Animated.parallel(
+      targets.map((target, index) =>
+        Animated.timing(outlineProgressAnims[index], {
+          toValue: target,
+          duration: 920,
+          useNativeDriver: false,
+        })
+      )
+    );
+
+    animation.start();
+    return () => animation.stop();
+  }, [countdownParts, countdownText, outlineProgressAnims]);
 
   const segmentLabels = ['HRS', 'MIN', 'SEC'];
   const countdownPalette = getHeroCountdownPalette(prayerName, isForbidden);
@@ -1813,7 +1818,34 @@ function HeroPrayerStatus({
             !showContextPill && heroTimelineStyles.countdownCockpitNoPill,
           ]}
         >
-          {countdownParts.map((seg, i) => (
+          {countdownParts.map((seg, i) => {
+            const phase = outlineProgressAnims[i].interpolate({
+              inputRange: [0, 1],
+              outputRange: [0, 4],
+            });
+
+            const topLen = phase.interpolate({
+              inputRange: [0, 1, 4],
+              outputRange: [0, countdownOutlineMax, countdownOutlineMax],
+              extrapolate: 'clamp',
+            });
+            const rightLen = phase.interpolate({
+              inputRange: [0, 1, 2, 4],
+              outputRange: [0, 0, countdownOutlineMax, countdownOutlineMax],
+              extrapolate: 'clamp',
+            });
+            const bottomLen = phase.interpolate({
+              inputRange: [0, 2, 3, 4],
+              outputRange: [0, 0, countdownOutlineMax, countdownOutlineMax],
+              extrapolate: 'clamp',
+            });
+            const leftLen = phase.interpolate({
+              inputRange: [0, 3, 4],
+              outputRange: [0, 0, countdownOutlineMax],
+              extrapolate: 'clamp',
+            });
+
+            return (
             <React.Fragment key={i}>
               <View
                 style={[
@@ -1821,40 +1853,54 @@ function HeroPrayerStatus({
                   {
                     backgroundColor: countdownPalette.tileBg,
                     borderWidth: 1,
-                    borderColor: i === 2 ? countdownPalette.tileBorderStrong : countdownPalette.tileBorder,
+                    borderColor: countdownPalette.tileBorder,
                   },
                 ]}
               >
                 <View pointerEvents="none" style={heroTimelineStyles.countdownTileHighlight} />
                 <View pointerEvents="none" style={heroTimelineStyles.countdownTileShade} />
-                <Animated.View
-                  pointerEvents="none"
-                  style={[
-                    heroTimelineStyles.countdownOrbitTrack,
-                    { transform: [{ rotate: orbitRotate }, { rotate: `${i * 120}deg` }] },
-                  ]}
-                >
-                  <View
+                <View pointerEvents="none" style={heroTimelineStyles.countdownOutlineTrack}>
+                  <Animated.View
                     style={[
-                      heroTimelineStyles.countdownOrbitArcGlow,
+                      heroTimelineStyles.countdownOutlineTop,
                       {
-                        borderTopColor: countdownPalette.orbGlow,
-                        borderRightColor: countdownPalette.orbGlow,
+                        width: topLen,
+                        backgroundColor: countdownPalette.orb,
                         shadowColor: countdownPalette.orbGlow,
                       },
                     ]}
                   />
-                  <View
+                  <Animated.View
                     style={[
-                      heroTimelineStyles.countdownOrbitArc,
+                      heroTimelineStyles.countdownOutlineRight,
                       {
-                        borderTopColor: countdownPalette.orb,
-                        borderRightColor: countdownPalette.orb,
+                        height: rightLen,
+                        backgroundColor: countdownPalette.orb,
                         shadowColor: countdownPalette.orb,
                       },
                     ]}
                   />
-                </Animated.View>
+                  <Animated.View
+                    style={[
+                      heroTimelineStyles.countdownOutlineBottom,
+                      {
+                        width: bottomLen,
+                        backgroundColor: countdownPalette.orb,
+                        shadowColor: countdownPalette.orb,
+                      },
+                    ]}
+                  />
+                  <Animated.View
+                    style={[
+                      heroTimelineStyles.countdownOutlineLeft,
+                      {
+                        height: leftLen,
+                        backgroundColor: countdownPalette.orb,
+                        shadowColor: countdownPalette.orb,
+                      },
+                    ]}
+                  />
+                </View>
                 <Text style={[heroTimelineStyles.countdownDigit, { color: countdownPalette.digit }] }>
                   {seg}
                 </Text>
@@ -1864,7 +1910,7 @@ function HeroPrayerStatus({
                 <Text style={[heroTimelineStyles.countdownSeparator, { color: countdownPalette.separator }]}>:</Text>
               ) : null}
             </React.Fragment>
-          ))}
+          )})}
         </Animated.View>
       ) : null}
 
@@ -1890,6 +1936,35 @@ function HeroPrayerStatus({
   );
 }
 
+function getCountdownSegmentProgress(parts: string[], index: number): number {
+  const parsePart = (value?: string) => {
+    const parsed = Number.parseInt(value ?? '0', 10);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  };
+
+  const hours = Math.max(0, Math.min(23, parsePart(parts[0])));
+  const minutes = Math.max(0, Math.min(59, parsePart(parts[1])));
+  const seconds = Math.max(0, Math.min(59, parsePart(parts[2])));
+
+  if (index === 0) {
+    // If the displayed unit is zero, keep the outline fully complete.
+    if (hours === 0) return 1;
+    const remaining = hours + minutes / 60 + seconds / 3600;
+    return 1 - Math.max(0, Math.min(1, remaining / 23));
+  }
+
+  if (index === 1) {
+    // If the displayed unit is zero, keep the outline fully complete.
+    if (minutes === 0) return 1;
+    const remaining = minutes + seconds / 60;
+    return 1 - Math.max(0, Math.min(1, remaining / 59));
+  }
+
+  // If the displayed unit is zero, keep the outline fully complete.
+  if (seconds === 0) return 1;
+  return 1 - Math.max(0, Math.min(1, seconds / 59));
+}
+
 function getHeroCountdownPalette(prayerName: string, isForbidden: boolean): {
   tileBg: string;
   tileBorder: string;
@@ -1902,14 +1977,14 @@ function getHeroCountdownPalette(prayerName: string, isForbidden: boolean): {
 } {
   if (isForbidden) {
     return {
-      tileBg: 'rgba(37,26,18,0.54)',
-      tileBorder: 'rgba(224,186,126,0.26)',
-      tileBorderStrong: 'rgba(238,201,143,0.42)',
-      digit: '#F9F0E2',
-      unit: 'rgba(232,201,154,0.86)',
-      separator: 'rgba(226,192,140,0.42)',
-      orb: 'rgba(255,223,166,0.74)',
-      orbGlow: 'rgba(255,210,140,0.24)',
+      tileBg: 'rgba(14,46,30,0.70)',
+      tileBorder: 'rgba(154,229,180,0.46)',
+      tileBorderStrong: 'rgba(190,246,210,0.72)',
+      digit: '#F6FFFB',
+      unit: 'rgba(198,242,214,0.94)',
+      separator: 'rgba(176,233,198,0.66)',
+      orb: 'rgba(171,241,193,0.78)',
+      orbGlow: 'rgba(98,206,142,0.27)',
     };
   }
 
@@ -1917,39 +1992,39 @@ function getHeroCountdownPalette(prayerName: string, isForbidden: boolean): {
 
   if (key === 'fajr' || key === 'isha') {
     return {
-      tileBg: 'rgba(18,24,35,0.54)',
-      tileBorder: 'rgba(162,186,214,0.24)',
-      tileBorderStrong: 'rgba(177,202,227,0.4)',
-      digit: '#EEF4FA',
-      unit: 'rgba(184,204,224,0.84)',
-      separator: 'rgba(176,198,220,0.4)',
-      orb: 'rgba(210,228,247,0.72)',
-      orbGlow: 'rgba(170,205,238,0.22)',
+      tileBg: 'rgba(10,39,30,0.74)',
+      tileBorder: 'rgba(133,218,178,0.38)',
+      tileBorderStrong: 'rgba(179,243,201,0.66)',
+      digit: '#F2FFF7',
+      unit: 'rgba(186,236,207,0.92)',
+      separator: 'rgba(161,226,191,0.60)',
+      orb: 'rgba(149,234,188,0.79)',
+      orbGlow: 'rgba(83,198,136,0.27)',
     };
   }
 
   if (key === 'maghrib' || key === 'sunrise') {
     return {
-      tileBg: 'rgba(40,28,19,0.52)',
-      tileBorder: 'rgba(217,180,124,0.24)',
-      tileBorderStrong: 'rgba(230,193,139,0.4)',
-      digit: '#F8F1E5',
-      unit: 'rgba(225,195,149,0.84)',
-      separator: 'rgba(219,188,139,0.4)',
-      orb: 'rgba(255,224,170,0.74)',
-      orbGlow: 'rgba(245,194,120,0.24)',
+      tileBg: 'rgba(16,47,32,0.72)',
+      tileBorder: 'rgba(131,214,171,0.40)',
+      tileBorderStrong: 'rgba(173,238,195,0.68)',
+      digit: '#F4FFF8',
+      unit: 'rgba(184,234,203,0.92)',
+      separator: 'rgba(160,223,187,0.62)',
+      orb: 'rgba(145,229,181,0.79)',
+      orbGlow: 'rgba(81,195,129,0.29)',
     };
   }
 
   return {
-    tileBg: 'rgba(17,27,24,0.52)',
-    tileBorder: 'rgba(169,204,188,0.22)',
-    tileBorderStrong: 'rgba(183,218,202,0.38)',
-    digit: HERO_DESIGN_TOKENS.textPrimary,
-    unit: 'rgba(187,210,199,0.82)',
-    separator: 'rgba(180,205,194,0.38)',
-    orb: 'rgba(209,238,223,0.72)',
-    orbGlow: 'rgba(155,214,186,0.22)',
+    tileBg: 'rgba(12,43,30,0.70)',
+    tileBorder: 'rgba(139,221,182,0.38)',
+    tileBorderStrong: 'rgba(183,242,205,0.64)',
+    digit: '#F3FFF8',
+    unit: 'rgba(181,236,204,0.92)',
+    separator: 'rgba(159,224,188,0.60)',
+    orb: 'rgba(146,231,184,0.79)',
+    orbGlow: 'rgba(84,198,133,0.27)',
   };
 }
 
@@ -2148,7 +2223,7 @@ function HeroDonationCard({ onPress }: { nightMode: boolean; onPress: () => void
             <View style={heroSupportStyles.donateInfoOrb} />
             <View style={heroSupportStyles.donateInfoOrbSecondary} />
             <LinearGradient
-              colors={['rgba(8,23,17,0.44)', 'rgba(8,23,17,0.14)', 'rgba(8,23,17,0.22)']}
+              colors={['rgba(8,23,17,0.28)', 'rgba(8,23,17,0.07)', 'rgba(8,23,17,0.12)']}
               start={{ x: 0, y: 0.5 }}
               end={{ x: 1, y: 0.5 }}
               style={heroSupportStyles.donateInfoVignette}
@@ -2161,7 +2236,7 @@ function HeroDonationCard({ onPress }: { nightMode: boolean; onPress: () => void
                   <Text style={heroSupportStyles.donateKicker}>Community Appeal</Text>
                 </View>
                 <Text style={heroSupportStyles.donateEyebrow}>Project Rebuild</Text>
-                <Text style={heroSupportStyles.donateName}>
+                <Text style={heroSupportStyles.donateName} numberOfLines={1}>
                   Jami{'\u2019'} Masjid Noorani
                 </Text>
               </View>
@@ -2195,7 +2270,7 @@ function HeroDonationCard({ onPress }: { nightMode: boolean; onPress: () => void
                   <View style={heroSupportStyles.donateKickerDot} />
                   <Text style={heroSupportStyles.donatePhotoEyebrow}>Community Appeal</Text>
                 </View>
-                <Text style={heroSupportStyles.donatePhotoLabel}>Jami{'\u2019'} Masjid Noorani</Text>
+                <Text style={heroSupportStyles.donatePhotoLabel} numberOfLines={1}>Jami{'\u2019'} Masjid Noorani</Text>
               </View>
               <View style={heroSupportStyles.donateActionCol}>
                 <View style={heroSupportStyles.donateBtn}>
@@ -4155,10 +4230,11 @@ const heroTimelineStyles = StyleSheet.create({
     marginTop: 16,
   },
   countdownTile: {
-    minWidth: 76,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    width: 86,
+    height: 86,
+    borderRadius: 14,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
     backgroundColor: 'rgba(7,12,13,0.52)',
     borderWidth: 0,
     borderColor: 'transparent',
@@ -4166,74 +4242,97 @@ const heroTimelineStyles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
     position: 'relative',
-    shadowColor: '#000000',
-    shadowOpacity: 0.22,
-    shadowRadius: 7,
-    shadowOffset: { width: 0, height: 3 },
+    shadowColor: '#00131B',
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
   countdownTileHighlight: {
     position: 'absolute',
-    top: 1,
-    left: 7,
-    right: 7,
-    height: '40%',
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    top: 4,
+    left: 5,
+    right: 5,
+    height: '36%',
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.08)',
   },
   countdownTileShade: {
     position: 'absolute',
-    bottom: 1,
-    left: 10,
-    right: 10,
-    height: '34%',
-    borderRadius: 999,
-    backgroundColor: 'rgba(0,0,0,0.16)',
+    bottom: 4,
+    left: 6,
+    right: 6,
+    height: '30%',
+    borderRadius: 10,
+    backgroundColor: 'rgba(2,10,14,0.2)',
   },
-  countdownOrbitTrack: {
+  countdownOutlineTrack: {
     ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
+    margin: 1,
+    borderRadius: 12,
   },
-  countdownOrbitArc: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 999,
-    borderWidth: 1.45,
-    borderColor: 'transparent',
-    shadowOpacity: 0.22,
+  countdownOutlineTop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    height: 2,
+    borderRadius: 2,
+    shadowOpacity: 0.47,
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 0 },
-    elevation: 1,
   },
-  countdownOrbitArcGlow: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 999,
-    borderWidth: 2.4,
-    borderColor: 'transparent',
-    opacity: 0.3,
+  countdownOutlineRight: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 2,
+    borderRadius: 2,
+    shadowOpacity: 0.47,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  countdownOutlineBottom: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    height: 2,
+    borderRadius: 2,
+    shadowOpacity: 0.47,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  countdownOutlineLeft: {
+    position: 'absolute',
+    left: 0,
+    bottom: 0,
+    width: 2,
+    borderRadius: 2,
+    shadowOpacity: 0.47,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 0 },
   },
   countdownDigit: {
-    fontSize: 37,
-    lineHeight: 40,
-    fontWeight: '600',
+    fontSize: 34,
+    lineHeight: 37,
+    fontWeight: '700',
     color: HERO_DESIGN_TOKENS.textPrimary,
     fontVariant: ['tabular-nums'] as any,
     letterSpacing: 0.45,
     textAlign: 'center',
   },
   countdownUnit: {
-    marginTop: 4,
+    marginTop: 3,
     fontSize: 9,
     lineHeight: 12,
-    fontWeight: '500',
-    letterSpacing: 0.85,
+    fontWeight: '600',
+    letterSpacing: 0.95,
     color: 'rgba(207,214,210,0.8)',
   },
   countdownSeparator: {
-    marginHorizontal: 7,
-    fontSize: 20,
-    lineHeight: 34,
-    fontWeight: '500',
+    marginHorizontal: 8,
+    fontSize: 22,
+    lineHeight: 33,
+    fontWeight: '600',
     color: 'rgba(210,221,214,0.34)',
   },
   countdownText: {
@@ -4446,7 +4545,7 @@ const heroSupportStyles = StyleSheet.create({
   },
   donateInfoPattern: {
     ...StyleSheet.absoluteFillObject,
-    opacity: 0.32,
+    opacity: 0.5,
     transform: [{ scale: 1.08 }],
   },
   donateInfoSheen: {
@@ -4454,7 +4553,7 @@ const heroSupportStyles = StyleSheet.create({
   },
   donateInfoTint: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(6,20,15,0.18)',
+    backgroundColor: 'rgba(6,20,15,0.08)',
   },
   donateInfoOrb: {
     position: 'absolute',
@@ -4463,7 +4562,7 @@ const heroSupportStyles = StyleSheet.create({
     borderRadius: 84,
     top: -82,
     right: -34,
-    backgroundColor: 'rgba(232,212,139,0.16)',
+    backgroundColor: 'rgba(232,212,139,0.10)',
   },
   donateInfoOrbSecondary: {
     position: 'absolute',
@@ -4472,7 +4571,7 @@ const heroSupportStyles = StyleSheet.create({
     borderRadius: 63,
     bottom: -72,
     left: -26,
-    backgroundColor: 'rgba(118, 197, 148, 0.13)',
+    backgroundColor: 'rgba(118, 197, 148, 0.09)',
   },
   donateInfoVignette: {
     ...StyleSheet.absoluteFillObject,
@@ -4517,6 +4616,7 @@ const heroSupportStyles = StyleSheet.create({
   },
   donatePhotoTextBlock: {
     flex: 1,
+    minWidth: 0,
     justifyContent: 'flex-end',
     gap: 4,
   },
@@ -4528,11 +4628,11 @@ const heroSupportStyles = StyleSheet.create({
     color: HERO_DESIGN_TOKENS.goldSoft,
   },
   donatePhotoLabel: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '800',
     color: HERO_DESIGN_TOKENS.textPrimary,
-    lineHeight: 19,
-    maxWidth: 162,
+    lineHeight: 17,
+    maxWidth: 188,
   },
   donateLeft: {
     flexDirection: 'column',
@@ -4540,6 +4640,7 @@ const heroSupportStyles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: 5,
     flex: 1,
+    minWidth: 0,
     zIndex: 2,
   },
   donateKickerRow: {
@@ -4581,11 +4682,15 @@ const heroSupportStyles = StyleSheet.create({
     opacity: 0.12,
   },
   donateEyebrow: {
-    fontSize: 25,
-    fontWeight: '900',
-    letterSpacing: 0.1,
+    fontFamily: Platform.select({ ios: 'Georgia', android: 'serif', web: 'Georgia' }),
+    fontSize: 24,
+    fontWeight: Platform.OS === 'android' ? '800' : '700',
+    letterSpacing: 0.3,
     color: HERO_DESIGN_TOKENS.goldSoft,
-    lineHeight: 28,
+    lineHeight: 27,
+    textShadowColor: 'rgba(5,17,12,0.34)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
     maxWidth: 170,
   },
   donateName: {
@@ -4593,10 +4698,11 @@ const heroSupportStyles = StyleSheet.create({
     fontWeight: '700',
     color: 'rgba(237,231,222,0.86)',
     lineHeight: 15,
-    maxWidth: 170,
+    maxWidth: 188,
   },
   donateActionCol: {
-    alignItems: 'flex-end',
+    width: 114,
+    alignItems: 'center',
     justifyContent: 'flex-end',
     gap: 5,
     marginBottom: 1,
@@ -4609,7 +4715,7 @@ const heroSupportStyles = StyleSheet.create({
     backgroundColor: '#D6C17D',
     borderRadius: 999,
     minHeight: 30,
-    minWidth: 104,
+    width: '100%',
     paddingHorizontal: 12,
     paddingVertical: 7,
     ...(Platform.OS === 'web'
@@ -4633,6 +4739,7 @@ const heroSupportStyles = StyleSheet.create({
     fontWeight: '700',
     color: 'rgba(237,231,222,0.70)',
     letterSpacing: 0.15,
+    textAlign: 'center',
   },
   dynamicInner: {
     flex: 1,
