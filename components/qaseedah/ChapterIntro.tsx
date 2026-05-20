@@ -26,12 +26,9 @@ export function ChapterIntro({ chapter, chapterUrdu, chapterArabic, entryTitle, 
   const typeInk = night ? (isNaat ? '#cfe9ff' : '#d2f5de') : (isNaat ? '#1c5d8d' : '#1f6a43');
   const subtleText = night ? night.textMuted : Colors.textSubtle;
   const unitLabel = isPoem ? (lineCount === 1 ? 'verse' : 'verses') : (lineCount === 1 ? 'line' : 'verses');
-  const actionLabel = isPoem ? (isOpen ? 'Close poem' : 'Open poem') : (isOpen ? 'Close chapter' : 'Open chapter');
   const normalizeLabel = (value: string) => value.trim().replace(/\s+/g, ' ').toLowerCase();
   const showEntryTitleInMeta = normalizeLabel(chapter) !== normalizeLabel(entryTitle);
-  const metaLabel = showEntryTitleInMeta
-    ? `${entryTitle}  ·  ${lineCount} ${unitLabel}`
-    : `${lineCount} ${unitLabel}`;
+  const metaLabel = showEntryTitleInMeta ? entryTitle : '';
   return (
     <TouchableOpacity
       style={[
@@ -53,7 +50,7 @@ export function ChapterIntro({ chapter, chapterUrdu, chapterArabic, entryTitle, 
 
           <View style={styles.titleRow}>
             <Text style={[styles.chapter, night && { color: night.text }]}>{chapter}</Text>
-            <MaterialIcons name={isOpen ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} size={21} color={subtleText} />
+            <MaterialIcons name={isOpen ? 'expand-less' : 'chevron-right'} size={22} color={subtleText} />
           </View>
 
           {chapterArabic ? (
@@ -63,10 +60,7 @@ export function ChapterIntro({ chapter, chapterUrdu, chapterArabic, entryTitle, 
             <Text style={[styles.chapterUrdu, night && { color: night.text }]}>{chapterUrdu}</Text>
           ) : null}
 
-          <Text style={[styles.meta, { color: subtleText }]}>{metaLabel}</Text>
-          <View style={styles.actionRow}>
-            <Text style={[styles.action, { color: accent }]}>{actionLabel}</Text>
-          </View>
+          {metaLabel ? <Text style={[styles.meta, { color: subtleText }]}>{metaLabel}</Text> : null}
         </View>
       </View>
     </TouchableOpacity>
@@ -146,14 +140,6 @@ const styles = StyleSheet.create({
     color: Colors.textSubtle,
     letterSpacing: 0.15,
     fontWeight: '500',
-    marginTop: 1,
-  },
-  actionRow: {
-    marginTop: 3,
-  },
-  action: {
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.1,
+    marginTop: 2,
   },
 });

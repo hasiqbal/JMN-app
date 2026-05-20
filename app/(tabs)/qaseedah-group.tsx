@@ -1038,80 +1038,91 @@ export default function QaseedahGroupScreen() {
             <Text style={[styles.messageText, N && { color: N.textMuted }]}>No chapters found for this group.</Text>
           </View>
         ) : (
-          chapters.map((chapter) => {
-            const isOpen = focusMode ? true : !!expanded[chapter.id];
-            return (
-              <View
-                key={chapter.id}
-                style={[
-                  styles.chapterSurface,
-                  N && { backgroundColor: 'rgba(12, 20, 34, 0.92)', borderColor: 'rgba(230, 194, 112, 0.34)' },
-                ]}
-              >
-                {!focusMode ? (
-                  <ChapterIntro
-                    chapter={chapter.chapter}
-                    chapterUrdu={chapter.isPoem ? undefined : (layers.urdu ? chapter.chapterUrdu : undefined)}
-                    chapterArabic={chapter.isPoem ? undefined : (layers.arabic ? chapter.chapterArabic : undefined)}
-                    entryTitle={chapter.entryTitle}
-                    lineCount={chapter.lines.length}
-                    isOpen={isOpen}
-                    onToggle={() => handleToggleChapter(chapter.id)}
-                    isPoem={!!chapter.isPoem}
-                    night={N}
-                  />
-                ) : null}
+          <View
+            style={[
+              styles.chapterListContainer,
+              N
+                ? { backgroundColor: 'rgba(13, 20, 30, 0.90)', borderColor: 'rgba(255,255,255,0.14)' }
+                : { backgroundColor: 'rgba(250, 251, 252, 0.98)', borderColor: 'rgba(36, 50, 61, 0.16)' },
+            ]}
+          >
+            {chapters.map((chapter, index) => {
+              const isOpen = focusMode ? true : !!expanded[chapter.id];
+              const dividerColor = N ? 'rgba(255,255,255,0.10)' : 'rgba(36, 50, 61, 0.14)';
+              return (
+                <View
+                  key={chapter.id}
+                  style={[
+                    styles.chapterListRow,
+                    index < chapters.length - 1 && { borderBottomWidth: 1, borderBottomColor: dividerColor },
+                  ]}
+                >
+                  {!focusMode ? (
+                    <ChapterIntro
+                      chapter={chapter.chapter}
+                      chapterUrdu={chapter.isPoem ? undefined : (layers.urdu ? chapter.chapterUrdu : undefined)}
+                      chapterArabic={chapter.isPoem ? undefined : (layers.arabic ? chapter.chapterArabic : undefined)}
+                      entryTitle={chapter.entryTitle}
+                      lineCount={chapter.lines.length}
+                      contentType={activeType}
+                      isOpen={isOpen}
+                      onToggle={() => handleToggleChapter(chapter.id)}
+                      isPoem={!!chapter.isPoem}
+                      night={N}
+                    />
+                  ) : null}
 
-                {isOpen ? (
-                  <View style={styles.chapterBody}>
-                    {(() => {
-                      let verseCounter = 0;
-                      return chapter.lines.map((line, idx) => {
-                        const lineKey = `${chapter.id}-${idx}`;
-                        const renderedArabic = (line.arabic || '').trim();
-                        const renderedTranslit = (line.transliteration || '').trim();
-                        const renderedEnglish = (line.translation || '').trim();
-                        const renderedUrdu = (line.urdu_translation || '').trim();
+                  {isOpen ? (
+                    <View style={styles.chapterBody}>
+                      {(() => {
+                        let verseCounter = 0;
+                        return chapter.lines.map((line, idx) => {
+                          const lineKey = `${chapter.id}-${idx}`;
+                          const renderedArabic = (line.arabic || '').trim();
+                          const renderedTranslit = (line.transliteration || '').trim();
+                          const renderedEnglish = (line.translation || '').trim();
+                          const renderedUrdu = (line.urdu_translation || '').trim();
 
-                        const headingLower = (line.heading || '').toLowerCase();
-                        let role: VerseRole = 'verse';
-                        if (headingLower.includes('chorus (opening)')) role = 'opening-chorus';
-                        else if (headingLower.includes('chorus (closing)')) role = 'closing-chorus';
+                          const headingLower = (line.heading || '').toLowerCase();
+                          let role: VerseRole = 'verse';
+                          if (headingLower.includes('chorus (opening)')) role = 'opening-chorus';
+                          else if (headingLower.includes('chorus (closing)')) role = 'closing-chorus';
 
-                        let verseNumber: number | undefined;
-                        if (role === 'verse') {
-                          verseCounter += 1;
-                          verseNumber = verseCounter;
-                        }
+                          let verseNumber: number | undefined;
+                          if (role === 'verse') {
+                            verseCounter += 1;
+                            verseNumber = verseCounter;
+                          }
 
-                        return (
-                          <React.Fragment key={lineKey}>
-                            {idx > 0 ? <VerseDivider night={N} variant="dot" /> : null}
-                            <VerseBlock
-                              role={role}
-                              verseNumber={verseNumber}
-                              chapterLabel={chapter.isPoem ? undefined : chapter.chapter}
-                              primaryLanguage={chapter.primaryLanguage}
-                              arabic={renderedArabic}
-                              transliteration={renderedTranslit || undefined}
-                              translation={renderedEnglish || undefined}
-                              urdu={renderedUrdu || undefined}
-                              isAutoTranslated={false}
-                              layers={layers}
-                              scale={textScale}
-                              languageScales={languageScales}
-                              isPoem={!!chapter.isPoem}
-                              night={N}
-                            />
-                          </React.Fragment>
-                        );
-                      });
-                    })()}
-                  </View>
-                ) : null}
-              </View>
-            );
-          })
+                          return (
+                            <React.Fragment key={lineKey}>
+                              {idx > 0 ? <VerseDivider night={N} variant="dot" /> : null}
+                              <VerseBlock
+                                role={role}
+                                verseNumber={verseNumber}
+                                chapterLabel={chapter.isPoem ? undefined : chapter.chapter}
+                                primaryLanguage={chapter.primaryLanguage}
+                                arabic={renderedArabic}
+                                transliteration={renderedTranslit || undefined}
+                                translation={renderedEnglish || undefined}
+                                urdu={renderedUrdu || undefined}
+                                isAutoTranslated={false}
+                                layers={layers}
+                                scale={textScale}
+                                languageScales={languageScales}
+                                isPoem={!!chapter.isPoem}
+                                night={N}
+                              />
+                            </React.Fragment>
+                          );
+                        });
+                      })()}
+                    </View>
+                  ) : null}
+                </View>
+              );
+            })}
+          </View>
         )}
       </ScrollView>
 
@@ -1512,8 +1523,7 @@ const styles = StyleSheet.create({
   },
   bgOverlay: {
     ...StyleSheet.absoluteFillObject,
-    // Warm sandstone wash so the cream cards read clearly on top.
-    backgroundColor: 'rgba(38, 44, 36, 0.42)',
+    backgroundColor: 'rgba(16, 24, 34, 0.36)',
   },
   bgOverlayNight: {
     backgroundColor: 'rgba(4, 10, 18, 0.82)',
@@ -1523,23 +1533,18 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xl,
     gap: Spacing.md,
   },
-  chapterSurface: {
-    backgroundColor: 'rgba(252, 249, 240, 0.96)',
+  chapterListContainer: {
     marginHorizontal: Spacing.md,
     borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: 'rgba(184, 134, 11, 0.30)',
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.16,
-    shadowRadius: 14,
-    elevation: 3,
+  },
+  chapterListRow: {
   },
   chapterBody: {
-    paddingHorizontal: Spacing.sm,
+    paddingHorizontal: Spacing.md,
     paddingBottom: Spacing.lg,
-    paddingTop: Spacing.sm,
+    paddingTop: Spacing.md,
   },
   loadingWrap: {
     paddingVertical: 24,
