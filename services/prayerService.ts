@@ -298,6 +298,27 @@ export function getPrayerTimesFromTimetable(date?: Date): PrayerTimesData | null
 
 export function getNextPrayer(prayers: PrayerTime[], referenceTime?: Date): { prayer: PrayerTime; secondsLeft: number } | null {
   const now = referenceTime ? new Date(referenceTime) : new Date();
+
+  // Explicit morning boundaries for countdown flow:
+  // Fajr -> Sunrise -> Ishraq -> Zawaal.
+  const fajr = prayers.find(p => p.name === 'Fajr');
+  const sunrise = prayers.find(p => p.name === 'Sunrise');
+  const ishraq = prayers.find(p => p.name === 'Ishraq');
+  const zawaal = prayers.find(p => p.name === 'Zawaal');
+
+  if (fajr && sunrise && now >= fajr.timeDate && now < sunrise.timeDate) {
+    return { prayer: sunrise, secondsLeft: Math.floor((sunrise.timeDate.getTime() - now.getTime()) / 1000) };
+  }
+
+  if (sunrise && ishraq && now >= sunrise.timeDate && now < ishraq.timeDate) {
+    return { prayer: ishraq, secondsLeft: Math.floor((ishraq.timeDate.getTime() - now.getTime()) / 1000) };
+  }
+
+  const ishraqBoundary = zawaal ?? prayers.find(p => p.name === 'Dhuhr');
+  if (ishraq && ishraqBoundary && now >= ishraq.timeDate && now < ishraqBoundary.timeDate) {
+    return { prayer: ishraqBoundary, secondsLeft: Math.floor((ishraqBoundary.timeDate.getTime() - now.getTime()) / 1000) };
+  }
+
   const isFriday = now.getDay() === 5;
 
   if (isFriday) {
@@ -307,7 +328,6 @@ export function getNextPrayer(prayers: PrayerTime[], referenceTime?: Date): { pr
     const jumuahDate = new Date(now);
     jumuahDate.setHours(jh, jm, 0, 0);
 
-    const fajr = prayers.find(p => p.name === 'Fajr');
     if (fajr && fajr.timeDate <= now && now < jumuahDate) {
       const jumuahPrayer: PrayerTime = {
         name: 'Jumuah',

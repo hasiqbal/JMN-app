@@ -369,6 +369,22 @@ function getCurrentPhaseInfo(params: {
   currentEndsIn: string;
 }): HeroPhaseInfo {
   if (params.forbiddenInfo) {
+    if (params.activePrayer?.name === 'Sunrise') {
+      return {
+        label: 'Until Ishraq',
+        value: formatCountdownSeconds(params.forbiddenInfo.secondsLeft),
+        note: 'Prayer is paused between Sunrise and Ishraq.',
+      };
+    }
+
+    if (params.activePrayer?.name === 'Zawaal') {
+      return {
+        label: 'Until Dhuhr',
+        value: formatCountdownSeconds(params.forbiddenInfo.secondsLeft),
+        note: 'Prayer is paused at Zawaal until Dhuhr begins.',
+      };
+    }
+
     return {
       label: 'Until Resume',
       value: formatCountdownSeconds(params.forbiddenInfo.secondsLeft),
@@ -427,6 +443,22 @@ function getCurrentPhaseInfo(params: {
     }
   }
 
+  if (params.activePrayer.name === 'Ishraq') {
+    const zawaal = params.data.prayers.find((p) => p.name === 'Zawaal')?.timeDate;
+    const dhuhr = params.data.prayers.find((p) => p.name === 'Dhuhr')?.timeDate;
+    const boundary = zawaal ?? dhuhr;
+    if (boundary) {
+      const sec = Math.max(0, Math.floor((boundary.getTime() - params.now.getTime()) / 1000));
+      return {
+        label: zawaal ? 'Until Zawaal' : 'Until Dhuhr',
+        value: formatCountdownSeconds(sec),
+        note: zawaal
+          ? 'Ishraq window remains until Zawaal.'
+          : 'Ishraq window remains until Dhuhr.',
+      };
+    }
+  }
+
   return {
     label: 'Until Next Prayer',
     value: params.currentEndsIn,
@@ -474,9 +506,9 @@ function getHeroCountdownInfo(params: {
     }
 
     return {
-      label: 'Until Next Prayer',
-      value: params.currentEndsIn || params.countdown,
-      note: '',
+      label: params.currentPhaseInfo.label || 'Until Next Prayer',
+      value: params.currentPhaseInfo.value || params.currentEndsIn || params.countdown,
+      note: params.currentPhaseInfo.note,
       flash: false,
     };
   }
