@@ -1,5 +1,8 @@
 import 'expo-router/entry';
-import { registerWidgetTaskHandler } from 'react-native-android-widget';
-import { widgetTaskHandler } from './widgets/widget-task-handler';
+import { Platform } from 'react-native';
 
-registerWidgetTaskHandler(widgetTaskHandler);
+if (Platform.OS === 'android') {
+	const { registerWidgetTaskHandler } = require('react-native-android-widget');
+	const { widgetTaskHandler } = require('./widgets/widget-task-handler');
+	registerWidgetTaskHandler(widgetTaskHandler);
+}

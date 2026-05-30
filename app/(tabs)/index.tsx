@@ -56,13 +56,6 @@ import {
 } from '@/services/sunnahReminderService';
 import { fetchDailyQuranReminder, type DailyQuranResult } from '@/services/quranReminderService';
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
-import { requestWidgetUpdate } from 'react-native-android-widget';
-import {
-  HOME_PRAYER_WIDGET_NAME,
-  HomeHeroPrayerWidget,
-  buildHomePrayerWidgetPayload,
-  persistHomePrayerWidgetPayload,
-} from '@/widgets/home-prayer-widget';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const DONATION_SUCCESS_SENTINEL = 'example.com/jmn-donation-success';
@@ -2619,6 +2612,14 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (Platform.OS !== 'android') return;
+
+    const { requestWidgetUpdate } = require('react-native-android-widget');
+    const {
+      HOME_PRAYER_WIDGET_NAME,
+      HomeHeroPrayerWidget,
+      buildHomePrayerWidgetPayload,
+      persistHomePrayerWidgetPayload,
+    } = require('@/widgets/home-prayer-widget');
 
     const payload = buildHomePrayerWidgetPayload(data);
 

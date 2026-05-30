@@ -18,7 +18,7 @@ const androidWidgetConfig = {
 const base = {
   name: 'JMN',
   slug: 'jmn',
-  version: '4.0',
+  version: '5.0',
   orientation: 'portrait',
   icon: './assets/images/favicon.png',
   scheme: 'jmn',
@@ -26,7 +26,7 @@ const base = {
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'com.hasiqbal.jmn',
-    buildNumber: '4',
+    buildNumber: '5',
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
     },
