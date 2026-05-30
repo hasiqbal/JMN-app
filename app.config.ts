@@ -1,6 +1,4 @@
-import type { WithAndroidWidgetsParams } from 'react-native-android-widget';
-
-const androidWidgetConfig: WithAndroidWidgetsParams = {
+const androidWidgetConfig = {
   widgets: [
     {
       name: 'HomePrayerHeroWidget',
