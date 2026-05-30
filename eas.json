@@ -5,6 +5,7 @@
   },
   "build": {
     "development": {
+      "autoIncrement": true,
       "developmentClient": true,
       "distribution": "internal",
       "node": "22.22.2",
@@ -21,6 +22,7 @@
       }
     },
     "preview": {
+      "autoIncrement": true,
       "distribution": "internal",
       "node": "22.22.2",
       "pnpm": "10.14.0",

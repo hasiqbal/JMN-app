@@ -132,13 +132,26 @@ export function buildPrayerNotificationsForPrayers(
     } else {
       const iqamahDate = parseIqamahDate(prayer.iqamah, prayerStartAt);
       if (iqamahDate && iqamahDate.getTime() > prayerStartAt.getTime()) {
-        const jamaatReminderAt = new Date(iqamahDate.getTime() - PRAYER_NOTIFICATION_JAMAAT_LEAD_MINUTES * 60 * 1000);
+        const maghribLeadReminderAt = new Date(
+          prayerStartAt.getTime() - PRAYER_NOTIFICATION_JAMAAT_LEAD_MINUTES * 60 * 1000,
+        );
+        const jamaatReminderAt = prayer.name === 'Maghrib'
+          ? maghribLeadReminderAt
+          : new Date(iqamahDate.getTime() - PRAYER_NOTIFICATION_JAMAAT_LEAD_MINUTES * 60 * 1000);
         const isAfterPrayerStart = jamaatReminderAt.getTime() > prayerStartAt.getTime();
+        const shouldScheduleLeadReminder = prayer.name === 'Maghrib' ? true : isAfterPrayerStart;
 
-        if (isAfterPrayerStart && jamaatReminderAt.getTime() - now.getTime() > minLeadMs) {
+        if (shouldScheduleLeadReminder && jamaatReminderAt.getTime() - now.getTime() > minLeadMs) {
+          const title = prayer.name === 'Maghrib'
+            ? `${prayer.name} in ${PRAYER_NOTIFICATION_JAMAAT_LEAD_MINUTES} minutes`
+            : `${prayer.name} jamaat in ${PRAYER_NOTIFICATION_JAMAAT_LEAD_MINUTES} minutes`;
+          const body = prayer.name === 'Maghrib'
+            ? `${prayer.name} prayer starts in ${PRAYER_NOTIFICATION_JAMAAT_LEAD_MINUTES} minutes.`
+            : `${prayer.name} jamaat starts in ${PRAYER_NOTIFICATION_JAMAAT_LEAD_MINUTES} minutes.`;
+
           planned.push({
-            title: `${prayer.name} jamaat in ${PRAYER_NOTIFICATION_JAMAAT_LEAD_MINUTES} minutes`,
-            body: `${prayer.name} jamaat starts in ${PRAYER_NOTIFICATION_JAMAAT_LEAD_MINUTES} minutes.`,
+            title,
+            body,
             fireAt: jamaatReminderAt,
             data: {
               scope: PRAYER_NOTIFICATION_SCOPE,

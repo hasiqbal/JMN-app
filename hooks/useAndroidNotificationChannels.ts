@@ -147,7 +147,7 @@ export async function ensureAndroidPrayerNotificationChannel(selectedAdhaanOptio
 
     await Notifications.setNotificationChannelAsync(PRAYER_NOTIFICATION_CHANNEL_ID, {
       name: 'Prayer Reminders',
-      importance: Notifications.AndroidImportance.HIGH,
+      importance: Notifications.AndroidImportance.MAX,
       enableVibrate: true,
       vibrationPattern: [0, 220, 140, 220],
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
@@ -156,7 +156,7 @@ export async function ensureAndroidPrayerNotificationChannel(selectedAdhaanOptio
 
     await Notifications.setNotificationChannelAsync(PRAYER_NOTIFICATION_SILENT_CHANNEL_ID, {
       name: 'Prayer Reminders (Vibration Only)',
-      importance: Notifications.AndroidImportance.HIGH,
+      importance: Notifications.AndroidImportance.MAX,
       enableVibrate: true,
       vibrationPattern: [0, 220, 140, 220],
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
@@ -165,7 +165,7 @@ export async function ensureAndroidPrayerNotificationChannel(selectedAdhaanOptio
 
     await Notifications.setNotificationChannelAsync(prayerStartChannelId, {
       name: `Prayer Start Adhaan ${selectedOption.id}`,
-      importance: Notifications.AndroidImportance.HIGH,
+      importance: Notifications.AndroidImportance.MAX,
       enableVibrate: true,
       vibrationPattern: [0, 220, 140, 220],
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
@@ -174,7 +174,7 @@ export async function ensureAndroidPrayerNotificationChannel(selectedAdhaanOptio
 
     await Notifications.setNotificationChannelAsync(prayerStartSilentChannelId, {
       name: `Prayer Start Adhaan ${selectedOption.id} (Vibration Only)`,
-      importance: Notifications.AndroidImportance.HIGH,
+      importance: Notifications.AndroidImportance.MAX,
       enableVibrate: true,
       vibrationPattern: [0, 220, 140, 220],
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
@@ -183,7 +183,7 @@ export async function ensureAndroidPrayerNotificationChannel(selectedAdhaanOptio
 
     await Notifications.setNotificationChannelAsync(IQAMAH_NOTIFICATION_CHANNEL_ID, {
       name: 'Iqamah Start',
-      importance: Notifications.AndroidImportance.HIGH,
+      importance: Notifications.AndroidImportance.MAX,
       enableVibrate: true,
       vibrationPattern: [0, 220, 140, 220],
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
@@ -192,7 +192,7 @@ export async function ensureAndroidPrayerNotificationChannel(selectedAdhaanOptio
 
     await Notifications.setNotificationChannelAsync(IQAMAH_NOTIFICATION_SILENT_CHANNEL_ID, {
       name: 'Iqamah Start (Vibration Only)',
-      importance: Notifications.AndroidImportance.HIGH,
+      importance: Notifications.AndroidImportance.MAX,
       enableVibrate: true,
       vibrationPattern: [0, 220, 140, 220],
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,

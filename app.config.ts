@@ -1,3 +1,22 @@
+import type { WithAndroidWidgetsParams } from 'react-native-android-widget';
+
+const androidWidgetConfig: WithAndroidWidgetsParams = {
+  widgets: [
+    {
+      name: 'HomePrayerHeroWidget',
+      label: 'JMN Prayer Times',
+      minWidth: '280dp',
+      minHeight: '200dp',
+      targetCellWidth: 4,
+      targetCellHeight: 3,
+      description: "Jami' Masjid Noorani hero widget with today's prayer times.",
+      previewImage: './assets/widget-preview/home-prayer-hero-widget-sky-subtle.png',
+      resizeMode: 'horizontal|vertical',
+      updatePeriodMillis: 1800000,
+    },
+  ],
+};
+
 const base = {
   name: 'JMN',
   slug: 'jmn',
@@ -59,6 +78,7 @@ const base = {
   },
   plugins: [
     'expo-router',
+    ['react-native-android-widget', androidWidgetConfig],
     [
       'expo-notifications',
       {

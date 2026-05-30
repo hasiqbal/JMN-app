@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   AppState,
   View,
@@ -14,7 +14,6 @@ import {
   Platform,
   Animated,
   Dimensions,
-  Linking,
 } from 'react-native';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -57,10 +56,15 @@ import {
 } from '@/services/sunnahReminderService';
 import { fetchDailyQuranReminder, type DailyQuranResult } from '@/services/quranReminderService';
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
-import { APP_CONFIG } from '@/constants/config';
+import { requestWidgetUpdate } from 'react-native-android-widget';
+import {
+  HOME_PRAYER_WIDGET_NAME,
+  HomeHeroPrayerWidget,
+  buildHomePrayerWidgetPayload,
+  persistHomePrayerWidgetPayload,
+} from '@/widgets/home-prayer-widget';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const DONATION_EXTERNAL_URL = process.env.EXPO_PUBLIC_DONATION_EXTERNAL_URL || APP_CONFIG.website;
 const DONATION_SUCCESS_SENTINEL = 'example.com/jmn-donation-success';
 const DONATION_CANCEL_SENTINEL = 'example.com/jmn-donation-cancel';
 
@@ -2595,6 +2599,8 @@ export default function HomeScreen() {
 
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { openDonation } = useLocalSearchParams<{ openDonation?: string | string[] }>();
+  const donationDeepLinkHandledRef = useRef(false);
   const { darkMode } = useAppTheme();
   const nightMode = darkMode;
   const {
@@ -2610,6 +2616,22 @@ export default function HomeScreen() {
     () => (data ? getNextPrayer(data.prayers, currentTime) : null),
     [data, currentTime]
   );
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+
+    const payload = buildHomePrayerWidgetPayload(data);
+
+    void persistHomePrayerWidgetPayload(payload);
+    void requestWidgetUpdate({
+      widgetName: HOME_PRAYER_WIDGET_NAME,
+      renderWidget: (widgetInfo) => <HomeHeroPrayerWidget payload={payload} widgetInfo={widgetInfo} />,
+    }).catch((error) => {
+      if (__DEV__) {
+        console.warn('[Widget] Failed to request prayer widget update:', error);
+      }
+    });
+  }, [data]);
 
   const {
     activePrayer,
@@ -3440,30 +3462,23 @@ export default function HomeScreen() {
   }, [closeDonationModal, resetDonationFlowToSelection, showDonationOptions]);
 
   const openDonationCheckout = useCallback(() => {
-    if (Platform.OS === 'ios') {
-      Alert.alert(
-        'Donate via website',
-        'Donations open in your browser where you can complete payment securely.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Open website',
-            onPress: () => {
-              void Linking.openURL(DONATION_EXTERNAL_URL).catch(() => {
-                Alert.alert('Unable to open link', 'Please visit the masjid website directly to donate.');
-              });
-            },
-          },
-        ],
-      );
-      return;
-    }
-
     setDonationConfirmation(null);
     resetDonationFlowToSelection();
     void loadDonationOptions();
     setDonationModalVisible(true);
   }, [loadDonationOptions, resetDonationFlowToSelection]);
+
+  useEffect(() => {
+    const openDonationParam = Array.isArray(openDonation) ? openDonation[0] : openDonation;
+    if (openDonationParam !== '1') {
+      donationDeepLinkHandledRef.current = false;
+      return;
+    }
+
+    if (donationDeepLinkHandledRef.current) return;
+    donationDeepLinkHandledRef.current = true;
+    openDonationCheckout();
+  }, [openDonation, openDonationCheckout]);
 
   const openPrayerDrawer = useCallback(() => {
     if (Platform.OS === 'web') {

@@ -3,7 +3,6 @@ import { StyleSheet, Text } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 import type { NightPaletteType } from './types';
-import { addSoftWrapOpportunities } from './softWrap';
 
 type Props = {
   text: string;
@@ -14,7 +13,16 @@ type Props = {
 export function ArabicTextBlock({ text, scale, night }: Props) {
   const fontSize = Math.round(23 * scale);
   const lineHeight = Math.round(43 * scale);
-  const wrappedText = React.useMemo(() => addSoftWrapOpportunities(text), [text]);
+  const safeText = React.useMemo(() => {
+    // Strip invisible break markers that can disturb Arabic shaping on iOS.
+    let next = text.replace(/[\u200B\uFEFF\u00AD]/g, '');
+    try {
+      next = next.normalize('NFC');
+    } catch {
+      // Keep original if runtime does not support Unicode normalization.
+    }
+    return next;
+  }, [text]);
   return (
     <Text
       style={[
@@ -23,21 +31,23 @@ export function ArabicTextBlock({ text, scale, night }: Props) {
         night && { color: night.text },
       ]}
     >
-      {wrappedText}
+      {safeText}
     </Text>
   );
 }
 
 const styles = StyleSheet.create({
   text: {
-    textAlign: 'center',
+    textAlign: 'right',
     color: Colors.textPrimary,
     fontFamily: 'IndopakNastaleeq',
-    letterSpacing: 0.2,
+    letterSpacing: 0,
+    writingDirection: 'rtl',
     width: '100%',
     maxWidth: '100%',
     alignSelf: 'stretch',
     paddingHorizontal: 4,
     flexShrink: 1,
+    includeFontPadding: false,
   },
 });

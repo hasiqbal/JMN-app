@@ -643,6 +643,7 @@ export default function TabLayout() {
         const isJamaatLead = item.data.type === 'jamaat-10';
         const isJamaatStart = item.data.type === 'jamaat-start';
         const isPrayerNearEnd = item.data.type === 'prayer-near-end';
+        const isPrayerAudioAlert = isPrayerStart || isIqamahStart || isJamaatLead;
         const iqamahStartAudible = !prayerAudioMuted && iqamahExactSoundEnabled && !backgroundVibrationOnly;
         const prayerStartSilent = prayerAudioMuted || backgroundVibrationOnly;
         const prayerStartChannelId = getPrayerStartChannelId(selectedAdhaanOption.id, prayerStartSilent);
@@ -668,6 +669,9 @@ export default function TabLayout() {
               : isPrayerNearEnd
               ? (prayerAudioMuted ? false : 'default')
               : 'default');
+        const resolvedSound = Platform.OS === 'ios' && isPrayerAudioAlert
+          ? 'default'
+          : prayerSound;
         const categoryIdentifier = (isPrayerStart || isIqamahStart || isJamaatLead)
           ? PRAYER_AUDIO_NOTIFICATION_CATEGORY_ID
           : undefined;
@@ -681,7 +685,11 @@ export default function TabLayout() {
             content: {
               title: item.title,
               body: item.body,
-              sound: prayerSound,
+              sound: resolvedSound,
+              interruptionLevel: isPrayerAudioAlert ? 'timeSensitive' : 'active',
+              priority: isPrayerAudioAlert
+                ? Notifications.AndroidNotificationPriority.MAX
+                : Notifications.AndroidNotificationPriority.DEFAULT,
               categoryIdentifier,
               data: item.data,
             },
