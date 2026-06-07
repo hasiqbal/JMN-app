@@ -26,7 +26,6 @@ const base = {
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'com.hasiqbal.jmn',
-    buildNumber: '6',
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
       UIBackgroundModes: ['audio'],

@@ -10,6 +10,8 @@
     "reset-project": "node ./scripts/reset-project.js",
     "preandroid": "node ./scripts/check-node-version.js",
     "android": "expo run:android",
+    "android:build:store": "npx -y eas-cli build -p android --profile production",
+    "android:release": "npx -y eas-cli build -p android --profile production",
     "preios": "node ./scripts/check-node-version.js",
     "ios": "expo run:ios",
     "ios:build:store": "npx -y eas-cli build -p ios --profile production",
