@@ -20,6 +20,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { WidgetInfo } from 'react-native-android-widget';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { formatCountdownSeconds, getNextPrayer, getPrayerTimesFromTimetable, type PrayerTime } from '@/services/prayerService';
 import { usePrayerTimes } from '@/hooks/usePrayerTimes';
@@ -33,9 +34,9 @@ import { fetchEidUlAdha, fetchEidUlFitr } from '@/services/eidService';
 import { getContinuousDaySkyGradient, getInterpolatedPrayerGradient, PRAYER_SKY_DEPTH_OVERLAY } from '@/components/prayer/heroConfig';
 import { buildHeroState } from '@/components/prayer/heroState';
 import { buildActivePrayerState } from '@/components/prayer/activePrayerState';
-import PrayerDrawerTrigger from '@/components/prayer/PrayerDrawerTrigger';
 import PrayerDrawerSheet from '@/components/prayer/PrayerDrawerSheet';
-import { buildPrayerDrawerRows } from '@/components/prayer/prayerDrawerState';
+import { buildPrayerDrawerRows, type DrawerPrayerRow } from '@/components/prayer/prayerDrawerState';
+import { HomeInlinePrayerTimesSection } from '@/components/prayer/HomeInlinePrayerTimesSection';
 import { HomeQuickAccessSection } from '@/components/prayer/HomeQuickAccessSection';
 import { HomeForYouTodaySection } from '@/components/prayer/HomeForYouTodaySection';
 import {
@@ -55,6 +56,7 @@ import {
   type DailySunnahResult,
 } from '@/services/sunnahReminderService';
 import { fetchDailyQuranReminder, type DailyQuranResult } from '@/services/quranReminderService';
+import { syncIosHomePrayerWidget } from '@/services/iosWidgetSyncService';
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -520,7 +522,7 @@ export function SmallFlippingPrayerCard({
   const flashAnim = useRef(new Animated.Value(1)).current;
   const flashLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
-  // ── Detect active prayer ───────────────────────────────────────────────
+  // Keep alert logic only for real salah prayers.
   const prayable = prayers.filter(p => !['Sunrise', 'Ishraq', 'Zawaal'].includes(p.name));
   let activePrayer: typeof prayable[0] | null = null;
   for (let i = 0; i < prayable.length; i++) {
@@ -558,7 +560,6 @@ export function SmallFlippingPrayerCard({
   const jamaatCountdown = formatCountdownSeconds(secondsToJamaat);
   const hasJamaat = jamaatDate !== null;
 
-  // ── Flash loop when jamaat starts ──────────────────────────────────────
   useEffect(() => {
     if (jamaatStarted && !jamaatFlashOver) {
       const loop = Animated.loop(
@@ -577,7 +578,6 @@ export function SmallFlippingPrayerCard({
     return () => { flashLoopRef.current?.stop(); };
   }, [jamaatStarted, jamaatFlashOver, flashAnim]);
 
-  // ── Normal flip (paused during alert mode) ──────────────────────────────
   const flipTo = useCallback((nextIndex: number) => {
     Animated.timing(rotateAnim, { toValue: 1, duration: 320, useNativeDriver: true }).start(() => {
       setDisplayFace(PRAYER_CARD_FACES[nextIndex]);
@@ -1699,7 +1699,7 @@ function HeroPrayerStatus({
   const toTitleCase = (value: string) => value.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
   const nonJamaatPillLabel = (() => {
-    if (isForbidden) return 'Forbidden period ends in';
+    if (isForbidden) return 'Forbidden window ends in';
     if (normalizedStateLabel.startsWith('UNTIL ')) {
       const target = toTitleCase(normalizedStateLabel.replace('UNTIL ', '').trim());
       return `Countdown to ${target}`;
@@ -1718,7 +1718,7 @@ function HeroPrayerStatus({
       : isEndingSoon
       ? 'Prayer ending soon'
       : isUntilEnd
-      ? 'Countdown To The Prayer End Time'
+      ? 'Countdown to end'
       : 'Countdown to Jamaat'
     : nonJamaatPillLabel;
 
@@ -1777,9 +1777,17 @@ function HeroPrayerStatus({
 
   return (
     <View style={heroTimelineStyles.statusBlock}>
-      <Text style={heroTimelineStyles.currentPrayerLabel}>
-        {isForbidden ? 'FORBIDDEN PERIOD' : 'CURRENT PRAYER'}
-      </Text>
+      <View style={heroTimelineStyles.currentPrayerLabelWrap}>
+        <MaterialIcons
+          name={isForbidden ? 'block' : 'auto-awesome'}
+          size={12}
+          color="rgba(230,244,235,0.88)"
+          style={heroTimelineStyles.currentPrayerLabelIcon}
+        />
+        <Text style={heroTimelineStyles.currentPrayerLabel}>
+          {isForbidden ? 'Forbidden Period' : 'Current Prayer'}
+        </Text>
+      </View>
       <Text style={heroTimelineStyles.prayerName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
         {prayerName}
       </Text>
@@ -1795,7 +1803,7 @@ function HeroPrayerStatus({
             ]}
           >
             <View style={heroTimelineStyles.jamaatPillIconWrap}>
-              <MaterialIcons name={isForbidden ? 'block' : pillIconName} size={10} color={HERO_DESIGN_TOKENS.badgeIcon} />
+              <MaterialIcons name={isForbidden ? 'block' : pillIconName} size={14} color={HERO_DESIGN_TOKENS.badgeIcon} />
             </View>
             <Text
               style={heroTimelineStyles.jamaatPillText}
@@ -2611,9 +2619,6 @@ export default function HomeScreen() {
   );
 
   useEffect(() => {
-    if (Platform.OS !== 'android') return;
-
-    const { requestWidgetUpdate } = require('react-native-android-widget');
     const {
       HOME_PRAYER_WIDGET_NAME,
       HomeHeroPrayerWidget,
@@ -2624,14 +2629,23 @@ export default function HomeScreen() {
     const payload = buildHomePrayerWidgetPayload(data);
 
     void persistHomePrayerWidgetPayload(payload);
-    void requestWidgetUpdate({
-      widgetName: HOME_PRAYER_WIDGET_NAME,
-      renderWidget: (widgetInfo) => <HomeHeroPrayerWidget payload={payload} widgetInfo={widgetInfo} />,
-    }).catch((error) => {
-      if (__DEV__) {
-        console.warn('[Widget] Failed to request prayer widget update:', error);
-      }
-    });
+
+    if (Platform.OS === 'android') {
+      const { requestWidgetUpdate } = require('react-native-android-widget');
+      void requestWidgetUpdate({
+        widgetName: HOME_PRAYER_WIDGET_NAME,
+        renderWidget: (widgetInfo: WidgetInfo) => <HomeHeroPrayerWidget payload={payload} widgetInfo={widgetInfo} />,
+      }).catch((error: unknown) => {
+        if (__DEV__) {
+          console.warn('[Widget] Failed to request prayer widget update:', error);
+        }
+      });
+      return;
+    }
+
+    if (Platform.OS === 'ios') {
+      void syncIosHomePrayerWidget(payload);
+    }
   }, [data]);
 
   const {
@@ -3235,8 +3249,8 @@ export default function HomeScreen() {
     ? getContinuousDaySkyGradient(fullDayTimelineProgress, effectiveHeroPrayerName)
     : getInterpolatedPrayerGradient(effectiveHeroPrayerName, effectiveHeroProgress);
   const effectiveHeroGradientColors: readonly [string, string] = nightMode
-    ? [HERO_DESIGN_TOKENS.heroTopNight, HERO_DESIGN_TOKENS.heroBottomNight]
-    : [HERO_DESIGN_TOKENS.heroTop, HERO_DESIGN_TOKENS.heroBottom];
+    ? [HERO_DESIGN_TOKENS.heroTopNight, HERO_DESIGN_TOKENS.heroTopNight]
+    : [HERO_DESIGN_TOKENS.heroTop, HERO_DESIGN_TOKENS.heroTop];
 
   const canTrackJamaatJourney = !!(
     activePrayer
@@ -3281,6 +3295,85 @@ export default function HomeScreen() {
     currentPrayerName: activePrayer?.name,
     nextPrayerName: effectiveNextPrayerName,
   }), [data?.prayers, currentTime, activePrayer?.name, effectiveNextPrayerName]);
+
+  const homeInlinePrayerRows = React.useMemo<DrawerPrayerRow[]>(() => {
+    const prayerMap = new Map((data?.prayers ?? []).map((prayer) => [prayer.name, prayer] as const));
+    const drawerStateMap = new Map(drawerPrayerRows.map((row) => [row.name, row.state] as const));
+    const jumuahRow = drawerPrayerRows.find((row) => row.name === 'Jumuah');
+    const isFriday = currentTime.getDay() === 5;
+
+    const resolveState = (name: string, timeDate?: Date): DrawerPrayerRow['state'] => {
+      const mapped = drawerStateMap.get(name);
+      if (mapped) return mapped;
+      if (activePrayer?.name === name) return 'current';
+      if (effectiveNextPrayerName === name) return 'next';
+      if (timeDate && timeDate.getTime() < currentTime.getTime()) return 'past';
+      return 'future';
+    };
+
+    const fromPrayer = (name: string): DrawerPrayerRow => {
+      const prayer = prayerMap.get(name);
+      return {
+        name,
+        begins: prayer?.time || '--:--',
+        jamaat: prayer?.iqamah || '--:--',
+        tomorrowBegins: prayer?.tomorrowTime,
+        tomorrowJamaat: prayer?.tomorrowIqamah,
+        state: resolveState(name, prayer?.timeDate),
+      };
+    };
+
+    const dhuhrPrayer = prayerMap.get('Dhuhr');
+    const fridayRow: DrawerPrayerRow = {
+      name: 'Jummah',
+      begins: jumuahRow?.begins || dhuhrPrayer?.time || '--:--',
+      jamaat: jumuahRow?.jamaat || dhuhrPrayer?.iqamah || '--:--',
+      jamaat2: jumuahRow?.jamaat2,
+      tomorrowBegins: jumuahRow?.tomorrowBegins,
+      tomorrowJamaat: jumuahRow?.tomorrowJamaat,
+      state: jumuahRow?.state || resolveState('Dhuhr', dhuhrPrayer?.timeDate),
+    };
+
+    return [
+      fromPrayer('Fajr'),
+      fromPrayer('Ishraq'),
+      isFriday ? fridayRow : fromPrayer('Dhuhr'),
+      fromPrayer('Asr'),
+      fromPrayer('Maghrib'),
+      fromPrayer('Isha'),
+    ];
+  }, [data?.prayers, drawerPrayerRows, currentTime, activePrayer?.name, effectiveNextPrayerName]);
+
+  const homeInlineSpecialSchedule = React.useMemo(() => {
+    if (activeEidType) {
+      const eidTimes = Array.from(new Set((resolvedEidJamaats ?? []).filter(Boolean))).slice(0, 4);
+      if (eidTimes.length === 0) return null;
+
+      return {
+        kind: 'eid' as const,
+        title: activeEidType === 'eid_al_fitr' ? 'Eid ul Fitr Jamaat' : 'Eid ul Adha Jamaat',
+        times: eidTimes,
+      };
+    }
+
+    if (!isFriday) return null;
+
+    const jumuahInline = homeInlinePrayerRows.find((row) => row.name === 'Jummah' || row.name === 'Jumuah');
+    const rawFridayTimes = Array.from(new Set([
+      jumuahInline?.jamaat,
+      jumuahInline?.jamaat2,
+    ].filter((value): value is string => !!value && value !== '-' && value !== '--:--')));
+
+    const fridayTimes = rawFridayTimes.map((time, idx) => `${toOrdinal(idx + 1)} ${time}`);
+
+    if (fridayTimes.length === 0) return null;
+
+    return {
+      kind: 'jumuah' as const,
+      title: 'Jummah details',
+      times: fridayTimes,
+    };
+  }, [activeEidType, resolvedEidJamaats, isFriday, homeInlinePrayerRows]);
 
   // Keep these computed hero fields alive while the new visual shell still relies on legacy prayer-state logic.
   const heroLegacyState = {
@@ -3481,14 +3574,6 @@ export default function HomeScreen() {
     openDonationCheckout();
   }, [openDonation, openDonationCheckout]);
 
-  const openPrayerDrawer = useCallback(() => {
-    if (Platform.OS === 'web') {
-      setWebPrayerDrawerVisible(true);
-      return;
-    }
-    prayerSheetRef.current?.snapToIndex(1);
-  }, []);
-
   const closePrayerDrawer = useCallback(() => {
     if (Platform.OS === 'web') {
       setWebPrayerDrawerVisible(false);
@@ -3561,7 +3646,7 @@ export default function HomeScreen() {
             >
               <MaterialIcons
                 name="settings"
-                size={16}
+                size={18}
                 color="#FFFFFF"
               />
               <Text style={styles.modePillText}>Settings</Text>
@@ -3577,6 +3662,13 @@ export default function HomeScreen() {
             end={{ x: 0.5, y: 1 }}
             style={heroNewStyles.heroGradient}
           >
+            <Image
+              source={require('@/assets/images/masjid/JMN_page_7.png')}
+              style={heroNewStyles.heroBackdropImage}
+              contentFit="cover"
+            />
+            <View pointerEvents="none" style={heroNewStyles.heroBackdropUniformLayer} />
+
             {/* Main Live Prayer Section */}
             <View style={heroNewStyles.mainSection}>
               <HeroPrayerStatus
@@ -3610,18 +3702,13 @@ export default function HomeScreen() {
               />
             </View>
 
-            {/* Soft separator with extra space above donation card */}
-            <View style={{ height: 16 }} />
-            <View style={heroNewStyles.softSeparator} />
-
-            {/* Donation Card — visually secondary, softer heading, less intense bg */}
-            <HeroDonationCard
+            <HomeInlinePrayerTimesSection
+              rows={homeInlinePrayerRows}
               nightMode={nightMode}
-              onPress={openDonationCheckout}
+              specialSchedule={homeInlineSpecialSchedule}
+              embedded
             />
           </LinearGradient>
-          {/* Today's Salah trigger — attached to bottom of hero card */}
-          <PrayerDrawerTrigger attached nightMode={nightMode} onPress={openPrayerDrawer} />
         </View>
       </View>
 
@@ -3630,6 +3717,10 @@ export default function HomeScreen() {
       <View style={[styles.dayCanvas, N && { backgroundColor: N.bg, marginTop: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0 }]}>
         <View style={styles.dayCanvasContent}>
           <View style={[styles.body, N && { backgroundColor: 'transparent' }]}> 
+            <View style={{ marginBottom: Spacing.sm }}>
+              <HeroDonationCard nightMode={nightMode} onPress={openDonationCheckout} />
+            </View>
+
             <View style={{ marginBottom: Spacing.sm }}>
               <HomeQuickAccessSection nightMode={nightMode} />
             </View>
@@ -4008,7 +4099,15 @@ const heroNewStyles = StyleSheet.create({
   heroGradient: {
     paddingHorizontal: 18,
     paddingTop: 0,
-    paddingBottom: 8,
+    paddingBottom: 14,
+  },
+  heroBackdropImage: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.12,
+  },
+  heroBackdropUniformLayer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(24, 66, 46, 0.42)',
   },
   mainSection: {
     alignItems: 'center',
@@ -4164,13 +4263,25 @@ const heroTimelineStyles = StyleSheet.create({
   },
   currentPrayerLabel: {
     textAlign: 'center',
-    fontSize: 10,
-    lineHeight: 13,
+    fontSize: 12,
+    lineHeight: 14,
     fontWeight: '700',
-    letterSpacing: 2.2,
-    textTransform: 'uppercase',
-    color: 'rgba(232,225,214,0.78)',
-    marginBottom: 4,
+    letterSpacing: 0.25,
+    color: 'rgba(232,245,238,0.86)',
+  },
+  currentPrayerLabelWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 9,
+    backgroundColor: 'rgba(8,45,33,0.28)',
+    borderWidth: 1,
+    borderColor: 'rgba(166,226,194,0.20)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginBottom: 6,
+  },
+  currentPrayerLabelIcon: {
+    marginRight: 5,
   },
   prayerName: {
     marginTop: 4,
@@ -4183,31 +4294,46 @@ const heroTimelineStyles = StyleSheet.create({
     color: HERO_DESIGN_TOKENS.textPrimary,
   },
   jamaatPill: {
-    marginTop: 16,
+    marginTop: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: HERO_DESIGN_TOKENS.badgeForest,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 5,
+    justifyContent: 'center',
+    gap: 8,
+    width: '92%',
+    maxWidth: 420,
+    minHeight: 46,
+    backgroundColor: 'rgba(7,57,43,0.74)',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     borderWidth: 1,
-    borderColor: HERO_DESIGN_TOKENS.badgeBorder,
+    borderColor: 'rgba(224,241,231,0.16)',
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 3px 10px rgba(1,19,13,0.18)' }
+      : {
+          shadowColor: '#01130D',
+          shadowOffset: { width: 0, height: 3 },
+          shadowOpacity: 0.18,
+          shadowRadius: 10,
+        }),
+    elevation: 2,
   },
   jamaatPillIconWrap: {
-    width: 21,
-    height: 21,
-    borderRadius: 10.5,
+    width: 27,
+    height: 27,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: HERO_DESIGN_TOKENS.badgeIconBg,
+    backgroundColor: 'rgba(237,230,212,0.94)',
   },
   jamaatPillText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    lineHeight: 19,
+    fontWeight: '700',
     color: HERO_DESIGN_TOKENS.textPrimary,
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
     flexShrink: 1,
+    textAlign: 'center',
   },
   stateLabel: {
     marginTop: 8,
@@ -4226,7 +4352,7 @@ const heroTimelineStyles = StyleSheet.create({
     color: '#FFE8A6',
   },
   countdownSectionPill: {
-    marginTop: 18,
+    marginTop: 12,
     alignSelf: 'center',
   },
   countdownCockpit: {
@@ -4252,8 +4378,8 @@ const heroTimelineStyles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 8,
     backgroundColor: 'rgba(7,12,13,0.52)',
-    borderWidth: 0,
-    borderColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(151, 236, 196, 0.52)',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -4330,7 +4456,7 @@ const heroTimelineStyles = StyleSheet.create({
   countdownDigit: {
     fontSize: 34,
     lineHeight: 37,
-    fontWeight: '700',
+    fontWeight: '800',
     color: HERO_DESIGN_TOKENS.textPrimary,
     fontVariant: ['tabular-nums'] as any,
     letterSpacing: 0.45,
@@ -4338,11 +4464,12 @@ const heroTimelineStyles = StyleSheet.create({
   },
   countdownUnit: {
     marginTop: 3,
-    fontSize: 9,
-    lineHeight: 12,
-    fontWeight: '600',
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
     letterSpacing: 0.95,
     color: 'rgba(207,214,210,0.8)',
+    textTransform: 'uppercase',
   },
   countdownSeparator: {
     marginHorizontal: 8,
@@ -4421,17 +4548,17 @@ const heroTimelineStyles = StyleSheet.create({
     right: 0,
     height: 2.5,
     borderRadius: 999,
-    backgroundColor: 'rgba(234,243,237,0.26)',
+    backgroundColor: 'rgba(236,246,241,0.72)',
   },
   trackLineNight: {
-    backgroundColor: 'rgba(234,243,237,0.22)',
+    backgroundColor: 'rgba(234,243,237,0.52)',
   },
   trackFill: {
     position: 'absolute',
     left: 0,
     height: 2.5,
     borderRadius: 999,
-    backgroundColor: 'rgba(236,246,240,0.65)',
+    backgroundColor: '#49C16E',
   },
   anchorDot: {
     position: 'absolute',
@@ -4504,10 +4631,10 @@ const heroTimelineStyles = StyleSheet.create({
   },
   anchorLabelText: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '800',
     letterSpacing: 0.3,
     textTransform: 'uppercase',
-    color: 'rgba(232,225,214,0.58)',
+    color: 'rgba(236,246,241,0.9)',
   },
   anchorLabelTextCenter: {
     position: 'absolute',
@@ -4519,7 +4646,7 @@ const heroTimelineStyles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.3,
     textTransform: 'uppercase',
-    color: 'rgba(252,248,242,0.82)',
+    color: '#FFFFFF',
   },
 });
 
@@ -5155,6 +5282,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(5,18,14,0.18)',
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(255,255,255,0.08)',
+    ...(Platform.OS === 'web'
+      ? { boxShadow: 'none' }
+      : {
+          shadowColor: 'transparent',
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0,
+          shadowRadius: 0,
+        }),
+    elevation: 0,
   },
   topNavBrand: {
     flexDirection: 'row',
@@ -5270,18 +5406,18 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   modePill: {
-    height: 30,
-    borderRadius: 16,
-    paddingHorizontal: 10,
+    height: 42,
+    borderRadius: 21,
+    paddingHorizontal: 16,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.3)',
     backgroundColor: 'rgba(255,255,255,0.13)',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 7,
   },
   modePillText: {
-    fontSize: 13,
+    fontSize: 16,
     color: '#FFFFFF',
     fontWeight: '700',
   },

@@ -56,6 +56,12 @@ import {
   type ExpoNotificationsModule,
   getNotificationsModule,
 } from '@/hooks/useAndroidNotificationChannels';
+import {
+  STREAM_PLAYBACK_NOTIFICATION_CATEGORY_ID,
+  STREAM_PLAYBACK_STOP_ACTION_ID,
+  STREAM_PLAYBACK_TOGGLE_ACTION_ID,
+} from '@/constants/streamPlaybackNotifications';
+import { handleStreamPlaybackActionFromNotification } from '@/services/streamPlaybackActionBridge';
 import { useInAppBanner } from '@/template';
 
 const HIDDEN_TAB_OPTIONS = { href: null };
@@ -259,6 +265,10 @@ export default function TabLayout() {
       const requestId = request?.identifier;
       const actionIdentifier = response?.actionIdentifier;
 
+      if (await handleStreamPlaybackActionFromNotification(actionIdentifier)) {
+        return;
+      }
+
       if (actionIdentifier === PRAYER_AUDIO_MUTE_ACTION_ID) {
         await stopPrayerStartAdhaan();
         return;
@@ -290,6 +300,22 @@ export default function TabLayout() {
           {
             identifier: PRAYER_AUDIO_MUTE_ACTION_ID,
             buttonTitle: 'Mute',
+            options: { opensAppToForeground: false },
+          },
+        ],
+      ).catch(() => {});
+
+      await Notifications.setNotificationCategoryAsync(
+        STREAM_PLAYBACK_NOTIFICATION_CATEGORY_ID,
+        [
+          {
+            identifier: STREAM_PLAYBACK_TOGGLE_ACTION_ID,
+            buttonTitle: 'Play/Pause',
+            options: { opensAppToForeground: false },
+          },
+          {
+            identifier: STREAM_PLAYBACK_STOP_ACTION_ID,
+            buttonTitle: 'Stop',
             options: { opensAppToForeground: false },
           },
         ],

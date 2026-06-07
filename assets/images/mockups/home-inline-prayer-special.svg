@@ -1,0 +1,71 @@
+<svg width="1400" height="760" viewBox="0 0 1400 760" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1400" y2="760" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2E7C5E"/>
+      <stop offset="1" stop-color="#3D8D6D"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="70" y1="30" x2="1320" y2="700" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F4F7F5"/>
+      <stop offset="1" stop-color="#EEF4F1"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1400" height="760" fill="url(#bg)"/>
+  <rect x="48" y="44" width="1304" height="672" rx="72" fill="url(#panel)" stroke="#BCD2C8" stroke-width="4"/>
+
+  <rect x="120" y="112" width="84" height="84" rx="24" fill="#E2EFE8" stroke="#91C8AE" stroke-width="3"/>
+  <rect x="145" y="133" width="34" height="34" rx="6" fill="#2FAF64"/>
+  <text x="240" y="162" fill="#156F4C" font-size="54" font-family="Segoe UI, Arial, sans-serif" font-weight="700">Today's Prayers</text>
+
+  <rect x="920" y="104" width="320" height="94" rx="40" fill="#E4ECE8" stroke="#AFC6BC" stroke-width="3"/>
+  <rect x="934" y="114" width="128" height="74" rx="28" fill="#2FAF64" stroke="#1E7C56" stroke-width="3"/>
+  <text x="998" y="160" text-anchor="middle" fill="#FFFFFF" font-size="42" font-family="Segoe UI, Arial, sans-serif" font-weight="700">Adhan</text>
+  <text x="1145" y="160" text-anchor="middle" fill="#3D5B52" font-size="40" font-family="Segoe UI, Arial, sans-serif" font-weight="700">Jamaat</text>
+
+  <rect x="120" y="222" width="1160" height="72" rx="18" fill="#EAF2EE" stroke="#9ABAAE" stroke-width="2"/>
+  <circle cx="160" cy="258" r="8" fill="#2FAF64"/>
+  <text x="185" y="267" fill="#1F6B4D" font-size="30" font-family="Segoe UI, Arial, sans-serif" font-weight="700">Jummah Jamaat</text>
+
+  <rect x="430" y="235" width="118" height="46" rx="23" fill="#DFF3E8" stroke="#3FAB6A" stroke-width="2"/>
+  <text x="489" y="266" text-anchor="middle" fill="#1E7C56" font-size="26" font-family="Segoe UI, Arial, sans-serif" font-weight="700">13:30</text>
+  <rect x="565" y="235" width="118" height="46" rx="23" fill="#DFF3E8" stroke="#3FAB6A" stroke-width="2"/>
+  <text x="624" y="266" text-anchor="middle" fill="#1E7C56" font-size="26" font-family="Segoe UI, Arial, sans-serif" font-weight="700">14:30</text>
+
+  <g font-family="Segoe UI, Arial, sans-serif" font-weight="700">
+    <rect x="120" y="316" width="360" height="170" rx="38" fill="#F7FAF8" stroke="#AFC4BA" stroke-width="3"/>
+    <rect x="120" y="316" width="360" height="10" rx="5" fill="#67BF87"/>
+    <text x="300" y="388" text-anchor="middle" fill="#1D6A4F" font-size="42">FAJR</text>
+    <text x="300" y="448" text-anchor="middle" fill="#0F2730" font-size="68">02:00</text>
+    <text x="300" y="476" text-anchor="middle" fill="#647D77" font-size="36">04:00</text>
+
+    <rect x="520" y="316" width="360" height="170" rx="38" fill="#F7FAF8" stroke="#AFC4BA" stroke-width="3"/>
+    <rect x="520" y="316" width="360" height="10" rx="5" fill="#67BF87"/>
+    <text x="700" y="388" text-anchor="middle" fill="#1D6A4F" font-size="42">ISHRAQ</text>
+    <text x="700" y="448" text-anchor="middle" fill="#0F2730" font-size="68">05:00</text>
+    <text x="700" y="476" text-anchor="middle" fill="#647D77" font-size="36">--:--</text>
+
+    <rect x="920" y="316" width="360" height="170" rx="38" fill="#F7FAF8" stroke="#AFC4BA" stroke-width="3"/>
+    <rect x="920" y="316" width="360" height="10" rx="5" fill="#F0BD3D"/>
+    <text x="1100" y="388" text-anchor="middle" fill="#1D6A4F" font-size="42">DHUHR</text>
+    <text x="1100" y="448" text-anchor="middle" fill="#0F2730" font-size="68">13:09</text>
+    <text x="1100" y="476" text-anchor="middle" fill="#647D77" font-size="36">14:00</text>
+
+    <rect x="120" y="516" width="360" height="170" rx="38" fill="#F7FAF8" stroke="#87B998" stroke-width="4"/>
+    <rect x="120" y="516" width="360" height="10" rx="5" fill="#F0AA31"/>
+    <text x="300" y="588" text-anchor="middle" fill="#1D6A4F" font-size="42">ASR</text>
+    <text x="300" y="648" text-anchor="middle" fill="#0F2730" font-size="68">18:50</text>
+    <text x="300" y="676" text-anchor="middle" fill="#647D77" font-size="36">19:30</text>
+
+    <rect x="520" y="516" width="360" height="170" rx="38" fill="#F7FAF8" stroke="#AFC4BA" stroke-width="3"/>
+    <rect x="520" y="516" width="360" height="10" rx="5" fill="#E36FA4"/>
+    <text x="700" y="588" text-anchor="middle" fill="#1D6A4F" font-size="42">MAGHRIB</text>
+    <text x="700" y="648" text-anchor="middle" fill="#0F2730" font-size="68">21:36</text>
+    <text x="700" y="676" text-anchor="middle" fill="#647D77" font-size="36">21:36</text>
+
+    <rect x="920" y="516" width="360" height="170" rx="38" fill="#F7FAF8" stroke="#AFC4BA" stroke-width="3"/>
+    <rect x="920" y="516" width="360" height="10" rx="5" fill="#6AA4D7"/>
+    <text x="1100" y="588" text-anchor="middle" fill="#1D6A4F" font-size="42">ISHA</text>
+    <text x="1100" y="648" text-anchor="middle" fill="#0F2730" font-size="68">22:45</text>
+    <text x="1100" y="676" text-anchor="middle" fill="#647D77" font-size="36">23:00</text>
+  </g>
+</svg>
