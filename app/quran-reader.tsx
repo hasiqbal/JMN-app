@@ -921,7 +921,7 @@ export default function QuranReaderScreen() {
 
   return (
     <GestureHandlerRootView style={styles.container}>
-    <View style={[styles.container, { backgroundColor: N ? N.bg : '#050505' }]}>
+    <View style={[styles.container, { backgroundColor: N ? N.bg : '#000' }]}>
       <GestureDetector gesture={imageGestures}>
       <View
         style={[styles.viewerPanel, N && { backgroundColor: N.panel, borderColor: N.border }]}
@@ -941,6 +941,7 @@ export default function QuranReaderScreen() {
         <TouchableOpacity
           style={[
             styles.translateToggleBtn,
+            toggleLabelLang === 'ur' && styles.translateToggleBtnUrdu,
             N && { borderColor: N.border },
             showContentPanel && styles.translateToggleBtnActive,
           ]}
@@ -961,18 +962,10 @@ export default function QuranReaderScreen() {
         {pageImageUri ? (
           <Reanimated.View style={[styles.imageWrap, zoomStyle]}>
             <Image
-              source={{ uri: pageImageUri }}
-              style={styles.imageBackdrop}
-              contentFit="cover"
-              blurRadius={14}
-              transition={80}
-            />
-            <Image
               key={`quran-image-${mushaf}-${page}-${imageRenderNonce}`}
               source={{ uri: pageImageUri }}
               style={styles.image}
               contentFit="contain"
-              contentPosition="center"
               transition={80}
             />
             <View pointerEvents="none" style={[styles.quranTintOverlay, { backgroundColor: quranTintOverlay }]} />
@@ -1412,6 +1405,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 7,
   },
+  translateToggleBtnUrdu: {
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    minHeight: 40,
+    justifyContent: 'center',
+  },
   translateToggleBtnActive: {
     backgroundColor: '#4FE948',
     borderColor: '#4FE948',
@@ -1423,9 +1422,11 @@ const styles = StyleSheet.create({
   },
   translateToggleTextUrdu: {
     fontFamily: 'UrduNastaliq',
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 16,
+    lineHeight: 28,
     letterSpacing: 0,
+    includeFontPadding: true,
+    textAlignVertical: 'center',
   } as any,
   translateToggleTextActive: {
     color: '#0B2817',
@@ -1435,21 +1436,15 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     borderColor: 'transparent',
     borderRadius: 0,
-    backgroundColor: '#050505',
+    backgroundColor: '#000',
     overflow: 'hidden',
   },
   image: {
-    width: '110%',
-    height: '110%',
-    alignSelf: 'center',
+    width: '100%',
+    height: '100%',
   },
   imageWrap: {
     flex: 1,
-  },
-  imageBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    opacity: 0.24,
-    transform: [{ scale: 1.06 }],
   },
   quranTintOverlay: {
     ...StyleSheet.absoluteFillObject,

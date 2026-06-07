@@ -961,6 +961,7 @@ export default function MonthlyCalendarSection({
   transliterateHijri,
   getHijriDayNum,
   getHijriMonthName,
+  currentHijriMonthYearLabel,
   betweenCalendarAndTimetable,
 }: {
   today: Date;
@@ -969,6 +970,7 @@ export default function MonthlyCalendarSection({
   transliterateHijri: (hijri: string) => string;
   getHijriDayNum: (hijri: string) => string;
   getHijriMonthName: (hijri: string) => string;
+  currentHijriMonthYearLabel?: string;
   betweenCalendarAndTimetable?: React.ReactNode;
 }) {
   const router = useRouter();
@@ -984,7 +986,7 @@ export default function MonthlyCalendarSection({
   const [calendarRefreshToken, setCalendarRefreshToken] = useState(0);
 
   const pickerHeight = React.useMemo(() => {
-    return Math.min(420, Math.max(300, Math.floor(screenHeight * 0.52)));
+    return Math.min(460, Math.max(320, Math.floor(screenHeight * 0.58)));
   }, [screenHeight]);
   const weekCount = React.useMemo(() => {
     const firstDay = new Date(viewYear, viewMonth, 1);
@@ -997,11 +999,16 @@ export default function MonthlyCalendarSection({
     return Math.max(62, Math.min(78, Math.floor(available / weekCount)));
   }, [screenHeight, weekCount]);
   const monthButtonWidth = React.useMemo(() => {
-    const horizontalPadding = 24;
-    const gaps = 12;
+    const horizontalPadding = 20;
+    const gaps = 14;
     const usable = Math.max(240, screenWidth - horizontalPadding - gaps);
     return Math.floor(usable / 3);
   }, [screenWidth]);
+  const monthButtonHeight = React.useMemo(() => {
+    const reservedHeight = 146;
+    const gridAvailable = Math.max(246, pickerHeight - reservedHeight);
+    return Math.max(60, Math.min(70, Math.floor((gridAvailable - 15) / 4)));
+  }, [pickerHeight]);
   const [dbLoading, setDbLoading] = useState(false);
   const [manualRefreshing, setManualRefreshing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -1069,14 +1076,6 @@ export default function MonthlyCalendarSection({
     [viewYear, viewMonth, today, dbRows, hijriRows, loadedHijriMonthKey]
   );
 
-  const pickerYears = React.useMemo(() => {
-    const start = today.getFullYear();
-    const end = today.getFullYear() + 30;
-    const years: number[] = [];
-    for (let y = start; y <= end; y++) years.push(y);
-    return years;
-  }, [today]);
-
   const getHijriYearHint = React.useCallback((year: number) => {
     const portalYearHint = portalYearHints.get(year);
     if (portalYearHint) return portalYearHint;
@@ -1098,6 +1097,8 @@ export default function MonthlyCalendarSection({
     if (janYear && decYear && janYear !== decYear) return `${janYear}/${decYear} AH`;
     return `${janYear || decYear} AH`;
   }, [predictedHijriFromToday, portalYearHints]);
+
+  const pickerYearHijri = React.useMemo(() => getHijriYearHint(pickerYear), [getHijriYearHint, pickerYear]);
 
   const getHijriMonthHint = React.useCallback((year: number, month: number) => {
     const portalMonthHint = portalMonthHints.get(`${year}-${month}`)?.monthHint;
@@ -1257,20 +1258,6 @@ export default function MonthlyCalendarSection({
       cancelled = true;
     };
   }, [showMonthPicker, pickerYear, portalMonthHints, portalYearHints]);
-
-  const pickerSections = React.useMemo(
-    () =>
-      pickerYears.map((year) => ({
-        year,
-        yearHijri: getHijriYearHint(year),
-        months: MONTH_NAMES.map((name, monthIndex) => ({
-          monthIndex,
-          shortName: name.slice(0, 3),
-          hijriHint: getHijriMonthHint(year, monthIndex),
-        })),
-      })),
-    [pickerYears, getHijriYearHint, getHijriMonthHint]
-  );
 
   const pickerMonthDays = React.useMemo(() => {
     const daysInMonth = new Date(pickerYear, pickerMonth + 1, 0).getDate();
@@ -1513,13 +1500,39 @@ export default function MonthlyCalendarSection({
   }, [manualRefreshing, resetCalendarDataAndReload, viewYear]);
 
   const firstWithHijri = currentGrid.find((c) => c.isCurrentMonth && c.day?.hijri);
-  const viewHijriMonth = firstWithHijri?.day ? getHijriMonthName(firstWithHijri.day.hijri) : '';
-  const viewHijriYear = firstWithHijri?.day
-    ? (() => {
-        const m = firstWithHijri.day.hijri.match(/\b(\d{4})\b/);
-        return m ? m[1] : '';
-      })()
+  const isViewingCurrentGregorianMonth =
+    viewYear === today.getFullYear() && viewMonth === today.getMonth();
+  const forcedCurrentMonthHijriLabel = isViewingCurrentGregorianMonth
+    ? (currentHijriMonthYearLabel?.trim() ?? '')
     : '';
+  const fallbackMonthStartHijri = lookupTimetable(new Date(viewYear, viewMonth, 1))?.hijri ?? '';
+  const fallbackMonthHint = getHijriMonthHint(viewYear, viewMonth);
+  const fallbackMonthHintLabel = fallbackMonthHint === 'Hijri n/a' ? '' : fallbackMonthHint;
+
+  const headerHijriLabel = firstWithHijri?.day
+    ? (() => {
+        const month = getHijriMonthName(firstWithHijri.day.hijri);
+        const m = firstWithHijri.day.hijri.match(/\b(\d{4})\b/);
+        return month ? `${month}${m ? ` ${m[1]} AH` : ''}` : '';
+      })()
+    : forcedCurrentMonthHijriLabel
+      ? forcedCurrentMonthHijriLabel
+    : fallbackMonthStartHijri
+      ? (() => {
+          const month = getHijriMonthName(fallbackMonthStartHijri);
+          const m = fallbackMonthStartHijri.match(/\b(\d{4})\b/);
+          return month ? `${month}${m ? ` ${m[1]} AH` : ''}` : '';
+        })()
+      : fallbackMonthHintLabel;
+
+  const [stableHeaderHijriLabel, setStableHeaderHijriLabel] = React.useState('');
+  useEffect(() => {
+    if (headerHijriLabel) {
+      setStableHeaderHijriLabel(headerHijriLabel);
+    }
+  }, [headerHijriLabel]);
+
+  const visibleHeaderHijriLabel = headerHijriLabel || stableHeaderHijriLabel;
   return (
     <View style={[calStyles.splitContainer, N && { backgroundColor: N.bg }]}> 
       <View style={[calStyles.gridSection, showMonthPicker && { height: pickerHeight + 12 }, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}> 
@@ -1565,73 +1578,87 @@ export default function MonthlyCalendarSection({
 
             {pickerStep === 'month' ? (
               <ScrollView
-                showsVerticalScrollIndicator={true}
+                showsVerticalScrollIndicator={false}
                 style={{ flex: 1 }}
                 keyboardShouldPersistTaps="always"
                 contentContainerStyle={calStyles.pickerYearsWrap}
               >
-                {pickerSections.map((section) => {
-                const { year, yearHijri, months } = section;
-                return (
-                  <View key={year} style={[calStyles.yearSection, N && { borderBottomColor: N.border }]}>
-                    <View style={calStyles.yearHeaderRow}>
-                      <Text style={[calStyles.yearTitle, N && { color: N.text }]}>{year}</Text>
-                      <Text style={[calStyles.yearHijri, N && { color: N.textMuted }]}>
-                        {yearHijri || 'Hijri year n/a'}
-                      </Text>
-                    </View>
-
-                    <View style={calStyles.monthGrid}>
-                      {months.map((m) => {
-                        const { monthIndex, shortName, hijriHint: monthHijri } = m;
-                        const isSelected = year === viewYear && monthIndex === viewMonth;
-                        return (
-                          <CalendarPressable
-                            key={`${year}-${monthIndex}`}
-                            onPress={() => {
-                              setPickerYear(year);
-                              setPickerMonth(monthIndex);
-                              setViewYear(year);
-                              setViewMonth(monthIndex);
-                              setSelectedDay(null);
-                              setShowDayDetailModal(false);
-                              resetCalendarDataAndReload();
-                              setPickerStep('month');
-                              setShowMonthPicker(false);
-                            }}
-                            style={[
-                              calStyles.monthButton,
-                              { width: monthButtonWidth },
-                              isSelected && calStyles.monthButtonSelected,
-                              N && {
-                                backgroundColor: isSelected ? '#2E6CB9' : N.surface,
-                                borderColor: isSelected ? '#69A8FF' : N.border,
-                              },
-                            ]}
-                            cancelable={false}
-                            hitSlop={8}
-                          >
-                            <Text style={[
-                              calStyles.monthButtonText,
-                              isSelected && calStyles.monthButtonTextSelected,
-                              N && { color: isSelected ? '#F3F8FF' : N.text },
-                            ]}>
-                              {shortName}
-                            </Text>
-                            <Text style={[
-                              calStyles.monthButtonHijri,
-                              isSelected && calStyles.monthButtonHijriSelected,
-                              N && { color: isSelected ? '#DCEBFF' : N.textMuted },
-                            ]} numberOfLines={3}>
-                              {monthHijri}
-                            </Text>
-                          </CalendarPressable>
-                        );
-                      })}
-                    </View>
+                <View style={[calStyles.yearSection, N && { borderBottomColor: N.border }]}>
+                  <View style={calStyles.yearSwitchRow}>
+                    <TouchableOpacity
+                      onPress={() => setPickerYear((y) => y - 1)}
+                      style={[calStyles.yearSwitchBtn, N && { borderColor: N.border, backgroundColor: N.surface }]}
+                      activeOpacity={0.8}
+                      hitSlop={8}
+                    >
+                      <MaterialIcons name="chevron-left" size={18} color={N ? N.text : Colors.textPrimary} />
+                    </TouchableOpacity>
+                    <Text style={[calStyles.yearTitle, N && { color: N.text }]}>{pickerYear}</Text>
+                    <TouchableOpacity
+                      onPress={() => setPickerYear((y) => y + 1)}
+                      style={[calStyles.yearSwitchBtn, N && { borderColor: N.border, backgroundColor: N.surface }]}
+                      activeOpacity={0.8}
+                      hitSlop={8}
+                    >
+                      <MaterialIcons name="chevron-right" size={18} color={N ? N.text : Colors.textPrimary} />
+                    </TouchableOpacity>
                   </View>
-                );
-                })}
+
+                  <View style={calStyles.yearHeaderRow}>
+                    <Text style={[calStyles.yearHijri, N && { color: N.textMuted }]}>
+                      {pickerYearHijri || 'Hijri year n/a'}
+                    </Text>
+                  </View>
+
+                  <View style={calStyles.monthGrid}>
+                    {MONTH_NAMES.map((name, monthIndex) => {
+                      const shortName = name.slice(0, 3);
+                      const monthHijri = getHijriMonthHint(pickerYear, monthIndex);
+                      const isSelected = pickerYear === viewYear && monthIndex === viewMonth;
+                      return (
+                        <CalendarPressable
+                          key={`${pickerYear}-${monthIndex}`}
+                          onPress={() => {
+                            setPickerMonth(monthIndex);
+                            setViewYear(pickerYear);
+                            setViewMonth(monthIndex);
+                            setSelectedDay(null);
+                            setShowDayDetailModal(false);
+                            resetCalendarDataAndReload();
+                            setPickerStep('month');
+                            setShowMonthPicker(false);
+                          }}
+                          style={[
+                            calStyles.monthButton,
+                            { width: monthButtonWidth, minHeight: monthButtonHeight, height: monthButtonHeight },
+                            isSelected && calStyles.monthButtonSelected,
+                            N && {
+                              backgroundColor: isSelected ? '#2E6CB9' : N.surface,
+                              borderColor: isSelected ? '#69A8FF' : N.border,
+                            },
+                          ]}
+                          cancelable={false}
+                          hitSlop={8}
+                        >
+                          <Text style={[
+                            calStyles.monthButtonText,
+                            isSelected && calStyles.monthButtonTextSelected,
+                            N && { color: isSelected ? '#F3F8FF' : N.text },
+                          ]}>
+                            {shortName}
+                          </Text>
+                          <Text style={[
+                            calStyles.monthButtonHijri,
+                            isSelected && calStyles.monthButtonHijriSelected,
+                            N && { color: isSelected ? '#DCEBFF' : N.textMuted },
+                          ]} numberOfLines={2}>
+                            {monthHijri}
+                          </Text>
+                        </CalendarPressable>
+                      );
+                    })}
+                  </View>
+                </View>
               </ScrollView>
             ) : (
               <View style={calStyles.dayPickerWrap}>
@@ -1718,11 +1745,22 @@ export default function MonthlyCalendarSection({
         ) : null}
         <View style={[calStyles.monthMatrixCard, N && { backgroundColor: N.surface, borderColor: N.border }]}> 
           <View style={[calStyles.monthMatrixTitleBar, N && { borderBottomColor: N.border, backgroundColor: N.surfaceAlt }]}> 
-            <View style={{ flex: 1 }}>
-              <Text style={[calStyles.monthMatrixTitle, N && { color: N.text }]}>{MONTH_NAMES[viewMonth]} {viewYear}</Text>
-              <Text style={[calStyles.monthMatrixSubTitle, N && { color: N.textMuted }]}>
-                {viewHijriMonth ? `${viewHijriMonth}${viewHijriYear ? ` ${viewHijriYear} AH` : ''}` : 'Hijri syncing...'}
+            <View pointerEvents="none" style={calStyles.monthTitleDecorWrap}>
+              <View style={[calStyles.monthTitleDecorOrbLarge, N && { backgroundColor: '#7CB4EA22' }]} />
+              <View style={[calStyles.monthTitleDecorOrbSmall, N && { backgroundColor: '#9BC2EA2A' }]} />
+            </View>
+
+            <View style={calStyles.monthMatrixTitleWrap}>
+              <Text numberOfLines={1} style={[calStyles.monthMatrixKicker, N && { color: N.textMuted }]}>Monthly timetable</Text>
+              <Text numberOfLines={1} style={[calStyles.monthMatrixTitle, N && { color: N.text }]}>
+                {MONTH_NAMES[viewMonth]} {viewYear}
               </Text>
+              <View style={calStyles.monthMatrixSubTitleRow}>
+                <MaterialIcons name="brightness-2" size={13} color={N ? '#9BC2EA' : '#5A7769'} />
+                <Text numberOfLines={1} style={[calStyles.monthMatrixSubTitle, N && { color: N.textMuted }]}>
+                  {visibleHeaderHijriLabel || 'Hijri syncing...'}
+                </Text>
+              </View>
               {manualRefreshing ? (
                 <Text style={[calStyles.syncLabel, N && { color: N.textMuted }]}>Syncing dates...</Text>
               ) : null}
@@ -1730,42 +1768,49 @@ export default function MonthlyCalendarSection({
                 <Text style={calStyles.syncErrorLabel}>{syncError}</Text>
               ) : null}
             </View>
+
             <View style={calStyles.monthHeaderActions}>
-              <TouchableOpacity
-                onPress={goBack}
-                style={[calStyles.monthHeaderIconBtn, N && { borderColor: N.border, backgroundColor: N.surface }]}
-                activeOpacity={0.8}
-              >
-                <MaterialIcons name="chevron-left" size={16} color={N ? '#9BC2EA' : '#2D7D5F'} />
-              </TouchableOpacity>
+              <View style={[calStyles.monthHeaderUnifiedControl, N && { borderColor: N.border, backgroundColor: N.surface }]}>
+                <TouchableOpacity
+                  onPress={goBack}
+                  style={[calStyles.monthHeaderUnifiedIconBtn, calStyles.monthHeaderUnifiedLeft, N && { borderRightColor: N.border }]}
+                  activeOpacity={0.8}
+                  hitSlop={8}
+                >
+                  <MaterialIcons name="chevron-left" size={16} color={N ? '#9BC2EA' : '#2D7D5F'} />
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                onPress={goForward}
-                style={[calStyles.monthHeaderIconBtn, N && { borderColor: N.border, backgroundColor: N.surface }]}
-                activeOpacity={0.8}
-              >
-                <MaterialIcons name="chevron-right" size={16} color={N ? '#9BC2EA' : '#2D7D5F'} />
-              </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    setPickerStep('month');
+                    setPickerYear(viewYear);
+                    setPickerMonth(viewMonth);
+                    setShowMonthPicker(true);
+                  }}
+                  style={[calStyles.monthHeaderUnifiedCenterBtn, N && { borderLeftColor: N.border, borderRightColor: N.border }]}
+                  activeOpacity={0.8}
+                  hitSlop={8}
+                >
+                  <MaterialIcons name="calendar-month" size={15} color={N ? '#9BC2EA' : '#FFFFFF'} />
+                  <Text numberOfLines={1} style={[calStyles.monthHeaderActionText, calStyles.monthHeaderActionTextPrimary, N && { color: N.textSub }]}>Select month</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                onPress={() => {
-                  setPickerStep('month');
-                  setPickerYear(viewYear);
-                  setPickerMonth(viewMonth);
-                  setShowMonthPicker(true);
-                }}
-                style={[calStyles.monthHeaderActionBtn, N && { borderColor: N.border, backgroundColor: N.surface }]}
-                activeOpacity={0.8}
-              >
-                <MaterialIcons name="calendar-month" size={15} color={N ? '#9BC2EA' : '#2D7D5F'} />
-                <Text style={[calStyles.monthHeaderActionText, N && { color: N.textSub }]}>Change month</Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={goForward}
+                  style={[calStyles.monthHeaderUnifiedIconBtn, calStyles.monthHeaderUnifiedRight, N && { borderLeftColor: N.border }]}
+                  activeOpacity={0.8}
+                  hitSlop={8}
+                >
+                  <MaterialIcons name="chevron-right" size={16} color={N ? '#9BC2EA' : '#2D7D5F'} />
+                </TouchableOpacity>
+              </View>
 
               <TouchableOpacity
                 onPress={handleManualRefresh}
                 style={[calStyles.monthHeaderIconBtn, N && { borderColor: N.border, backgroundColor: N.surface }]}
                 activeOpacity={0.8}
                 disabled={manualRefreshing}
+                hitSlop={8}
               >
                 <MaterialIcons
                   name={manualRefreshing ? 'hourglass-empty' : 'refresh'}
@@ -1936,63 +1981,139 @@ const calStyles = StyleSheet.create({
   monthMatrixCard: {
     marginHorizontal: 10,
     marginTop: 12,
-    borderRadius: Radius.lg,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#C7D7CC',
+    borderColor: '#C4D5CB',
     backgroundColor: '#FFFFFF',
     overflow: 'hidden',
   },
   monthMatrixTitleBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: 11,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#D6E3DB',
-    backgroundColor: '#ECF6F0',
+    borderBottomColor: '#D2E0D8',
+    backgroundColor: '#EAF3EE',
+    position: 'relative',
+  },
+  monthTitleDecorWrap: {
+    position: 'absolute',
+    right: -10,
+    top: -12,
+    width: 88,
+    height: 68,
+    pointerEvents: 'none',
+  },
+  monthTitleDecorOrbLarge: {
+    position: 'absolute',
+    right: 6,
+    top: 0,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#2D7D5F1F',
+  },
+  monthTitleDecorOrbSmall: {
+    position: 'absolute',
+    right: 42,
+    top: 34,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#2D7D5F24',
+  },
+  monthMatrixTitleWrap: {
+    width: '100%',
+    gap: 2,
+  },
+  monthMatrixKicker: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    color: '#5E786B',
   },
   monthMatrixTitle: {
-    fontSize: 16,
+    fontSize: 19,
     fontWeight: '800',
     color: '#153C2A',
+    letterSpacing: 0.2,
+  },
+  monthMatrixSubTitleRow: {
+    marginTop: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
   },
   monthMatrixSubTitle: {
-    marginTop: 2,
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#5C7568',
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#4E6A5E',
+    flexShrink: 1,
   },
   monthHeaderActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginLeft: 8,
+    justifyContent: 'space-between',
+    gap: 10,
+    marginTop: 2,
   },
-  monthHeaderActionBtn: {
-    minHeight: 36,
-    paddingHorizontal: 11,
-    borderRadius: 10,
+  monthHeaderUnifiedControl: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#C6D8CC',
-    backgroundColor: '#F8FCF9',
+    borderColor: '#BCD1C5',
+    backgroundColor: '#F7FBF8',
+    overflow: 'hidden',
+  },
+  monthHeaderUnifiedIconBtn: {
+    width: 40,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F7FBF8',
+  },
+  monthHeaderUnifiedLeft: {
+    borderRightWidth: 1,
+    borderRightColor: '#BCD1C5',
+  },
+  monthHeaderUnifiedRight: {
+    borderLeftWidth: 1,
+    borderLeftColor: '#BCD1C5',
+  },
+  monthHeaderUnifiedCenterBtn: {
+    minHeight: 38,
+    flex: 1,
+    paddingHorizontal: 12,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderLeftColor: '#BCD1C5',
+    borderRightColor: '#BCD1C5',
+    backgroundColor: '#2D7D5F',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
+    gap: 6,
   },
   monthHeaderActionText: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '700',
-    color: '#1F7A58',
+    color: '#176E4E',
+  },
+  monthHeaderActionTextPrimary: {
+    color: '#FFFFFF',
   },
   monthHeaderIconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 38,
+    height: 38,
+    borderRadius: 11,
     borderWidth: 1,
-    borderColor: '#C6D8CC',
-    backgroundColor: '#F8FCF9',
+    borderColor: '#BCD1C5',
+    backgroundColor: '#F7FBF8',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2274,9 +2395,8 @@ const calStyles = StyleSheet.create({
     color: '#B42318',
   },
   pickerContainer: {
-    maxHeight: 420,
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: 14,
     overflow: 'hidden',
     flexDirection: 'column',
   },
@@ -2285,7 +2405,7 @@ const calStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
@@ -2296,20 +2416,37 @@ const calStyles = StyleSheet.create({
   },
   pickerYearsWrap: {
     paddingHorizontal: 10,
-    paddingBottom: 12,
+    paddingBottom: 8,
   },
   yearSection: {
-    paddingTop: 12,
-    paddingBottom: 10,
+    paddingTop: 10,
+    paddingBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
   yearHeaderRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
     paddingHorizontal: 4,
+  },
+  yearSwitchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+    paddingHorizontal: 4,
+  },
+  yearSwitchBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   yearTitle: {
     fontSize: 14,
@@ -2320,21 +2457,21 @@ const calStyles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     color: Colors.textSubtle,
-    textAlign: 'right',
-    maxWidth: '58%',
+    textAlign: 'center',
+    maxWidth: '100%',
   },
   monthGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    rowGap: 6,
-    marginBottom: 8,
+    rowGap: 5,
+    marginBottom: 4,
   },
   monthButton: {
-    minHeight: 74,
-    paddingVertical: 6,
+    minHeight: 64,
+    paddingVertical: 5,
     paddingHorizontal: 6,
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: Colors.border,
     backgroundColor: Colors.surface,
@@ -2358,12 +2495,12 @@ const calStyles = StyleSheet.create({
     fontWeight: '700',
   },
   monthButtonHijri: {
-    marginTop: 3,
-    fontSize: 10,
+    marginTop: 2,
+    fontSize: 9.5,
     fontWeight: '600',
     color: Colors.textSubtle,
     letterSpacing: 0,
-    lineHeight: 12,
+    lineHeight: 11,
     textAlign: 'center',
   },
   monthButtonHijriSelected: {

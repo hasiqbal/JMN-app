@@ -115,15 +115,68 @@ export function HomeInlinePrayerTimesSection({
     });
   }, [rows]);
 
-  const compact = displayRows.length >= 7 || width < 360;
-  const tileColumns = width < 380 ? 2 : 3;
-  const tileStyle = tileColumns === 2 ? styles.prayerCardTwoCol : styles.prayerCardThreeCol;
+  const compact = displayRows.length >= 6 || width < 430;
+  const oneRowMode = embedded && width < 460;
+  const tileColumns = width < 330 ? 2 : 3;
+  const tileStyle = oneRowMode
+    ? styles.prayerCardOneRow
+    : (tileColumns === 2 ? styles.prayerCardTwoCol : styles.prayerCardThreeCol);
   const condensedHeader = width < 430;
   const headerTitle = condensedHeader ? "Today's Prayers" : "Today's Prayer Times";
 
+  const renderedPrayerTiles = displayRows.map((row, index) => {
+    const highlighted = row.state === 'current' || row.state === 'next';
+    const iconColor = ICON_COLORS[row.label] ?? '#2E8B57';
+    const primary = mode === 'adhan' ? row.begins : row.jamaat;
+    const secondary = mode === 'adhan' ? row.jamaat : row.begins;
+    const tomorrowPreview = mode === 'adhan' ? row.tomorrowBegins : row.tomorrowJamaat;
+    const showTomorrowPreview = !oneRowMode && row.state === 'past' && !!tomorrowPreview;
+
+    return (
+      <View
+        key={row.key}
+        style={[
+          styles.prayerCard,
+          index % 2 === 0 ? styles.prayerCardVariantA : styles.prayerCardVariantB,
+          tileStyle,
+          compact && styles.prayerCardCompact,
+          highlighted && styles.prayerCardActive,
+          nightMode && styles.prayerCardNight,
+        ]}
+      >
+        <View style={[styles.prayerAccent, { backgroundColor: iconColor }, nightMode && styles.prayerAccentNight]} />
+        {!compact && !oneRowMode ? <View style={[styles.tileInnerFrame, { borderColor: `${iconColor}2D` }, nightMode && styles.tileInnerFrameNight]} /> : null}
+        {!oneRowMode ? <View style={[styles.tileCornerOrb, styles.tileCornerOrbLeft, { backgroundColor: `${iconColor}2B` }, nightMode && styles.tileCornerOrbNight]} /> : null}
+        {!oneRowMode ? <View style={[styles.tileCornerOrb, styles.tileCornerOrbRight, { backgroundColor: `${iconColor}24` }, nightMode && styles.tileCornerOrbNight]} /> : null}
+        <View style={[styles.iconBadge, compact && styles.iconBadgeCompact, oneRowMode && styles.iconBadgeOneRow, { backgroundColor: ICON_TINTS[row.label] ?? 'rgba(46,139,87,0.14)' }, nightMode && styles.iconBadgeNight]}>
+          <MaterialIcons name={ICONS[row.label] ?? 'schedule'} size={oneRowMode ? 14 : compact ? 18 : 24} color={iconColor} />
+        </View>
+        <Text style={[styles.prayerName, compact && styles.prayerNameCompact, oneRowMode && styles.prayerNameOneRow, nightMode && { color: NIGHT.cardText }]}>{row.label}</Text>
+        <Text style={[styles.primaryTime, compact && styles.primaryTimeCompact, oneRowMode && styles.primaryTimeOneRow, nightMode && { color: NIGHT.cardText }]}>{primary}</Text>
+        {!oneRowMode ? <Text style={[styles.secondaryTime, compact && styles.secondaryTimeCompact, nightMode && { color: NIGHT.cardTextSoft }]}>{secondary}</Text> : null}
+        {showTomorrowPreview ? (
+          <View style={[styles.tomorrowBadge, compact && styles.tomorrowBadgeCompact, nightMode && styles.tomorrowBadgeNight]}>
+            <Text style={[styles.tomorrowBadgeLabel, compact && styles.tomorrowBadgeLabelCompact, nightMode && styles.tomorrowBadgeLabelNight]}>+24h</Text>
+            <Text style={[styles.tomorrowBadgeTime, compact && styles.tomorrowBadgeTimeCompact, nightMode && styles.tomorrowBadgeTimeNight]}>{tomorrowPreview}</Text>
+          </View>
+        ) : null}
+        {row.label === 'Jummah' && !oneRowMode ? (
+          <Text style={[styles.thirdTime, compact && styles.thirdTimeCompact, nightMode && { color: NIGHT.cardTextSoft }]}>
+            {`${row.jamaat} / ${row.jamaat2}`}
+          </Text>
+        ) : null}
+      </View>
+    );
+  });
+
   return (
     <View style={[styles.container, embedded && styles.containerEmbedded]}>
-      <View style={[styles.card, nightMode ? styles.cardNight : styles.cardDay]}>
+      <View
+        style={[
+          styles.card,
+          nightMode ? styles.cardNight : styles.cardDay,
+        ]}
+      >
         <ImageBackground
           source={require('@/assets/images/background/kiswahkaabah.jpg')}
           style={styles.cardBgImage}
@@ -141,92 +194,49 @@ export function HomeInlinePrayerTimesSection({
         </View>
 
         <View style={styles.cardContent}>
-        <View style={styles.headerRow}>
+        <View style={[styles.headerRow, compact && styles.headerRowCompact]}>
           <View style={styles.headerLeft}>
-            <View style={[styles.calendarBadge, nightMode && styles.calendarBadgeNight]}>
-              <MaterialIcons name="calendar-today" size={14} color={nightMode ? NIGHT.cardText : '#1B8661'} />
+            <View style={[styles.calendarBadge, compact && styles.calendarBadgeCompact, nightMode && styles.calendarBadgeNight]}>
+              <MaterialIcons name="calendar-today" size={compact ? 12 : 14} color={nightMode ? NIGHT.cardText : '#1B8661'} />
             </View>
-            <Text style={[styles.title, condensedHeader && styles.titleCondensed, nightMode && { color: NIGHT.cardText }]} numberOfLines={1}>{headerTitle}</Text>
+            <Text style={[styles.title, condensedHeader && styles.titleCondensed, compact && styles.titleCompact, nightMode && { color: NIGHT.cardText }]} numberOfLines={1}>{headerTitle}</Text>
           </View>
-          <View style={[styles.modePill, nightMode && styles.modePillNight]}>
+          <View style={[styles.modePill, compact && styles.modePillCompact, nightMode && styles.modePillNight]}>
             <TouchableOpacity
-              style={[styles.modeBtn, mode === 'adhan' && styles.modeBtnActive, nightMode && mode === 'adhan' && styles.modeBtnActiveNight]}
+              style={[styles.modeBtn, compact && styles.modeBtnCompact, mode === 'adhan' && styles.modeBtnActive, nightMode && mode === 'adhan' && styles.modeBtnActiveNight]}
               onPress={() => setMode('adhan')}
               activeOpacity={0.85}
             >
-              <Text style={[styles.modeBtnText, nightMode && styles.modeBtnTextNight, mode === 'adhan' && styles.modeBtnTextActive]}>Adhan</Text>
+              <Text style={[styles.modeBtnText, compact && styles.modeBtnTextCompact, nightMode && styles.modeBtnTextNight, mode === 'adhan' && styles.modeBtnTextActive]}>Adhan</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.modeBtn, mode === 'jamaat' && styles.modeBtnActive, nightMode && mode === 'jamaat' && styles.modeBtnActiveNight]}
+              style={[styles.modeBtn, compact && styles.modeBtnCompact, mode === 'jamaat' && styles.modeBtnActive, nightMode && mode === 'jamaat' && styles.modeBtnActiveNight]}
               onPress={() => setMode('jamaat')}
               activeOpacity={0.85}
             >
-              <Text style={[styles.modeBtnText, nightMode && styles.modeBtnTextNight, mode === 'jamaat' && styles.modeBtnTextActive]}>Jamaat</Text>
+              <Text style={[styles.modeBtnText, compact && styles.modeBtnTextCompact, nightMode && styles.modeBtnTextNight, mode === 'jamaat' && styles.modeBtnTextActive]}>Jamaat</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         {specialSchedule && specialSchedule.times.length > 0 ? (
-          <View style={[styles.specialStrip, nightMode && styles.specialStripNight]}>
+          <View style={[styles.specialStrip, compact && styles.specialStripCompact, nightMode && styles.specialStripNight]}>
             <View style={styles.specialStripHeader}>
               <View style={[styles.specialDot, specialSchedule.kind === 'eid' && styles.specialDotEid]} />
-              <Text style={[styles.specialTitle, nightMode && styles.specialTitleNight]}>{specialSchedule.title}</Text>
+              <Text style={[styles.specialTitle, compact && styles.specialTitleCompact, nightMode && styles.specialTitleNight]}>{specialSchedule.title}</Text>
             </View>
-            <View style={styles.specialTimesRow}>
+            <View style={[styles.specialTimesRow, compact && styles.specialTimesRowCompact]}>
               {specialSchedule.times.map((time) => (
-                <View key={`${specialSchedule.kind}-${time}`} style={[styles.specialTimeChip, nightMode && styles.specialTimeChipNight]}>
-                  <Text style={[styles.specialTimeText, nightMode && styles.specialTimeTextNight]}>{time}</Text>
+                <View key={`${specialSchedule.kind}-${time}`} style={[styles.specialTimeChip, compact && styles.specialTimeChipCompact, nightMode && styles.specialTimeChipNight]}>
+                  <Text style={[styles.specialTimeText, compact && styles.specialTimeTextCompact, nightMode && styles.specialTimeTextNight]}>{time}</Text>
                 </View>
               ))}
             </View>
           </View>
         ) : null}
 
-        <View style={styles.rowsContainer}>
-          {displayRows.map((row, index) => {
-            const highlighted = row.state === 'current' || row.state === 'next';
-            const iconColor = ICON_COLORS[row.label] ?? '#2E8B57';
-            const primary = mode === 'adhan' ? row.begins : row.jamaat;
-            const secondary = mode === 'adhan' ? row.jamaat : row.begins;
-            const tomorrowPreview = mode === 'adhan' ? row.tomorrowBegins : row.tomorrowJamaat;
-            const showTomorrowPreview = row.state === 'past' && !!tomorrowPreview;
-
-            return (
-              <View
-                key={row.key}
-                style={[
-                  styles.prayerCard,
-                  index % 2 === 0 ? styles.prayerCardVariantA : styles.prayerCardVariantB,
-                  tileStyle,
-                  compact && styles.prayerCardCompact,
-                  highlighted && styles.prayerCardActive,
-                  nightMode && styles.prayerCardNight,
-                ]}
-              >
-                <View style={[styles.prayerAccent, { backgroundColor: iconColor }, nightMode && styles.prayerAccentNight]} />
-                <View style={[styles.tileInnerFrame, { borderColor: `${iconColor}2D` }, nightMode && styles.tileInnerFrameNight]} />
-                <View style={[styles.tileCornerOrb, styles.tileCornerOrbLeft, { backgroundColor: `${iconColor}2B` }, nightMode && styles.tileCornerOrbNight]} />
-                <View style={[styles.tileCornerOrb, styles.tileCornerOrbRight, { backgroundColor: `${iconColor}24` }, nightMode && styles.tileCornerOrbNight]} />
-                <View style={[styles.iconBadge, { backgroundColor: ICON_TINTS[row.label] ?? 'rgba(46,139,87,0.14)' }, nightMode && styles.iconBadgeNight]}>
-                  <MaterialIcons name={ICONS[row.label] ?? 'schedule'} size={compact ? 20 : 24} color={iconColor} />
-                </View>
-                <Text style={[styles.prayerName, compact && styles.prayerNameCompact, nightMode && { color: NIGHT.cardText }]}>{row.label}</Text>
-                <Text style={[styles.primaryTime, compact && styles.primaryTimeCompact, nightMode && { color: NIGHT.cardText }]}>{primary}</Text>
-                <Text style={[styles.secondaryTime, compact && styles.secondaryTimeCompact, nightMode && { color: NIGHT.cardTextSoft }]}>{secondary}</Text>
-                {showTomorrowPreview ? (
-                  <View style={[styles.tomorrowBadge, nightMode && styles.tomorrowBadgeNight]}>
-                    <Text style={[styles.tomorrowBadgeLabel, nightMode && styles.tomorrowBadgeLabelNight]}>+24h</Text>
-                    <Text style={[styles.tomorrowBadgeTime, nightMode && styles.tomorrowBadgeTimeNight]}>{tomorrowPreview}</Text>
-                  </View>
-                ) : null}
-                {row.label === 'Jummah' ? (
-                  <Text style={[styles.thirdTime, compact && styles.thirdTimeCompact, nightMode && { color: NIGHT.cardTextSoft }]}>
-                    {`${row.jamaat} / ${row.jamaat2}`}
-                  </Text>
-                ) : null}
-              </View>
-            );
-          })}
+        <View style={[styles.rowsContainer, compact && styles.rowsContainerCompact, oneRowMode && styles.rowsContainerOneRow]}>
+          {renderedPrayerTiles}
         </View>
         </View>
       </View>
@@ -241,7 +251,7 @@ const styles = StyleSheet.create({
   },
   containerEmbedded: {
     paddingHorizontal: 0,
-    marginTop: 14,
+    marginTop: 8,
     width: '100%',
   },
   card: {
@@ -329,6 +339,9 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 11,
   },
+  headerRowCompact: {
+    marginBottom: 8,
+  },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -346,6 +359,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(46,168,104,0.28)',
   },
+  calendarBadgeCompact: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+  },
   calendarBadgeNight: {
     backgroundColor: 'rgba(170,225,196,0.1)',
     borderColor: 'rgba(170,225,196,0.25)',
@@ -362,6 +380,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     letterSpacing: 0.2,
   },
+  titleCompact: {
+    fontSize: 12,
+    lineHeight: 15,
+    letterSpacing: 0.15,
+  },
   modePill: {
     flexDirection: 'row',
     borderRadius: 14,
@@ -371,6 +394,10 @@ const styles = StyleSheet.create({
     padding: 3,
     gap: 3,
     flexShrink: 0,
+  },
+  modePillCompact: {
+    padding: 2,
+    gap: 2,
   },
   modePillNight: {
     borderColor: 'rgba(170,225,196,0.28)',
@@ -383,6 +410,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 7,
+  },
+  modeBtnCompact: {
+    minWidth: 46,
+    height: 30,
+    borderRadius: 8,
+    paddingHorizontal: 6,
   },
   modeBtnActive: {
     backgroundColor: '#2FAF64',
@@ -399,6 +432,9 @@ const styles = StyleSheet.create({
     color: '#4E655D',
     letterSpacing: 0.2,
   },
+  modeBtnTextCompact: {
+    fontSize: 9.5,
+  },
   modeBtnTextNight: {
     color: '#BCD3C8',
   },
@@ -410,18 +446,33 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    gap: 7,
-    paddingVertical: 2,
+    gap: 6,
+    paddingVertical: 1,
+  },
+  rowsContainerCompact: {
+    gap: 4,
+    paddingVertical: 0,
+  },
+  rowsContainerOneRow: {
+    flexWrap: 'nowrap',
+    justifyContent: 'space-between',
+    gap: 4,
   },
   specialStrip: {
-    marginBottom: 10,
+    marginBottom: 9,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(143,183,166,0.35)',
     backgroundColor: 'rgba(236,244,239,0.76)',
     paddingHorizontal: 10,
-    paddingVertical: 8,
-    gap: 6,
+    paddingVertical: 7,
+    gap: 5,
+  },
+  specialStripCompact: {
+    marginBottom: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    gap: 3,
   },
   specialStripNight: {
     borderColor: 'rgba(170,225,196,0.25)',
@@ -442,10 +493,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#E5A824',
   },
   specialTitle: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '800',
     color: '#1F6B4D',
     letterSpacing: 0.25,
+  },
+  specialTitleCompact: {
+    fontSize: 9.5,
   },
   specialTitleNight: {
     color: '#D7EFE4',
@@ -455,6 +509,9 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 6,
   },
+  specialTimesRowCompact: {
+    gap: 4,
+  },
   specialTimeChip: {
     borderRadius: 999,
     borderWidth: 1,
@@ -463,15 +520,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
+  specialTimeChipCompact: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
   specialTimeChipNight: {
     borderColor: 'rgba(170,225,196,0.35)',
     backgroundColor: 'rgba(170,225,196,0.14)',
   },
   specialTimeText: {
-    fontSize: 10.5,
+    fontSize: 10,
     fontWeight: '800',
     color: '#1E7C56',
     fontVariant: ['tabular-nums'] as any,
+  },
+  specialTimeTextCompact: {
+    fontSize: 8.8,
   },
   specialTimeTextNight: {
     color: '#E6FAF0',
@@ -504,15 +568,19 @@ const styles = StyleSheet.create({
   },
   prayerCardThreeCol: {
     width: '31.5%',
-    aspectRatio: 1,
+    aspectRatio: 0.72,
   },
   prayerCardTwoCol: {
     width: '48.5%',
-    aspectRatio: 1,
+    aspectRatio: 0.82,
+  },
+  prayerCardOneRow: {
+    width: '16.1%',
+    aspectRatio: 1.02,
   },
   prayerCardCompact: {
     borderRadius: 16,
-    paddingVertical: 8,
+    paddingVertical: 6,
     paddingHorizontal: 3,
   },
   prayerCardActive: {
@@ -533,9 +601,15 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   prayerNameCompact: {
-    marginTop: 4,
-    fontSize: 9.5,
+    marginTop: 2,
+    fontSize: 8.8,
     letterSpacing: 0.2,
+  },
+  prayerNameOneRow: {
+    marginTop: 1,
+    fontSize: 8.2,
+    lineHeight: 10,
+    letterSpacing: 0.1,
   },
   primaryTime: {
     marginTop: 3,
@@ -546,8 +620,13 @@ const styles = StyleSheet.create({
     lineHeight: 23,
   },
   primaryTimeCompact: {
-    marginTop: 2,
-    fontSize: 19,
+    marginTop: 0,
+    fontSize: 15,
+  },
+  primaryTimeOneRow: {
+    marginTop: 0,
+    fontSize: 12.6,
+    lineHeight: 14,
   },
   secondaryTime: {
     marginTop: 2,
@@ -560,7 +639,7 @@ const styles = StyleSheet.create({
   },
   secondaryTimeCompact: {
     marginTop: 1,
-    fontSize: 10.5,
+    fontSize: 8.6,
   },
   thirdTime: {
     marginTop: 1,
@@ -572,7 +651,7 @@ const styles = StyleSheet.create({
     lineHeight: 11,
   },
   thirdTimeCompact: {
-    fontSize: 9,
+    fontSize: 8.2,
   },
   tomorrowBadge: {
     marginTop: 3,
@@ -586,23 +665,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     paddingVertical: 1,
   },
+  tomorrowBadgeCompact: {
+    marginTop: 2,
+    gap: 3,
+    paddingHorizontal: 4,
+    paddingVertical: 0,
+  },
   tomorrowBadgeNight: {
     borderColor: 'rgba(170,225,196,0.28)',
     backgroundColor: 'rgba(170,225,196,0.1)',
   },
   tomorrowBadgeLabel: {
-    fontSize: 8,
+    fontSize: 7.6,
     fontWeight: '800',
     color: '#3A7F64',
+  },
+  tomorrowBadgeLabelCompact: {
+    fontSize: 7,
   },
   tomorrowBadgeLabelNight: {
     color: '#A7D8C1',
   },
   tomorrowBadgeTime: {
-    fontSize: 8.5,
+    fontSize: 8,
     fontWeight: '800',
     color: '#245E47',
     fontVariant: ['tabular-nums'] as any,
+  },
+  tomorrowBadgeTimeCompact: {
+    fontSize: 7.4,
   },
   tomorrowBadgeTimeNight: {
     color: '#DFF6EB',
@@ -632,6 +723,22 @@ const styles = StyleSheet.create({
   },
   iconBadgeNight: {
     borderColor: 'rgba(255,255,255,0.12)',
+  },
+  iconBadgeCompact: {
+    width: 32,
+    height: 32,
+    borderTopLeftRadius: 13,
+    borderTopRightRadius: 13,
+    borderBottomLeftRadius: 9,
+    borderBottomRightRadius: 9,
+  },
+  iconBadgeOneRow: {
+    width: 28,
+    height: 28,
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
+    borderBottomLeftRadius: 7,
+    borderBottomRightRadius: 7,
   },
   tileInnerFrame: {
     position: 'absolute',
