@@ -115,8 +115,8 @@ export function HomeInlinePrayerTimesSection({
     });
   }, [rows]);
 
-  const compact = displayRows.length >= 6 || width < 430;
   const oneRowMode = embedded && width < 460;
+  const compact = width < 410 && !oneRowMode;
   const tileColumns = width < 330 ? 2 : 3;
   const tileStyle = oneRowMode
     ? styles.prayerCardOneRow
@@ -140,6 +140,7 @@ export function HomeInlinePrayerTimesSection({
           index % 2 === 0 ? styles.prayerCardVariantA : styles.prayerCardVariantB,
           tileStyle,
           compact && styles.prayerCardCompact,
+          oneRowMode && styles.prayerCardOneRowTuned,
           highlighted && styles.prayerCardActive,
           nightMode && styles.prayerCardNight,
         ]}
@@ -151,7 +152,14 @@ export function HomeInlinePrayerTimesSection({
         <View style={[styles.iconBadge, compact && styles.iconBadgeCompact, oneRowMode && styles.iconBadgeOneRow, { backgroundColor: ICON_TINTS[row.label] ?? 'rgba(46,139,87,0.14)' }, nightMode && styles.iconBadgeNight]}>
           <MaterialIcons name={ICONS[row.label] ?? 'schedule'} size={oneRowMode ? 14 : compact ? 18 : 24} color={iconColor} />
         </View>
-        <Text style={[styles.prayerName, compact && styles.prayerNameCompact, oneRowMode && styles.prayerNameOneRow, nightMode && { color: NIGHT.cardText }]}>{row.label}</Text>
+        <Text
+          style={[styles.prayerName, compact && styles.prayerNameCompact, oneRowMode && styles.prayerNameOneRow, nightMode && { color: NIGHT.cardText }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit={oneRowMode}
+          minimumFontScale={0.78}
+        >
+          {row.label}
+        </Text>
         <Text style={[styles.primaryTime, compact && styles.primaryTimeCompact, oneRowMode && styles.primaryTimeOneRow, nightMode && { color: NIGHT.cardText }]}>{primary}</Text>
         {!oneRowMode ? <Text style={[styles.secondaryTime, compact && styles.secondaryTimeCompact, nightMode && { color: NIGHT.cardTextSoft }]}>{secondary}</Text> : null}
         {showTomorrowPreview ? (
@@ -456,7 +464,7 @@ const styles = StyleSheet.create({
   rowsContainerOneRow: {
     flexWrap: 'nowrap',
     justifyContent: 'space-between',
-    gap: 4,
+    gap: 3,
   },
   specialStrip: {
     marginBottom: 9,
@@ -546,8 +554,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(205,219,214,0.95)',
     backgroundColor: '#F7FAF8',
-    paddingVertical: 9,
-    paddingHorizontal: 4,
+    paddingVertical: 11,
+    paddingHorizontal: 5,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -555,31 +563,30 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   prayerCardVariantA: {
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 14,
-    borderBottomRightRadius: 26,
-    borderBottomLeftRadius: 14,
+    borderRadius: 12,
   },
   prayerCardVariantB: {
-    borderTopLeftRadius: 14,
-    borderTopRightRadius: 26,
-    borderBottomRightRadius: 14,
-    borderBottomLeftRadius: 26,
+    borderRadius: 12,
   },
   prayerCardThreeCol: {
-    width: '31.5%',
-    aspectRatio: 0.72,
+    width: '32%',
+    aspectRatio: 0.78,
   },
   prayerCardTwoCol: {
-    width: '48.5%',
-    aspectRatio: 0.82,
+    width: '49%',
+    aspectRatio: 0.88,
   },
   prayerCardOneRow: {
-    width: '16.1%',
-    aspectRatio: 1.02,
+    width: '16.5%',
+    aspectRatio: 0.86,
   },
   prayerCardCompact: {
     borderRadius: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  prayerCardOneRowTuned: {
+    minHeight: 76,
     paddingVertical: 6,
     paddingHorizontal: 3,
   },
@@ -599,17 +606,19 @@ const styles = StyleSheet.create({
     letterSpacing: 0.45,
     textTransform: 'uppercase',
     lineHeight: 14,
+    textAlign: 'center',
   },
   prayerNameCompact: {
     marginTop: 2,
-    fontSize: 8.8,
+    fontSize: 9.5,
     letterSpacing: 0.2,
   },
   prayerNameOneRow: {
     marginTop: 1,
-    fontSize: 8.2,
+    width: '100%',
+    fontSize: 8,
     lineHeight: 10,
-    letterSpacing: 0.1,
+    letterSpacing: 0,
   },
   primaryTime: {
     marginTop: 3,
@@ -624,9 +633,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   primaryTimeOneRow: {
-    marginTop: 0,
-    fontSize: 12.6,
-    lineHeight: 14,
+    marginTop: 1,
+    fontSize: 13.8,
+    lineHeight: 19,
   },
   secondaryTime: {
     marginTop: 2,

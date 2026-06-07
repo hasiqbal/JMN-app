@@ -19,6 +19,7 @@ import BottomSheet from '@gorhom/bottom-sheet';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { WidgetInfo } from 'react-native-android-widget';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
@@ -2604,6 +2605,7 @@ export default function HomeScreen() {
   const donationDeepLinkHandledRef = useRef(false);
   const { darkMode } = useAppTheme();
   const nightMode = darkMode;
+  const isExpoGo = Constants.appOwnership === 'expo';
   const {
     data, countdown, nextPrayerName,
     forbiddenInfo,
@@ -2635,7 +2637,7 @@ export default function HomeScreen() {
 
       if (cancelled) return;
 
-      if (Platform.OS === 'android') {
+      if (Platform.OS === 'android' && !isExpoGo) {
         const { requestWidgetUpdate } = await import('react-native-android-widget');
         void requestWidgetUpdate({
           widgetName: HOME_PRAYER_WIDGET_NAME,
@@ -2658,7 +2660,7 @@ export default function HomeScreen() {
     return () => {
       cancelled = true;
     };
-  }, [data]);
+  }, [data, isExpoGo]);
 
   const {
     activePrayer,

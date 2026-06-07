@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import {
   ADHKAR_NOTIFICATION_CHANNEL_ID,
   ADHKAR_NOTIFICATION_SILENT_CHANNEL_ID,
@@ -58,6 +59,7 @@ async function deleteStalePrayerAudioChannels(
 
 export async function getNotificationsModule(): Promise<ExpoNotificationsModule | null> {
   if (Platform.OS === 'web') return null;
+  if (Constants.appOwnership === 'expo') return null;
   if (!notificationsModulePromise) {
     notificationsModulePromise = import('expo-notifications')
       .then((mod) => mod)

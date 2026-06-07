@@ -236,6 +236,12 @@ function shiftHijri(parts: HijriParts, deltaDays: number): HijriParts {
   return { day, monthIndex, year };
 }
 
+function formatPredictedHijri(parts: HijriParts): string {
+  const monthLabel = HIJRI_MONTHS[parts.monthIndex] ?? '';
+  if (!monthLabel) return `${parts.day} ${parts.year} AH`;
+  return `${parts.day} ${monthLabel} ${parts.year} AH`;
+}
+
 const StripDateChip = React.memo(function StripDateChip({
   cell,
   isSelected,
@@ -1067,13 +1073,32 @@ export default function MonthlyCalendarSection({
     };
   }, [today, getHijriDayNum, getHijriMonthName]);
 
+  const predictedHijriRowsForViewMonth = React.useMemo(() => {
+    const fallback = new Map<number, string>();
+    if (!predictedHijriFromToday) return fallback;
+
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const predicted = predictedHijriFromToday(new Date(viewYear, viewMonth, day));
+      fallback.set(day, formatPredictedHijri(predicted));
+    }
+    return fallback;
+  }, [predictedHijriFromToday, viewYear, viewMonth]);
+
+  const resolvedHijriRowsForViewMonth = React.useMemo(() => {
+    const viewMonthKey = `${viewYear}-${viewMonth}`;
+    const merged = new Map<number, string>(predictedHijriRowsForViewMonth);
+    if (loadedHijriMonthKey === viewMonthKey && hijriRows.size > 0) {
+      hijriRows.forEach((value, day) => merged.set(day, value));
+    }
+    return merged;
+  }, [viewYear, viewMonth, predictedHijriRowsForViewMonth, loadedHijriMonthKey, hijriRows]);
+
   const currentGrid = React.useMemo(
     () => {
-      const viewMonthKey = `${viewYear}-${viewMonth}`;
-      const effectiveHijriRows = loadedHijriMonthKey === viewMonthKey ? hijriRows : new Map<number, string>();
-      return buildMonthGrid(viewYear, viewMonth, today, dbRows, effectiveHijriRows);
+      return buildMonthGrid(viewYear, viewMonth, today, dbRows, resolvedHijriRowsForViewMonth);
     },
-    [viewYear, viewMonth, today, dbRows, hijriRows, loadedHijriMonthKey]
+    [viewYear, viewMonth, today, dbRows, resolvedHijriRowsForViewMonth]
   );
 
   const getHijriYearHint = React.useCallback((year: number) => {
@@ -1268,10 +1293,21 @@ export default function MonthlyCalendarSection({
       && pickerMonthKey === viewMonthKey
       && loadedHijriMonthKey === viewMonthKey
       && hijriRows.size > 0;
+
+    const pickerFallbackHijriRows = new Map<number, string>();
+    if (predictedHijriFromToday) {
+      for (let day = 1; day <= daysInMonth; day += 1) {
+        const predicted = predictedHijriFromToday(new Date(pickerYear, pickerMonth, day));
+        pickerFallbackHijriRows.set(day, formatPredictedHijri(predicted));
+      }
+    }
+
     const entries = Array.from({ length: daysInMonth }, (_, i) => {
       const day = i + 1;
       const date = new Date(pickerYear, pickerMonth, day);
-      const displayHijri = canRenderPortalHijri ? (hijriRows.get(day) ?? '') : '';
+      const displayHijri = canRenderPortalHijri
+        ? (hijriRows.get(day) ?? pickerFallbackHijriRows.get(day) ?? '')
+        : (pickerFallbackHijriRows.get(day) ?? '');
 
       const localMonthName = displayHijri ? getHijriMonthName(displayHijri) : '';
       const localMonthIndex = localMonthName ? (HIJRI_MONTH_ALIASES[normMonthName(localMonthName)] ?? -1) : -1;
@@ -1315,6 +1351,7 @@ export default function MonthlyCalendarSection({
     pickerMonth,
     viewYear,
     viewMonth,
+    predictedHijriFromToday,
     loadedHijriMonthKey,
     hijriRows,
     getHijriDayNum,
@@ -1387,7 +1424,11 @@ export default function MonthlyCalendarSection({
         if (hijriResult.status !== 'fulfilled') {
           setSyncError('Hijri sync failed. Pull to refresh or reopen month.');
         } else if (hijriMap.size !== expectedDaysInMonth) {
-          setSyncError(`Hijri sync incomplete for ${MONTH_NAMES[viewMonth]} ${viewYear} (${hijriMap.size}/${expectedDaysInMonth} days).`);
+          if (predictedHijriFromToday) {
+            setSyncError(null);
+          } else {
+            setSyncError(`Hijri sync incomplete for ${MONTH_NAMES[viewMonth]} ${viewYear} (${hijriMap.size}/${expectedDaysInMonth} days).`);
+          }
         } else {
           setSyncError(null);
         }
@@ -1436,7 +1477,7 @@ export default function MonthlyCalendarSection({
         setEventsByDate(eventMap);
         setDbLoading(false);
       });
-  }, [viewMonth, viewYear, calendarRefreshToken]);
+  }, [viewMonth, viewYear, calendarRefreshToken, predictedHijriFromToday]);
 
   useEffect(() => {
     if (selectedDay) {
@@ -1508,8 +1549,13 @@ export default function MonthlyCalendarSection({
   const fallbackMonthStartHijri = lookupTimetable(new Date(viewYear, viewMonth, 1))?.hijri ?? '';
   const fallbackMonthHint = getHijriMonthHint(viewYear, viewMonth);
   const fallbackMonthHintLabel = fallbackMonthHint === 'Hijri n/a' ? '' : fallbackMonthHint;
+  const fallbackMonthHintWithAh = fallbackMonthHintLabel
+    ? (fallbackMonthHintLabel.includes('AH') ? fallbackMonthHintLabel : `${fallbackMonthHintLabel} AH`)
+    : '';
 
-  const headerHijriLabel = firstWithHijri?.day
+  const headerHijriLabel = fallbackMonthHintWithAh
+    ? fallbackMonthHintWithAh
+    : firstWithHijri?.day
     ? (() => {
         const month = getHijriMonthName(firstWithHijri.day.hijri);
         const m = firstWithHijri.day.hijri.match(/\b(\d{4})\b/);
@@ -1535,205 +1581,228 @@ export default function MonthlyCalendarSection({
   const visibleHeaderHijriLabel = headerHijriLabel || stableHeaderHijriLabel;
   return (
     <View style={[calStyles.splitContainer, N && { backgroundColor: N.bg }]}> 
-      <View style={[calStyles.gridSection, showMonthPicker && { height: pickerHeight + 12 }, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}> 
-        {!showMonthPicker ? (
-          <>
-            <View style={[calStyles.monthViewHint, N && { borderTopColor: N.border, backgroundColor: N.surfaceAlt }]}> 
-              <MaterialIcons name="calendar-view-month" size={14} color={N ? '#9BC2EA' : '#2D7D5F'} />
-              <Text style={[calStyles.monthViewHintText, N && { color: N.textSub }]}>Tap any date to open full prayer times and events</Text>
-            </View>
-          </>
-        ) : (
-          <View style={[calStyles.pickerContainer, { height: pickerHeight }, N && { backgroundColor: N.surface }]}>
-            <View style={[calStyles.pickerHeader, N && { borderBottomColor: N.border }]}>
-              <TouchableOpacity
-                onPress={() => {
-                  if (pickerStep === 'day') {
+      <View style={[calStyles.gridSection, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}> 
+        <View style={[calStyles.monthViewHint, N && { borderTopColor: N.border, backgroundColor: N.surfaceAlt }]}> 
+          <MaterialIcons name="calendar-view-month" size={14} color={N ? '#9BC2EA' : '#2D7D5F'} />
+          <Text style={[calStyles.monthViewHintText, N && { color: N.textSub }]}>Tap any date to open full prayer times and events</Text>
+        </View>
+      </View>
+
+      <Modal
+        visible={showMonthPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (pickerStep === 'day') {
+            setPickerStep('month');
+            return;
+          }
+          setShowMonthPicker(false);
+        }}
+      >
+        <View style={calStyles.pickerModalBackdrop}>
+          <CalendarPressable
+            style={StyleSheet.absoluteFillObject}
+            onPress={() => {
+              if (pickerStep === 'day') {
+                setPickerStep('month');
+                return;
+              }
+              setShowMonthPicker(false);
+            }}
+          />
+          <View style={[calStyles.pickerModalCard, N && { backgroundColor: N.surface, borderColor: N.border }]}> 
+            <View style={[calStyles.pickerContainer, { height: pickerHeight }, N && { backgroundColor: N.surface }]}>
+              <View style={[calStyles.pickerHeader, N && { borderBottomColor: N.border }]}>
+                <TouchableOpacity
+                  onPress={() => {
+                    if (pickerStep === 'day') {
+                      setPickerStep('month');
+                      return;
+                    }
+                    const now = new Date();
+                    setViewYear(now.getFullYear());
+                    setViewMonth(now.getMonth());
+                    setPickerYear(now.getFullYear());
+                    setPickerMonth(now.getMonth());
                     setPickerStep('month');
-                    return;
-                  }
-                  const now = new Date();
-                  setViewYear(now.getFullYear());
-                  setViewMonth(now.getMonth());
-                  setPickerYear(now.getFullYear());
-                  setPickerMonth(now.getMonth());
-                  setPickerStep('month');
-                  setSelectedDay(null);
-                  resetCalendarDataAndReload();
-                  setShowMonthPicker(false);
-                }}
-                activeOpacity={0.7}
-              >
-                <MaterialIcons
-                  name={pickerStep === 'day' ? 'arrow-back' : 'close'}
-                  size={24}
-                  color={N ? N.text : Colors.textPrimary}
-                />
-              </TouchableOpacity>
-              <Text style={[calStyles.pickerTitle, N && { color: N.text }]}>
-                {pickerStep === 'day' ? 'Select Day' : 'Select Year & Month'}
-              </Text>
-              <View style={{ width: 24 }} />
-            </View>
+                    setSelectedDay(null);
+                    resetCalendarDataAndReload();
+                    setShowMonthPicker(false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <MaterialIcons
+                    name={pickerStep === 'day' ? 'arrow-back' : 'close'}
+                    size={24}
+                    color={N ? N.text : Colors.textPrimary}
+                  />
+                </TouchableOpacity>
+                <Text style={[calStyles.pickerTitle, N && { color: N.text }]}> 
+                  {pickerStep === 'day' ? 'Select Day' : 'Select Year & Month'}
+                </Text>
+                <View style={{ width: 24 }} />
+              </View>
 
-            {pickerStep === 'month' ? (
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                style={{ flex: 1 }}
-                keyboardShouldPersistTaps="always"
-                contentContainerStyle={calStyles.pickerYearsWrap}
-              >
-                <View style={[calStyles.yearSection, N && { borderBottomColor: N.border }]}>
-                  <View style={calStyles.yearSwitchRow}>
-                    <TouchableOpacity
-                      onPress={() => setPickerYear((y) => y - 1)}
-                      style={[calStyles.yearSwitchBtn, N && { borderColor: N.border, backgroundColor: N.surface }]}
-                      activeOpacity={0.8}
-                      hitSlop={8}
-                    >
-                      <MaterialIcons name="chevron-left" size={18} color={N ? N.text : Colors.textPrimary} />
-                    </TouchableOpacity>
-                    <Text style={[calStyles.yearTitle, N && { color: N.text }]}>{pickerYear}</Text>
-                    <TouchableOpacity
-                      onPress={() => setPickerYear((y) => y + 1)}
-                      style={[calStyles.yearSwitchBtn, N && { borderColor: N.border, backgroundColor: N.surface }]}
-                      activeOpacity={0.8}
-                      hitSlop={8}
-                    >
-                      <MaterialIcons name="chevron-right" size={18} color={N ? N.text : Colors.textPrimary} />
-                    </TouchableOpacity>
+              {pickerStep === 'month' ? (
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  style={{ flex: 1 }}
+                  keyboardShouldPersistTaps="always"
+                  contentContainerStyle={calStyles.pickerYearsWrap}
+                >
+                  <View style={[calStyles.yearSection, N && { borderBottomColor: N.border }]}>
+                    <View style={calStyles.yearSwitchRow}>
+                      <TouchableOpacity
+                        onPress={() => setPickerYear((y) => y - 1)}
+                        style={[calStyles.yearSwitchBtn, N && { borderColor: N.border, backgroundColor: N.surface }]}
+                        activeOpacity={0.8}
+                        hitSlop={8}
+                      >
+                        <MaterialIcons name="chevron-left" size={18} color={N ? N.text : Colors.textPrimary} />
+                      </TouchableOpacity>
+                      <Text style={[calStyles.yearTitle, N && { color: N.text }]}>{pickerYear}</Text>
+                      <TouchableOpacity
+                        onPress={() => setPickerYear((y) => y + 1)}
+                        style={[calStyles.yearSwitchBtn, N && { borderColor: N.border, backgroundColor: N.surface }]}
+                        activeOpacity={0.8}
+                        hitSlop={8}
+                      >
+                        <MaterialIcons name="chevron-right" size={18} color={N ? N.text : Colors.textPrimary} />
+                      </TouchableOpacity>
+                    </View>
+
+                    <View style={calStyles.yearHeaderRow}>
+                      <Text style={[calStyles.yearHijri, N && { color: N.textMuted }]}> 
+                        {pickerYearHijri || 'Hijri year n/a'}
+                      </Text>
+                    </View>
+
+                    <View style={calStyles.monthGrid}>
+                      {MONTH_NAMES.map((name, monthIndex) => {
+                        const shortName = name.slice(0, 3);
+                        const monthHijri = getHijriMonthHint(pickerYear, monthIndex);
+                        const isSelected = pickerYear === viewYear && monthIndex === viewMonth;
+                        return (
+                          <CalendarPressable
+                            key={`${pickerYear}-${monthIndex}`}
+                            onPress={() => {
+                              setPickerMonth(monthIndex);
+                              setViewYear(pickerYear);
+                              setViewMonth(monthIndex);
+                              setSelectedDay(null);
+                              setShowDayDetailModal(false);
+                              resetCalendarDataAndReload();
+                              setPickerStep('month');
+                              setShowMonthPicker(false);
+                            }}
+                            style={[
+                              calStyles.monthButton,
+                              { width: monthButtonWidth, minHeight: monthButtonHeight, height: monthButtonHeight },
+                              isSelected && calStyles.monthButtonSelected,
+                              N && {
+                                backgroundColor: isSelected ? '#2E6CB9' : N.surface,
+                                borderColor: isSelected ? '#69A8FF' : N.border,
+                              },
+                            ]}
+                            cancelable={false}
+                            hitSlop={8}
+                          >
+                            <Text style={[
+                              calStyles.monthButtonText,
+                              isSelected && calStyles.monthButtonTextSelected,
+                              N && { color: isSelected ? '#F3F8FF' : N.text },
+                            ]}>
+                              {shortName}
+                            </Text>
+                            <Text style={[
+                              calStyles.monthButtonHijri,
+                              isSelected && calStyles.monthButtonHijriSelected,
+                              N && { color: isSelected ? '#DCEBFF' : N.textMuted },
+                            ]} numberOfLines={2}>
+                              {monthHijri}
+                            </Text>
+                          </CalendarPressable>
+                        );
+                      })}
+                    </View>
                   </View>
+                </ScrollView>
+              ) : (
+                <View style={calStyles.dayPickerWrap}>
+                  <Text style={[calStyles.dayPickerMonthTitle, N && { color: N.text }]}> 
+                    {MONTH_NAMES[pickerMonth]} {pickerYear}
+                  </Text>
+                  <Text style={[calStyles.dayPickerHijriHint, N && { color: N.textMuted }]}> 
+                    {getHijriMonthRangeHint(pickerYear, pickerMonth)}
+                  </Text>
 
-                  <View style={calStyles.yearHeaderRow}>
-                    <Text style={[calStyles.yearHijri, N && { color: N.textMuted }]}>
-                      {pickerYearHijri || 'Hijri year n/a'}
-                    </Text>
-                  </View>
-
-                  <View style={calStyles.monthGrid}>
-                    {MONTH_NAMES.map((name, monthIndex) => {
-                      const shortName = name.slice(0, 3);
-                      const monthHijri = getHijriMonthHint(pickerYear, monthIndex);
-                      const isSelected = pickerYear === viewYear && monthIndex === viewMonth;
+                  <ScrollView
+                    showsVerticalScrollIndicator={true}
+                    keyboardShouldPersistTaps="always"
+                    contentContainerStyle={calStyles.dayGrid}
+                  >
+                    {pickerMonthDays.map((d) => {
+                      const isToday =
+                        d.date.getFullYear() === today.getFullYear() &&
+                        d.date.getMonth() === today.getMonth() &&
+                        d.date.getDate() === today.getDate();
+                      const isSelected = selectedDay?.key === d.key;
                       return (
                         <CalendarPressable
-                          key={`${pickerYear}-${monthIndex}`}
+                          key={d.key}
                           onPress={() => {
-                            setPickerMonth(monthIndex);
                             setViewYear(pickerYear);
-                            setViewMonth(monthIndex);
-                            setSelectedDay(null);
-                            setShowDayDetailModal(false);
-                            resetCalendarDataAndReload();
-                            setPickerStep('month');
-                            setShowMonthPicker(false);
+                            setViewMonth(pickerMonth);
+                            const matched = currentGrid.find((cell) => cell.key === d.key && cell.isCurrentMonth);
+                            setSelectedDay(
+                              matched ?? {
+                                date: d.date,
+                                key: d.key,
+                                day: null,
+                                dbRow: null,
+                                isToday,
+                                isFriday: d.date.getDay() === 5,
+                                isCurrentMonth: true,
+                              }
+                            );
                           }}
                           style={[
-                            calStyles.monthButton,
-                            { width: monthButtonWidth, minHeight: monthButtonHeight, height: monthButtonHeight },
-                            isSelected && calStyles.monthButtonSelected,
+                            calStyles.dayButton,
+                            d.isHijriMonthStart && calStyles.dayButtonHijriMonthStart,
+                            isToday && calStyles.dayButtonToday,
+                            isSelected && calStyles.dayButtonSelected,
                             N && {
-                              backgroundColor: isSelected ? '#2E6CB9' : N.surface,
-                              borderColor: isSelected ? '#69A8FF' : N.border,
+                              backgroundColor: isSelected ? '#2E6CB9' : (isToday ? '#233857' : N.surface),
+                              borderColor: isSelected
+                                ? '#69A8FF'
+                                : (d.isHijriMonthStart ? '#C59B2D' : (isToday ? '#69A8FF' : N.border)),
                             },
                           ]}
                           cancelable={false}
                           hitSlop={8}
                         >
                           <Text style={[
-                            calStyles.monthButtonText,
-                            isSelected && calStyles.monthButtonTextSelected,
-                            N && { color: isSelected ? '#F3F8FF' : N.text },
-                          ]}>
-                            {shortName}
-                          </Text>
-                          <Text style={[
-                            calStyles.monthButtonHijri,
-                            isSelected && calStyles.monthButtonHijriSelected,
+                            calStyles.dayButtonDow,
+                            d.isHijriMonthStart && calStyles.dayButtonDowHijriMonthStart,
                             N && { color: isSelected ? '#DCEBFF' : N.textMuted },
-                          ]} numberOfLines={2}>
-                            {monthHijri}
-                          </Text>
+                          ]}>{d.dow}</Text>
+                          <Text style={[calStyles.dayButtonDate, isToday && calStyles.dayButtonDateToday, N && { color: (isToday || isSelected) ? '#F3F8FF' : N.text }]}>{d.day}</Text>
+                          <Text style={[
+                            calStyles.dayButtonHijri,
+                            d.isHijriMonthStart && calStyles.dayButtonHijriMonthStartText,
+                            N && { color: (isToday || isSelected) ? '#DCEBFF' : N.textMuted },
+                          ]}>{d.hijriDay}</Text>
                         </CalendarPressable>
                       );
                     })}
-                  </View>
+                  </ScrollView>
                 </View>
-              </ScrollView>
-            ) : (
-              <View style={calStyles.dayPickerWrap}>
-                <Text style={[calStyles.dayPickerMonthTitle, N && { color: N.text }]}>
-                  {MONTH_NAMES[pickerMonth]} {pickerYear}
-                </Text>
-                <Text style={[calStyles.dayPickerHijriHint, N && { color: N.textMuted }]}>
-                  {getHijriMonthRangeHint(pickerYear, pickerMonth)}
-                </Text>
-
-                <ScrollView
-                  showsVerticalScrollIndicator={true}
-                  keyboardShouldPersistTaps="always"
-                  contentContainerStyle={calStyles.dayGrid}
-                >
-                  {pickerMonthDays.map((d) => {
-                    const isToday =
-                      d.date.getFullYear() === today.getFullYear() &&
-                      d.date.getMonth() === today.getMonth() &&
-                      d.date.getDate() === today.getDate();
-                    const isSelected = selectedDay?.key === d.key;
-                    return (
-                      <CalendarPressable
-                        key={d.key}
-                        onPress={() => {
-                          setViewYear(pickerYear);
-                          setViewMonth(pickerMonth);
-                          const matched = currentGrid.find((cell) => cell.key === d.key && cell.isCurrentMonth);
-                          setSelectedDay(
-                            matched ?? {
-                              date: d.date,
-                              key: d.key,
-                              day: null,
-                              dbRow: null,
-                              isToday,
-                              isFriday: d.date.getDay() === 5,
-                              isCurrentMonth: true,
-                            }
-                          );
-                        }}
-                        style={[
-                          calStyles.dayButton,
-                          d.isHijriMonthStart && calStyles.dayButtonHijriMonthStart,
-                          isToday && calStyles.dayButtonToday,
-                          isSelected && calStyles.dayButtonSelected,
-                          N && {
-                            backgroundColor: isSelected ? '#2E6CB9' : (isToday ? '#233857' : N.surface),
-                            borderColor: isSelected
-                              ? '#69A8FF'
-                              : (d.isHijriMonthStart ? '#C59B2D' : (isToday ? '#69A8FF' : N.border)),
-                          },
-                        ]}
-                        cancelable={false}
-                        hitSlop={8}
-                      >
-                        <Text style={[
-                          calStyles.dayButtonDow,
-                          d.isHijriMonthStart && calStyles.dayButtonDowHijriMonthStart,
-                          N && { color: isSelected ? '#DCEBFF' : N.textMuted },
-                        ]}>{d.dow}</Text>
-                        <Text style={[calStyles.dayButtonDate, isToday && calStyles.dayButtonDateToday, N && { color: (isToday || isSelected) ? '#F3F8FF' : N.text }]}>{d.day}</Text>
-                        <Text style={[
-                          calStyles.dayButtonHijri,
-                          d.isHijriMonthStart && calStyles.dayButtonHijriMonthStartText,
-                          N && { color: (isToday || isSelected) ? '#DCEBFF' : N.textMuted },
-                        ]}>{d.hijriDay}</Text>
-                      </CalendarPressable>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-            )}
+              )}
+            </View>
           </View>
-        )}
-      </View>
+        </View>
+      </Modal>
 
       <ScrollView
         style={[calStyles.panelSection, N && { backgroundColor: N.bg }]}
@@ -2196,13 +2265,14 @@ const calStyles = StyleSheet.create({
     alignSelf: 'flex-start',
     borderRadius: Radius.full,
     backgroundColor: '#2E6CB9',
-    minWidth: 40,
     alignItems: 'center',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+    maxWidth: '100%',
+    paddingHorizontal: 3,
+    paddingVertical: 1,
   },
   monthMatrixTodayBadgeText: {
-    fontSize: 10,
+    fontSize: 8,
+    lineHeight: 10,
     fontWeight: '800',
     color: '#F3F8FF',
     letterSpacing: 0,
@@ -2393,6 +2463,21 @@ const calStyles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#B42318',
+  },
+  pickerModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.26)',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 12,
+  },
+  pickerModalCard: {
+    maxHeight: '92%',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+    overflow: 'hidden',
   },
   pickerContainer: {
     backgroundColor: Colors.surface,

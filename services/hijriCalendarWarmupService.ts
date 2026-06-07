@@ -14,12 +14,14 @@ type HijriCalendarCacheState = {
 const HIJRI_CACHE_STATE_KEY = '@hijri_calendar_cache_state_v1';
 const HIJRI_YEAR_CACHE_PREFIX = '@hijri_calendar_year_cache_v1:';
 const VERSION_CHECK_TTL_MS = 15 * 60 * 1000;
+const EMPTY_YEAR_RETRY_TTL_MS = 6 * 60 * 60 * 1000;
 
 let warmupStarted = false;
 let yearCacheMemory = new Map<number, HijriCalendarRow[]>();
 let stateMemory: HijriCalendarCacheState | null = null;
 let versionCheckInFlight: Promise<string | null> | null = null;
 const yearFetchInFlight = new Map<number, Promise<HijriCalendarRow[]>>();
+const emptyYearRetryMemory = new Map<number, { attemptedAt: number; portalVersion: string | null }>();
 
 function buildYearCacheKey(year: number): string {
   return `${HIJRI_YEAR_CACHE_PREFIX}${year}`;
@@ -156,19 +158,33 @@ async function ensureYearHydrated(year: number, options?: { forceVersionCheck?: 
 
     const hasCachedRows = cachedRows.length > 0;
     const hasKnownSyncedVersion = typeof stateBefore.syncedPortalVersion === 'string' && stateBefore.syncedPortalVersion.length > 0;
+    const latestPortalVersionOrNull = latestPortalVersion ?? null;
     const portalChanged = Boolean(
       latestPortalVersion
       && hasKnownSyncedVersion
       && latestPortalVersion !== stateBefore.syncedPortalVersion,
     );
 
-    const shouldRefresh = !hasCachedRows || !hasKnownSyncedVersion || portalChanged;
+    if (!hasCachedRows) {
+      const emptyAttempt = emptyYearRetryMemory.get(year);
+      const withinRetryWindow = Boolean(
+        emptyAttempt
+        && (Date.now() - emptyAttempt.attemptedAt) < EMPTY_YEAR_RETRY_TTL_MS,
+      );
+      const sameVersion = emptyAttempt?.portalVersion === latestPortalVersionOrNull;
+      if (withinRetryWindow && sameVersion) {
+        return cachedRows;
+      }
+    }
+
+    const shouldRefresh = !hasCachedRows || portalChanged;
     if (!shouldRefresh) {
       return cachedRows;
     }
 
     const freshRows = await fetchHijriCalendarForYear(year);
     if (freshRows.length > 0) {
+      emptyYearRetryMemory.delete(year);
       await writeYearCache(year, freshRows);
       const stateNow = await readCacheState();
       await writeCacheState({
@@ -176,6 +192,21 @@ async function ensureYearHydrated(year: number, options?: { forceVersionCheck?: 
         lastVersionCheckedAt: Date.now(),
       });
       return freshRows;
+    }
+
+    if (!hasCachedRows) {
+      emptyYearRetryMemory.set(year, {
+        attemptedAt: Date.now(),
+        portalVersion: latestPortalVersionOrNull,
+      });
+    }
+
+    if (latestPortalVersion) {
+      const stateNow = await readCacheState();
+      await writeCacheState({
+        syncedPortalVersion: latestPortalVersion,
+        lastVersionCheckedAt: Date.now(),
+      });
     }
 
     // Network/source failed; fallback to cache if available.
@@ -194,9 +225,11 @@ async function forceRefreshYear(year: number): Promise<HijriCalendarRow[]> {
 
   const task = (async () => {
     const latestPortalVersion = await getPortalVersion(true);
+    const latestPortalVersionOrNull = latestPortalVersion ?? null;
     const freshRows = await fetchHijriCalendarForYear(year);
 
     if (freshRows.length > 0) {
+      emptyYearRetryMemory.delete(year);
       await writeYearCache(year, freshRows);
       const stateNow = await readCacheState();
       await writeCacheState({
@@ -205,6 +238,11 @@ async function forceRefreshYear(year: number): Promise<HijriCalendarRow[]> {
       });
       return freshRows;
     }
+
+    emptyYearRetryMemory.set(year, {
+      attemptedAt: Date.now(),
+      portalVersion: latestPortalVersionOrNull,
+    });
 
     return readYearCache(year);
   })().finally(() => {
