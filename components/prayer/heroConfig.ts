@@ -272,18 +272,18 @@ export const PRAYER_SKY_DEPTH_OVERLAY: readonly [string, string, string] = [
 ];
 
 export const PRAYER_BG_IMAGES: Record<string, any> = {
-  Tahjjud: require('@/assets/images/sky/tahjjud.jpg'),
-  Fajr: require('@/assets/images/sky/fajr.jpg'),
-  Sunrise: require('@/assets/images/sky/sunrise.jpg'),
-  Ishraq: require('@/assets/images/sky/ishraq.jpg'),
-  Zawaal: require('@/assets/images/sky/zawaal.jpg'),
-  Dhuhr: require('@/assets/images/sky/zuhr.jpg'),
-  Asr: require('@/assets/images/sky/asr.jpg'),
-  Maghrib: require('@/assets/images/sky/maghrib.jpg'),
-  Isha: require('@/assets/images/sky/isha.jpg'),
-  Jumuah: require('@/assets/images/sky/nabwi.jpg'),
-  Eid: require('@/assets/images/sky/nabwi.jpg'),
-  EidAdha: require('@/assets/images/sky/arafat.jpeg'),
+  Tahjjud: require('@/assets/images/reciters/sky/tahjjud.jpg'),
+  Fajr: require('@/assets/images/reciters/sky/fajr.jpg'),
+  Sunrise: require('@/assets/images/reciters/sky/sunrise.jpg'),
+  Ishraq: require('@/assets/images/reciters/sky/ishraq.jpg'),
+  Zawaal: require('@/assets/images/reciters/sky/zawaal.jpg'),
+  Dhuhr: require('@/assets/images/reciters/sky/zuhr.jpg'),
+  Asr: require('@/assets/images/reciters/sky/asr.jpg'),
+  Maghrib: require('@/assets/images/reciters/sky/maghrib.jpg'),
+  Isha: require('@/assets/images/reciters/sky/isha.jpg'),
+  Jumuah: require('@/assets/images/reciters/sky/nabwi.jpg'),
+  Eid: require('@/assets/images/reciters/sky/nabwi.jpg'),
+  EidAdha: require('@/assets/images/reciters/sky/arafat.jpeg'),
 };
 
 export const SKY_CROSS_FADE_DURATION_MS = 1400;

@@ -2619,33 +2619,45 @@ export default function HomeScreen() {
   );
 
   useEffect(() => {
-    const {
-      HOME_PRAYER_WIDGET_NAME,
-      HomeHeroPrayerWidget,
-      buildHomePrayerWidgetPayload,
-      persistHomePrayerWidgetPayload,
-    } = require('@/widgets/home-prayer-widget');
+    let cancelled = false;
 
-    const payload = buildHomePrayerWidgetPayload(data);
+    const syncWidget = async () => {
+      const {
+        HOME_PRAYER_WIDGET_NAME,
+        HomeHeroPrayerWidget,
+        buildHomePrayerWidgetPayload,
+        persistHomePrayerWidgetPayload,
+      } = await import('@/widgets/home-prayer-widget');
 
-    void persistHomePrayerWidgetPayload(payload);
+      const payload = buildHomePrayerWidgetPayload(data);
 
-    if (Platform.OS === 'android') {
-      const { requestWidgetUpdate } = require('react-native-android-widget');
-      void requestWidgetUpdate({
-        widgetName: HOME_PRAYER_WIDGET_NAME,
-        renderWidget: (widgetInfo: WidgetInfo) => <HomeHeroPrayerWidget payload={payload} widgetInfo={widgetInfo} />,
-      }).catch((error: unknown) => {
-        if (__DEV__) {
-          console.warn('[Widget] Failed to request prayer widget update:', error);
-        }
-      });
-      return;
-    }
+      void persistHomePrayerWidgetPayload(payload);
 
-    if (Platform.OS === 'ios') {
-      void syncIosHomePrayerWidget(payload);
-    }
+      if (cancelled) return;
+
+      if (Platform.OS === 'android') {
+        const { requestWidgetUpdate } = await import('react-native-android-widget');
+        void requestWidgetUpdate({
+          widgetName: HOME_PRAYER_WIDGET_NAME,
+          renderWidget: (widgetInfo: WidgetInfo) => <HomeHeroPrayerWidget payload={payload} widgetInfo={widgetInfo} />,
+        }).catch((error: unknown) => {
+          if (__DEV__) {
+            console.warn('[Widget] Failed to request prayer widget update:', error);
+          }
+        });
+        return;
+      }
+
+      if (Platform.OS === 'ios') {
+        void syncIosHomePrayerWidget(payload);
+      }
+    };
+
+    void syncWidget();
+
+    return () => {
+      cancelled = true;
+    };
   }, [data]);
 
   const {

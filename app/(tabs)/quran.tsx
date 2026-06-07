@@ -23,7 +23,7 @@ const PENDING_OPEN_KEY = 'quran_pending_open_v1';
 type MushafLayout = '15line' | '16line';
 
 const ADHKAR_QURAN_SOURCE = 'adhkar-duas';
-const QURAN_BG_IMAGE = require('../../assets/images/sky/tahjjud.jpg');
+const QURAN_BG_IMAGE = require('../../assets/images/reciters/sky/tahjjud.jpg');
 
 function toOrdinal(value: number): string {
   const abs = Math.abs(Math.trunc(value));

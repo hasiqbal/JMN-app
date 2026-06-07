@@ -35,7 +35,7 @@ const PARENT_TILE_BACKGROUND_BY_KEY: Record<ParentTileVisualKey, any> = {
   salah: require('@/assets/images/background/salah.jpg'),
   fasting: require('@/assets/images/background/kiswahkaabah.jpg'),
   zakaat: require('@/assets/images/background/zakaat.jpg'),
-  hajj: require('@/assets/images/sky/arafat.jpeg'),
+  hajj: require('@/assets/images/reciters/sky/arafat.jpeg'),
 };
 
 const DEFAULT_PARENT_TILE_BACKGROUND = require('@/assets/images/background/salah.jpg');
