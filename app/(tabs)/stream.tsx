@@ -68,10 +68,19 @@ import {
   SURAH_NAMES,
   SURAH_LIST,
 } from '@/components/stream/streamConfig';
-import { getNotificationsModule } from '@/hooks/useAndroidNotificationChannels';
+import {
+  ensureAndroidStreamPlaybackNotificationChannel,
+  getNotificationsModule,
+} from '@/hooks/useAndroidNotificationChannels';
 import { useJmnLiveStatus } from '@/hooks/useJmnLiveStatus';
 import { useNightMode } from '@/hooks/useNightMode';
 import { refreshJmnLiveStatus } from '@/services/liveService';
+import {
+  STREAM_PLAYBACK_NOTIFICATION_CATEGORY_ID,
+  STREAM_PLAYBACK_NOTIFICATION_CHANNEL_ID,
+  STREAM_PLAYBACK_NOTIFICATION_SCOPE,
+} from '@/constants/streamPlaybackNotifications';
+import { registerStreamPlaybackActionHandler } from '@/services/streamPlaybackActionBridge';
 
 function PulsingDot({ active }: { active: boolean }) {
   const opacity = useRef(new Animated.Value(0.35)).current;
@@ -208,6 +217,9 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
   const bottomPlayerTravelRef = useRef(0);
   const bottomPlayerDragStartRef = useRef(0);
   const audioModeReadyRef = useRef(false);
+  const streamNotificationPermissionReadyRef = useRef(false);
+  const activePlaybackNotificationIdRef = useRef<string | null>(null);
+  const playbackNotificationRequestIdRef = useRef(0);
   const autoplayAttempted = useRef(false);
   const handledNotificationAutoplayIntentRef = useRef<string | null>(null);
   const revealAnim = useRef(new Animated.Value(0)).current;
@@ -856,6 +868,31 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
       setRewindNotice('Unable to resume playback. Please tap Play again.');
     }
   }, [audioLoading, ensurePrayerAudioUnlocked]);
+
+  const togglePlaybackFromNotification = useCallback(async () => {
+    if (audioLoading) return;
+
+    if (audioPaused) {
+      await resumeActiveAudio();
+      return;
+    }
+
+    if (audioPlaying) {
+      await pauseActiveAudio();
+      return;
+    }
+  }, [audioLoading, audioPaused, audioPlaying, pauseActiveAudio, resumeActiveAudio]);
+
+  useEffect(() => {
+    registerStreamPlaybackActionHandler({
+      togglePlayPause: () => togglePlaybackFromNotification(),
+      stopPlayback: () => stopAudio(),
+    });
+
+    return () => {
+      registerStreamPlaybackActionHandler(null);
+    };
+  }, [stopAudio, togglePlaybackFromNotification]);
 
   const playUrl = useCallback(async (
     source: AudioSource,
@@ -1721,6 +1758,98 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
     await seekActiveStreamToPosition(current + REWIND_STEP_SEC);
   }, [readCurrentPlaybackTime, seekActiveStreamToPosition]);
 
+  const ensureStreamPlaybackNotificationPermission = useCallback(async () => {
+    if (Platform.OS === 'web' || EXPO_GO_NOTIFICATIONS_FALLBACK) return false;
+
+    const Notifications = await getNotificationsModule();
+    if (!Notifications) return false;
+
+    if (!streamNotificationPermissionReadyRef.current) {
+      const current = await Notifications.getPermissionsAsync();
+      let finalStatus = current.status;
+
+      if (finalStatus !== 'granted') {
+        const requested = await Notifications.requestPermissionsAsync();
+        finalStatus = requested.status;
+      }
+
+      if (finalStatus !== 'granted') return false;
+
+      if (Platform.OS === 'android') {
+        await ensureAndroidStreamPlaybackNotificationChannel();
+      }
+
+      streamNotificationPermissionReadyRef.current = true;
+    }
+
+    return true;
+  }, []);
+
+  const dismissActivePlaybackNotification = useCallback(async () => {
+    if (Platform.OS === 'web' || EXPO_GO_NOTIFICATIONS_FALLBACK) return;
+
+    const activeNotificationId = activePlaybackNotificationIdRef.current;
+    if (!activeNotificationId) return;
+
+    const Notifications = await getNotificationsModule();
+    if (!Notifications) return;
+
+    activePlaybackNotificationIdRef.current = null;
+    await Notifications.dismissNotificationAsync(activeNotificationId).catch(() => {});
+  }, []);
+
+  const publishPlaybackControlNotification = useCallback(async (
+    title: string,
+    body: string,
+  ) => {
+    if (Platform.OS === 'web' || EXPO_GO_NOTIFICATIONS_FALLBACK) return;
+
+    const hasPermission = await ensureStreamPlaybackNotificationPermission();
+    if (!hasPermission) return;
+
+    const Notifications = await getNotificationsModule();
+    if (!Notifications) return;
+
+    const requestId = ++playbackNotificationRequestIdRef.current;
+
+    const previousId = activePlaybackNotificationIdRef.current;
+    if (previousId) {
+      await Notifications.dismissNotificationAsync(previousId).catch(() => {});
+      activePlaybackNotificationIdRef.current = null;
+    }
+
+    if (requestId !== playbackNotificationRequestIdRef.current) return;
+
+    const nextId = await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body,
+        sound: false,
+        categoryIdentifier: STREAM_PLAYBACK_NOTIFICATION_CATEGORY_ID,
+        data: {
+          scope: STREAM_PLAYBACK_NOTIFICATION_SCOPE,
+          type: 'stream-playback-controls',
+        },
+        ...(Platform.OS === 'android'
+          ? {
+              channelId: STREAM_PLAYBACK_NOTIFICATION_CHANNEL_ID,
+              priority: Notifications.AndroidNotificationPriority.DEFAULT,
+              autoDismiss: false,
+              sticky: true,
+            }
+          : {}),
+      },
+      trigger: null,
+    });
+
+    if (requestId !== playbackNotificationRequestIdRef.current) {
+      await Notifications.dismissNotificationAsync(nextId).catch(() => {});
+      return;
+    }
+
+    activePlaybackNotificationIdRef.current = nextId;
+  }, [ensureStreamPlaybackNotificationPermission]);
+
   const ensureNotificationPermission = useCallback(async () => {
     if (Platform.OS === 'web') return false;
     if (EXPO_GO_NOTIFICATIONS_FALLBACK) return true;
@@ -2112,6 +2241,39 @@ export function StreamScreen({ previewVariant, autoPlayOnMount = false }: Stream
   const bottomPlayerRightTimeLabel = controlsDurationSeekEnabled
     ? formatPlaybackClock(playbackDurationSec)
     : `${Math.round(controlsTimeshiftDisplaySec)}s`;
+
+  useEffect(() => {
+    if (!activeStation || !activeStationIsRunning) {
+      void dismissActivePlaybackNotification();
+      return;
+    }
+
+    const playbackBody = activeStationIsSurahTemplate
+      ? `${controlsStatusText}: ${activeSurahName}`
+      : activeStationIsHadr
+      ? `${controlsStatusText}: Juz ${playingHadrJuz ?? selectedHadrJuz}`
+      : `${controlsStatusText}: ${activeStationMetaText}`;
+
+    void publishPlaybackControlNotification(activeStation.label, playbackBody);
+  }, [
+    activeStation,
+    activeStationIsHadr,
+    activeStationIsRunning,
+    activeStationIsSurahTemplate,
+    activeStationMetaText,
+    activeSurahName,
+    controlsStatusText,
+    dismissActivePlaybackNotification,
+    playingHadrJuz,
+    publishPlaybackControlNotification,
+    selectedHadrJuz,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      void dismissActivePlaybackNotification();
+    };
+  }, [dismissActivePlaybackNotification]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, backgroundColor: palette.bg }]}>

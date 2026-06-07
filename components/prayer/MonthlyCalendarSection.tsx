@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
+  Modal,
   Pressable as RNPressable,
   ScrollView,
   useWindowDimensions,
@@ -985,6 +986,16 @@ export default function MonthlyCalendarSection({
   const pickerHeight = React.useMemo(() => {
     return Math.min(420, Math.max(300, Math.floor(screenHeight * 0.52)));
   }, [screenHeight]);
+  const weekCount = React.useMemo(() => {
+    const firstDay = new Date(viewYear, viewMonth, 1);
+    const startOffset = (firstDay.getDay() + 6) % 7;
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    return Math.max(1, Math.ceil((startOffset + daysInMonth) / 7));
+  }, [viewYear, viewMonth]);
+  const monthCellMinHeight = React.useMemo(() => {
+    const available = Math.max(300, screenHeight - 260);
+    return Math.max(62, Math.min(78, Math.floor(available / weekCount)));
+  }, [screenHeight, weekCount]);
   const monthButtonWidth = React.useMemo(() => {
     const horizontalPadding = 24;
     const gaps = 12;
@@ -998,11 +1009,10 @@ export default function MonthlyCalendarSection({
   const [pickerStep, setPickerStep] = useState<'month' | 'day'>('month');
   const [pickerYear, setPickerYear] = useState(today.getFullYear());
   const [pickerMonth, setPickerMonth] = useState(today.getMonth());
-  const stripRef = useRef<any>(null);
-  const lastAutoCenteredMonthKeyRef = useRef<string | null>(null);
   const N = nightMode ? nightPalette : null;
 
   const [selectedDay, setSelectedDay] = useState<MonthDay | null>(null);
+  const [showDayDetailModal, setShowDayDetailModal] = useState(false);
 
   const resetCalendarDataAndReload = React.useCallback(() => {
     setDbRows(new Map());
@@ -1058,8 +1068,6 @@ export default function MonthlyCalendarSection({
     },
     [viewYear, viewMonth, today, dbRows, hijriRows, loadedHijriMonthKey]
   );
-
-  const stripDays = currentGrid.filter((c) => c.isCurrentMonth);
 
   const pickerYears = React.useMemo(() => {
     const start = today.getFullYear();
@@ -1336,8 +1344,8 @@ export default function MonthlyCalendarSection({
       setPickerYear(now.getFullYear());
       setPickerMonth(now.getMonth());
       setSelectedDay(null);
+      setShowDayDetailModal(false);
       setCalendarRefreshToken((value) => value + 1);
-      lastAutoCenteredMonthKeyRef.current = null;
       return undefined;
     }, [])
   );
@@ -1345,12 +1353,43 @@ export default function MonthlyCalendarSection({
   useEffect(() => {
     setDbLoading(true);
     setSyncError(null);
-    Promise.all([
+    Promise.allSettled([
       fetchPrayerTimesForMonth(viewMonth + 1),
       getHijriCalendarForMonthCached(viewYear, viewMonth + 1),
       fetchIslamicCalendarEventsForMonth(viewYear, viewMonth + 1),
     ])
-      .then(([rows, hijri, monthEvents]) => {
+      .then((results) => {
+        const rowsResult = results[0];
+        const hijriResult = results[1];
+        const eventsResult = results[2];
+
+        const rows = rowsResult.status === 'fulfilled' ? rowsResult.value : [];
+        const hijri = hijriResult.status === 'fulfilled' ? hijriResult.value : [];
+        const monthEvents = eventsResult.status === 'fulfilled' ? eventsResult.value : [];
+
+        if (rowsResult.status === 'rejected') {
+          console.error('[MonthlyCalendarSection] Prayer times sync failed', {
+            viewMonth: viewMonth + 1,
+            reason: rowsResult.reason,
+          });
+        }
+
+        if (hijriResult.status === 'rejected') {
+          console.error('[MonthlyCalendarSection] Hijri calendar sync failed', {
+            viewYear,
+            viewMonth: viewMonth + 1,
+            reason: hijriResult.reason,
+          });
+        }
+
+        if (eventsResult.status === 'rejected') {
+          console.warn('[MonthlyCalendarSection] Events feed unavailable for this session', {
+            viewYear,
+            viewMonth: viewMonth + 1,
+            reason: eventsResult.reason,
+          });
+        }
+
         const prayerMap = new Map<number, PrayerTimeRow>();
         rows.forEach((r) => prayerMap.set(r.day, r));
 
@@ -1358,8 +1397,12 @@ export default function MonthlyCalendarSection({
         hijri.forEach((r) => hijriMap.set(r.gregorian_day, r.hijri_date));
 
         const expectedDaysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-        if (hijriMap.size !== expectedDaysInMonth) {
+        if (hijriResult.status !== 'fulfilled') {
+          setSyncError('Hijri sync failed. Pull to refresh or reopen month.');
+        } else if (hijriMap.size !== expectedDaysInMonth) {
           setSyncError(`Hijri sync incomplete for ${MONTH_NAMES[viewMonth]} ${viewYear} (${hijriMap.size}/${expectedDaysInMonth} days).`);
+        } else {
+          setSyncError(null);
         }
 
         const eventMap = new Map<string, IslamicCalendarEventRow[]>();
@@ -1405,15 +1448,6 @@ export default function MonthlyCalendarSection({
         setLoadedHijriMonthKey(`${viewYear}-${viewMonth}`);
         setEventsByDate(eventMap);
         setDbLoading(false);
-      })
-      .catch((error) => {
-        console.error('[MonthlyCalendarSection] Failed to sync calendar data', {
-          viewYear,
-          viewMonth: viewMonth + 1,
-          error,
-        });
-        setSyncError('Sync failed. Pull to refresh or reopen month.');
-        setDbLoading(false);
       });
   }, [viewMonth, viewYear, calendarRefreshToken]);
 
@@ -1438,38 +1472,8 @@ export default function MonthlyCalendarSection({
     setSelectedDay(todayCell ?? firstCurrent);
   }, [dbRows, currentGrid, selectedDay]);
 
-  // When picker opens, clear the centering guard so that closing it will always
-  // trigger exactly one auto-center on today.
-  useEffect(() => {
-    if (showMonthPicker) {
-      lastAutoCenteredMonthKeyRef.current = null;
-    }
-  }, [showMonthPicker]);
-
-  useEffect(() => {
-    if (showMonthPicker || stripDays.length === 0) return;
-
-    const monthKey = `${viewYear}-${viewMonth}`;
-    if (lastAutoCenteredMonthKeyRef.current === monthKey) return;
-
-    const todayIndex = stripDays.findIndex((d) => d.isToday);
-    if (todayIndex < 0) return;
-
-    const itemWidth = STRIP_ITEM_WIDTH;
-    const itemGap = STRIP_ITEM_GAP;
-    const contentPad = 8;
-    const step = itemWidth + itemGap;
-    const targetX = Math.max(0, contentPad + (todayIndex * step) - ((screenWidth - itemWidth) / 2));
-
-    const timer = setTimeout(() => {
-      stripRef.current?.scrollTo({ x: targetX, y: 0, animated: true });
-      lastAutoCenteredMonthKeyRef.current = monthKey;
-    }, 60);
-
-    return () => clearTimeout(timer);
-  }, [showMonthPicker, stripDays, screenWidth, viewYear, viewMonth]);
-
   const goBack = () => {
+    setShowDayDetailModal(false);
     if (viewMonth === 0) {
       setViewMonth(11);
       setViewYear((y) => y - 1);
@@ -1481,6 +1485,7 @@ export default function MonthlyCalendarSection({
   };
 
   const goForward = () => {
+    setShowDayDetailModal(false);
     if (viewMonth === 11) {
       setViewMonth(0);
       setViewYear((y) => y + 1);
@@ -1515,110 +1520,15 @@ export default function MonthlyCalendarSection({
         return m ? m[1] : '';
       })()
     : '';
-
   return (
     <View style={[calStyles.splitContainer, N && { backgroundColor: N.bg }]}> 
       <View style={[calStyles.gridSection, showMonthPicker && { height: pickerHeight + 12 }, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}> 
         {!showMonthPicker ? (
           <>
-            <View style={[calStyles.navRow, { paddingHorizontal: 8 }]}> 
-              <TouchableOpacity onPress={goBack} style={[calStyles.navArrow, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]} activeOpacity={0.7}>
-                <MaterialIcons name="chevron-left" size={20} color={N ? '#69A8FF' : Colors.primary} />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => {
-                  setPickerStep('month');
-                  setPickerYear(viewYear);
-                  setPickerMonth(viewMonth);
-                  setShowMonthPicker(true);
-                }}
-                style={[calStyles.monthLabelButton, N && { backgroundColor: N.surfaceAlt }]}
-                activeOpacity={0.7}
-              >
-                <View style={calStyles.monthLabel}>
-                  <Text style={[calStyles.monthName, N && { color: N.text }]}>{MONTH_NAMES[viewMonth]} {viewYear}</Text>
-                  {selectedDay?.day ? (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                      <MaterialIcons name="brightness-3" size={9} color={selectedDay.isFriday ? '#B8860B' : STRIP_TEXT_HIJRI} />
-                      <Text
-                        style={[calStyles.hijriMonthSub, { color: selectedDay.isFriday ? '#B8860B' : STRIP_TEXT_HIJRI }]}
-                        numberOfLines={1}
-                      >
-                        {transliterateHijri(selectedDay.day.hijri)}
-                      </Text>
-                      {selectedDay.isFriday ? (
-                        <View style={[panelStyles.fridayBadge, { backgroundColor: 'rgba(249,168,37,0.18)', borderColor: 'rgba(249,168,37,0.45)', paddingHorizontal: 5, paddingVertical: 1 }]}>
-                          <MaterialIcons name="star" size={8} color="#F9A825" />
-                          <Text style={[panelStyles.fridayBadgeText, { color: '#B8860B', fontSize: 9 }]}>Jumuah</Text>
-                        </View>
-                      ) : null}
-                    </View>
-                  ) : (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 }}>
-                      {viewHijriMonth ? (
-                        <>
-                          <MaterialIcons name="brightness-3" size={9} color={STRIP_TEXT_HIJRI} />
-                          <Text style={[calStyles.hijriMonthSub, { color: STRIP_TEXT_HIJRI }]}>
-                            {viewHijriMonth}{viewHijriYear ? ` ${viewHijriYear} AH` : ''}
-                          </Text>
-                        </>
-                      ) : null}
-                      {dbLoading ? <Text style={calStyles.syncLabel}>  Syncing...</Text> : null}
-                      {!dbLoading && syncError ? <Text style={calStyles.syncErrorLabel}>  {syncError}</Text> : null}
-                    </View>
-                  )}
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity onPress={goForward} style={[calStyles.navArrow, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]} activeOpacity={0.7}>
-                <MaterialIcons name="chevron-right" size={20} color={N ? '#69A8FF' : Colors.primary} />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={handleManualRefresh}
-                style={[calStyles.navArrow, N && { backgroundColor: N.surfaceAlt, borderColor: N.border }]}
-                activeOpacity={0.7}
-                disabled={manualRefreshing}
-              >
-                <MaterialIcons
-                  name={manualRefreshing ? 'hourglass-empty' : 'refresh'}
-                  size={16}
-                  color={N ? '#69A8FF' : Colors.primary}
-                />
-              </TouchableOpacity>
+            <View style={[calStyles.monthViewHint, N && { borderTopColor: N.border, backgroundColor: N.surfaceAlt }]}> 
+              <MaterialIcons name="calendar-view-month" size={14} color={N ? '#9BC2EA' : '#2D7D5F'} />
+              <Text style={[calStyles.monthViewHintText, N && { color: N.textSub }]}>Tap any date to open full prayer times and events</Text>
             </View>
-
-            <CalendarStripScrollView
-              ref={stripRef}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              keyboardShouldPersistTaps="always"
-              contentContainerStyle={calStyles.stripScrollContent}
-              style={[calStyles.stripScroll, N && { borderTopColor: N.border }]}
-            >
-              {stripDays.map((cell) => {
-                const isSelected = selectedDay?.key === cell.key;
-                const isToday = cell.isToday;
-                const portalHijri = hijriRows.get(cell.date.getDate()) ?? '';
-                const hijriDay = portalHijri ? getHijriDayNum(portalHijri) : '';
-                const dow = DAY_LABELS[(cell.date.getDay() + 6) % 7];
-
-                return (
-                  <StripDateChip
-                    key={cell.key}
-                    cell={cell}
-                    isSelected={isSelected}
-                    isToday={isToday}
-                    hijriDay={hijriDay}
-                    dow={dow}
-                    nightMode={nightMode}
-                    nightPalette={nightPalette}
-                    onSelect={setSelectedDay}
-                  />
-                );
-              })}
-            </CalendarStripScrollView>
           </>
         ) : (
           <View style={[calStyles.pickerContainer, { height: pickerHeight }, N && { backgroundColor: N.surface }]}>
@@ -1684,8 +1594,10 @@ export default function MonthlyCalendarSection({
                               setViewYear(year);
                               setViewMonth(monthIndex);
                               setSelectedDay(null);
+                              setShowDayDetailModal(false);
                               resetCalendarDataAndReload();
-                              setPickerStep('day');
+                              setPickerStep('month');
+                              setShowMonthPicker(false);
                             }}
                             style={[
                               calStyles.monthButton,
@@ -1804,15 +1716,199 @@ export default function MonthlyCalendarSection({
         {betweenCalendarAndTimetable ? (
           <View style={calStyles.interstitialWrap}>{betweenCalendarAndTimetable}</View>
         ) : null}
-        <CalendarPrayerPanel selectedDay={selectedDay} nightMode={nightMode} nightPalette={nightPalette} />
+        <View style={[calStyles.monthMatrixCard, N && { backgroundColor: N.surface, borderColor: N.border }]}> 
+          <View style={[calStyles.monthMatrixTitleBar, N && { borderBottomColor: N.border, backgroundColor: N.surfaceAlt }]}> 
+            <View style={{ flex: 1 }}>
+              <Text style={[calStyles.monthMatrixTitle, N && { color: N.text }]}>{MONTH_NAMES[viewMonth]} {viewYear}</Text>
+              <Text style={[calStyles.monthMatrixSubTitle, N && { color: N.textMuted }]}>
+                {viewHijriMonth ? `${viewHijriMonth}${viewHijriYear ? ` ${viewHijriYear} AH` : ''}` : 'Hijri syncing...'}
+              </Text>
+              {manualRefreshing ? (
+                <Text style={[calStyles.syncLabel, N && { color: N.textMuted }]}>Syncing dates...</Text>
+              ) : null}
+              {!manualRefreshing && syncError ? (
+                <Text style={calStyles.syncErrorLabel}>{syncError}</Text>
+              ) : null}
+            </View>
+            <View style={calStyles.monthHeaderActions}>
+              <TouchableOpacity
+                onPress={goBack}
+                style={[calStyles.monthHeaderIconBtn, N && { borderColor: N.border, backgroundColor: N.surface }]}
+                activeOpacity={0.8}
+              >
+                <MaterialIcons name="chevron-left" size={16} color={N ? '#9BC2EA' : '#2D7D5F'} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={goForward}
+                style={[calStyles.monthHeaderIconBtn, N && { borderColor: N.border, backgroundColor: N.surface }]}
+                activeOpacity={0.8}
+              >
+                <MaterialIcons name="chevron-right" size={16} color={N ? '#9BC2EA' : '#2D7D5F'} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => {
+                  setPickerStep('month');
+                  setPickerYear(viewYear);
+                  setPickerMonth(viewMonth);
+                  setShowMonthPicker(true);
+                }}
+                style={[calStyles.monthHeaderActionBtn, N && { borderColor: N.border, backgroundColor: N.surface }]}
+                activeOpacity={0.8}
+              >
+                <MaterialIcons name="calendar-month" size={15} color={N ? '#9BC2EA' : '#2D7D5F'} />
+                <Text style={[calStyles.monthHeaderActionText, N && { color: N.textSub }]}>Change month</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleManualRefresh}
+                style={[calStyles.monthHeaderIconBtn, N && { borderColor: N.border, backgroundColor: N.surface }]}
+                activeOpacity={0.8}
+                disabled={manualRefreshing}
+              >
+                <MaterialIcons
+                  name={manualRefreshing ? 'hourglass-empty' : 'refresh'}
+                  size={16}
+                  color={N ? '#9BC2EA' : '#2D7D5F'}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={[calStyles.monthMatrixHeadRow, N && { borderBottomColor: N.border, backgroundColor: N.surfaceAlt }]}>
+            {DAY_LABELS.map((label) => (
+              <View key={`head-${label}`} style={calStyles.monthMatrixHeadCell}>
+                <Text style={[calStyles.monthMatrixHeadText, N && { color: N.textMuted }]}>{label.toUpperCase()}</Text>
+              </View>
+            ))}
+          </View>
+
+          <View style={calStyles.monthMatrixGrid}>
+            {currentGrid.map((cell) => {
+              const isDimmed = !cell.isCurrentMonth;
+              const isoDate = `${cell.date.getFullYear()}-${String(cell.date.getMonth() + 1).padStart(2, '0')}-${String(cell.date.getDate()).padStart(2, '0')}`;
+              const eventCount = cell.isCurrentMonth ? (eventsByDate.get(isoDate)?.length ?? 0) : 0;
+              const hijriDay = cell.isCurrentMonth && cell.day?.hijri
+                ? getHijriDayNum(cell.day.hijri)
+                : '';
+
+              return (
+                <CalendarPressable
+                  key={`matrix-${cell.key}`}
+                  onPress={() => {
+                    if (!cell.isCurrentMonth) return;
+                    setSelectedDay(cell);
+                    setShowDayDetailModal(true);
+                  }}
+                  disabled={!cell.isCurrentMonth}
+                  style={[
+                    calStyles.monthMatrixCell,
+                    { minHeight: monthCellMinHeight },
+                    isDimmed && calStyles.monthMatrixCellOut,
+                    cell.isToday && calStyles.monthMatrixCellToday,
+                    cell.isCurrentMonth && cell.isFriday && calStyles.monthMatrixCellFriday,
+                    N && { borderColor: N.border, backgroundColor: isDimmed ? N.surfaceAlt : N.surface },
+                    N && cell.isToday && { borderColor: '#69A8FF', backgroundColor: '#1E3354' },
+                  ]}
+                >
+                  <View style={calStyles.monthMatrixCellDateRow}>
+                    <Text style={[calStyles.monthMatrixCellDate, N && { color: isDimmed ? N.textMuted : N.text }]}>{cell.date.getDate()}</Text>
+                    <View style={calStyles.monthMatrixDateRightCol}>
+                      {hijriDay ? (
+                        <Text style={[calStyles.monthMatrixCellHijri, N && { color: isDimmed ? N.textMuted : '#E7C36C' }]}>{hijriDay}</Text>
+                      ) : null}
+                    </View>
+                  </View>
+
+                  {cell.isToday ? (
+                    <View style={calStyles.monthMatrixTodayBadgeRow}>
+                      <View style={[calStyles.monthMatrixTodayBadge, N && { backgroundColor: '#2E6CB9' }]}>
+                        <Text numberOfLines={1} style={calStyles.monthMatrixTodayBadgeText}>Today</Text>
+                      </View>
+                    </View>
+                  ) : null}
+
+                  {cell.isCurrentMonth ? (
+                    <View style={calStyles.monthMatrixMetaWrap}>
+                      <View style={calStyles.monthMatrixIndicatorRow}>
+                        {cell.isFriday ? (
+                          <View style={calStyles.monthMatrixDotBadge}>
+                            <MaterialIcons name="star" size={10} color="#F9A825" />
+                          </View>
+                        ) : null}
+                        {eventCount > 0 ? (
+                          <View style={[calStyles.monthMatrixEventBadge, N && { backgroundColor: '#2E6CB9' }]}>
+                            <View style={calStyles.monthMatrixEventDot} />
+                          </View>
+                        ) : null}
+                      </View>
+
+                    </View>
+                  ) : null}
+                </CalendarPressable>
+              );
+            })}
+          </View>
+        </View>
         <CalendarEventPlaceholders
           selectedDay={selectedDay}
-            eventsByDate={eventsByDate}
+          eventsByDate={eventsByDate}
           nightMode={nightMode}
           nightPalette={nightPalette}
           onOpenMasjidAnnouncement={handleOpenMasjidAnnouncement}
         />
       </ScrollView>
+
+      <Modal
+        visible={showDayDetailModal && !!selectedDay}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDayDetailModal(false)}
+      >
+        <View style={calStyles.dayModalBackdrop}>
+          <CalendarPressable style={StyleSheet.absoluteFillObject} onPress={() => setShowDayDetailModal(false)} />
+          <View style={[calStyles.dayModalCard, N && { backgroundColor: N.bg, borderColor: N.border }]}> 
+            <View style={[calStyles.dayModalHeader, N && { borderBottomColor: N.border }]}> 
+              <View style={{ flex: 1 }}>
+                <Text style={[calStyles.dayModalTitle, N && { color: N.text }]}>
+                  {selectedDay?.date.toLocaleDateString(undefined, {
+                    weekday: 'long',
+                    day: '2-digit',
+                    month: 'long',
+                    year: 'numeric',
+                  }) || 'Day details'}
+                </Text>
+                <Text style={[calStyles.dayModalSub, N && { color: N.textMuted }]} numberOfLines={1}>
+                  {selectedDay?.day?.hijri ? transliterateHijri(selectedDay.day.hijri) : 'Hijri syncing...'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowDayDetailModal(false)}
+                style={[calStyles.dayModalCloseBtn, N && { borderColor: N.border, backgroundColor: N.surface }]}
+                activeOpacity={0.8}
+              >
+                <MaterialIcons name="close" size={18} color={N ? N.text : Colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={calStyles.dayModalScroll} showsVerticalScrollIndicator={false}>
+              <CalendarPrayerPanel
+                selectedDay={selectedDay}
+                nightMode={nightMode}
+                nightPalette={nightPalette}
+              />
+              <CalendarEventPlaceholders
+                selectedDay={selectedDay}
+                eventsByDate={eventsByDate}
+                nightMode={nightMode}
+                nightPalette={nightPalette}
+                onOpenMasjidAnnouncement={handleOpenMasjidAnnouncement}
+              />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1835,57 +1931,346 @@ const calStyles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   panelScrollContent: {
-    paddingBottom: 12,
+    paddingBottom: 14,
+  },
+  monthMatrixCard: {
+    marginHorizontal: 10,
+    marginTop: 12,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: '#C7D7CC',
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+  },
+  monthMatrixTitleBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#D6E3DB',
+    backgroundColor: '#ECF6F0',
+  },
+  monthMatrixTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#153C2A',
+  },
+  monthMatrixSubTitle: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#5C7568',
+  },
+  monthHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginLeft: 8,
+  },
+  monthHeaderActionBtn: {
+    minHeight: 36,
+    paddingHorizontal: 11,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#C6D8CC',
+    backgroundColor: '#F8FCF9',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+  },
+  monthHeaderActionText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1F7A58',
+  },
+  monthHeaderIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#C6D8CC',
+    backgroundColor: '#F8FCF9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  monthMatrixHeadRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#D6E3DB',
+    backgroundColor: '#F3F8F5',
+  },
+  monthMatrixHeadCell: {
+    width: `${100 / 7}%`,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+  },
+  monthMatrixHeadText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#6B8176',
+    letterSpacing: 0.4,
+  },
+  monthMatrixGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  monthMatrixCell: {
+    width: `${100 / 7}%`,
+    minHeight: 92,
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#D6E3DB',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 6,
+    paddingTop: 6,
+    paddingBottom: 6,
+    justifyContent: 'space-between',
+  },
+  monthMatrixCellOut: {
+    opacity: 0.7,
+    backgroundColor: '#F4F7F5',
+  },
+  monthMatrixCellFriday: {
+    borderColor: '#E3BD62',
+    backgroundColor: '#FFF9EC',
+  },
+  monthMatrixCellToday: {
+    borderColor: '#2E6CB9',
+    backgroundColor: '#E9F1FF',
+  },
+  monthMatrixCellDateRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 3,
+  },
+  monthMatrixCellDate: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#132D20',
+    lineHeight: 22,
+  },
+  monthMatrixDateRightCol: {
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+  monthMatrixCellHijri: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#B48318',
+  },
+  monthMatrixMetaWrap: {
+    marginTop: 2,
+    gap: 3,
+  },
+  monthMatrixTodayBadgeRow: {
+    marginTop: 2,
+    alignItems: 'flex-start',
+  },
+  monthMatrixTodayBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: Radius.full,
+    backgroundColor: '#2E6CB9',
+    minWidth: 40,
+    alignItems: 'center',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  monthMatrixTodayBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#F3F8FF',
+    letterSpacing: 0,
+    textTransform: 'none',
+  },
+  monthMatrixMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  monthMatrixIndicatorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  monthMatrixDotBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(249,168,37,0.20)',
+    borderWidth: 1,
+    borderColor: 'rgba(249,168,37,0.55)',
+  },
+  monthMatrixEventBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#247A58',
+  },
+  monthMatrixEventDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#FFFFFF',
+  },
+  monthMatrixMetaText: {
+    fontSize: 8,
+    fontWeight: '700',
+    color: Colors.textSubtle,
+  },
+  monthMatrixLine: {
+    fontSize: 7,
+    fontWeight: '700',
+    color: '#23422F',
+    lineHeight: 10,
+  },
+  monthMatrixJumuahLine: {
+    fontSize: 7,
+    fontWeight: '800',
+    color: '#A27300',
+    lineHeight: 10,
+    marginTop: 1,
+  },
+  monthPanelsWrap: {
+    gap: 6,
+    paddingBottom: 2,
+  },
+  monthDayBlock: {
+    marginBottom: 4,
+  },
+  monthDayHeader: {
+    marginHorizontal: 10,
+    marginTop: 10,
+    marginBottom: -2,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: '#EFF7F1',
+    borderTopLeftRadius: Radius.md,
+    borderTopRightRadius: Radius.md,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  monthDayHeaderToday: {
+    borderColor: '#2E6CB9',
+    backgroundColor: '#E9F3FF',
+  },
+  monthDayTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+    letterSpacing: 0.1,
+  },
+  monthDayHijri: {
+    marginTop: 1,
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textSubtle,
+  },
+  todayBadge: {
+    borderRadius: Radius.full,
+    backgroundColor: '#2E6CB9',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  todayBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#F3F8FF',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  monthViewHint: {
+    marginTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#D6E3DB',
+    backgroundColor: '#F0F7F3',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  monthViewHintText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#2A7657',
+  },
+  dayModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.36)',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 18,
+  },
+  dayModalCard: {
+    maxHeight: '92%',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.background,
+    overflow: 'hidden',
+  },
+  dayModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  dayModalTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+  },
+  dayModalSub: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textSubtle,
+  },
+  dayModalCloseBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  dayModalScroll: {
+    backgroundColor: Colors.background,
   },
   interstitialWrap: {
     paddingHorizontal: 10,
     paddingTop: 10,
   },
-  navRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  navArrow: {
-    width: 26,
-    height: 26,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  monthLabelButton: {
-    flex: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 8,
-    marginHorizontal: 6,
-  },
-  monthLabel: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  monthName: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-    letterSpacing: 0.1,
-  },
-  hijriMonthSub: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.primary,
-    letterSpacing: 0.1,
-  },
   syncLabel: {
-    fontSize: 9,
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: '600',
     color: Colors.textSubtle,
   },
   syncErrorLabel: {
-    fontSize: 9,
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: '700',
     color: '#B42318',
   },
   pickerContainer: {

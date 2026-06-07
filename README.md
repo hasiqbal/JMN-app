@@ -78,6 +78,16 @@ Use [howtoguides/deployment-smoke-checklist.md](howtoguides/deployment-smoke-che
 - Expo Router
 - Supabase
 
+## iPhone Widget (WidgetKit)
+
+The current app includes Android widget rendering and iOS sync scaffolding. For Windows/no-Mac workflows, follow:
+
+- [howtoguides/ios-widgetkit-no-mac.md](howtoguides/ios-widgetkit-no-mac.md)
+
+If you have direct Xcode access and want manual target setup, follow:
+
+- [howtoguides/ios-widgetkit-setup.md](howtoguides/ios-widgetkit-setup.md)
+
 ## Stripe Donation Setup (In-App)
 
 The Donate card now opens Stripe Checkout inside the app using a Supabase Edge Function.

@@ -29,6 +29,7 @@ const base = {
     buildNumber: '5',
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
+      UIBackgroundModes: ['audio'],
     },
   },
   android: {
@@ -42,6 +43,8 @@ const base = {
       'android.permission.RECEIVE_BOOT_COMPLETED',
       'android.permission.SCHEDULE_EXACT_ALARM',
       'android.permission.USE_EXACT_ALARM',
+      'android.permission.FOREGROUND_SERVICE',
+      'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK',
     ],
     // Keep Play-sensitive permissions blocked unless explicitly needed.
     blockedPermissions: [
@@ -65,8 +68,6 @@ const base = {
       'android.permission.ACTIVITY_RECOGNITION',
       'android.permission.BODY_SENSORS',
       'android.permission.BODY_SENSORS_BACKGROUND',
-      'android.permission.FOREGROUND_SERVICE',
-      'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK',
     ],
     package: 'com.jmnapp',
   },
@@ -78,6 +79,14 @@ const base = {
   plugins: [
     'expo-router',
     ['react-native-android-widget', androidWidgetConfig],
+    [
+      'react-native-widget-extension',
+      {
+        widgetsFolder: 'ios-widgets',
+        deploymentTarget: '16.0',
+        groupIdentifier: 'group.com.jmnapp.shared',
+      },
+    ],
     [
       'expo-notifications',
       {
@@ -114,6 +123,10 @@ const base = {
   },
   extra: {
     router: {},
+    widget: {
+      iosAppGroup: 'group.com.jmnapp.shared',
+      iosKind: 'HomePrayerHeroWidget',
+    },
     eas: {
       projectId: '699b7ea2-af04-453c-96ed-f2bb121ab43b',
     },

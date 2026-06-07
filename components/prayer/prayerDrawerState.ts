@@ -8,6 +8,8 @@ export type DrawerPrayerRow = {
   begins: string;
   jamaat: string;
   jamaat2?: string;
+  tomorrowBegins?: string;
+  tomorrowJamaat?: string;
   state: DrawerPrayerState;
 };
 
@@ -36,6 +38,11 @@ function normalizePrayerNameForJumuah(name: string | null | undefined): string |
 
 function normalizeClock(value: string | undefined): string {
   if (!value || value === '-') return '--:--';
+  return value;
+}
+
+function normalizeOptionalClock(value: string | undefined): string | undefined {
+  if (!value || value === '-' || value === '--:--') return undefined;
   return value;
 }
 
@@ -92,6 +99,8 @@ export function buildPrayerDrawerRows({
         begins: normalizeClock(begins),
         jamaat: j1,
         jamaat2: j2,
+        tomorrowBegins: normalizeOptionalClock(dhuhrFromInput?.tomorrowTime),
+        tomorrowJamaat: normalizeOptionalClock(dhuhrFromInput?.tomorrowIqamah),
         state,
       };
     }
@@ -100,6 +109,8 @@ export function buildPrayerDrawerRows({
       name: prayerName,
       begins: normalizeClock(prayer?.time),
       jamaat: normalizeClock(prayer?.iqamah),
+      tomorrowBegins: normalizeOptionalClock(prayer?.tomorrowTime),
+      tomorrowJamaat: normalizeOptionalClock(prayer?.tomorrowIqamah),
       jamaat2,
       state,
     };

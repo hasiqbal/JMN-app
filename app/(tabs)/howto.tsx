@@ -14,7 +14,6 @@ import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-g
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import Reanimated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
-import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams } from 'expo-router';
 import { Colors, Spacing, Radius } from '@/constants/theme';
 import type { HowToGuide, HowToSection, HowToStep, HowToStepImage } from '@/howtoguides/types';
@@ -160,16 +159,21 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
   const imageSavedTranslateX = useSharedValue(0);
   const imageSavedTranslateY = useSharedValue(0);
   const fromHomeQuickAction = params.entry === 'home';
+  const homeQuickActionHandledRef = useRef(false);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (!fromHomeQuickAction) return;
-      setSelectedLanguage(null);
-      setSelectedParentGroup(null);
-      setExpandedGuide(null);
-      setExpandedSection(null);
-    }, [fromHomeQuickAction])
-  );
+  React.useEffect(() => {
+    if (!fromHomeQuickAction) {
+      homeQuickActionHandledRef.current = false;
+      return;
+    }
+    if (homeQuickActionHandledRef.current) return;
+
+    homeQuickActionHandledRef.current = true;
+    setSelectedLanguage(null);
+    setSelectedParentGroup(null);
+    setExpandedGuide(null);
+    setExpandedSection(null);
+  }, [fromHomeQuickAction]);
 
   const imageViewerVisible = activeImage !== null;
   const viewerBaseWidth = Math.max(260, viewportWidth - 28);
@@ -362,11 +366,13 @@ function HowToContent({ nightMode }: { nightMode: boolean }) {
         setRemoteGuides(cachedRows);
 
         const liveRows = await fetchHowToGuides(selectedLanguageCode, { forceRefresh: true });
-        setRemoteGuides(liveRows);
+        // Preserve cached content if live refresh temporarily returns nothing.
+        if (liveRows.length > 0 || cachedRows.length === 0) {
+          setRemoteGuides(liveRows);
+        }
       }
       setRemoteError(null);
     } catch {
-      setRemoteGuides([]);
       setRemoteError('Could not load how-to guides right now.');
     } finally {
       setRefreshing(false);

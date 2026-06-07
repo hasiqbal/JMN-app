@@ -12,6 +12,7 @@ import {
   PRAYER_NOTIFICATION_SILENT_CHANNEL_ID,
   type AdhkarReminderSoundMode,
 } from '@/constants/prayerNotifications';
+import { STREAM_PLAYBACK_NOTIFICATION_CHANNEL_ID } from '@/constants/streamPlaybackNotifications';
 
 export type ExpoNotificationsModule = typeof import('expo-notifications');
 
@@ -88,6 +89,26 @@ export async function ensureAndroidLiveNotificationChannel(): Promise<void> {
     if (__DEV__) {
       const message = error instanceof Error ? error.message : String(error);
       console.warn('[notif] set live channel failed', message);
+    }
+  }
+}
+
+export async function ensureAndroidStreamPlaybackNotificationChannel(): Promise<void> {
+  const Notifications = await getNotificationsModule();
+  if (!Notifications || Platform.OS !== 'android') return;
+
+  try {
+    await Notifications.setNotificationChannelAsync(STREAM_PLAYBACK_NOTIFICATION_CHANNEL_ID, {
+      name: 'JMN Stream Controls',
+      importance: Notifications.AndroidImportance.DEFAULT,
+      enableVibrate: false,
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      sound: null,
+    });
+  } catch (error) {
+    if (__DEV__) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn('[notif] set stream playback channel failed', message);
     }
   }
 }

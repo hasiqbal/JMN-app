@@ -1,0 +1,94 @@
+<svg width="1080" height="1920" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Jummah homescreen hero mock">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1f5c43"/>
+      <stop offset="35%" stop-color="#113325"/>
+      <stop offset="100%" stop-color="#edf2ee"/>
+    </linearGradient>
+    <linearGradient id="hero" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fff6de"/>
+      <stop offset="55%" stop-color="#ffe5a5"/>
+      <stop offset="100%" stop-color="#ffd36b"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <rect width="1080" height="1920" fill="#0b1f16"/>
+  <rect x="120" y="80" width="840" height="1760" rx="56" fill="url(#bg)" stroke="#ffffff" stroke-opacity="0.2" stroke-width="2"/>
+
+  <text x="180" y="180" fill="#ffffff" font-family="Segoe UI, Arial, sans-serif" font-size="74" font-weight="800">Home</text>
+  <text x="180" y="232" fill="#d2e4d9" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="600">Friday - Jummah mode</text>
+
+  <g filter="url(#shadow)">
+    <rect x="160" y="290" width="760" height="430" rx="34" fill="url(#hero)" stroke="#f5ce73" stroke-width="2"/>
+  </g>
+
+  <text x="205" y="370" fill="#3a2b00" font-family="Segoe UI, Arial, sans-serif" font-size="64" font-weight="800">Jumu'ah</text>
+  <rect x="740" y="325" width="140" height="52" rx="26" fill="#1f5c43"/>
+  <text x="810" y="359" text-anchor="middle" fill="#ffffff" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="800">TODAY</text>
+
+  <rect x="200" y="410" width="320" height="150" rx="20" fill="#fff8e8" stroke="#e8ce8d"/>
+  <rect x="560" y="410" width="320" height="150" rx="20" fill="#fff8e8" stroke="#e8ce8d"/>
+
+  <text x="230" y="455" fill="#7a671f" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">1ST JUMMAH</text>
+  <text x="230" y="525" fill="#3f2d00" font-family="Segoe UI, Arial, sans-serif" font-size="54" font-weight="800">1:30 PM</text>
+
+  <text x="590" y="455" fill="#7a671f" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">2ND JUMMAH</text>
+  <text x="590" y="525" fill="#3f2d00" font-family="Segoe UI, Arial, sans-serif" font-size="54" font-weight="800">2:30 PM</text>
+
+  <rect x="200" y="585" width="680" height="92" rx="18" fill="#fffdf4" stroke="#f0d388"/>
+  <text x="235" y="640" fill="#8f741e" font-family="Segoe UI, Arial, sans-serif" font-size="26" font-weight="800">Starts In</text>
+  <text x="840" y="642" text-anchor="end" fill="#f09f12" font-family="Segoe UI, Arial, sans-serif" font-size="52" font-weight="900">00:42:18</text>
+
+  <g filter="url(#shadow)">
+    <rect x="160" y="760" width="760" height="760" rx="34" fill="#f8faf8" stroke="#dde5dd"/>
+  </g>
+
+  <text x="205" y="840" fill="#132218" font-family="Segoe UI, Arial, sans-serif" font-size="42" font-weight="800">Prayer Timetable</text>
+
+  <text x="205" y="900" fill="#6a786f" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">PRAYER</text>
+  <text x="520" y="900" fill="#6a786f" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">BEGINS</text>
+  <text x="760" y="900" fill="#6a786f" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">JAMAAT</text>
+
+  <line x1="200" y1="930" x2="880" y2="930" stroke="#d8dfd8"/>
+
+  <text x="205" y="990" fill="#1f2f26" font-family="Segoe UI, Arial, sans-serif" font-size="31" font-weight="700">Fajr</text>
+  <text x="520" y="990" fill="#1f2f26" font-family="Segoe UI, Arial, sans-serif" font-size="31" font-weight="700">3:54 AM</text>
+  <text x="760" y="990" fill="#1f2f26" font-family="Segoe UI, Arial, sans-serif" font-size="31" font-weight="700">4:30 AM</text>
+
+  <line x1="200" y1="1025" x2="880" y2="1025" stroke="#d8dfd8"/>
+
+  <rect x="190" y="1048" width="700" height="100" rx="16" fill="#e7f5ed" stroke="#b9dfc8"/>
+  <text x="215" y="1110" fill="#19643f" font-family="Segoe UI, Arial, sans-serif" font-size="34" font-weight="800">Jummah</text>
+  <text x="520" y="1110" fill="#19643f" font-family="Segoe UI, Arial, sans-serif" font-size="31" font-weight="700">1:15 PM</text>
+  <text x="760" y="1110" fill="#19643f" font-family="Segoe UI, Arial, sans-serif" font-size="31" font-weight="700">1:30 / 2:30</text>
+
+  <line x1="200" y1="1185" x2="880" y2="1185" stroke="#d8dfd8"/>
+
+  <text x="205" y="1245" fill="#1f2f26" font-family="Segoe UI, Arial, sans-serif" font-size="31" font-weight="700">Asr</text>
+  <text x="520" y="1245" fill="#1f2f26" font-family="Segoe UI, Arial, sans-serif" font-size="31" font-weight="700">6:15 PM</text>
+  <text x="760" y="1245" fill="#1f2f26" font-family="Segoe UI, Arial, sans-serif" font-size="31" font-weight="700">7:00 PM</text>
+
+  <line x1="200" y1="1280" x2="880" y2="1280" stroke="#d8dfd8"/>
+
+  <text x="205" y="1340" fill="#1f2f26" font-family="Segoe UI, Arial, sans-serif" font-size="31" font-weight="700">Maghrib</text>
+  <text x="520" y="1340" fill="#1f2f26" font-family="Segoe UI, Arial, sans-serif" font-size="31" font-weight="700">9:22 PM</text>
+  <text x="760" y="1340" fill="#1f2f26" font-family="Segoe UI, Arial, sans-serif" font-size="31" font-weight="700">9:24 PM</text>
+
+  <line x1="200" y1="1375" x2="880" y2="1375" stroke="#d8dfd8"/>
+
+  <text x="205" y="1435" fill="#1f2f26" font-family="Segoe UI, Arial, sans-serif" font-size="31" font-weight="700">Isha</text>
+  <text x="520" y="1435" fill="#1f2f26" font-family="Segoe UI, Arial, sans-serif" font-size="31" font-weight="700">10:40 PM</text>
+  <text x="760" y="1435" fill="#1f2f26" font-family="Segoe UI, Arial, sans-serif" font-size="31" font-weight="700">11:00 PM</text>
+
+  <rect x="120" y="1696" width="840" height="144" rx="0" fill="#ffffff"/>
+  <line x1="120" y1="1696" x2="960" y2="1696" stroke="#dde4de"/>
+
+  <text x="210" y="1778" fill="#1f5c43" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="800">Home</text>
+  <text x="355" y="1778" fill="#64756a" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="700">Prayer</text>
+  <text x="520" y="1778" fill="#64756a" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="700">Duas</text>
+  <text x="655" y="1778" fill="#64756a" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="700">Quran</text>
+  <text x="805" y="1778" fill="#64756a" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="700">Settings</text>
+</svg>
