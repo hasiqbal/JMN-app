@@ -1698,7 +1698,7 @@ export default function MonthlyCalendarSection({
                             }}
                             style={[
                               calStyles.monthButton,
-                              { width: monthButtonWidth, minHeight: monthButtonHeight, height: monthButtonHeight },
+                              { width: monthButtonWidth, minHeight: monthButtonHeight },
                               isSelected && calStyles.monthButtonSelected,
                               N && {
                                 backgroundColor: isSelected ? '#2E6CB9' : N.surface,
@@ -1719,7 +1719,7 @@ export default function MonthlyCalendarSection({
                               calStyles.monthButtonHijri,
                               isSelected && calStyles.monthButtonHijriSelected,
                               N && { color: isSelected ? '#DCEBFF' : N.textMuted },
-                            ]} numberOfLines={2}>
+                            ]} numberOfLines={3}>
                               {monthHijri}
                             </Text>
                           </CalendarPressable>
@@ -2554,7 +2554,7 @@ const calStyles = StyleSheet.create({
   },
   monthButton: {
     minHeight: 64,
-    paddingVertical: 5,
+    paddingVertical: 6,
     paddingHorizontal: 6,
     borderRadius: 10,
     borderWidth: 1,
@@ -2581,11 +2581,11 @@ const calStyles = StyleSheet.create({
   },
   monthButtonHijri: {
     marginTop: 2,
-    fontSize: 9.5,
+    fontSize: 8.8,
     fontWeight: '600',
     color: Colors.textSubtle,
     letterSpacing: 0,
-    lineHeight: 11,
+    lineHeight: 10,
     textAlign: 'center',
   },
   monthButtonHijriSelected: {
