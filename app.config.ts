@@ -81,14 +81,6 @@ const base = {
     ['react-native-android-widget', androidWidgetConfig],
     './plugins/with-android-widget-receiver-exported',
     [
-      'react-native-widget-extension',
-      {
-        widgetsFolder: 'ios-widgets',
-        deploymentTarget: '16.0',
-        groupIdentifier: 'group.com.jmnapp.shared',
-      },
-    ],
-    [
       'expo-notifications',
       {
         sounds: [
@@ -124,10 +116,6 @@ const base = {
   },
   extra: {
     router: {},
-    widget: {
-      iosAppGroup: 'group.com.jmnapp.shared',
-      iosKind: 'HomePrayerHeroWidget',
-    },
     eas: {
       projectId: '699b7ea2-af04-453c-96ed-f2bb121ab43b',
     },
