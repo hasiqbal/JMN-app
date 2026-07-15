@@ -52,7 +52,7 @@
         <data android:scheme="exp+jmn"/>
       </intent-filter>
     </activity>
-    <receiver android:name=".widget.HomePrayerHeroWidget" android:exported="false" android:label="JMN Prayer Times">
+    <receiver android:name=".widget.HomePrayerHeroWidget" android:exported="true" android:label="JMN Prayer Times">
       <intent-filter>
         <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
         <action android:name="com.jmnapp.WIDGET_CLICK"/>

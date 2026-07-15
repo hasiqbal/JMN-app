@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Linking,
   Modal,
   Platform,
   Animated,
@@ -2416,6 +2417,7 @@ export default function HomeScreen() {
   const [donationConfirmation, setDonationConfirmation] = useState<DonationConfirmationState | null>(null);
   const donationOutcomeHandledRef = useRef(false);
   const [webPrayerDrawerVisible, setWebPrayerDrawerVisible] = useState(false);
+  const isNativeMobileCheckoutPlatform = Platform.OS === 'ios' || Platform.OS === 'android';
   const prayerSheetRef = useRef<BottomSheet>(null);
   const [dailySunnah, setDailySunnah] = useState<DailySunnahResult | null>(null);
   const [dailyQuran, setDailyQuran] = useState<DailyQuranResult | null>(null);
@@ -3370,24 +3372,10 @@ export default function HomeScreen() {
       };
     }
 
-    if (!isFriday) return null;
-
-    const jumuahInline = homeInlinePrayerRows.find((row) => row.name === 'Jummah' || row.name === 'Jumuah');
-    const rawFridayTimes = Array.from(new Set([
-      jumuahInline?.jamaat,
-      jumuahInline?.jamaat2,
-    ].filter((value): value is string => !!value && value !== '-' && value !== '--:--')));
-
-    const fridayTimes = rawFridayTimes.map((time, idx) => `${toOrdinal(idx + 1)} ${time}`);
-
-    if (fridayTimes.length === 0) return null;
-
-    return {
-      kind: 'jumuah' as const,
-      title: 'Jummah details',
-      times: fridayTimes,
-    };
-  }, [activeEidType, resolvedEidJamaats, isFriday, homeInlinePrayerRows]);
+    // Jummah times are already presented in the inline prayer tile,
+    // so avoid rendering a second special strip with the same times.
+    return null;
+  }, [activeEidType, resolvedEidJamaats]);
 
   // Keep these computed hero fields alive while the new visual shell still relies on legacy prayer-state logic.
   const heroLegacyState = {
@@ -3465,6 +3453,21 @@ export default function HomeScreen() {
     setDonationConfirmation(null);
   }, []);
 
+  const openDonationCheckoutInBrowser = useCallback(async (url: string): Promise<boolean> => {
+    const normalizedUrl = (url || '').trim();
+    if (!normalizedUrl) return false;
+
+    try {
+      const canOpen = await Linking.canOpenURL(normalizedUrl);
+      if (!canOpen) return false;
+      await Linking.openURL(normalizedUrl);
+      return true;
+    } catch (error) {
+      console.error('[Donate] browser checkout fallback failed:', error);
+      return false;
+    }
+  }, []);
+
   const submitDonationCheckout = useCallback(async () => {
     if (!selectedDonationOption || donationLoading) return;
 
@@ -3484,6 +3487,21 @@ export default function HomeScreen() {
         return;
       }
 
+      if (Platform.OS === 'ios') {
+        donationOutcomeHandledRef.current = false;
+        const openedInBrowser = await openDonationCheckoutInBrowser(checkoutUrl);
+        if (openedInBrowser) {
+          setDonationCheckoutUrl(null);
+          setShowDonationOptions(true);
+          setDonationModalVisible(false);
+          return;
+        }
+
+        setDonationStatusMessage('Unable to bring up Stripe checkout automatically. Please try again.');
+        Alert.alert('Checkout error', 'Unable to bring up Stripe checkout. Please try again.');
+        return;
+      }
+
       donationOutcomeHandledRef.current = false;
       setDonationStatusMessage(null);
       setShowDonationOptions(false);
@@ -3497,7 +3515,7 @@ export default function HomeScreen() {
     } finally {
       setDonationLoading(false);
     }
-  }, [donationLoading, selectedDonationOption]);
+  }, [donationLoading, openDonationCheckoutInBrowser, selectedDonationOption]);
 
   const resetDonationFlowToSelection = useCallback(() => {
     donationOutcomeHandledRef.current = false;
@@ -4030,21 +4048,41 @@ export default function HomeScreen() {
           ) : null}
           </>
         ) : donationCheckoutUrl ? (
-          <WebView
-            style={styles.donationCheckoutWebview}
-            source={{ uri: donationCheckoutUrl }}
-            startInLoadingState
-            javaScriptEnabled
-            domStorageEnabled
-            mixedContentMode="always"
-            injectedJavaScript={DONATION_CHECKOUT_INJECTED_SCRIPT}
-            renderLoading={() => (
-              <View style={styles.donationWebviewLoadingOverlay}>
-                <ActivityIndicator size="large" color="#0B6B45" />
-                <Text style={styles.donationWebviewLoadingText}>Opening Stripe checkout...</Text>
-              </View>
-            )}
-            onMessage={handleDonationWebMessage}
+          <View style={styles.donationCheckoutContainer}>
+            <View style={styles.donationCheckoutHeaderBar}>
+              <TouchableOpacity
+                style={styles.donationCheckoutHeaderButton}
+                onPress={() => {
+                  if (donationCheckoutUrl) {
+                    void (async () => {
+                      const openedInBrowser = await openDonationCheckoutInBrowser(donationCheckoutUrl);
+                      if (!openedInBrowser) {
+                        Alert.alert('Checkout error', 'Unable to open Stripe checkout in your browser.');
+                      }
+                    })();
+                  }
+                }}
+                activeOpacity={0.85}
+              >
+                <MaterialIcons name="open-in-new" size={16} color="#0B6B45" />
+                <Text style={styles.donationCheckoutHeaderButtonText}>Open in browser</Text>
+              </TouchableOpacity>
+            </View>
+            <WebView
+              style={styles.donationCheckoutWebview}
+              source={{ uri: donationCheckoutUrl }}
+              startInLoadingState
+              javaScriptEnabled
+              domStorageEnabled
+              mixedContentMode="always"
+              injectedJavaScript={DONATION_CHECKOUT_INJECTED_SCRIPT}
+              renderLoading={() => (
+                <View style={styles.donationWebviewLoadingOverlay}>
+                  <ActivityIndicator size="large" color="#0B6B45" />
+                  <Text style={styles.donationWebviewLoadingText}>Opening Stripe checkout...</Text>
+                </View>
+              )}
+              onMessage={handleDonationWebMessage}
             onNavigationStateChange={(navState) => {
               if (isDonationSuccessNavigation(navState.url)) {
                 handleDonationSuccess();
@@ -4069,9 +4107,25 @@ export default function HomeScreen() {
               return true;
             }}
             onError={() => {
+              if (isNativeMobileCheckoutPlatform && donationCheckoutUrl) {
+                void (async () => {
+                  const openedInBrowser = await openDonationCheckoutInBrowser(donationCheckoutUrl);
+                  if (openedInBrowser) {
+                    setDonationCheckoutUrl(null);
+                    setShowDonationOptions(true);
+                    setDonationModalVisible(false);
+                    return;
+                  }
+
+                  Alert.alert('Checkout error', 'Unable to load Stripe checkout. Please try again.');
+                })();
+                return;
+              }
+
               Alert.alert('Checkout error', 'Unable to load Stripe checkout. Please try again.');
             }}
-          />
+            />
+          </View>
         ) : (
           <View style={styles.donationWebviewLoadingOverlay}>
             <ActivityIndicator size="large" color="#0B6B45" />
@@ -4964,6 +5018,35 @@ const styles = StyleSheet.create({
   },
   donationModalContentLayer: {
     flex: 1,
+  },
+  donationCheckoutContainer: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  donationCheckoutHeaderBar: {
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 8,
+    backgroundColor: '#F5FAF7',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(11,107,69,0.12)',
+  },
+  donationCheckoutHeaderButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(11,107,69,0.16)',
+  },
+  donationCheckoutHeaderButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0B6B45',
   },
   donationCheckoutWebview: {
     flex: 1,

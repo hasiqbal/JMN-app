@@ -128,7 +128,7 @@ export async function deleteLegacyPrayerNotificationChannels(): Promise<void> {
   }
 }
 
-export async function ensureAndroidPrayerNotificationChannel(selectedAdhaanOptionId: '1' | '2' | '3'): Promise<void> {
+export async function ensureAndroidPrayerNotificationChannel(selectedAdhaanOptionId: '1' | '2' | '3', vibrationEnabled = true): Promise<void> {
   const Notifications = await getNotificationsModule();
   if (!Notifications || Platform.OS !== 'android') return;
 
@@ -189,7 +189,7 @@ export async function ensureAndroidPrayerNotificationChannel(selectedAdhaanOptio
     await Notifications.setNotificationChannelAsync(prayerStartChannelId, {
       name: `Prayer Start Adhaan ${selectedOption.id}`,
       importance: Notifications.AndroidImportance.MAX,
-      enableVibrate: true,
+      enableVibrate: vibrationEnabled,
       vibrationPattern: [0, 220, 140, 220],
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       sound: selectedOption.soundFile,
@@ -198,7 +198,7 @@ export async function ensureAndroidPrayerNotificationChannel(selectedAdhaanOptio
     await Notifications.setNotificationChannelAsync(prayerStartSilentChannelId, {
       name: `Prayer Start Adhaan ${selectedOption.id} (Vibration Only)`,
       importance: Notifications.AndroidImportance.MAX,
-      enableVibrate: true,
+      enableVibrate: vibrationEnabled,
       vibrationPattern: [0, 220, 140, 220],
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       sound: null,

@@ -117,7 +117,8 @@ export function HomeInlinePrayerTimesSection({
 
   const oneRowMode = embedded && width < 460;
   const compact = width < 410 && !oneRowMode;
-  const tileColumns = width < 330 ? 2 : 3;
+  const useTwoColumnLayout = !oneRowMode && width < 390;
+  const tileColumns = useTwoColumnLayout ? 2 : (width < 330 ? 2 : 3);
   const tileStyle = oneRowMode
     ? styles.prayerCardOneRow
     : (tileColumns === 2 ? styles.prayerCardTwoCol : styles.prayerCardThreeCol);
@@ -130,7 +131,8 @@ export function HomeInlinePrayerTimesSection({
     const primary = mode === 'adhan' ? row.begins : row.jamaat;
     const secondary = mode === 'adhan' ? row.jamaat : row.begins;
     const tomorrowPreview = mode === 'adhan' ? row.tomorrowBegins : row.tomorrowJamaat;
-    const showTomorrowPreview = !oneRowMode && row.state === 'past' && !!tomorrowPreview;
+    const showTomorrowPreview = !oneRowMode && row.state !== 'future' && !!tomorrowPreview;
+    const tomorrowLabel = mode === 'adhan' ? 'Tomorrow' : 'Tomorrow';
 
     return (
       <View
@@ -147,8 +149,6 @@ export function HomeInlinePrayerTimesSection({
       >
         <View style={[styles.prayerAccent, { backgroundColor: iconColor }, nightMode && styles.prayerAccentNight]} />
         {!compact && !oneRowMode ? <View style={[styles.tileInnerFrame, { borderColor: `${iconColor}2D` }, nightMode && styles.tileInnerFrameNight]} /> : null}
-        {!oneRowMode ? <View style={[styles.tileCornerOrb, styles.tileCornerOrbLeft, { backgroundColor: `${iconColor}2B` }, nightMode && styles.tileCornerOrbNight]} /> : null}
-        {!oneRowMode ? <View style={[styles.tileCornerOrb, styles.tileCornerOrbRight, { backgroundColor: `${iconColor}24` }, nightMode && styles.tileCornerOrbNight]} /> : null}
         <View style={[styles.iconBadge, compact && styles.iconBadgeCompact, oneRowMode && styles.iconBadgeOneRow, { backgroundColor: ICON_TINTS[row.label] ?? 'rgba(46,139,87,0.14)' }, nightMode && styles.iconBadgeNight]}>
           <MaterialIcons name={ICONS[row.label] ?? 'schedule'} size={oneRowMode ? 14 : compact ? 18 : 24} color={iconColor} />
         </View>
@@ -164,7 +164,12 @@ export function HomeInlinePrayerTimesSection({
         {!oneRowMode ? <Text style={[styles.secondaryTime, compact && styles.secondaryTimeCompact, nightMode && { color: NIGHT.cardTextSoft }]}>{secondary}</Text> : null}
         {showTomorrowPreview ? (
           <View style={[styles.tomorrowBadge, compact && styles.tomorrowBadgeCompact, nightMode && styles.tomorrowBadgeNight]}>
-            <Text style={[styles.tomorrowBadgeLabel, compact && styles.tomorrowBadgeLabelCompact, nightMode && styles.tomorrowBadgeLabelNight]}>+24h</Text>
+            <View style={styles.tomorrowBadgeTextBlock}>
+              <Text style={[styles.tomorrowBadgeLabel, compact && styles.tomorrowBadgeLabelCompact, nightMode && styles.tomorrowBadgeLabelNight]}>{tomorrowLabel}</Text>
+              {mode === 'jamaat' ? (
+                <Text style={[styles.tomorrowBadgeMeta, compact && styles.tomorrowBadgeMetaCompact, nightMode && styles.tomorrowBadgeMetaNight]}>Jamaat</Text>
+              ) : null}
+            </View>
             <Text style={[styles.tomorrowBadgeTime, compact && styles.tomorrowBadgeTimeCompact, nightMode && styles.tomorrowBadgeTimeNight]}>{tomorrowPreview}</Text>
           </View>
         ) : null}
@@ -302,8 +307,8 @@ const styles = StyleSheet.create({
   patternCircle: {
     position: 'absolute',
     borderWidth: 1,
-    borderColor: 'rgba(28,112,83,0.11)',
-    backgroundColor: 'rgba(28,112,83,0.03)',
+    borderColor: 'rgba(34,91,50,0.04)',
+    backgroundColor: 'rgba(34,91,50,0.01)',
     borderRadius: 999,
   },
   patternCircleTopRight: {
@@ -324,8 +329,8 @@ const styles = StyleSheet.create({
     height: 34,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(28,112,83,0.12)',
-    backgroundColor: 'rgba(28,112,83,0.035)',
+    borderColor: 'rgba(34,91,50,0.04)',
+    backgroundColor: 'rgba(34,91,50,0.01)',
     transform: [{ rotate: '45deg' }],
   },
   patternDiamondUpper: {
@@ -377,12 +382,12 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(170,225,196,0.25)',
   },
   title: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '800',
-    color: '#156F4C',
-    letterSpacing: 0.3,
+    color: '#1E4736',
+    letterSpacing: 0.2,
     flexShrink: 1,
-    lineHeight: 18,
+    lineHeight: 20,
   },
   titleCondensed: {
     fontSize: 13,
@@ -395,12 +400,12 @@ const styles = StyleSheet.create({
   },
   modePill: {
     flexDirection: 'row',
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(188,205,199,0.95)',
-    backgroundColor: '#E8EFEC',
-    padding: 3,
-    gap: 3,
+    borderColor: 'rgba(97,126,104,0.10)',
+    backgroundColor: 'rgba(249,250,248,0.96)',
+    padding: 4,
+    gap: 4,
     flexShrink: 0,
   },
   modePillCompact: {
@@ -412,12 +417,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#15314B',
   },
   modeBtn: {
-    minWidth: 50,
-    height: 34,
-    borderRadius: 9,
+    minWidth: 56,
+    height: 36,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 7,
+    paddingHorizontal: 10,
   },
   modeBtnCompact: {
     minWidth: 46,
@@ -426,18 +431,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   modeBtnActive: {
-    backgroundColor: '#2FAF64',
+    backgroundColor: '#396B4F',
     borderWidth: 1,
-    borderColor: 'rgba(31,126,76,0.95)',
+    borderColor: 'rgba(34,100,57,0.16)',
   },
   modeBtnActiveNight: {
     backgroundColor: '#268956',
     borderColor: 'rgba(170,225,196,0.35)',
   },
   modeBtnText: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: '#4E655D',
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#3F6B54',
     letterSpacing: 0.2,
   },
   modeBtnTextCompact: {
@@ -552,12 +557,12 @@ const styles = StyleSheet.create({
     minWidth: 0,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(205,219,214,0.95)',
-    backgroundColor: '#F7FAF8',
-    paddingVertical: 11,
-    paddingHorizontal: 5,
+    borderColor: 'rgba(178,198,183,0.4)',
+    backgroundColor: '#F8FBF7',
+    paddingVertical: 10,
+    paddingHorizontal: 6,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     overflow: 'hidden',
     flexGrow: 0,
     flexShrink: 0,
@@ -570,15 +575,18 @@ const styles = StyleSheet.create({
   },
   prayerCardThreeCol: {
     width: '32%',
-    aspectRatio: 0.78,
+    aspectRatio: 0.72,
+    minHeight: 112,
   },
   prayerCardTwoCol: {
     width: '49%',
-    aspectRatio: 0.88,
+    aspectRatio: 0.82,
+    minHeight: 126,
   },
   prayerCardOneRow: {
     width: '16.5%',
-    aspectRatio: 0.86,
+    aspectRatio: 0.8,
+    minHeight: 90,
   },
   prayerCardCompact: {
     borderRadius: 16,
@@ -591,21 +599,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 3,
   },
   prayerCardActive: {
-    backgroundColor: '#ECF5F0',
-    borderColor: 'rgba(84,157,120,0.7)',
+    backgroundColor: '#F5F9F4',
+    borderColor: 'rgba(84,157,120,0.18)',
   },
   prayerCardNight: {
     backgroundColor: '#162B45',
     borderColor: 'rgba(170,225,196,0.28)',
   },
   prayerName: {
-    marginTop: 5,
-    fontSize: 11,
+    marginTop: 8,
+    fontSize: 12,
     fontWeight: '800',
-    color: '#256A4E',
-    letterSpacing: 0.45,
+    color: '#2B4B39',
+    letterSpacing: 0.25,
     textTransform: 'uppercase',
-    lineHeight: 14,
+    lineHeight: 15,
     textAlign: 'center',
   },
   prayerNameCompact: {
@@ -621,12 +629,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0,
   },
   primaryTime: {
-    marginTop: 3,
-    fontSize: 19,
+    marginTop: 8,
+    fontSize: 20,
     fontWeight: '800',
-    color: '#182627',
+    color: '#1B3628',
     fontVariant: ['tabular-nums'] as any,
-    lineHeight: 23,
+    lineHeight: 22,
   },
   primaryTimeCompact: {
     marginTop: 0,
@@ -638,10 +646,10 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
   secondaryTime: {
-    marginTop: 2,
+    marginTop: 4,
     fontSize: 9.5,
     fontWeight: '700',
-    color: '#69817D',
+    color: '#667B69',
     fontVariant: ['tabular-nums'] as any,
     letterSpacing: 0.2,
     lineHeight: 12,
@@ -663,46 +671,69 @@ const styles = StyleSheet.create({
     fontSize: 8.2,
   },
   tomorrowBadge: {
-    marginTop: 3,
+    marginTop: 6,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    borderRadius: 7,
+    justifyContent: 'center',
+    alignSelf: 'stretch',
+    gap: 6,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: 'rgba(98,149,131,0.45)',
     backgroundColor: 'rgba(231,241,236,0.95)',
-    paddingHorizontal: 5,
-    paddingVertical: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    minHeight: 30,
   },
   tomorrowBadgeCompact: {
-    marginTop: 2,
-    gap: 3,
-    paddingHorizontal: 4,
-    paddingVertical: 0,
+    marginTop: 4,
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    minHeight: 28,
   },
   tomorrowBadgeNight: {
     borderColor: 'rgba(170,225,196,0.28)',
     backgroundColor: 'rgba(170,225,196,0.1)',
   },
+  tomorrowBadgeTextBlock: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 1,
+  },
   tomorrowBadgeLabel: {
-    fontSize: 7.6,
+    fontSize: 7.2,
     fontWeight: '800',
     color: '#3A7F64',
+    textTransform: 'uppercase',
+    letterSpacing: 0.25,
   },
   tomorrowBadgeLabelCompact: {
-    fontSize: 7,
+    fontSize: 6.8,
+  },
+  tomorrowBadgeMeta: {
+    marginTop: 1,
+    fontSize: 7.2,
+    fontWeight: '700',
+    color: '#4A7E69',
+  },
+  tomorrowBadgeMetaCompact: {
+    fontSize: 6.8,
   },
   tomorrowBadgeLabelNight: {
     color: '#A7D8C1',
   },
+  tomorrowBadgeMetaNight: {
+    color: '#CFEFDA',
+  },
   tomorrowBadgeTime: {
-    fontSize: 8,
+    fontSize: 9.6,
     fontWeight: '800',
     color: '#245E47',
     fontVariant: ['tabular-nums'] as any,
   },
   tomorrowBadgeTimeCompact: {
-    fontSize: 7.4,
+    fontSize: 8.6,
   },
   tomorrowBadgeTimeNight: {
     color: '#DFF6EB',
@@ -712,23 +743,21 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 3,
+    height: 2,
     opacity: 0.72,
   },
   prayerAccentNight: {
     opacity: 0.75,
   },
   iconBadge: {
-    width: 38,
-    height: 38,
-    borderTopLeftRadius: 17,
-    borderTopRightRadius: 17,
-    borderBottomLeftRadius: 11,
-    borderBottomRightRadius: 11,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.65)',
+    borderColor: 'rgba(44,91,50,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.88)',
   },
   iconBadgeNight: {
     borderColor: 'rgba(255,255,255,0.12)',
@@ -751,21 +780,23 @@ const styles = StyleSheet.create({
   },
   tileInnerFrame: {
     position: 'absolute',
-    top: 7,
-    left: 7,
-    right: 7,
-    bottom: 7,
+    top: 8,
+    left: 8,
+    right: 8,
+    bottom: 8,
     borderWidth: 1,
     borderRadius: 16,
+    borderColor: 'rgba(34,91,50,0.04)',
   },
   tileInnerFrameNight: {
     borderColor: 'rgba(170,225,196,0.2)',
   },
   tileCornerOrb: {
     position: 'absolute',
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: 'rgba(34,91,50,0.04)',
   },
   tileCornerOrbLeft: {
     top: -6,

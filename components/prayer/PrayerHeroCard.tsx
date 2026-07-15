@@ -1,5 +1,6 @@
 import React from 'react';
 import { Animated, ImageBackground, StyleSheet, Text, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export type HeroCountdownInfo = {
 	label: string;
@@ -75,6 +76,11 @@ export default function PrayerHeroCard({
 	endTime,
 	showJamaat,
 	jamaatValue,
+	localTime,
+	ampm,
+	dayName,
+	dateShort,
+	hijriLabel,
 	hasNext,
 	nextPrayerName,
 	nextPrayerTime,
@@ -85,12 +91,33 @@ export default function PrayerHeroCard({
 
 	return (
 		<ImageBackground source={backgroundSource} style={styles.card} imageStyle={styles.bgImage}>
-			<View style={styles.overlay}>
+			<LinearGradient
+				colors={['rgba(3, 14, 30, 0.12)', 'rgba(3, 10, 24, 0.82)']}
+				start={{ x: 0.5, y: 0 }}
+				end={{ x: 0.5, y: 1 }}
+				style={styles.overlay}
+			>
 				<View style={styles.topRow}>
-					{!!kicker && <Text style={styles.kicker}>{kicker}</Text>}
-					{!!countdownInfo?.flash && <Text style={styles.liveBadge}>LIVE</Text>}
+					<View style={styles.topLeftGroup}>
+						{!!kicker && <Text style={styles.kicker}>{kicker}</Text>}
+						{!!countdownInfo?.flash && <View style={styles.livePill}><Text style={styles.liveBadge}>Live</Text></View>}
+					</View>
+					<View style={styles.topRightGroup}>
+						{(localTime || ampm) && (
+							<View style={styles.timePill}>
+								{!!localTime && <Text style={styles.timeLabel}>{localTime}</Text>}
+								{!!ampm && <Text style={styles.timeAmpm}>{ampm}</Text>}
+							</View>
+						)}
+					</View>
 				</View>
-				<Text style={styles.title}>{title || 'Prayer'}</Text>
+
+				<View style={styles.headerBlock}>
+					<Text style={styles.title}>{title || 'Prayer'}</Text>
+					<Text style={styles.subtitle}>
+						{[dayName, dateShort, hijriLabel].filter(Boolean).join(' • ')}
+					</Text>
+				</View>
 
 				<View style={styles.metaPillsRow}>
 					<View style={styles.metaPill}>
@@ -147,7 +174,7 @@ export default function PrayerHeroCard({
 						<Text style={styles.nextPill}>Next: {nextPrayerName || '--'} {nextPrayerTime || '--:--'}</Text>
 					)}
 				</View>
-			</View>
+			</LinearGradient>
 		</ImageBackground>
 	);
 }
@@ -167,69 +194,115 @@ function splitCountdownValue(value?: string): { value: string; unit: string }[] 
 
 const styles = StyleSheet.create({
 	card: {
-		borderRadius: 16,
+		borderRadius: 24,
 		overflow: 'hidden',
-		minHeight: 235,
+		minHeight: 250,
+		borderWidth: 1,
+		borderColor: 'rgba(255,255,255,0.16)',
 	},
 	bgImage: {
 		resizeMode: 'cover',
 	},
 	overlay: {
 		flex: 1,
-		backgroundColor: 'rgba(2,12,28,0.64)',
-		paddingHorizontal: 14,
-		paddingVertical: 14,
-		gap: 8,
+		paddingHorizontal: 15,
+		paddingVertical: 15,
+		justifyContent: 'space-between',
 	},
 	topRow: {
 		flexDirection: 'row',
-		alignItems: 'center',
+		alignItems: 'flex-start',
 		justifyContent: 'space-between',
 	},
+	topLeftGroup: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 8,
+		flexWrap: 'wrap',
+	},
+	topRightGroup: {
+		alignItems: 'flex-end',
+	},
 	kicker: {
-		color: '#EAF5FF',
+		color: '#F3FBFF',
 		fontSize: 10,
-		fontWeight: '700',
+		fontWeight: '800',
 		letterSpacing: 0.9,
 		textTransform: 'uppercase',
-		backgroundColor: 'rgba(12,36,64,0.65)',
+		backgroundColor: 'rgba(255,255,255,0.12)',
 		paddingHorizontal: 9,
 		paddingVertical: 4,
 		borderRadius: 999,
 		overflow: 'hidden',
 		borderWidth: 1,
-		borderColor: 'rgba(198,223,242,0.28)',
+		borderColor: 'rgba(255,255,255,0.16)',
 	},
-	liveBadge: {
-		color: '#FFE7C5',
-		fontSize: 10,
-		fontWeight: '900',
-		letterSpacing: 0.9,
-		textTransform: 'uppercase',
-		backgroundColor: 'rgba(84,33,9,0.82)',
-		paddingHorizontal: 10,
+	livePill: {
+		backgroundColor: 'rgba(120, 46, 10, 0.75)',
+		paddingHorizontal: 8,
 		paddingVertical: 4,
 		borderRadius: 999,
 		borderWidth: 1,
-		borderColor: 'rgba(255,196,124,0.58)',
+		borderColor: 'rgba(255, 204, 128, 0.42)',
+	},
+	liveBadge: {
+		color: '#FFE6BE',
+		fontSize: 10,
+		fontWeight: '800',
+		letterSpacing: 0.9,
+		textTransform: 'uppercase',
+	},
+	timePill: {
+		flexDirection: 'row',
+		alignItems: 'baseline',
+		gap: 4,
+		paddingHorizontal: 8,
+		paddingVertical: 5,
+		borderRadius: 999,
+		backgroundColor: 'rgba(255,255,255,0.12)',
+		borderWidth: 1,
+		borderColor: 'rgba(255,255,255,0.16)',
+	},
+	timeLabel: {
+		color: '#FFFFFF',
+		fontSize: 12,
+		fontWeight: '700',
+	},
+	timeAmpm: {
+		color: '#CDE7F7',
+		fontSize: 10,
+		fontWeight: '700',
+		letterSpacing: 0.8,
+		textTransform: 'uppercase',
+	},
+	headerBlock: {
+		gap: 4,
 	},
 	title: {
 		color: '#FFFFFF',
-		fontSize: 28,
-		fontWeight: '900',
+		fontSize: 27,
+		fontWeight: '800',
 		lineHeight: 31,
+		letterSpacing: 0.2,
+	},
+	subtitle: {
+		color: 'rgba(233, 243, 249, 0.84)',
+		fontSize: 11.5,
+		fontWeight: '600',
+		letterSpacing: 0.2,
 	},
 	metaPillsRow: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		gap: 6,
+		gap: 7,
 		flexWrap: 'wrap',
+		marginTop: 2,
 	},
 	metaPill: {
 		borderRadius: 10,
-		backgroundColor: 'rgba(8,29,53,0.58)',
+		backgroundColor: 'rgba(255,255,255,0.10)',
 		borderWidth: 1,
-		borderColor: 'rgba(176,210,238,0.24)',
+		borderColor: 'rgba(255,255,255,0.16)',
 		paddingHorizontal: 10,
 		paddingVertical: 7,
 	},
@@ -247,9 +320,9 @@ const styles = StyleSheet.create({
 	},
 	metaPillJamaat: {
 		borderRadius: 10,
-		backgroundColor: 'rgba(78,60,15,0.66)',
+		backgroundColor: 'rgba(115,80,24,0.46)',
 		borderWidth: 1,
-		borderColor: 'rgba(255,224,148,0.5)',
+		borderColor: 'rgba(255,223,160,0.42)',
 		paddingHorizontal: 10,
 		paddingVertical: 7,
 	},
@@ -266,18 +339,18 @@ const styles = StyleSheet.create({
 		fontWeight: '800',
 	},
 	countdownWrap: {
-		marginTop: 2,
+		marginTop: 3,
 		borderRadius: 16,
 		paddingHorizontal: 13,
 		paddingTop: 12,
 		paddingBottom: 11,
-		backgroundColor: 'rgba(7,22,46,0.53)',
+		backgroundColor: 'rgba(7,22,46,0.42)',
 		borderWidth: 1,
-		borderColor: 'rgba(188,221,248,0.24)',
+		borderColor: 'rgba(255,255,255,0.15)',
 	},
 	countdownWrapFlash: {
-		backgroundColor: 'rgba(59,25,10,0.6)',
-		borderColor: 'rgba(255,196,124,0.58)',
+		backgroundColor: 'rgba(59,25,10,0.54)',
+		borderColor: 'rgba(255,196,124,0.5)',
 	},
 	countdownLabel: {
 		color: '#D5E7F8',
@@ -360,7 +433,7 @@ const styles = StyleSheet.create({
 		marginTop: 9,
 		paddingTop: 7,
 		borderTopWidth: 1,
-		borderTopColor: 'rgba(191,222,248,0.2)',
+		borderTopColor: 'rgba(191,222,248,0.18)',
 	},
 	bottomRow: {
 		marginTop: 2,
@@ -373,11 +446,11 @@ const styles = StyleSheet.create({
 		color: '#E5F2FC',
 		fontSize: 11,
 		fontWeight: '700',
-		backgroundColor: 'rgba(8,30,53,0.56)',
+		backgroundColor: 'rgba(255,255,255,0.10)',
 		paddingHorizontal: 9,
 		paddingVertical: 5,
 		borderRadius: 999,
 		borderWidth: 1,
-		borderColor: 'rgba(191,222,248,0.22)',
+		borderColor: 'rgba(255,255,255,0.14)',
 	},
 });

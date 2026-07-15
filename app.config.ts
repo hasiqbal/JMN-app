@@ -78,6 +78,7 @@ const base = {
   plugins: [
     'expo-router',
     ['react-native-android-widget', androidWidgetConfig],
+    './plugins/with-android-widget-receiver-exported',
     [
       'react-native-widget-extension',
       {

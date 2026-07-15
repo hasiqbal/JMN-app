@@ -12,6 +12,7 @@ import { playIqamah, playPrayerStartAdhaan, stopPrayerStartAdhaan } from '@/hook
 import { getPrayerTimesForDate } from '@/services/prayerService';
 import {
   ADHAAN_SELECTION_STORAGE_KEY,
+  ADHAAN_VIBRATION_ENABLED_STORAGE_KEY,
   ADHKAR_NOTIFICATION_CHANNEL_ID,
   ADHKAR_NOTIFICATION_SCOPE,
   ADHKAR_NOTIFICATION_SILENT_CHANNEL_ID,
@@ -19,6 +20,7 @@ import {
   ADHKAR_REMINDERS_ENABLED_STORAGE_KEY,
   BACKGROUND_PRAYER_NOTIFICATION_MODE_STORAGE_KEY,
   DEFAULT_ADHAAN_OPTION_ID,
+  DEFAULT_ADHAAN_VIBRATION_ENABLED,
   DEFAULT_ADHKAR_REMINDER_SOUND_MODE,
   DEFAULT_ADHKAR_REMINDERS_ENABLED,
   DEFAULT_BACKGROUND_PRAYER_NOTIFICATION_MODE,
@@ -627,7 +629,14 @@ export default function TabLayout() {
         : DEFAULT_BACKGROUND_PRAYER_NOTIFICATION_MODE;
       const backgroundVibrationOnly = backgroundPrayerNotificationMode === 'vibration-only';
 
-      await ensureAndroidPrayerNotificationChannel(selectedAdhaanOption.id);
+      const adhaanVibrationEnabledRaw = await AsyncStorage
+        .getItem(ADHAAN_VIBRATION_ENABLED_STORAGE_KEY)
+        .catch(() => null);
+      const adhaanVibrationEnabled = adhaanVibrationEnabledRaw == null
+        ? DEFAULT_ADHAAN_VIBRATION_ENABLED
+        : adhaanVibrationEnabledRaw === 'true';
+
+      await ensureAndroidPrayerNotificationChannel(selectedAdhaanOption.id, adhaanVibrationEnabled);
 
       const now = new Date();
       const scheduleDates = Array.from({ length: PRAYER_SCHEDULE_DAY_WINDOW }, (_, index) => {

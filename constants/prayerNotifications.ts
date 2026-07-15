@@ -6,6 +6,7 @@ export const ADHAAN_SELECTION_STORAGE_KEY = 'jmn_selected_adhaan_option_v1';
 export const PRAYER_AUDIO_MUTED_STORAGE_KEY = 'jmn_prayer_audio_muted_v1';
 export const IQAMAH_EXACT_SOUND_ENABLED_STORAGE_KEY = 'jmn_iqamah_exact_sound_enabled_v1';
 export const BACKGROUND_PRAYER_NOTIFICATION_MODE_STORAGE_KEY = 'jmn_background_prayer_notification_mode_v1';
+export const ADHAAN_VIBRATION_ENABLED_STORAGE_KEY = 'jmn_adhaan_vibration_enabled_v1';
 
 export type AdhkarReminderSoundMode = 'sound' | 'silent';
 export type BackgroundPrayerNotificationMode = 'sound' | 'vibration-only';
@@ -105,5 +106,6 @@ export const DEFAULT_ADHKAR_REMINDER_SOUND_MODE: AdhkarReminderSoundMode = 'soun
 export const DEFAULT_PRAYER_AUDIO_MUTED = false;
 export const DEFAULT_IQAMAH_EXACT_SOUND_ENABLED = true;
 export const DEFAULT_BACKGROUND_PRAYER_NOTIFICATION_MODE: BackgroundPrayerNotificationMode = 'sound';
+export const DEFAULT_ADHAAN_VIBRATION_ENABLED = true;
 export const DEFAULT_NOTIFICATION_LANGUAGE_PREFERENCE: NotificationLanguagePreference = 'english-first';
 export const DEFAULT_SIMPLE_URDU_MODE = false;

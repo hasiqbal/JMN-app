@@ -1,6 +1,7 @@
 'use no memo';
 
 import React from 'react';
+import type { ColorValue } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   FlexWidget,
@@ -134,7 +135,7 @@ export async function loadHomePrayerWidgetPayload(): Promise<HomePrayerWidgetPay
 
 export function HomeHeroPrayerWidget({ payload, widgetInfo }: { payload: HomePrayerWidgetPayload; widgetInfo?: WidgetInfo }) {
   // Palette — refined dark forest green + warm gold accent.
-  const COLORS = {
+  const COLORS: Record<string, ColorValue> = {
     bg: '#0A2C22',
     surface: '#103A2D',
     surfaceSoft: '#0E3528',
@@ -244,6 +245,8 @@ export function HomeHeroPrayerWidget({ payload, widgetInfo }: { payload: HomePra
           >
             <ImageWidget
               image={require('@/assets/images/masjid-logo.png')}
+              imageWidth={veryCompact ? 16 : 20}
+              imageHeight={veryCompact ? 16 : 20}
               style={{
                 width: veryCompact ? 16 : 20,
                 height: veryCompact ? 16 : 20,

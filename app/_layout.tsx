@@ -13,7 +13,12 @@ import { runInitialHijriCalendarWarmup } from '@/services/hijriCalendarWarmupSer
 import { runInitialQuranPageWarmup } from '@/services/quranPageCacheService';
 import { NightModeProvider } from '@/contexts/NightModeContext';
 import { AppThemeProvider } from '@/contexts/AppThemeContext';
-import { PRAYER_NOTIFICATION_SCOPE } from '@/constants/prayerNotifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  ADHAAN_VIBRATION_ENABLED_STORAGE_KEY,
+  DEFAULT_ADHAAN_VIBRATION_ENABLED,
+  PRAYER_NOTIFICATION_SCOPE,
+} from '@/constants/prayerNotifications';
 
 LogBox.ignoreLogs([
   'props.pointerEvents is deprecated. Use style.pointerEvents',
@@ -82,13 +87,19 @@ export default function RootLayout() {
                 || type === 'jamaat-10'
                 || type === 'jamaat-start'
               );
+            const adhaanVibrationEnabledRaw = await AsyncStorage.getItem(ADHAAN_VIBRATION_ENABLED_STORAGE_KEY).catch(() => null);
+            const adhaanVibrationEnabled = adhaanVibrationEnabledRaw == null
+              ? DEFAULT_ADHAAN_VIBRATION_ENABLED
+              : adhaanVibrationEnabledRaw === 'true';
 
             return {
               shouldShowBanner: true,
               shouldShowList: true,
               shouldPlaySound: !suppressForegroundSound,
               shouldSetBadge: false,
-              shouldVibrate: true,
+              shouldVibrate: scope === PRAYER_NOTIFICATION_SCOPE && type === 'prayer-start'
+                ? adhaanVibrationEnabled
+                : true,
             };
           },
         });

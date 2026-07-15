@@ -5,7 +5,6 @@ import {
   type DonationPriceSlot,
 } from '@/constants/donationTypes';
 import { APP_CONFIG } from '@/constants/config';
-import { Platform } from 'react-native';
 
 interface DonationCheckoutResponse {
   url?: string;
@@ -183,10 +182,6 @@ export async function fetchDonationOptionsForApp(): Promise<AppDonationOption[]>
 export async function createDonationCheckoutUrl(
   input: DonationCheckoutInput = 1,
 ): Promise<string> {
-  if (Platform.OS === 'ios') {
-    return getFallbackDonationUrl();
-  }
-
   const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
