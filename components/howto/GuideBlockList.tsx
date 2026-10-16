@@ -15,7 +15,6 @@ interface GuideBlockListProps {
   /** Raw detail string. Parsed into blocks automatically when `blocks` isn't provided. */
   detail?: string;
   nightMode: boolean;
-  contentLanguage?: 'en' | 'ur';
   learningMode?: GuideLearningMode;
 }
 
@@ -27,12 +26,11 @@ export function GuideBlockList({
   blocks,
   detail,
   nightMode,
-  contentLanguage = 'en',
   learningMode = 'default',
 }: GuideBlockListProps) {
   const resolved = blocks ?? (detail ? parseDetailToBlocks(detail) : []);
   if (resolved.length === 0) return null;
-  const autoTransliteration = contentLanguage !== 'ur';
+  const autoTransliteration = true;
 
   return (
     <View style={styles.stack}>

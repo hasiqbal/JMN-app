@@ -21,7 +21,6 @@ interface GuideStepCardProps {
   accentColor: string;
   isLast: boolean;
   nightMode: boolean;
-  contentLanguage?: 'en' | 'ur';
   learningMode?: GuideLearningMode;
   /** Optional extra content (e.g. step image list) rendered below the blocks. */
   children?: React.ReactNode;
@@ -46,13 +45,12 @@ export function GuideStepCard({
   accentColor,
   isLast,
   nightMode,
-  contentLanguage = 'en',
   learningMode = 'default',
   children,
 }: GuideStepCardProps) {
   const P = pickPalette(nightMode);
   const isWarning = /^warning[:\s]/i.test(title);
-  const hasUrduTitle = hasArabic(title);
+  const hasArabicTitle = hasArabic(title);
   const warningColor = nightMode ? '#FF7B7B' : '#D32F2F';
   const effectiveAccent = isWarning ? warningColor : accentColor;
 
@@ -69,13 +67,13 @@ export function GuideStepCard({
         <Text style={styles.stepNumText}>{step}</Text>
       </View>
       <View style={[styles.contentCol, learningMode === 'salah-pilot' && styles.contentColPilot]}>
-        {hasUrduTitle ? (
+        {hasArabicTitle ? (
           <InlineArabicText
             text={title}
             nightMode={nightMode}
             style={[
               styles.title,
-              styles.titleUrdu,
+              styles.titleArabic,
               learningMode === 'salah-pilot' && styles.titlePilot,
               { color: isWarning ? effectiveAccent : P.text },
             ]}
@@ -107,7 +105,6 @@ export function GuideStepCard({
             blocks={blocks}
             detail={detail}
             nightMode={nightMode}
-            contentLanguage={contentLanguage}
             learningMode={learningMode}
           />
         </View>
@@ -178,7 +175,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 21,
   },
-  titleUrdu: {
+  titleArabic: {
     fontFamily: 'UrduNastaliq',
     fontWeight: '400',
     writingDirection: 'rtl',

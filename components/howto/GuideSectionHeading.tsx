@@ -26,7 +26,7 @@ export function GuideSectionHeading({
   nightMode,
 }: GuideSectionHeadingProps) {
   const P = pickPalette(nightMode);
-  const hasUrduHeading = hasArabic(heading);
+  const hasArabicHeading = hasArabic(heading);
 
   return (
     <TouchableOpacity
@@ -38,11 +38,11 @@ export function GuideSectionHeading({
       activeOpacity={0.8}
     >
       <View style={[styles.bullet, { backgroundColor: accentColor }]} />
-      {hasUrduHeading ? (
+      {hasArabicHeading ? (
         <InlineArabicText
           text={heading}
           nightMode={nightMode}
-          style={[styles.title, styles.titleUrdu, { color: P.text }]}
+          style={[styles.title, styles.titleArabic, { color: P.text }]}
         />
       ) : (
         <Text style={[styles.title, { color: P.text }]}>{heading}</Text>
@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.3,
   },
-  titleUrdu: {
+  titleArabic: {
     fontFamily: 'UrduNastaliq',
     fontWeight: '400',
     writingDirection: 'rtl',

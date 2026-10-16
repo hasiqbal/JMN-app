@@ -12,7 +12,7 @@ const urduTranslationMemoryCache = new Map<string, string>();
 const ENGLISH_TRANSLATION_CACHE_PREFIX = '@adhkar_english_cache_v1:';
 const englishTranslationMemoryCache = new Map<string, string>();
 const ANNOUNCEMENTS_CACHE_KEY = '@announcements_feed_cache_v1';
-const HOWTO_GUIDES_CACHE_PREFIX = '@howto_guides_cache_v1:';
+const HOWTO_GUIDES_CACHE_KEY = '@howto_guides_cache_v1:en';
 const HOWTO_GUIDES_TTL_MS = 12 * 60 * 60 * 1000;
 const QASEEDAH_NAAT_CACHE_KEY = '@qaseedah_naat_cache_v1';
 const QASEEDAH_NAAT_GROUP_CACHE_PREFIX = '@qaseedah_naat_group_cache_v1:';
@@ -41,12 +41,12 @@ type QaseedahNaatCachePayload = {
 };
 
 let announcementsMemoryCache: AnnouncementsCachePayload | null = null;
-const howToGuidesMemoryCache = new Map<string, HowToCachePayload>();
+let howToGuidesMemoryCache: HowToCachePayload | null = null;
 let qaseedahNaatMemoryCache: QaseedahNaatCachePayload | null = null;
 const qaseedahNaatGroupMemoryCache = new Map<string, QaseedahNaatCachePayload>();
 let qaseedahNaatFetchInFlight: Promise<AdhkarRow[]> | null = null;
 const qaseedahNaatGroupFetchInFlight = new Map<string, Promise<AdhkarRow[]>>();
-const howToFetchInFlight = new Map<'en' | 'ur', Promise<HowToGuide[]>>();
+let howToFetchInFlight: Promise<HowToGuide[]> | null = null;
 const HOWTO_STEP_BATCH_SIZE = 120;
 
 function chunkItems<T>(items: T[], size: number): T[][] {
@@ -67,10 +67,6 @@ function isCacheFresh(updatedAt: number, ttlMs: number): boolean {
   return Date.now() - updatedAt <= ttlMs;
 }
 
-function buildHowToCacheKey(language: 'en' | 'ur'): string {
-  return `${HOWTO_GUIDES_CACHE_PREFIX}${language}`;
-}
-
 function normalizeQaseedahGroupKeyPart(value: string): string {
   return value.trim().replace(/\s+/g, ' ').toLowerCase();
 }
@@ -80,23 +76,20 @@ function buildQaseedahGroupCacheKey(groupName: string, contentType: 'qaseedah' |
   return `${QASEEDAH_NAAT_GROUP_CACHE_PREFIX}${contentType}:${normalizedGroup}`;
 }
 
-async function readCachedHowToGuides(
-  language: 'en' | 'ur',
-  options?: { allowExpired?: boolean },
-): Promise<HowToGuide[] | null> {
+async function readCachedHowToGuides(options?: { allowExpired?: boolean }): Promise<HowToGuide[] | null> {
   const allowExpired = options?.allowExpired === true;
-  const memory = howToGuidesMemoryCache.get(language);
+  const memory = howToGuidesMemoryCache;
   if (memory && (allowExpired || isCacheFresh(memory.updatedAt, HOWTO_GUIDES_TTL_MS))) {
     return memory.rows;
   }
 
   try {
-    const raw = await AsyncStorage.getItem(buildHowToCacheKey(language));
+    const raw = await AsyncStorage.getItem(HOWTO_GUIDES_CACHE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as HowToCachePayload;
     if (!parsed || !Array.isArray(parsed.rows) || typeof parsed.updatedAt !== 'number') return null;
 
-    howToGuidesMemoryCache.set(language, parsed);
+    howToGuidesMemoryCache = parsed;
     if (allowExpired || isCacheFresh(parsed.updatedAt, HOWTO_GUIDES_TTL_MS)) {
       return parsed.rows;
     }
@@ -107,15 +100,15 @@ async function readCachedHowToGuides(
   return null;
 }
 
-async function writeCachedHowToGuides(language: 'en' | 'ur', rows: HowToGuide[]): Promise<void> {
+async function writeCachedHowToGuides(rows: HowToGuide[]): Promise<void> {
   const payload: HowToCachePayload = {
     updatedAt: Date.now(),
     rows,
   };
 
-  howToGuidesMemoryCache.set(language, payload);
+  howToGuidesMemoryCache = payload;
   try {
-    await AsyncStorage.setItem(buildHowToCacheKey(language), JSON.stringify(payload));
+    await AsyncStorage.setItem(HOWTO_GUIDES_CACHE_KEY, JSON.stringify(payload));
   } catch {
     // ignore storage write issues
   }
@@ -756,7 +749,6 @@ type HowToGuideRow = {
   title: string;
   subtitle: string | null;
   intro: string | null;
-  language: 'en' | 'ur';
   icon: string | null;
   color: string | null;
   display_order: number;
@@ -765,8 +757,6 @@ type HowToGuideRow = {
 type HowToGroupRow = {
   id: string;
   name: string;
-  urdu_name: string | null;
-  source_group_id?: string | null;
 };
 
 type HowToSectionRow = {
@@ -1447,19 +1437,16 @@ export async function fetchQaseedahNaatEntriesForGroup(
   ));
 }
 
-async function fetchHowToGuidesFromNetwork(language: 'en' | 'ur'): Promise<HowToGuide[]> {
+async function fetchHowToGuidesFromNetwork(): Promise<HowToGuide[]> {
   const supabase = getSupabaseClient();
 
-  const fullGuideSelect = 'id,group_id,slug,title,subtitle,intro,notes,language,icon,color,display_order,publish_start_at,publish_end_at';
-  const minimalGuideSelect = 'id,group_id,slug,title,subtitle,intro,language,icon,display_order';
-  const languageCandidates = language === 'en'
-    ? ['en', 'english', 'EN', 'English']
-    : ['ur', 'urdu', 'UR', 'Urdu'];
+  const fullGuideSelect = 'id,group_id,slug,title,subtitle,intro,notes,icon,color,display_order,publish_start_at,publish_end_at';
+  const minimalGuideSelect = 'id,group_id,slug,title,subtitle,intro,icon,display_order';
 
   let guides: Record<string, unknown>[] | null = null;
   let guidesErrorMessage: string | null = null;
 
-  for (const languageCandidate of languageCandidates) {
+  for (const languageCandidate of ['en', 'english', 'EN', 'English']) {
     let queryResult: any = await supabase
       .from('howto_guides')
       .select(fullGuideSelect)
@@ -1491,7 +1478,7 @@ async function fetchHowToGuidesFromNetwork(language: 'en' | 'ur'): Promise<HowTo
   }
 
   if (guidesErrorMessage && !guides) {
-    console.warn('[howto] Network fetch failed', { language, error: guidesErrorMessage });
+    console.warn('[howto] Network fetch failed', { error: guidesErrorMessage });
   }
 
   if (!guides || guides.length === 0) return [];
@@ -1515,7 +1502,7 @@ async function fetchHowToGuidesFromNetwork(language: 'en' | 'ur'): Promise<HowTo
   const [groupsResult, sectionsResult] = await Promise.all([
     supabase
       .from('howto_groups')
-      .select('id,name,urdu_name,source_group_id')
+      .select('id,name')
       .in('id', groupIds),
     supabase
       .from('howto_sections')
@@ -1526,32 +1513,6 @@ async function fetchHowToGuidesFromNetwork(language: 'en' | 'ur'): Promise<HowTo
 
   const groupRows = groupsResult.error ? [] : ((groupsResult.data ?? []) as HowToGroupRow[]);
   const sectionRows = sectionsResult.error ? [] : ((sectionsResult.data ?? []) as HowToSectionRow[]);
-
-  const sourceGroupIds = Array.from(
-    new Set(
-      groupRows
-        .map((group) => (typeof group.source_group_id === 'string' ? group.source_group_id : ''))
-        .filter((id) => id.length > 0),
-    ),
-  );
-
-  const sourceGroupNameById = new Map<string, string>();
-  if (sourceGroupIds.length > 0) {
-    const { data: sourceGroups, error: sourceGroupsError } = await supabase
-      .from('howto_groups')
-      .select('id,name')
-      .in('id', sourceGroupIds);
-
-    if (!sourceGroupsError) {
-      (sourceGroups ?? []).forEach((group) => {
-        const id = typeof (group as { id?: unknown }).id === 'string' ? (group as { id: string }).id : '';
-        const name = typeof (group as { name?: unknown }).name === 'string' ? (group as { name: string }).name : '';
-        if (id && name.trim()) {
-          sourceGroupNameById.set(id, name.trim());
-        }
-      });
-    }
-  }
 
   const sectionIds = sectionRows.map((section) => section.id);
 
@@ -1590,14 +1551,12 @@ async function fetchHowToGuidesFromNetwork(language: 'en' | 'ur'): Promise<HowTo
 
       if (blocksResult.error) {
         console.warn('[howto] Failed to load step blocks, continuing with step text', {
-          language,
           error: blocksResult.error.message,
         });
       }
 
       if (imagesResult.error) {
         console.warn('[howto] Failed to load step images, continuing without gallery', {
-          language,
           error: imagesResult.error.message,
         });
       }
@@ -1612,14 +1571,8 @@ async function fetchHowToGuidesFromNetwork(language: 'en' | 'ur'): Promise<HowTo
   }
 
   const groupNameById = new Map<string, string>();
-  const groupVisualSourceNameById = new Map<string, string>();
   for (const group of groupRows) {
-    const urduName = typeof group.urdu_name === 'string' ? group.urdu_name.trim() : '';
-    groupNameById.set(group.id, language === 'ur' ? (urduName || group.name) : group.name);
-
-    const sourceGroupId = typeof group.source_group_id === 'string' ? group.source_group_id : '';
-    const sourceName = sourceGroupId ? sourceGroupNameById.get(sourceGroupId) : undefined;
-    groupVisualSourceNameById.set(group.id, sourceName ?? group.name);
+    groupNameById.set(group.id, group.name);
   }
 
   const sectionsByGuideId = new Map<string, HowToSectionRow[]>();
@@ -1656,9 +1609,7 @@ async function fetchHowToGuidesFromNetwork(language: 'en' | 'ur'): Promise<HowTo
 
   const mapped = guideRows.map((guide) => ({
     id: guide.slug || guide.id,
-    language: guide.language,
     parentGroup: groupNameById.get(guide.group_id) ?? 'General',
-    parentGroupVisualSource: groupVisualSourceNameById.get(guide.group_id) ?? (groupNameById.get(guide.group_id) ?? 'General'),
     title: guide.title,
     subtitle: guide.subtitle ?? '',
     icon: guide.icon ?? 'menu-book',
@@ -1687,51 +1638,50 @@ async function fetchHowToGuidesFromNetwork(language: 'en' | 'ur'): Promise<HowTo
   }));
 
   if (mapped.length > 0) {
-    await writeCachedHowToGuides(language, mapped);
+    await writeCachedHowToGuides(mapped);
   }
 
   return mapped;
 }
 
-function fetchHowToGuidesFromNetworkDeduped(language: 'en' | 'ur'): Promise<HowToGuide[]> {
-  const inflight = howToFetchInFlight.get(language);
-  if (inflight) return inflight;
+function fetchHowToGuidesFromNetworkDeduped(): Promise<HowToGuide[]> {
+  if (howToFetchInFlight) return howToFetchInFlight;
 
-  const request = fetchHowToGuidesFromNetwork(language).finally(() => {
-    if (howToFetchInFlight.get(language) === request) {
-      howToFetchInFlight.delete(language);
+  const request = fetchHowToGuidesFromNetwork().finally(() => {
+    if (howToFetchInFlight === request) {
+      howToFetchInFlight = null;
     }
   });
 
-  howToFetchInFlight.set(language, request);
+  howToFetchInFlight = request;
   return request;
 }
 
-export async function fetchHowToGuides(language: 'en' | 'ur' = 'en', options?: { forceRefresh?: boolean }): Promise<HowToGuide[]> {
+export async function fetchHowToGuides(options?: { forceRefresh?: boolean }): Promise<HowToGuide[]> {
   const forceRefresh = options?.forceRefresh === true;
 
   if (!forceRefresh) {
-    const freshCache = await readCachedHowToGuides(language);
+    const freshCache = await readCachedHowToGuides();
     if (freshCache && freshCache.length > 0) {
       return freshCache;
     }
 
-    const staleCache = await readCachedHowToGuides(language, { allowExpired: true });
+    const staleCache = await readCachedHowToGuides({ allowExpired: true });
     if (staleCache && staleCache.length > 0) {
       // Keep stale content fast while refreshing in the background.
-      void fetchHowToGuidesFromNetworkDeduped(language).catch(() => {});
+      void fetchHowToGuidesFromNetworkDeduped().catch(() => {});
       return staleCache;
     }
   }
 
   try {
-    const liveRows = await fetchHowToGuidesFromNetworkDeduped(language);
+    const liveRows = await fetchHowToGuidesFromNetworkDeduped();
     return liveRows;
   } catch {
     // fall back to the latest cached payload below
   }
 
-  const fallback = await readCachedHowToGuides(language, { allowExpired: true });
+  const fallback = await readCachedHowToGuides({ allowExpired: true });
   return fallback ?? [];
 }
 
@@ -1740,8 +1690,7 @@ export async function prewarmQaseedahAndHowToCaches(): Promise<void> {
 
   await Promise.allSettled([
     qaseedahTask,
-    fetchHowToGuides('en'),
-    fetchHowToGuides('ur'),
+    fetchHowToGuides(),
   ]);
 }
 
