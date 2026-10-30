@@ -18,7 +18,7 @@ const androidWidgetConfig = {
 const base = {
   name: 'JMN',
   slug: 'jmn',
-  version: '9.0',
+  version: '10.0',
   orientation: 'portrait',
   icon: './assets/images/favicon.png',
   scheme: 'jmn',
