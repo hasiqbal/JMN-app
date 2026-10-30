@@ -3339,6 +3339,19 @@ export default function HomeScreen() {
       };
     };
 
+    const sunrisePrayer = prayerMap.get('Sunrise');
+    const addMinutesToClock = (time: string | undefined, minutes: number): string | undefined => {
+      if (!time) return undefined;
+      const match = time.match(/^(\d{1,2}):(\d{2})$/);
+      if (!match) return undefined;
+      const totalMinutes = (Number(match[1]) * 60) + Number(match[2]) + minutes;
+      if (totalMinutes < 0 || totalMinutes >= 24 * 60) return undefined;
+      return `${String(Math.floor(totalMinutes / 60)).padStart(2, '0')}:${String(totalMinutes % 60).padStart(2, '0')}`;
+    };
+    const duhaTimeDate = sunrisePrayer?.timeDate
+      ? new Date(sunrisePrayer.timeDate.getTime() + (55 * 60 * 1000))
+      : undefined;
+
     const dhuhrPrayer = prayerMap.get('Dhuhr');
     const fridayRow: DrawerPrayerRow = {
       name: 'Jummah',
@@ -3352,7 +3365,16 @@ export default function HomeScreen() {
 
     return [
       fromPrayer('Fajr'),
+      fromPrayer('Sunrise'),
       fromPrayer('Ishraq'),
+      {
+        name: 'Duha',
+        begins: addMinutesToClock(sunrisePrayer?.time, 55) || '--:--',
+        jamaat: '--:--',
+        tomorrowBegins: addMinutesToClock(sunrisePrayer?.tomorrowTime, 55),
+        state: resolveState('Duha', duhaTimeDate),
+      },
+      fromPrayer('Zawaal'),
       isFriday ? fridayRow : fromPrayer('Dhuhr'),
       fromPrayer('Asr'),
       fromPrayer('Maghrib'),
@@ -6440,4 +6462,3 @@ const flipCard = StyleSheet.create({
   },
   donateBtnText: { fontSize: 12, fontWeight: '800', color: '#1A0F00', letterSpacing: 0.3 },
 });
-

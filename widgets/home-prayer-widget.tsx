@@ -1,7 +1,6 @@
-'use no memo';
+﻿'use no memo';
 
 import React from 'react';
-import type { ColorValue } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   FlexWidget,
@@ -10,6 +9,8 @@ import {
   type WidgetInfo,
   type WidgetTaskHandlerProps,
 } from 'react-native-android-widget';
+
+type ColorValue = NonNullable<React.ComponentProps<typeof TextWidget>['style']>['color'];
 import { lookupTimetable } from '@/services/timetableData';
 
 export const HOME_PRAYER_WIDGET_NAME = 'HomePrayerHeroWidget';
@@ -37,8 +38,52 @@ export type HomePrayerWidgetPayload = {
   nextPrayerName: string;
   nextPrayerTime: string;
   prayers: Array<{ name: string; time: string; iqamah: string }>;
+  tomorrowPrayers?: Array<{ name: string; time: string; iqamah: string }>;
   updatedAtIso: string;
 };
+
+type Row = { name: string; time: string; iqamah: string };
+
+function rowsFromTimetable(date: Date): Row[] | null {
+  const row = lookupTimetable(date);
+  if (!row) return null;
+  return [
+    { name: 'Fajr', time: row.fajr, iqamah: row.iqFajr },
+    { name: 'Dhuhr', time: row.dhuhr, iqamah: row.iqDhuhr },
+    { name: 'Asr', time: row.asr, iqamah: row.iqAsr },
+    { name: 'Maghrib', time: row.maghrib, iqamah: row.iqMaghrib },
+    { name: 'Isha', time: row.isha, iqamah: row.iqIsha },
+  ];
+}
+
+function tomorrowRows(now: Date): Row[] {
+  const t = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  return rowsFromTimetable(t) ?? DISPLAY_ORDER.map((name) => ({ name, time: '--:--', iqamah: '--:--' }));
+}
+
+function toMinutes(t: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})/.exec(t);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+
+export function resolveCurrentAndNext(rows: Row[], tomorrow: Row[], now: Date) {
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  let currentIdx = -1;
+  rows.forEach((r, i) => {
+    const m = toMinutes(r.time);
+    if (m !== null && m <= nowMin) currentIdx = i;
+  });
+  const nextToday = rows.findIndex((r) => {
+    const m = toMinutes(r.time);
+    return m !== null && m > nowMin;
+  });
+  const next = nextToday >= 0 ? rows[nextToday] : tomorrow[0];
+  return {
+    current: currentIdx >= 0 ? rows[currentIdx] : null,
+    next,
+    nextIsTomorrow: nextToday < 0,
+  };
+}
 
 function nextPrayerLineFrom(prayers: PrayerLike[], now: Date): string {
   const next = prayers
@@ -63,6 +108,7 @@ function fallbackPayload(now: Date): HomePrayerWidgetPayload {
       nextPrayerName: '--',
       nextPrayerTime: '--:--',
       prayers: DISPLAY_ORDER.map((name) => ({ name, time: '--:--', iqamah: '--:--' })),
+      tomorrowPrayers: tomorrowRows(now),
       updatedAtIso: now.toISOString(),
     };
   }
@@ -82,6 +128,7 @@ function fallbackPayload(now: Date): HomePrayerWidgetPayload {
     nextPrayerName: prayers[0].name,
     nextPrayerTime: prayers[0].time,
     prayers,
+    tomorrowPrayers: tomorrowRows(now),
     updatedAtIso: now.toISOString(),
   };
 }
@@ -113,6 +160,7 @@ export function buildHomePrayerWidgetPayload(data: PrayerDataLike | null | undef
     nextPrayerName,
     nextPrayerTime,
     prayers: filtered,
+    tomorrowPrayers: tomorrowRows(now),
     updatedAtIso: now.toISOString(),
   };
 }
@@ -133,81 +181,71 @@ export async function loadHomePrayerWidgetPayload(): Promise<HomePrayerWidgetPay
   }
 }
 
+const COLORS: Record<string, ColorValue> = {
+  bg: '#FFFFFF',
+  card: '#F3F8F5',
+  border: '#E3ECE7',
+  accent: '#0F8A5F',
+  accentSoft: '#DDF3E8',
+  accentText: '#FFFFFF',
+  amber: '#B7791F',
+  amberSoft: '#FFF4D9',
+  textPrimary: '#12261D',
+  textSecondary: '#4F6A5D',
+  textMuted: '#8AA096',
+};
+
 export function HomeHeroPrayerWidget({ payload, widgetInfo }: { payload: HomePrayerWidgetPayload; widgetInfo?: WidgetInfo }) {
-  // Palette — refined dark forest green + warm gold accent.
-  const COLORS: Record<string, ColorValue> = {
-    bg: '#0A2C22',
-    surface: '#103A2D',
-    surfaceSoft: '#0E3528',
-    border: '#1F5440',
-    pill: '#13402F',
-    pillBorder: '#1F5440',
-    pillActive: '#E3C989',
-    pillActiveBorder: '#F5D98F',
-    pillActiveText: '#0A2C22',
-    gold: '#E3C989',
-    goldSoft: '#F5DEA0',
-    textPrimary: '#FFFFFF',
-    textSecondary: '#BFE0CF',
-    textMuted: '#7FB29A',
-    eyebrow: '#9CC9B2',
-  };
+  const now = new Date();
+  const sameDay = new Date(payload.updatedAtIso).toDateString() === now.toDateString();
+  const today: Row[] = (sameDay ? payload.prayers : rowsFromTimetable(now)) ?? payload.prayers;
+  const tomorrow: Row[] = (sameDay ? payload.tomorrowPrayers : null) ?? tomorrowRows(now);
+  const ordered = DISPLAY_ORDER
+    .map((name) => today.find((p) => p.name === name))
+    .filter((p): p is Row => !!p);
+  const { current, next, nextIsTomorrow } = resolveCurrentAndNext(ordered, tomorrow, now);
 
-  const widgetHeight = widgetInfo?.height ?? 220;
+  const widgetHeight = widgetInfo?.height ?? 240;
   const widgetWidth = widgetInfo?.width ?? 320;
-  const dense = widgetHeight < 200;
-  const veryCompact = widgetHeight < 170 || widgetWidth < 280;
+  const compact = widgetHeight < 230 || widgetWidth < 280;
+  const fs = compact ? 10 : 11;
+  const pad = compact ? 10 : 14;
 
-  const padX = veryCompact ? 12 : dense ? 14 : 16;
-  const padY = veryCompact ? 10 : dense ? 12 : 14;
+  const cell = (text: string, flex: number, opts: { color?: ColorValue; bold?: boolean; align?: 'flex-start' | 'center' } = {}) => (
+    <FlexWidget style={{ flex, alignItems: opts.align ?? 'center' }}>
+      <TextWidget
+        text={text}
+        style={{ color: opts.color ?? COLORS.textPrimary, fontSize: fs, fontWeight: opts.bold ? '700' : '500' }}
+      />
+    </FlexWidget>
+  );
 
-  const orderedPrayers = DISPLAY_ORDER
-    .map((name) => payload.prayers.find((p) => p.name === name))
-    .filter((p): p is { name: string; time: string; iqamah: string } => !!p);
-
-  const renderPill = (row: { name: string; time: string }, index: number) => {
-    const active = row.name === payload.nextPrayerName;
-    return (
-      <FlexWidget
-        key={row.name}
-        style={{
-          flex: 1,
-          marginLeft: index === 0 ? 0 : veryCompact ? 4 : 6,
-          backgroundColor: active ? COLORS.pillActive : COLORS.pill,
-          borderRadius: 999,
-          borderWidth: 1,
-          borderColor: active ? COLORS.pillActiveBorder : COLORS.pillBorder,
-          paddingHorizontal: veryCompact ? 6 : 8,
-          paddingVertical: veryCompact ? 6 : 8,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <TextWidget
-          text={row.name.toUpperCase()}
-          style={{
-            color: active ? COLORS.pillActiveText : COLORS.textMuted,
-            fontSize: veryCompact ? 8 : 9,
-            fontWeight: '700',
-          }}
-        />
-        <TextWidget
-          text={row.time}
-          style={{
-            color: active ? COLORS.pillActiveText : COLORS.textPrimary,
-            fontSize: veryCompact ? 11 : 13,
-            fontWeight: '800',
-            marginTop: 2,
-          }}
-        />
-      </FlexWidget>
-    );
-  };
+  const statusCard = (label: string, row: Row | null, tint: ColorValue, bg: ColorValue, suffix?: string) => (
+    <FlexWidget
+      style={{
+        flex: 1,
+        backgroundColor: bg,
+        borderRadius: 16,
+        paddingHorizontal: 10,
+        paddingVertical: compact ? 6 : 8,
+      }}
+    >
+      <TextWidget text={label} style={{ color: tint, fontSize: 9, fontWeight: '800' }} />
+      <TextWidget
+        text={row ? `${row.name}${suffix ?? ''}` : '—'}
+        style={{ color: COLORS.textPrimary, fontSize: compact ? 15 : 18, fontWeight: '800' }}
+      />
+      <TextWidget
+        text={row ? `Starts ${row.time}  ·  Jamaat ${row.iqamah}` : ''}
+        style={{ color: COLORS.textSecondary, fontSize: 9, fontWeight: '600' }}
+      />
+    </FlexWidget>
+  );
 
   return (
     <FlexWidget
       clickAction="OPEN_APP"
-      accessibilityLabel="JMN today prayer times widget"
+      accessibilityLabel="JMN prayer times widget"
       style={{
         width: 'match_parent',
         height: 'match_parent',
@@ -215,169 +253,87 @@ export function HomeHeroPrayerWidget({ payload, widgetInfo }: { payload: HomePra
         backgroundColor: COLORS.bg,
         borderWidth: 1,
         borderColor: COLORS.border,
-        paddingHorizontal: padX,
-        paddingVertical: padY,
+        paddingHorizontal: pad,
+        paddingVertical: pad,
         justifyContent: 'space-between',
       }}
     >
-      {/* Top row — brand + date */}
-      <FlexWidget
-        style={{
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
+      <FlexWidget style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <FlexWidget style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <FlexWidget
-            style={{
-              width: veryCompact ? 22 : 28,
-              height: veryCompact ? 22 : 28,
-              borderRadius: 999,
-              overflow: 'hidden',
-              backgroundColor: '#FFFFFF',
-              borderWidth: 1,
-              borderColor: '#DDE8E2',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginRight: 8,
-            }}
-          >
-            <ImageWidget
-              image={require('@/assets/images/masjid-logo.png')}
-              imageWidth={veryCompact ? 16 : 20}
-              imageHeight={veryCompact ? 16 : 20}
-              style={{
-                width: veryCompact ? 16 : 20,
-                height: veryCompact ? 16 : 20,
-              }}
-            />
-          </FlexWidget>
-          <FlexWidget>
-            <TextWidget
-              text="Jami' Masjid Noorani"
-              style={{
-                color: COLORS.textPrimary,
-                fontSize: veryCompact ? 11 : 12,
-                fontWeight: '700',
-              }}
-            />
-            {!veryCompact ? (
-              <TextWidget
-                text={payload.hijriLine}
-                style={{
-                  color: COLORS.eyebrow,
-                  fontSize: 9,
-                  fontWeight: '600',
-                  marginTop: 1,
-                }}
-              />
-            ) : null}
-          </FlexWidget>
+          <ImageWidget
+            image={require('@/assets/images/masjid-logo.png')}
+            imageWidth={22}
+            imageHeight={22}
+            style={{ width: 22, height: 22, marginRight: 6 }}
+          />
+          <TextWidget text="Jami' Masjid Noorani" style={{ color: COLORS.textPrimary, fontSize: 12, fontWeight: '800' }} />
         </FlexWidget>
-
-        <TextWidget
-          text={payload.dateLine}
-          style={{
-            color: COLORS.textMuted,
-            fontSize: veryCompact ? 9 : 10,
-            fontWeight: '600',
-          }}
-        />
+        <TextWidget text={payload.dateLine} style={{ color: COLORS.textMuted, fontSize: 10, fontWeight: '600' }} />
       </FlexWidget>
 
-      {/* Hero — Next prayer focus */}
+      <FlexWidget style={{ flexDirection: 'row', marginTop: compact ? 6 : 8 }}>
+        {statusCard('NOW', current, COLORS.accent, COLORS.accentSoft)}
+        <FlexWidget style={{ width: 8 }} />
+        {statusCard('NEXT', next, COLORS.amber, COLORS.amberSoft, nextIsTomorrow ? ' (tmrw)' : '')}
+      </FlexWidget>
+
       <FlexWidget
         style={{
-          marginTop: veryCompact ? 8 : 12,
-          marginBottom: veryCompact ? 8 : 12,
+          marginTop: compact ? 6 : 8,
+          backgroundColor: COLORS.card,
+          borderRadius: 16,
+          paddingHorizontal: 10,
+          paddingVertical: 6,
         }}
       >
-        <FlexWidget
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            marginBottom: 4,
-          }}
-        >
-          <FlexWidget
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: 999,
-              backgroundColor: COLORS.gold,
-              marginRight: 6,
-            }}
-          />
-          <TextWidget
-            text="NEXT PRAYER"
-            style={{
-              color: COLORS.gold,
-              fontSize: veryCompact ? 8 : 9,
-              fontWeight: '800',
-            }}
-          />
+        <FlexWidget style={{ flexDirection: 'row', marginBottom: 2 }}>
+          {cell('', 2)}
+          <FlexWidget style={{ flex: 4, alignItems: 'center' }}>
+            <TextWidget text="TODAY" style={{ color: COLORS.accent, fontSize: 9, fontWeight: '800' }} />
+          </FlexWidget>
+          <FlexWidget style={{ flex: 4, alignItems: 'center' }}>
+            <TextWidget text="TOMORROW" style={{ color: COLORS.amber, fontSize: 9, fontWeight: '800' }} />
+          </FlexWidget>
         </FlexWidget>
-
-        <FlexWidget
-          style={{
-            flexDirection: 'row',
-            alignItems: 'flex-end',
-            justifyContent: 'space-between',
-          }}
-        >
-          <TextWidget
-            text={payload.nextPrayerName}
-            style={{
-              color: COLORS.textPrimary,
-              fontSize: veryCompact ? 22 : dense ? 26 : 30,
-              fontWeight: '800',
-            }}
-          />
-          <TextWidget
-            text={payload.nextPrayerTime}
-            style={{
-              color: COLORS.goldSoft,
-              fontSize: veryCompact ? 22 : dense ? 26 : 30,
-              fontWeight: '800',
-            }}
-          />
+        <FlexWidget style={{ flexDirection: 'row', marginBottom: 2 }}>
+          {cell('', 2)}
+          {cell('Start', 2, { color: COLORS.textMuted })}
+          {cell('Jamaat', 2, { color: COLORS.textMuted })}
+          {cell('Start', 2, { color: COLORS.textMuted })}
+          {cell('Jamaat', 2, { color: COLORS.textMuted })}
         </FlexWidget>
+        {ordered.map((row) => {
+          const isNow = current?.name === row.name;
+          const isNext = !nextIsTomorrow && next.name === row.name;
+          const tm = tomorrow.find((p) => p.name === row.name);
+          const hl = isNow ? COLORS.accent : isNext ? COLORS.amber : COLORS.textPrimary;
+          return (
+            <FlexWidget key={row.name} style={{ flexDirection: 'row', paddingVertical: compact ? 1 : 2 }}>
+              {cell(row.name, 2, { color: hl, bold: true, align: 'flex-start' })}
+              {cell(row.time, 2, { color: hl, bold: isNow || isNext })}
+              {cell(row.iqamah, 2, { color: hl })}
+              {cell(tm?.time ?? '--:--', 2, { color: COLORS.textSecondary })}
+              {cell(tm?.iqamah ?? '--:--', 2, { color: COLORS.textSecondary })}
+            </FlexWidget>
+          );
+        })}
       </FlexWidget>
 
-      {/* Pill strip — all 5 prayers */}
-      <FlexWidget style={{ flexDirection: 'row' }}>
-        {orderedPrayers.map((row, index) => renderPill(row, index))}
+      <FlexWidget
+        clickAction="OPEN_URI"
+        clickActionData={{ uri: 'jmn:///?openDonation=1' }}
+        accessibilityLabel="Open donation panel"
+        style={{
+          marginTop: compact ? 6 : 8,
+          backgroundColor: COLORS.accent,
+          borderRadius: 999,
+          paddingVertical: compact ? 6 : 8,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <TextWidget text="♥  Donate to the masjid" style={{ color: COLORS.accentText, fontSize: 12, fontWeight: '700' }} />
       </FlexWidget>
-
-      {/* Donate CTA */}
-      {!veryCompact ? (
-        <FlexWidget
-          clickAction="OPEN_URI"
-          clickActionData={{ uri: 'jmn:///?openDonation=1' }}
-          accessibilityLabel="Open donation panel"
-          style={{
-            marginTop: dense ? 10 : 12,
-            backgroundColor: COLORS.surface,
-            borderRadius: 999,
-            borderWidth: 1,
-            borderColor: COLORS.gold,
-            paddingHorizontal: 14,
-            paddingVertical: dense ? 7 : 8,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <TextWidget
-            text="Donate to the masjid"
-            style={{
-              color: COLORS.gold,
-              fontSize: dense ? 11 : 12,
-              fontWeight: '700',
-            }}
-          />
-        </FlexWidget>
-      ) : null}
     </FlexWidget>
   );
 }
@@ -387,3 +343,5 @@ export async function renderHomePrayerWidgetFromStorage(props: WidgetTaskHandler
   const payload = stored ?? fallbackPayload(new Date());
   props.renderWidget(<HomeHeroPrayerWidget payload={payload} widgetInfo={props.widgetInfo} />);
 }
+
+

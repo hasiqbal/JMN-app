@@ -1070,6 +1070,22 @@ export async function fetchPrayerTimesForMonth(
   }
 }
 
+export async function fetchAllPrayerTimes(): Promise<PrayerTimeRow[] | null> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('prayer_times')
+      .select('*')
+      .order('month', { ascending: true })
+      .order('day', { ascending: true })
+      .limit(400);
+    if (error || !data || data.length === 0) return null;
+    return data as PrayerTimeRow[];
+  } catch {
+    return null;
+  }
+}
+
 export async function hasPrayerTimesInDB(): Promise<boolean> {
   try {
     const supabase = getSupabaseClient();

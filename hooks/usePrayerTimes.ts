@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
+import { AppState } from 'react-native';
+import { loadCachedPrayerTimes, syncPrayerTimes } from '@/services/prayerTimesSync';
 import {
   getPrayerTimesForDate,
   getPrayerTimesFromTimetable,
@@ -22,13 +24,15 @@ export function usePrayerTimes() {
   const [jumuahInfo, setJumuahInfo] = useState<JumuahInfo | null>(null);
   const [jumuahCountdown, setJumuahCountdown] = useState<string>('');
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (forceSync = false) => {
     try {
       setLoading(true);
       setError(null);
-      // Seed UI immediately from local timetable while DB fetch is in-flight
+      await loadCachedPrayerTimes();
+      // Seed UI immediately from cached/local timetable while server fetch is in-flight
       const local = getPrayerTimesFromTimetable();
       if (local) setData(local);
+      await syncPrayerTimes(forceSync);
       // Then override with live DB data (iqamah times, Hijri, etc.)
       const result = await getPrayerTimesForDate();
       if (result) {
@@ -45,6 +49,23 @@ export function usePrayerTimes() {
 
   useEffect(() => {
     load();
+  }, [load]);
+
+  // Re-sync when the app returns to foreground, and re-check periodically (handles day rollover)
+  useEffect(() => {
+    let lastDay = new Date().toDateString();
+    const refreshIfNeeded = () => {
+      const today = new Date().toDateString();
+      if (today !== lastDay) {
+        lastDay = today;
+        load(true);
+      } else {
+        syncPrayerTimes().then((changed) => { if (changed) load(); });
+      }
+    };
+    const sub = AppState.addEventListener('change', (s) => { if (s === 'active') refreshIfNeeded(); });
+    const id = setInterval(refreshIfNeeded, 30 * 60 * 1000);
+    return () => { sub.remove(); clearInterval(id); };
   }, [load]);
 
   useEffect(() => {
@@ -85,6 +106,6 @@ export function usePrayerTimes() {
   return {
     data, loading, error, countdown, nextPrayerName, nextPrayerIqamah,
     forbiddenInfo, jumuahInfo, jumuahCountdown,
-    refresh: load,
+    refresh: () => load(),
   };
 }
