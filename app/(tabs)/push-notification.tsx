@@ -396,7 +396,12 @@ export default function PushNotificationScreen() {
                 {!bodyContent.english && !bodyContent.urdu ? (
                   <Text style={[styles.englishText, { color: palette.text }]}>No message body</Text>
                 ) : (
-                  <View style={styles.languageBlocksWrap}>
+                  <ScrollView
+                    style={styles.messageScroll}
+                    contentContainerStyle={styles.messageScrollContent}
+                    nestedScrollEnabled
+                    showsVerticalScrollIndicator
+                  >
                     {bodyContent.english ? (
                       <View style={[styles.languageBlock, { borderColor: palette.border, backgroundColor: palette.badge }]}>
                         <Text style={[styles.languageBlockLabel, { color: palette.sub }]}>English</Text>
@@ -409,7 +414,7 @@ export default function PushNotificationScreen() {
                         <Text style={[styles.urduText, { color: palette.text }]} selectable>{bodyContent.urdu}</Text>
                       </View>
                     ) : null}
-                  </View>
+                  </ScrollView>
                 )}
               </View>
 
@@ -581,6 +586,12 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   languageBlocksWrap: {
+    gap: 8,
+  },
+  messageScroll: {
+    maxHeight: 320,
+  },
+  messageScrollContent: {
     gap: 8,
   },
   languageBlock: {
