@@ -29,6 +29,25 @@ export function ChapterIntro({ chapter, chapterUrdu, chapterArabic, entryTitle, 
   const normalizeLabel = (value: string) => value.trim().replace(/\s+/g, ' ').toLowerCase();
   const showEntryTitleInMeta = normalizeLabel(chapter) !== normalizeLabel(entryTitle);
   const metaLabel = showEntryTitleInMeta ? entryTitle : '';
+  if (!isPoem) {
+    return (
+      <TouchableOpacity
+        style={[styles.pill, night && { backgroundColor: '#1f5a36' }]}
+        activeOpacity={0.85}
+        onPress={onToggle}
+      >
+        <View style={styles.pillSpacer} />
+        <View style={styles.pillCenter}>
+          <Text style={styles.pillTitle} numberOfLines={1}>{chapter}</Text>
+          {chapterArabic ? <Text style={styles.pillArabic}>{chapterArabic}</Text> : null}
+          {chapterUrdu ? <Text style={styles.pillUrdu}>{chapterUrdu}</Text> : null}
+          <Text style={styles.pillMeta}>{lineCount} {unitLabel}{metaLabel ? ` • ${metaLabel}` : ''}</Text>
+        </View>
+        <MaterialIcons name={isOpen ? 'expand-less' : 'chevron-right'} size={22} color="#ffffff" style={styles.pillIcon} />
+      </TouchableOpacity>
+    );
+  }
+
   return (
     <TouchableOpacity
       style={[
@@ -68,6 +87,23 @@ export function ChapterIntro({ chapter, chapterUrdu, chapterArabic, entryTitle, 
 }
 
 const styles = StyleSheet.create({
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#033308',
+    borderRadius: 999,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginVertical: 6,
+    marginHorizontal: Spacing.md,
+  },
+  pillSpacer: { width: 22 },
+  pillCenter: { flex: 1, alignItems: 'center', gap: 2 },
+  pillIcon: { width: 22 },
+  pillTitle: { color: '#ffffff', fontSize: 18, fontWeight: '700', letterSpacing: 0.3, textAlign: 'center' },
+  pillArabic: { color: '#ffffff', fontFamily: 'IndopakNastaleeq', fontSize: 20, writingDirection: 'rtl', textAlign: 'center' },
+  pillUrdu: { color: '#ffffff', fontFamily: 'UrduNastaliq', fontSize: 19, writingDirection: 'rtl', textAlign: 'center' },
+  pillMeta: { color: 'rgba(255,255,255,0.75)', fontSize: 11, fontWeight: '600' },
   wrap: {
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.md,

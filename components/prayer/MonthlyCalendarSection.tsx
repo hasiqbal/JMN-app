@@ -495,6 +495,12 @@ function CalendarPrayerPanel({
     return formatMinutesToClock(parsed - minutes);
   };
 
+  const addMinutesToClock = (clock: string | undefined | null, minutes: number): string | undefined => {
+    const parsed = parseClockToMinutes(clock);
+    if (parsed === null) return undefined;
+    return formatMinutesToClock(parsed + minutes);
+  };
+
   const nextDate = new Date(date);
   nextDate.setDate(nextDate.getDate() + 1);
   const tomorrowLocal = lookupTimetable(nextDate);
@@ -511,6 +517,8 @@ function CalendarPrayerPanel({
   const tomorrowJumuahIqamah = tomorrowLocal?.jumuah ?? (isBST(nextDate) ? '13:30' : '12:45');
   const duhaToday = midpointClockBetween(day.fajr, day.maghrib) ?? '--:--';
   const duhaTomorrow = midpointClockBetween(tomorrowLocal?.fajr, tomorrowLocal?.maghrib);
+  const recommendedDuhaToday = addMinutesToClock(day.sunrise, 55) ?? '--:--';
+  const recommendedDuhaTomorrow = addMinutesToClock(tomorrowLocal?.sunrise, 55);
   const zawaalToday = day.zawaal ?? subtractMinutesFromClock(day.dhuhr, 15) ?? '--:--';
   const zawaalTomorrow = tomorrowLocal?.zawaal ?? subtractMinutesFromClock(tomorrowLocal?.dhuhr, 15);
 
@@ -551,6 +559,14 @@ function CalendarPrayerPanel({
       athan: day.ishraq,
       iqamah: null,
       tomorrowAthan: tomorrowLocal?.ishraq,
+    },
+    {
+      label: 'Duha',
+      color: '#2E7D32',
+      icon: 'wb-sunny',
+      athan: recommendedDuhaToday,
+      iqamah: null,
+      tomorrowAthan: recommendedDuhaTomorrow,
     },
     {
       label: 'ad-Duha al-Kubra',
@@ -684,6 +700,8 @@ function CalendarPrayerPanel({
             {p.label === 'Fajr' ? <Text style={panelStyles.prayerGuidance}>Nafl forbidden after Fajr until Ishraq.</Text> : null}
             {p.label === 'Asr' ? <Text style={panelStyles.prayerGuidance}>Avoid delaying Asr; prayer time ends 20 mins before Maghrib.</Text> : null}
             {p.label === 'Sunrise' ? <Text style={panelStyles.prayerGuidance}>Nafl forbidden until Ishraq.</Text> : null}
+            {p.label === 'Ishraq' ? <Text style={panelStyles.prayerGuidance}>A blessed optional prayer after sunrise, following the Sunnah.</Text> : null}
+            {p.label === 'Duha' ? <Text style={panelStyles.prayerGuidance}>Recommended time for the optional Duha prayer, a sunnah prayer with great rewards.</Text> : null}
             {p.label === 'ad-Duha al-Kubra' ? <Text style={panelStyles.prayerGuidance}>Islamic Midday: midpoint between Fajr and Maghrib.</Text> : null}
             {p.label === 'Zawaal' ? <Text style={panelStyles.prayerGuidance}>Prayer forbidden until Dhuhr begins.</Text> : null}
           </View>
@@ -981,6 +999,7 @@ export default function MonthlyCalendarSection({
 }) {
   const router = useRouter();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const isNarrowCalendar = screenWidth < 360;
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [dbRows, setDbRows] = useState<Map<number, PrayerTimeRow>>(new Map());
@@ -1001,8 +1020,8 @@ export default function MonthlyCalendarSection({
     return Math.max(1, Math.ceil((startOffset + daysInMonth) / 7));
   }, [viewYear, viewMonth]);
   const monthCellMinHeight = React.useMemo(() => {
-    const available = Math.max(300, screenHeight - 260);
-    return Math.max(62, Math.min(78, Math.floor(available / weekCount)));
+    const available = Math.max(360, screenHeight - 300);
+    return Math.max(72, Math.min(92, Math.floor(available / weekCount)));
   }, [screenHeight, weekCount]);
   const monthButtonWidth = React.useMemo(() => {
     const horizontalPadding = 20;
@@ -1580,14 +1599,7 @@ export default function MonthlyCalendarSection({
 
   const visibleHeaderHijriLabel = headerHijriLabel || stableHeaderHijriLabel;
   return (
-    <View style={[calStyles.splitContainer, N && { backgroundColor: N.bg }]}> 
-      <View style={[calStyles.gridSection, N && { backgroundColor: N.surface, borderBottomColor: N.border }]}> 
-        <View style={[calStyles.monthViewHint, N && { borderTopColor: N.border, backgroundColor: N.surfaceAlt }]}> 
-          <MaterialIcons name="calendar-view-month" size={14} color={N ? '#9BC2EA' : '#2D7D5F'} />
-          <Text style={[calStyles.monthViewHintText, N && { color: N.textSub }]}>Tap any date to open full prayer times and events</Text>
-        </View>
-      </View>
-
+    <View style={[calStyles.splitContainer, N && { backgroundColor: N.bg }]}>
       <Modal
         visible={showMonthPicker}
         transparent
@@ -1844,6 +1856,8 @@ export default function MonthlyCalendarSection({
                   onPress={goBack}
                   style={[calStyles.monthHeaderUnifiedIconBtn, calStyles.monthHeaderUnifiedLeft, N && { borderRightColor: N.border }]}
                   activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Previous month"
                   hitSlop={8}
                 >
                   <MaterialIcons name="chevron-left" size={16} color={N ? '#9BC2EA' : '#2D7D5F'} />
@@ -1858,6 +1872,8 @@ export default function MonthlyCalendarSection({
                   }}
                   style={[calStyles.monthHeaderUnifiedCenterBtn, N && { borderLeftColor: N.border, borderRightColor: N.border }]}
                   activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Select month, ${MONTH_NAMES[viewMonth]} ${viewYear}`}
                   hitSlop={8}
                 >
                   <MaterialIcons name="calendar-month" size={15} color={N ? '#9BC2EA' : '#FFFFFF'} />
@@ -1868,6 +1884,8 @@ export default function MonthlyCalendarSection({
                   onPress={goForward}
                   style={[calStyles.monthHeaderUnifiedIconBtn, calStyles.monthHeaderUnifiedRight, N && { borderLeftColor: N.border }]}
                   activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Next month"
                   hitSlop={8}
                 >
                   <MaterialIcons name="chevron-right" size={16} color={N ? '#9BC2EA' : '#2D7D5F'} />
@@ -1879,6 +1897,8 @@ export default function MonthlyCalendarSection({
                 style={[calStyles.monthHeaderIconBtn, N && { borderColor: N.border, backgroundColor: N.surface }]}
                 activeOpacity={0.8}
                 disabled={manualRefreshing}
+                accessibilityRole="button"
+                accessibilityLabel={manualRefreshing ? 'Refreshing calendar' : 'Refresh calendar'}
                 hitSlop={8}
               >
                 <MaterialIcons
@@ -1916,29 +1936,57 @@ export default function MonthlyCalendarSection({
                     setShowDayDetailModal(true);
                   }}
                   disabled={!cell.isCurrentMonth}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${cell.date.toLocaleDateString(undefined, {
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}${hijriDay ? `, Hijri day ${hijriDay}` : ''}${cell.isToday ? ', Today' : ''}${eventCount > 0 ? `, ${eventCount} calendar event${eventCount === 1 ? '' : 's'}` : ''}`}
                   style={[
                     calStyles.monthMatrixCell,
                     { minHeight: monthCellMinHeight },
                     isDimmed && calStyles.monthMatrixCellOut,
-                    cell.isToday && calStyles.monthMatrixCellToday,
                     cell.isCurrentMonth && cell.isFriday && calStyles.monthMatrixCellFriday,
+                    cell.isToday && calStyles.monthMatrixCellToday,
                     N && { borderColor: N.border, backgroundColor: isDimmed ? N.surfaceAlt : N.surface },
+                    N && cell.isFriday && { borderColor: '#806A3A', backgroundColor: '#2E2B23' },
                     N && cell.isToday && { borderColor: '#69A8FF', backgroundColor: '#1E3354' },
                   ]}
                 >
                   <View style={calStyles.monthMatrixCellDateRow}>
-                    <Text style={[calStyles.monthMatrixCellDate, N && { color: isDimmed ? N.textMuted : N.text }]}>{cell.date.getDate()}</Text>
+                    <Text style={[
+                      calStyles.monthMatrixCellDate,
+                      isNarrowCalendar && calStyles.monthMatrixCellDateCompact,
+                      N && { color: isDimmed ? N.textMuted : N.text },
+                    ]}>{cell.date.getDate()}</Text>
                     <View style={calStyles.monthMatrixDateRightCol}>
                       {hijriDay ? (
-                        <Text style={[calStyles.monthMatrixCellHijri, N && { color: isDimmed ? N.textMuted : '#E7C36C' }]}>{hijriDay}</Text>
+                        <Text style={[
+                          calStyles.monthMatrixCellHijri,
+                          isNarrowCalendar && calStyles.monthMatrixCellHijriCompact,
+                          N && { color: isDimmed ? N.textMuted : '#E7C36C' },
+                        ]}>{hijriDay}</Text>
                       ) : null}
                     </View>
                   </View>
 
                   {cell.isToday ? (
                     <View style={calStyles.monthMatrixTodayBadgeRow}>
-                      <View style={[calStyles.monthMatrixTodayBadge, N && { backgroundColor: '#2E6CB9' }]}>
-                        <Text numberOfLines={1} style={calStyles.monthMatrixTodayBadgeText}>Today</Text>
+                      <View style={[
+                        calStyles.monthMatrixTodayBadge,
+                        isNarrowCalendar && calStyles.monthMatrixTodayBadgeCompact,
+                        N && { backgroundColor: '#2E6CB9' },
+                      ]}>
+                        <Text
+                          numberOfLines={1}
+                          style={[
+                            calStyles.monthMatrixTodayBadgeText,
+                            isNarrowCalendar && calStyles.monthMatrixTodayBadgeTextCompact,
+                          ]}
+                        >
+                          Today
+                        </Text>
                       </View>
                     </View>
                   ) : null}
@@ -2033,13 +2081,6 @@ const calStyles = StyleSheet.create({
     flexDirection: 'column',
     backgroundColor: Colors.background,
   },
-  gridSection: {
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    paddingTop: 4,
-    paddingHorizontal: 2,
-  },
   panelSection: {
     flex: 1,
     backgroundColor: Colors.background,
@@ -2048,11 +2089,11 @@ const calStyles = StyleSheet.create({
     paddingBottom: 14,
   },
   monthMatrixCard: {
-    marginHorizontal: 10,
-    marginTop: 12,
-    borderRadius: 18,
+    marginHorizontal: 8,
+    marginTop: 10,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#C4D5CB',
+    borderColor: '#D5E3DA',
     backgroundColor: '#FFFFFF',
     overflow: 'hidden',
   },
@@ -2140,8 +2181,8 @@ const calStyles = StyleSheet.create({
     overflow: 'hidden',
   },
   monthHeaderUnifiedIconBtn: {
-    width: 40,
-    height: 38,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F7FBF8',
@@ -2155,7 +2196,7 @@ const calStyles = StyleSheet.create({
     borderLeftColor: '#BCD1C5',
   },
   monthHeaderUnifiedCenterBtn: {
-    minHeight: 38,
+    minHeight: 44,
     flex: 1,
     paddingHorizontal: 12,
     borderLeftWidth: 1,
@@ -2177,8 +2218,8 @@ const calStyles = StyleSheet.create({
     color: '#FFFFFF',
   },
   monthHeaderIconBtn: {
-    width: 38,
-    height: 38,
+    width: 44,
+    height: 44,
     borderRadius: 11,
     borderWidth: 1,
     borderColor: '#BCD1C5',
@@ -2188,6 +2229,7 @@ const calStyles = StyleSheet.create({
   },
   monthMatrixHeadRow: {
     flexDirection: 'row',
+    paddingHorizontal: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#D6E3DB',
     backgroundColor: '#F3F8F5',
@@ -2207,30 +2249,34 @@ const calStyles = StyleSheet.create({
   monthMatrixGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
   },
   monthMatrixCell: {
-    width: `${100 / 7}%`,
-    minHeight: 92,
-    borderRightWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#D6E3DB',
+    width: '13.8%',
+    minHeight: 76,
+    borderWidth: 1,
+    borderRadius: 10,
+    borderColor: '#E1EAE4',
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 6,
-    paddingTop: 6,
+    paddingHorizontal: 4,
+    paddingTop: 7,
     paddingBottom: 6,
     justifyContent: 'space-between',
   },
   monthMatrixCellOut: {
-    opacity: 0.7,
-    backgroundColor: '#F4F7F5',
+    opacity: 0.55,
+    backgroundColor: '#F6F8F6',
   },
   monthMatrixCellFriday: {
-    borderColor: '#E3BD62',
-    backgroundColor: '#FFF9EC',
+    borderColor: '#E8CF91',
+    backgroundColor: '#FFFAEF',
   },
   monthMatrixCellToday: {
-    borderColor: '#2E6CB9',
-    backgroundColor: '#E9F1FF',
+    borderColor: '#367D68',
+    backgroundColor: '#EAF5F0',
   },
   monthMatrixCellDateRow: {
     flexDirection: 'row',
@@ -2239,10 +2285,14 @@ const calStyles = StyleSheet.create({
     marginBottom: 3,
   },
   monthMatrixCellDate: {
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: '800',
     color: '#132D20',
-    lineHeight: 22,
+    lineHeight: 23,
+  },
+  monthMatrixCellDateCompact: {
+    fontSize: 17,
+    lineHeight: 20,
   },
   monthMatrixDateRightCol: {
     alignItems: 'flex-end',
@@ -2252,6 +2302,9 @@ const calStyles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: '#B48318',
+  },
+  monthMatrixCellHijriCompact: {
+    fontSize: 9,
   },
   monthMatrixMetaWrap: {
     marginTop: 2,
@@ -2267,16 +2320,23 @@ const calStyles = StyleSheet.create({
     backgroundColor: '#2E6CB9',
     alignItems: 'center',
     maxWidth: '100%',
-    paddingHorizontal: 3,
-    paddingVertical: 1,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
   },
   monthMatrixTodayBadgeText: {
-    fontSize: 8,
+    fontSize: 9,
     lineHeight: 10,
     fontWeight: '800',
     color: '#F3F8FF',
     letterSpacing: 0,
     textTransform: 'none',
+  },
+  monthMatrixTodayBadgeCompact: {
+    paddingHorizontal: 3,
+    paddingVertical: 1,
+  },
+  monthMatrixTodayBadgeTextCompact: {
+    fontSize: 8,
   },
   monthMatrixMetaRow: {
     flexDirection: 'row',
@@ -2289,9 +2349,9 @@ const calStyles = StyleSheet.create({
     gap: 4,
   },
   monthMatrixDotBadge: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(249,168,37,0.20)',
@@ -2299,10 +2359,10 @@ const calStyles = StyleSheet.create({
     borderColor: 'rgba(249,168,37,0.55)',
   },
   monthMatrixEventBadge: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    paddingHorizontal: 5,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 4,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#247A58',
@@ -2381,23 +2441,6 @@ const calStyles = StyleSheet.create({
     color: '#F3F8FF',
     textTransform: 'uppercase',
     letterSpacing: 0.3,
-  },
-  monthViewHint: {
-    marginTop: 4,
-    borderTopWidth: 1,
-    borderTopColor: '#D6E3DB',
-    backgroundColor: '#F0F7F3',
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  monthViewHintText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#2A7657',
   },
   dayModalBackdrop: {
     flex: 1,

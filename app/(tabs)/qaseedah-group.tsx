@@ -968,6 +968,40 @@ export default function QaseedahGroupScreen() {
     setFocusEntryRequiredNotice(false);
   }, []);
 
+  const rowLayouts = React.useRef<Record<string, { y: number; height: number }>>({});
+
+  const collapseChapter = React.useCallback((chapterId: string) => {
+    const layout = rowLayouts.current[chapterId];
+    setExpanded((prev) => ({ ...prev, [chapterId]: false }));
+    setFocusEntryRequiredNotice(false);
+    if (layout) {
+      scrollRef.current?.scrollTo({ y: Math.max(0, layout.y - Spacing.sm), animated: true });
+    }
+  }, []);
+
+  const openNextChapter = React.useCallback((currentId: string, nextId: string) => {
+    setExpanded((prev) => ({ ...prev, [currentId]: false, [nextId]: true }));
+    setFocusEntryRequiredNotice(false);
+    // Wait for the collapse to re-layout before scrolling to the next header.
+    setTimeout(() => {
+      const layout = rowLayouts.current[nextId];
+      if (layout) scrollRef.current?.scrollTo({ y: Math.max(0, layout.y - Spacing.sm), animated: true });
+    }, 120);
+  }, []);
+
+  // Open titled chapters pin their header to the top so they can always be closed without scrolling back.
+  const stickyIndices = React.useMemo(() => {
+    if (loading || error || focusMode) return undefined;
+    const result: number[] = [];
+    let idx = 0;
+    chapters.forEach((chapter) => {
+      const open = !!expanded[chapter.id];
+      if (open && !chapter.isPoem) result.push(idx);
+      idx += open ? 2 : 1;
+    });
+    return result;
+  }, [chapters, expanded, focusMode, loading, error]);
+
   React.useEffect(() => {
     if (!pendingEntrySelection) return;
     if (pendingEntrySelection.type !== activeType) return;
@@ -1023,7 +1057,11 @@ export default function QaseedahGroupScreen() {
         </>
       ) : null}
 
-      <ScrollView ref={scrollRef} contentContainerStyle={styles.content}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={styles.content}
+        stickyHeaderIndices={stickyIndices}
+      >
         {loading ? (
           <View style={styles.loadingWrap}>
             <ActivityIndicator size="small" color={N ? N.accent : Colors.primary} />
@@ -1038,26 +1076,26 @@ export default function QaseedahGroupScreen() {
             <Text style={[styles.messageText, N && { color: N.textMuted }]}>No chapters found for this group.</Text>
           </View>
         ) : (
-          <View
-            style={[
-              styles.chapterListContainer,
-              N
-                ? { backgroundColor: 'rgba(13, 20, 30, 0.90)', borderColor: 'rgba(255,255,255,0.14)' }
-                : { backgroundColor: 'rgba(250, 251, 252, 0.98)', borderColor: 'rgba(36, 50, 61, 0.16)' },
-            ]}
-          >
-            {chapters.map((chapter, index) => {
+          chapters.flatMap((chapter, index) => {
               const isOpen = focusMode ? true : !!expanded[chapter.id];
-              const dividerColor = N ? 'rgba(255,255,255,0.10)' : 'rgba(36, 50, 61, 0.14)';
-              return (
-                <View
-                  key={chapter.id}
-                  style={[
-                    styles.chapterListRow,
-                    index < chapters.length - 1 && { borderBottomWidth: 1, borderBottomColor: dividerColor },
-                  ]}
-                >
-                  {!focusMode ? (
+              const nextChapter = chapters[index + 1];
+              const nodes: React.ReactNode[] = [];
+              if (!focusMode) {
+                nodes.push(
+                  <View
+                    key={`${chapter.id}-header`}
+                    onLayout={(e) => { rowLayouts.current[chapter.id] = e.nativeEvent.layout; }}
+                    style={[
+                      styles.chapterHeaderWrap,
+                      chapter.isPoem && [
+                        styles.poemHeaderCard,
+                        N
+                          ? { backgroundColor: 'rgba(13, 20, 30, 0.92)', borderColor: 'rgba(255,255,255,0.14)' }
+                          : { backgroundColor: 'rgba(250, 251, 252, 0.98)', borderColor: 'rgba(36, 50, 61, 0.16)' },
+                      ],
+                      isOpen && !chapter.isPoem && { backgroundColor: N ? 'rgba(13, 20, 30, 0.97)' : 'rgba(244, 247, 241, 0.97)' },
+                    ]}
+                  >
                     <ChapterIntro
                       chapter={chapter.chapter}
                       chapterUrdu={chapter.isPoem ? undefined : (layers.urdu ? chapter.chapterUrdu : undefined)}
@@ -1070,10 +1108,22 @@ export default function QaseedahGroupScreen() {
                       isPoem={!!chapter.isPoem}
                       night={N}
                     />
-                  ) : null}
+                  </View>
+                );
+              }
 
-                  {isOpen ? (
-                    <View style={styles.chapterBody}>
+              if (isOpen) {
+                nodes.push(
+                    <TouchableOpacity
+                      key={`${chapter.id}-body`}
+                      activeOpacity={1}
+                      disabled={focusMode}
+                      onPress={() => collapseChapter(chapter.id)}
+                      style={[
+                        styles.chapterBody,
+                        { backgroundColor: N ? 'rgba(13, 20, 30, 0.90)' : 'rgba(255, 255, 255, 0.96)', borderColor: N ? 'rgba(255,255,255,0.12)' : 'rgba(36, 50, 61, 0.10)' },
+                      ]}
+                    >
                       {(() => {
                         let verseCounter = 0;
                         return chapter.lines.map((line, idx) => {
@@ -1117,12 +1167,33 @@ export default function QaseedahGroupScreen() {
                           );
                         });
                       })()}
-                    </View>
-                  ) : null}
-                </View>
-              );
-            })}
-          </View>
+                      {!focusMode && !chapter.isPoem ? (
+                        <View style={styles.chapterFooter}>
+                          <TouchableOpacity
+                            activeOpacity={0.85}
+                            onPress={() => collapseChapter(chapter.id)}
+                            style={[styles.footerBtn, styles.footerBtnGhost, N && { borderColor: 'rgba(255,255,255,0.25)' }]}
+                          >
+                            <MaterialIcons name="expand-less" size={18} color={N ? N.textSub : '#033308'} />
+                            <Text style={[styles.footerBtnGhostText, N && { color: N.textSub }]}>Close</Text>
+                          </TouchableOpacity>
+                          {nextChapter ? (
+                            <TouchableOpacity
+                              activeOpacity={0.85}
+                              onPress={() => openNextChapter(chapter.id, nextChapter.id)}
+                              style={[styles.footerBtn, styles.footerBtnSolid]}
+                            >
+                              <Text style={styles.footerBtnSolidText}>Next chapter</Text>
+                              <MaterialIcons name="arrow-forward" size={18} color="#ffffff" />
+                            </TouchableOpacity>
+                          ) : null}
+                        </View>
+                      ) : null}
+                    </TouchableOpacity>
+                );
+              }
+              return nodes;
+          })
         )}
       </ScrollView>
 
@@ -1539,13 +1610,46 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: 'hidden',
   },
-  chapterListRow: {
+  chapterHeaderWrap: {
+    alignSelf: 'stretch',
+    paddingVertical: 2,
+  },
+  poemHeaderCard: {
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.sm,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    overflow: 'hidden',
   },
   chapterBody: {
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.sm,
     paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.lg,
+    paddingBottom: Spacing.md,
     paddingTop: Spacing.md,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
   },
+  chapterFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: Spacing.lg,
+  },
+  footerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 999,
+  },
+  footerBtnGhost: { borderWidth: 1.5, borderColor: '#033308' },
+  footerBtnGhostText: { color: '#033308', fontWeight: '700', fontSize: 14 },
+  footerBtnSolid: { backgroundColor: '#033308', flex: 1 },
+  footerBtnSolidText: { color: '#ffffff', fontWeight: '700', fontSize: 14 },
   loadingWrap: {
     paddingVertical: 24,
     alignItems: 'center',

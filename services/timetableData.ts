@@ -440,9 +440,29 @@ export function getDateKey(date: Date): string {
   return `${dd}/${mm}/${yyyy}`;
 }
 
+// Synced values (keyed "M-D") that override the bundled timetable.
+let overrides: Record<string, Partial<DayTimetable>> = {};
+
+export function setTimetableOverrides(next: Record<string, Partial<DayTimetable>>): void {
+  overrides = next;
+}
+
 export function lookupTimetable(date?: Date): DayTimetable | null {
-  const key = date ? getDateKey(date) : getTodayKey();
-  return TIMETABLE[key] ?? null;
+  const d = date ?? new Date();
+  const base = TIMETABLE[getDateKey(d)] ?? null;
+  const o = overrides[`${d.getMonth() + 1}-${d.getDate()}`];
+  if (!o) return base;
+  if (!base) {
+    if (!o.fajr || !o.sunrise || !o.dhuhr || !o.asr || !o.maghrib || !o.isha) return null;
+    return {
+      ishraq: addMinsToTimeStr(o.sunrise, 20),
+      jumuah: null,
+      hijri: '',
+      iqFajr: o.fajr, iqDhuhr: o.dhuhr, iqAsr: o.asr, iqMaghrib: o.maghrib, iqIsha: o.isha,
+      ...o,
+    } as DayTimetable;
+  }
+  return { ...base, ...o };
 }
 
 export default TIMETABLE;
