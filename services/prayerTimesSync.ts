@@ -56,6 +56,11 @@ export async function loadCachedPrayerTimes(): Promise<void> {
   } catch {}
 }
 
+export async function getPrayerTimesLastSyncAt(): Promise<number> {
+  await loadCachedPrayerTimes();
+  return lastFetchedAt;
+}
+
 /**
  * Pull the full timetable from the server; server values replace anything
  * saved locally. Returns true if fresh data was applied.

@@ -8,6 +8,12 @@ module.exports = function withAndroidWidgetReceiverExported(config) {
   return withAndroidManifest(config, (configWithManifest) => {
     const app = configWithManifest.modResults?.manifest?.application?.[0];
     const receivers = app?.receiver ?? [];
+    const refreshActions = [
+      'android.intent.action.DATE_CHANGED',
+      'android.intent.action.TIME_SET',
+      'android.intent.action.TIMEZONE_CHANGED',
+      'android.intent.action.BOOT_COMPLETED',
+    ];
 
     receivers.forEach((receiver) => {
       const name = receiver?.$?.['android:name'];
@@ -15,6 +21,25 @@ module.exports = function withAndroidWidgetReceiverExported(config) {
 
       if (name.endsWith('.HomePrayerHeroWidget') || name === '.widget.HomePrayerHeroWidget') {
         receiver.$['android:exported'] = 'true';
+        const filters = receiver['intent-filter'] ?? [];
+        let widgetFilter = filters.find((filter) =>
+          filter.action?.some((action) => action.$?.['android:name'] === 'android.appwidget.action.APPWIDGET_UPDATE'),
+        );
+        if (!widgetFilter) {
+          widgetFilter = { action: [] };
+          filters.push(widgetFilter);
+        }
+
+        refreshActions.forEach((actionName) => {
+          const exists = filters.some((filter) =>
+            filter.action?.some((action) => action.$?.['android:name'] === actionName),
+          );
+          if (!exists) {
+            widgetFilter.action.push({ $: { 'android:name': actionName } });
+          }
+        });
+
+        receiver['intent-filter'] = filters;
       }
     });
 

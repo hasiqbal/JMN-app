@@ -25,6 +25,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { WidgetInfo } from 'react-native-android-widget';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { formatCountdownSeconds, getNextPrayer, getPrayerTimesFromTimetable, type PrayerTime } from '@/services/prayerService';
+import { getCurrentPrayerPeriod } from '@/services/currentPrayerPeriod';
 import { usePrayerTimes } from '@/hooks/usePrayerTimes';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import {
@@ -524,17 +525,7 @@ export function SmallFlippingPrayerCard({
   const flashAnim = useRef(new Animated.Value(1)).current;
   const flashLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
-  // Keep alert logic only for real salah prayers.
-  const prayable = prayers.filter(p => !['Sunrise', 'Ishraq', 'Zawaal'].includes(p.name));
-  let activePrayer: typeof prayable[0] | null = null;
-  for (let i = 0; i < prayable.length; i++) {
-    const cur = prayable[i];
-    const next = prayable[i + 1];
-    if (cur.timeDate <= currentTime && (!next || next.timeDate > currentTime)) {
-      activePrayer = cur;
-      break;
-    }
-  }
+  const activePrayer = getCurrentPrayerPeriod(prayers, currentTime);
 
   const jamaatDate: Date | null = (() => {
     if (!activePrayer) return null;

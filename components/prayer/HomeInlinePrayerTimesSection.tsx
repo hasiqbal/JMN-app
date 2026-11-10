@@ -50,7 +50,7 @@ export function HomeInlinePrayerTimesSection({
 
   const displayRows = useMemo<DisplayRow[]>(() => rows.map((row) => ({
     key: row.name,
-    label: row.name === 'Jumuah' ? 'Jummah' : row.name,
+    label: row.name === 'Jumuah' ? 'Jummah' : row.name === 'Zawaal' ? 'Zawal' : row.name,
     begins: safeClock(row.begins),
     jamaat: ['Sunrise', 'Ishraq', 'Duha', 'Zawaal'].includes(row.name) ? '—' : safeClock(row.jamaat),
     jamaat2: row.jamaat2 && row.jamaat2 !== '-' ? row.jamaat2 : undefined,
@@ -59,8 +59,8 @@ export function HomeInlinePrayerTimesSection({
     state: row.state ?? 'future',
   })), [rows]);
 
-  const specialRows = displayRows.filter((row) => ['Ishraq', 'Duha', 'Zawaal'].includes(row.label));
-  const prayerRows = displayRows.filter((row) => !['Ishraq', 'Duha', 'Zawaal'].includes(row.label));
+  const specialRows = displayRows.filter((row) => ['Ishraq', 'Duha', 'Zawaal'].includes(row.key));
+  const prayerRows = displayRows.filter((row) => !['Ishraq', 'Duha', 'Zawaal'].includes(row.key));
 
   return (
     <View style={[styles.container, embedded && styles.containerEmbedded]}>
@@ -162,7 +162,7 @@ export function HomeInlinePrayerTimesSection({
                   <View style={styles.specialPrayerLeft}>
                     <View style={styles.specialPrayerHeading}>
                       <MaterialIcons
-                        name={row.label === 'Zawaal' ? 'hourglass-empty' : 'wb-sunny'}
+                        name={row.key === 'Zawaal' ? 'hourglass-empty' : 'wb-sunny'}
                         size={13}
                         color={nightMode ? '#A7D8C1' : HomeTheme.sectionKicker}
                       />
@@ -170,7 +170,7 @@ export function HomeInlinePrayerTimesSection({
                         <Text style={[styles.specialPrayerState, nightMode && styles.specialPrayerStateNight]}>NOW</Text>
                       ) : null}
                     </View>
-                    <Text style={[styles.specialPrayerName, nightMode && { color: NIGHT.cardText }]} numberOfLines={1}>{row.label}</Text>
+                    <Text style={[styles.specialPrayerName, nightMode && { color: NIGHT.cardText }]}>{row.label}</Text>
                   </View>
                   <View style={styles.specialPrayerRight}>
                     <Text style={[styles.specialPrayerTime, nightMode && { color: NIGHT.cardText }]}>{row.begins}</Text>
@@ -413,31 +413,30 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   specialPrayerLeft: {
-    flexShrink: 1,
+    width: '100%',
     minWidth: 0,
   },
   specialPrayerRight: {
-    alignItems: 'flex-end',
+    width: '100%',
+    alignItems: 'flex-start',
   },
   specialPrayerGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 6,
     marginTop: 8,
   },
   specialPrayerCard: {
-    flexGrow: 1,
-    flexBasis: 90,
-    minWidth: 80,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 6,
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
+    gap: 4,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: HomeTheme.borderSoft,
     backgroundColor: HomeTheme.canvas,
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingVertical: 6,
   },
   specialPrayerCardNight: {
@@ -455,8 +454,10 @@ const styles = StyleSheet.create({
   specialPrayerHeading: {
     minHeight: 14,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
+    gap: 4,
   },
   specialPrayerState: {
     borderRadius: 5,
@@ -472,10 +473,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#287A4A',
   },
   specialPrayerName: {
-    marginTop: 3,
-    fontSize: 12,
+    marginTop: 1,
+    fontSize: 11,
     fontWeight: '800',
     color: HomeTheme.sectionTitle,
+    flexShrink: 1,
   },
   specialPrayerDescription: {
     minHeight: 26,
@@ -485,11 +487,12 @@ const styles = StyleSheet.create({
     color: HomeTheme.sectionSubtle,
   },
   specialPrayerTime: {
-    marginTop: 2,
-    fontSize: 14,
+    marginTop: 0,
+    fontSize: 12,
     fontWeight: '800',
     color: HomeTheme.sectionTitle,
     fontVariant: ['tabular-nums'],
+    flexShrink: 1,
   },
   stateLabelNight: {
     color: '#A7D8C1',
