@@ -1,5 +1,6 @@
 import { buildTodayRowsWithJumuah } from '@/components/prayer/todayRows';
 import { isBST, type PrayerTime } from '@/services/prayerService';
+import { addLondonCalendarDays, getLondonDateKey, getLondonWeekday } from '@/services/londonTime';
 
 export type DrawerPrayerState = 'past' | 'current' | 'next' | 'future';
 
@@ -10,6 +11,7 @@ export type DrawerPrayerRow = {
   jamaat2?: string;
   tomorrowBegins?: string;
   tomorrowJamaat?: string;
+  isTomorrow?: boolean;
   state: DrawerPrayerState;
 };
 
@@ -27,6 +29,7 @@ type BuildPrayerDrawerRowsArgs = {
   now: Date;
   currentPrayerName?: string | null;
   nextPrayerName?: string | null;
+  nextPrayer?: PrayerTime | null;
 };
 
 const DEFAULT_PRAYER_ORDER = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
@@ -51,20 +54,26 @@ export function buildPrayerDrawerRows({
   now,
   currentPrayerName,
   nextPrayerName,
+  nextPrayer,
 }: BuildPrayerDrawerRowsArgs): DrawerPrayerRow[] {
   const sourceRows = prayers
     ? buildTodayRowsWithJumuah(prayers as PrayerTime[], now)
     : [];
   const hasJumuahRow = sourceRows.some((entry) => entry.name === 'Jumuah');
   const asrFromInput = prayers?.find((entry) => entry.name === 'Asr');
-  const shouldForceThursdayPreview = now.getDay() === 4 && !!asrFromInput?.timeDate && now >= asrFromInput.timeDate;
+  const shouldForceThursdayPreview = getLondonWeekday(now) === 4 && !!asrFromInput?.timeDate && now >= asrFromInput.timeDate;
+  const nextPrayerIsTomorrow = !!nextPrayer && getLondonDateKey(nextPrayer.timeDate) !== getLondonDateKey(now);
 
   const prayerOrder = (hasJumuahRow || shouldForceThursdayPreview)
     ? ['Fajr', 'Jumuah', 'Asr', 'Maghrib', 'Isha']
     : DEFAULT_PRAYER_ORDER;
 
-  const normalizedCurrent = normalizePrayerNameForJumuah(currentPrayerName);
-  const normalizedNext = normalizePrayerNameForJumuah(nextPrayerName);
+  const normalizedCurrent = hasJumuahRow
+    ? normalizePrayerNameForJumuah(currentPrayerName)
+    : currentPrayerName;
+  const normalizedNext = hasJumuahRow
+    ? normalizePrayerNameForJumuah(nextPrayerName)
+    : nextPrayerName;
 
   return prayerOrder.map((prayerName) => {
     const prayer = sourceRows.find((entry) => entry.name === prayerName);
@@ -83,7 +92,7 @@ export function buildPrayerDrawerRows({
     if (prayerName === 'Jumuah') {
       const jumuahReferenceDate = new Date(now);
       if (shouldForceThursdayPreview && !hasJumuahRow) {
-        jumuahReferenceDate.setDate(jumuahReferenceDate.getDate() + 1);
+        jumuahReferenceDate.setTime(addLondonCalendarDays(jumuahReferenceDate, 1).getTime());
       }
 
       const bst = isBST(jumuahReferenceDate);
@@ -107,11 +116,16 @@ export function buildPrayerDrawerRows({
 
     return {
       name: prayerName,
-      begins: normalizeClock(prayer?.time),
-      jamaat: normalizeClock(prayer?.iqamah),
+      begins: normalizeClock(state === 'next' && nextPrayerIsTomorrow && nextPrayer?.name === prayerName
+        ? nextPrayer.time
+        : prayer?.time),
+      jamaat: normalizeClock(state === 'next' && nextPrayerIsTomorrow && nextPrayer?.name === prayerName
+        ? nextPrayer.iqamah
+        : prayer?.iqamah),
       tomorrowBegins: normalizeOptionalClock(prayer?.tomorrowTime),
       tomorrowJamaat: normalizeOptionalClock(prayer?.tomorrowIqamah),
       jamaat2,
+      isTomorrow: state === 'next' && nextPrayerIsTomorrow && nextPrayer?.name === prayerName,
       state,
     };
   });

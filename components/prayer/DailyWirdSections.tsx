@@ -2889,7 +2889,7 @@ const MemoDuroodCounterCard = memo(DuroodCounterCard, areCounterCardPropsEqual);
 const MemoIstighfarCounterCard = memo(IstighfarCounterCard, areCounterCardPropsEqual);
 const MemoTawhidCounterCard = memo(TawhidCounterCard, areCounterCardPropsEqual);
 
-export function HomeForYouTodaySection({
+export function DailyWirdSections({
   prayers, nightMode, currentTime, hijriDay, hijriMonthName,
 }: {
   prayers: { name: string; timeDate: Date }[];
@@ -3253,4 +3253,3 @@ export function HomeForYouTodaySection({
     </View>
   );
 }
-

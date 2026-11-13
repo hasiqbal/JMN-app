@@ -2701,24 +2701,27 @@ async function invokeAnnouncementsFeed(typeFilter?: string | null): Promise<Anno
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), ANNOUNCEMENTS_FETCH_TIMEOUT_MS);
 
-      const response = await fetch(`${url}/functions/v1/announcements-feed-format`, {
-        method: 'POST',
-        headers: {
-          apikey: anonKey,
-          Authorization: `Bearer ${anonKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          limit: ANNOUNCEMENTS_EDGE_PAGE_SIZE,
-          offset: pageIndex * ANNOUNCEMENTS_EDGE_PAGE_SIZE,
-          type: normalizedType,
-          includeUrdu: true,
-          formatRichText: true,
-        }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
+      let response: Response;
+      try {
+        response = await fetch(`${url}/functions/v1/announcements-feed-format`, {
+          method: 'POST',
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${anonKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            limit: ANNOUNCEMENTS_EDGE_PAGE_SIZE,
+            offset: pageIndex * ANNOUNCEMENTS_EDGE_PAGE_SIZE,
+            type: normalizedType,
+            includeUrdu: true,
+            formatRichText: true,
+          }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       if (!response.ok) {
         return null;
@@ -2747,17 +2750,22 @@ async function invokeAnnouncementsFeed(typeFilter?: string | null): Promise<Anno
 }
 
 async function fetchAnnouncementsDirect(): Promise<AnnouncementRow[] | null> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), ANNOUNCEMENTS_FETCH_TIMEOUT_MS);
+
   try {
     const supabase = getSupabaseClient();
     let queryResult = await supabase
       .from('announcements')
       .select('*')
-      .eq('is_active', true);
+      .eq('is_active', true)
+      .abortSignal(controller.signal);
 
     if (queryResult.error && isMissingColumnErrorMessage(queryResult.error.message)) {
       queryResult = await supabase
         .from('announcements')
-        .select('*');
+        .select('*')
+        .abortSignal(controller.signal);
     }
 
     const { data, error } = queryResult;
@@ -2770,6 +2778,8 @@ async function fetchAnnouncementsDirect(): Promise<AnnouncementRow[] | null> {
     return sortAnnouncements(rows);
   } catch {
     return null;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

@@ -1,4 +1,5 @@
 import { isBST, type PrayerTime } from '@/services/prayerService';
+import { addLondonCalendarDays, createLondonDateTime, getLondonWeekday } from '@/services/londonTime';
 
 const SPECIAL_PRAYERS = new Set(['Sunrise', 'Ishraq', 'Zawaal']);
 
@@ -23,9 +24,10 @@ export interface TodayTableRow {
 export function buildTodayRowsWithJumuah(prayers: PrayerTime[], now: Date): PrayerTime[] {
     const rows = [...prayers];
     const baseRows = rows.filter((p) => p.name !== 'Jumuah');
-    const isFriday = now.getDay() === 5;
+    const weekday = getLondonWeekday(now);
+    const isFriday = weekday === 5;
     const asrRow = baseRows.find((p) => p.name === 'Asr');
-    const isThursdayAfterAsr = now.getDay() === 4 && !!asrRow?.timeDate && now >= asrRow.timeDate;
+    const isThursdayAfterAsr = weekday === 4 && !!asrRow?.timeDate && now >= asrRow.timeDate;
     const shouldInjectJumuah = isFriday || isThursdayAfterAsr;
 
     if (!shouldInjectJumuah) {
@@ -49,13 +51,8 @@ export function buildTodayRowsWithJumuah(prayers: PrayerTime[], now: Date): Pray
       return dhuhrRow.timeDate;
     }
 
-    const [jh, jm] = beginsTime.split(':').map(Number);
-    const d = new Date(now);
-    if (!isFriday) {
-      d.setDate(d.getDate() + 1);
-    }
-    d.setHours(jh, jm, 0, 0);
-    return d;
+    const targetDate = isFriday ? now : addLondonCalendarDays(now, 1);
+    return createLondonDateTime(targetDate, beginsTime);
   })();
 
   // 3) Keep jamaat times separate (j1 and j2)

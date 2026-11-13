@@ -967,7 +967,7 @@ export default function TabLayout() {
     </View>
   );
 
-  const hiddenRoutes = ['howto', 'events', 'youtube-live', 'qaseedah-naat', 'qaseedah-viewer', 'qaseedah-group', 'settings', 'push-notification', 'donation-confirmation'] as const;
+  const hiddenRoutes = ['howto', 'events', 'youtube-live', 'qaseedah-naat', 'qaseedah-viewer', 'qaseedah-group', 'settings', 'push-notification', 'donation-confirmation', 'my-daily-wird'] as const;
 
   return (
     <Tabs

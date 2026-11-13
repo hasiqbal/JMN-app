@@ -24,7 +24,8 @@ import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { WidgetInfo } from 'react-native-android-widget';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
-import { formatCountdownSeconds, getNextPrayer, getPrayerTimesFromTimetable, type PrayerTime } from '@/services/prayerService';
+import { formatCountdownSeconds, getPrayerTimesFromTimetable, type PrayerTime } from '@/services/prayerService';
+import { getLondonWeekday } from '@/services/londonTime';
 import { getCurrentPrayerPeriod } from '@/services/currentPrayerPeriod';
 import { usePrayerTimes } from '@/hooks/usePrayerTimes';
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -41,7 +42,8 @@ import PrayerDrawerSheet from '@/components/prayer/PrayerDrawerSheet';
 import { buildPrayerDrawerRows, type DrawerPrayerRow } from '@/components/prayer/prayerDrawerState';
 import { HomeInlinePrayerTimesSection } from '@/components/prayer/HomeInlinePrayerTimesSection';
 import { HomeQuickAccessSection } from '@/components/prayer/HomeQuickAccessSection';
-import { HomeForYouTodaySection } from '@/components/prayer/HomeForYouTodaySection';
+import { MyDailyWirdShortcutCard } from '@/components/prayer/MyDailyWirdShortcutCard';
+import { getHijriDayNumber, getHijriMonthFromAnyFormat } from '@/services/hijriDateUtils';
 import {
   CommunityUpdatesSection,
   type CommunityUpdateItem,
@@ -359,34 +361,6 @@ const HERO_DESIGN_TOKENS = {
 // ── Daily rotation helpers ─────────────────────────────────────────────────
 const DAY_OF_YEAR = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
 
-const ARABIC_MONTHS_MAP: Record<string, string> = {
-  'ذو القعدة': "Dhul Qa'dah",
-  'ذو الحجّة': 'Dhul Hijjah',
-  'ربيع الأوّل': "Rabi' al-Awwal",
-  'ربيع الآخر': "Rabi' al-Akhir",
-  'جمادى الأولى': 'Jumada al-Ula',
-  'جمادى الآخرة': 'Jumada al-Akhirah',
-  'محرّم': 'Muharram',
-  'رجب': 'Rajab',
-  'شعبان': "Sha'ban",
-  'رمضان': 'Ramadan',
-  'شوّال': 'Shawwal',
-  'صفر': 'Safar',
-};
-
-function getHijriMonthEnglish(hijri: string): string {
-  const sorted = Object.entries(ARABIC_MONTHS_MAP).sort((a, b) => b[0].length - a[0].length);
-  for (const [ar, en] of sorted) {
-    if (hijri.includes(ar)) return en;
-  }
-  return '';
-}
-
-function getHijriDayNumber(hijri: string): string {
-  const match = hijri.match(/\b(\d{1,2})\b/);
-  return match ? match[1] : '';
-}
-
 function buildEidJamaatNote(jamaatTimes: string[]): string {
   return jamaatTimes.map((time, index) => `${toOrdinal(index + 1)}: ${time}`).join(' · ');
 }
@@ -402,14 +376,6 @@ function toOrdinal(value: number): string {
 
 function normalizeMonthKey(value: string): string {
   return value.toLowerCase().replace(/[^a-z]/g, '');
-}
-
-function getHijriMonthFromAnyFormat(hijri: string): string {
-  const arabicMonth = getHijriMonthEnglish(hijri);
-  if (arabicMonth) return arabicMonth;
-
-  const match = hijri.replace(/\bAH\b/gi, '').trim().match(/^\d{1,2}\s+(.+?)\s+\d{4}$/);
-  return match?.[1]?.trim() ?? '';
 }
 
 function isDhulHijjahMonth(hijriMonth: string): boolean {
@@ -2452,7 +2418,7 @@ export default function HomeScreen() {
   const nightMode = darkMode;
   const isExpoGo = Constants.appOwnership === 'expo';
   const {
-    data, countdown, nextPrayerName,
+    data, countdown, nextPrayerName, nextInfo,
     forbiddenInfo,
     refresh: refreshPrayerTimes,
   } = usePrayerTimes();
@@ -2460,10 +2426,6 @@ export default function HomeScreen() {
   const flashLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
   const currentTime = useCurrentTime();
-  const nextInfo = React.useMemo(
-    () => (data ? getNextPrayer(data.prayers, currentTime) : null),
-    [data, currentTime]
-  );
 
   useEffect(() => {
     let cancelled = false;
@@ -2542,10 +2504,6 @@ export default function HomeScreen() {
   const rawHijriMonthName = data ? getHijriMonthFromAnyFormat(data.hijriDate) : '';
   const isShawwalNow = isShawwalMonth(rawHijriMonthName);
   const isDhulHijjahNow = isDhulHijjahMonth(rawHijriMonthName);
-  // Hijri day as integer (1-30) — drives Full Juz for monthly Quran completion
-  // Falls back to Gregorian day-of-year mod 30 until Hijri data loads
-  const hijriDayInt  = parseInt(hijriDayNum || '0', 10) || (((DAY_OF_YEAR - 1) % 30) + 1);
-
   const fajrPrayer = data?.prayers.find(p => p.name === 'Fajr');
   const dhuhrPrayer = data?.prayers.find(p => p.name === 'Dhuhr');
   const asrPrayer = data?.prayers.find(p => p.name === 'Asr');
@@ -3153,13 +3111,14 @@ export default function HomeScreen() {
     now: currentTime,
     currentPrayerName: activePrayer?.name,
     nextPrayerName: effectiveNextPrayerName,
-  }), [data?.prayers, currentTime, activePrayer?.name, effectiveNextPrayerName]);
+    nextPrayer: nextInfo?.prayer ?? null,
+  }), [data?.prayers, currentTime, activePrayer?.name, effectiveNextPrayerName, nextInfo?.prayer]);
 
   const homeInlinePrayerRows = React.useMemo<DrawerPrayerRow[]>(() => {
     const prayerMap = new Map((data?.prayers ?? []).map((prayer) => [prayer.name, prayer] as const));
     const drawerStateMap = new Map(drawerPrayerRows.map((row) => [row.name, row.state] as const));
     const jumuahRow = drawerPrayerRows.find((row) => row.name === 'Jumuah');
-    const isFriday = currentTime.getDay() === 5;
+    const isFriday = getLondonWeekday(currentTime) === 5;
 
     const resolveState = (name: string, timeDate?: Date): DrawerPrayerRow['state'] => {
       const mapped = drawerStateMap.get(name);
@@ -3172,13 +3131,17 @@ export default function HomeScreen() {
 
     const fromPrayer = (name: string): DrawerPrayerRow => {
       const prayer = prayerMap.get(name);
+      const drawerRow = drawerPrayerRows.find((row) => row.name === name);
+      const state = resolveState(name, prayer?.timeDate);
+      const isTomorrow = state === 'next' && drawerRow?.isTomorrow === true;
       return {
         name,
-        begins: prayer?.time || '--:--',
-        jamaat: prayer?.iqamah || '--:--',
+        begins: isTomorrow ? drawerRow.begins : prayer?.time || '--:--',
+        jamaat: isTomorrow ? drawerRow.jamaat : prayer?.iqamah || '--:--',
         tomorrowBegins: prayer?.tomorrowTime,
         tomorrowJamaat: prayer?.tomorrowIqamah,
-        state: resolveState(name, prayer?.timeDate),
+        isTomorrow,
+        state,
       };
     };
 
@@ -3661,13 +3624,7 @@ export default function HomeScreen() {
             </View>
 
             <View style={styles.forYouFadeZone}>
-              <HomeForYouTodaySection
-                prayers={data?.prayers ?? []}
-                nightMode={nightMode}
-                currentTime={currentTime}
-                hijriDay={hijriDayInt}
-                hijriMonthName={rawHijriMonthName}
-              />
+              <MyDailyWirdShortcutCard />
             </View>
 
             <View style={{ height: Spacing.xl }} />

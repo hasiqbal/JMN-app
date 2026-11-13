@@ -24,6 +24,7 @@ type DisplayRow = {
   jamaat2?: string;
   tomorrowBegins?: string;
   tomorrowJamaat?: string;
+  isTomorrow?: boolean;
   state: DrawerPrayerRow['state'];
 };
 
@@ -56,6 +57,7 @@ export function HomeInlinePrayerTimesSection({
     jamaat2: row.jamaat2 && row.jamaat2 !== '-' ? row.jamaat2 : undefined,
     tomorrowBegins: row.tomorrowBegins,
     tomorrowJamaat: row.tomorrowJamaat,
+    isTomorrow: row.isTomorrow,
     state: row.state ?? 'future',
   })), [rows]);
 
@@ -94,7 +96,7 @@ export function HomeInlinePrayerTimesSection({
           {prayerRows.map((row, index) => {
             const isCurrent = row.state === 'current';
             const isNext = row.state === 'next';
-            const stateLabel = isCurrent ? 'CURRENT PRAYER' : isNext ? 'NEXT' : null;
+            const stateLabel = isCurrent ? 'CURRENT PRAYER' : isNext ? (row.isTomorrow ? 'NEXT · TOMORROW' : 'NEXT') : null;
             const showTomorrow = row.state === 'past' && !!row.tomorrowBegins;
 
             return (

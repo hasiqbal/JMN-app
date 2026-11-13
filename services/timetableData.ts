@@ -1,6 +1,7 @@
 // Full 2026 prayer timetable for Jami' Masjid Noorani, Halifax, UK
 // Source: masjidbox.com/prayer-times/jmn
 // Format: { athan: [fajr, dhuhr, asr, maghrib, isha], iqamah: [fajr, dhuhr, asr, maghrib, isha], jumuah, hijri }
+import { getLondonDateKey, getLondonDateParts } from './londonTime';
 
 export interface DayTimetable {
   fajr: string;
@@ -426,18 +427,11 @@ for (const row of RAW) {
 }
 
 export function getTodayKey(): string {
-  const now = new Date();
-  const dd = String(now.getDate()).padStart(2, '0');
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const yyyy = now.getFullYear();
-  return `${dd}/${mm}/${yyyy}`;
+  return getLondonDateKey(new Date());
 }
 
 export function getDateKey(date: Date): string {
-  const dd = String(date.getDate()).padStart(2, '0');
-  const mm = String(date.getMonth() + 1).padStart(2, '0');
-  const yyyy = date.getFullYear();
-  return `${dd}/${mm}/${yyyy}`;
+  return getLondonDateKey(date);
 }
 
 // Synced values (keyed "M-D") that override the bundled timetable.
@@ -450,7 +444,8 @@ export function setTimetableOverrides(next: Record<string, Partial<DayTimetable>
 export function lookupTimetable(date?: Date): DayTimetable | null {
   const d = date ?? new Date();
   const base = TIMETABLE[getDateKey(d)] ?? null;
-  const o = overrides[`${d.getMonth() + 1}-${d.getDate()}`];
+  const { month, day } = getLondonDateParts(d);
+  const o = overrides[`${month}-${day}`];
   if (!o) return base;
   if (!base) {
     if (!o.fajr || !o.sunrise || !o.dhuhr || !o.asr || !o.maghrib || !o.isha) return null;

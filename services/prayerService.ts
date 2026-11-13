@@ -1,13 +1,9 @@
 import { lookupTimetable, DayTimetable } from './timetableData';
 import { fetchPrayerTimeForDay, fetchHijriDateForGregorian } from './contentService';
+import { addLondonCalendarDays, createLondonDateTime, getLondonDateParts, getLondonWeekday, isLondonBST } from './londonTime';
 
 export function isBST(date: Date): boolean {
-  const year = date.getFullYear();
-  const lastSundayMarch = new Date(year, 2, 31);
-  while (lastSundayMarch.getDay() !== 0) lastSundayMarch.setDate(lastSundayMarch.getDate() - 1);
-  const lastSundayOct = new Date(year, 9, 31);
-  while (lastSundayOct.getDay() !== 0) lastSundayOct.setDate(lastSundayOct.getDate() - 1);
-  return date >= lastSundayMarch && date < lastSundayOct;
+  return isLondonBST(date);
 }
 
 export interface ForbiddenTimeInfo {
@@ -62,7 +58,7 @@ export interface JumuahInfo {
 
 export function getJumuahInfo(date?: Date): JumuahInfo | null {
   const target = date || new Date();
-  if (target.getDay() !== 5) return null;
+  if (getLondonWeekday(target) !== 5) return null;
 
   const bst = isBST(target);
   const khutbahStr = bst ? '13:15' : '12:30';
@@ -70,10 +66,7 @@ export function getJumuahInfo(date?: Date): JumuahInfo | null {
   const jamaat2Str = bst ? '14:30' : '13:30';
 
   const makeTime = (timeStr: string) => {
-    const [h, m] = timeStr.split(':').map(Number);
-    const d = new Date(target);
-    d.setHours(h, m, 0, 0);
-    return d;
+    return createLondonDateTime(target, timeStr);
   };
 
   const now = new Date();
@@ -119,10 +112,7 @@ export interface PrayerTimesData {
 }
 
 function parseTimeStr(timeStr: string, baseDate: Date): Date {
-  const [h, m] = timeStr.split(':').map(Number);
-  const d = new Date(baseDate);
-  d.setHours(h, m, 0, 0);
-  return d;
+  return createLondonDateTime(baseDate, timeStr);
 }
 
 function subtractMinutes(timeStr: string, mins: number): string {
@@ -145,8 +135,7 @@ function addMinutes(timeStr: string, mins: number): string {
 // ── Core builder — shared by both DB-first and local paths ────────────────
 
 function buildPrayerTimesData(raw: DayTimetable, target: Date): PrayerTimesData {
-  const tomorrow = new Date(target);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrow = addLondonCalendarDays(target, 1);
   const tomorrowRaw = lookupTimetable(tomorrow);
 
   const ishraqTime = raw.ishraq;
@@ -218,8 +207,13 @@ function buildPrayerTimesData(raw: DayTimetable, target: Date): PrayerTimesData 
     },
   ];
 
-  const dayName = target.toLocaleDateString('en-GB', { weekday: 'long' });
-  const dateStr = target.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  const dayName = target.toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'Europe/London' });
+  const dateStr = target.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Europe/London',
+  });
 
   return {
     date: `${dayName}, ${dateStr}`,
@@ -238,8 +232,7 @@ function buildPrayerTimesData(raw: DayTimetable, target: Date): PrayerTimesData 
  */
 export async function getPrayerTimesForDate(date?: Date): Promise<PrayerTimesData | null> {
   const target = date || new Date();
-  const month = target.getMonth() + 1;
-  const day = target.getDate();
+  const { month, day } = getLondonDateParts(target);
 
   // Try DB first
   const [dbRow, hijriFromDb] = await Promise.all([
@@ -296,7 +289,11 @@ export function getPrayerTimesFromTimetable(date?: Date): PrayerTimesData | null
 
 // ── Next prayer helper ────────────────────────────────────────────────────
 
-export function getNextPrayer(prayers: PrayerTime[], referenceTime?: Date): { prayer: PrayerTime; secondsLeft: number } | null {
+export function getNextPrayer(
+  prayers: PrayerTime[],
+  referenceTime?: Date,
+  nextDayPrayers?: PrayerTime[],
+): { prayer: PrayerTime; secondsLeft: number } | null {
   const now = referenceTime ? new Date(referenceTime) : new Date();
 
   // Explicit morning boundaries for countdown flow:
@@ -319,14 +316,12 @@ export function getNextPrayer(prayers: PrayerTime[], referenceTime?: Date): { pr
     return { prayer: ishraqBoundary, secondsLeft: Math.floor((ishraqBoundary.timeDate.getTime() - now.getTime()) / 1000) };
   }
 
-  const isFriday = now.getDay() === 5;
+  const isFriday = getLondonWeekday(now) === 5;
 
   if (isFriday) {
     const bst = isBST(now);
     const jamaat1Str = bst ? '13:30' : '12:45';
-    const [jh, jm] = jamaat1Str.split(':').map(Number);
-    const jumuahDate = new Date(now);
-    jumuahDate.setHours(jh, jm, 0, 0);
+    const jumuahDate = createLondonDateTime(now, jamaat1Str);
 
     if (fajr && fajr.timeDate <= now && now < jumuahDate) {
       const jumuahPrayer: PrayerTime = {
@@ -347,14 +342,11 @@ export function getNextPrayer(prayers: PrayerTime[], referenceTime?: Date): { pr
   }
 
   // After Isha — next is tomorrow's Fajr
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowData = getPrayerTimesFromTimetable(tomorrow);
-  if (tomorrowData) {
-    const fajr = tomorrowData.prayers.find(p => p.name === 'Fajr');
-    if (fajr) {
-      return { prayer: fajr, secondsLeft: Math.floor((fajr.timeDate.getTime() - now.getTime()) / 1000) };
-    }
+  const tomorrow = addLondonCalendarDays(now, 1);
+  const tomorrowFajr = nextDayPrayers?.find((prayer) => prayer.name === 'Fajr')
+    ?? getPrayerTimesFromTimetable(tomorrow)?.prayers.find((prayer) => prayer.name === 'Fajr');
+  if (tomorrowFajr) {
+    return { prayer: tomorrowFajr, secondsLeft: Math.floor((tomorrowFajr.timeDate.getTime() - now.getTime()) / 1000) };
   }
   return null;
 }
